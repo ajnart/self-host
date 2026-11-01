@@ -63,6 +63,14 @@ Loading the skill conveys intent, never approval. Every change follows the same 
 
 See [Apps and Links](/docs/apps) for how Links belong to the consuming App and how to retry unfinished Setup.
 
+Before approving App additions, `self-host doctor <app|recipe>... --set app.port=N --json`
+checks proposed ports without installing anything; add `--easy-names` only when
+planning Easy names at home. Existing Projects reserve recorded App ports and
+Easy names, and already installed targets are skipped. Review warnings even when
+Doctor exits zero. For Unraid, read the [installation prerequisites](/docs/getting-started#unraid)
+before selecting the binary and Home folder locations; detection is not verified
+support or proof of reboot persistence.
+
 ## Every conversation
 
 1. Run `self-host status --json` first. It answers "where is X?": each App's `description`, `addresses` and `state`, plus `home`, `dashboard` and `profile`. With no Project yet it exits 1 with "no Project yet"; run `self-host profile --json` instead.
