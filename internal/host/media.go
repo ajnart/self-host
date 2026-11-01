@@ -3,9 +3,7 @@ package host
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os/user"
 	"strconv"
 	"strings"
 	"time"
@@ -43,20 +41,75 @@ func MediaUsersSupported(ctx context.Context, deps *system.Deps) error {
 }
 
 // UnusedMediaUID chooses a numeric file owner without creating a host account.
-// Existing local/directory accounts and already reserved App IDs are skipped.
-func UnusedMediaUID(start int, reserved map[int]bool) (int, error) {
+// getent uses the host's configured identity sources, including directory
+// accounts that static Go binaries cannot see through os/user.
+func UnusedMediaUID(ctx context.Context, deps *system.Deps, start int, reserved map[int]bool) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := mediaUIDLookupReady(ctx, deps); err != nil {
+		return 0, err
+	}
 	for id := start; id < 60000; id++ {
 		if reserved[id] {
 			continue
 		}
-		_, err := user.LookupId(strconv.Itoa(id))
-		var unknown user.UnknownUserIdError
-		if errors.As(err, &unknown) {
-			return id, nil
-		}
+		used, err := mediaUIDExists(ctx, deps, id)
 		if err != nil {
-			return 0, fmt.Errorf("check media file owner %d: %w", id, err)
+			return 0, err
+		}
+		if !used {
+			return id, nil
 		}
 	}
 	return 0, fmt.Errorf("no unused numeric media file owner is available")
+}
+
+// CheckUnusedMediaUID checks an archived identity without reallocating it.
+// Restore must refuse collisions rather than granting an unrelated host user
+// access to another App's private configuration.
+func CheckUnusedMediaUID(ctx context.Context, deps *system.Deps, id int) error {
+	if id <= 0 {
+		return fmt.Errorf("media App file owners must use positive IDs")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := mediaUIDLookupReady(ctx, deps); err != nil {
+		return err
+	}
+	used, err := mediaUIDExists(ctx, deps, id)
+	if err != nil {
+		return err
+	}
+	if used {
+		return fmt.Errorf("media file owner %d is already assigned on this host; an explicit ownership migration is required before Restore", id)
+	}
+	return nil
+}
+
+func mediaUIDLookupReady(ctx context.Context, deps *system.Deps) error {
+	// Confirm that passwd lookup works before treating a missing UID as free.
+	used, err := mediaUIDExists(ctx, deps, 0)
+	if err != nil {
+		return err
+	}
+	if !used {
+		return fmt.Errorf("could not verify host identity sources; separate media App users were not enabled")
+	}
+	return nil
+}
+
+func mediaUIDExists(ctx context.Context, deps *system.Deps, id int) (bool, error) {
+	result, err := deps.Runner.Run(ctx, system.Cmd{Name: "getent", Args: []string{"passwd", strconv.Itoa(id)}})
+	if err != nil {
+		return false, fmt.Errorf("check media file owner %d with getent passwd: %w; a working host identity lookup is required for separate media App users", id, err)
+	}
+	output := strings.TrimSpace(string(result.Stdout))
+	if result.ExitCode == 2 && output == "" && len(result.Stderr) == 0 {
+		return false, nil
+	}
+	fields := strings.Split(output, ":")
+	if result.ExitCode != 0 || len(result.Stderr) != 0 || len(fields) != 7 || fields[0] == "" || fields[2] != strconv.Itoa(id) || strings.ContainsAny(output, "\r\n") {
+		return false, fmt.Errorf("could not verify host identity for media file owner %d with getent passwd; separate media App users were not enabled", id)
+	}
+	return true, nil
 }

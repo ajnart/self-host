@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"syscall"
 )
@@ -63,6 +64,14 @@ func (p *Project) PrepareMediaDirectories(settings map[string]string, identities
 func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMode, checkExisting bool) error {
 	info, err := os.Lstat(dir)
 	if err == nil {
+		if !checkExisting && info.Mode()&os.ModeSymlink != 0 {
+			// Existing media locations may point at mounted storage. The
+			// ordinary ownership mode preserves both the link and its target.
+			info, err = os.Stat(dir)
+			if err != nil {
+				return fmt.Errorf("resolve media directory %s: %w", dir, err)
+			}
+		}
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("media path %s must be an ordinary directory", dir)
 		}
@@ -84,8 +93,14 @@ func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMo
 	if !os.IsNotExist(err) {
 		return err
 	}
-	if os.Geteuid() != 0 && (uid != os.Geteuid() || gid != os.Getegid()) {
-		return fmt.Errorf("creating %s for media file owner %d:%d needs permission to set ownership; rerun the approved install with sudo or provision the directory explicitly", dir, uid, gid)
+	if os.Geteuid() != 0 {
+		groups, err := os.Getgroups()
+		if err != nil {
+			return fmt.Errorf("inspect media directory group permissions: %w", err)
+		}
+		if !mediaOwnershipAllowed(uid, gid, os.Geteuid(), os.Getegid(), groups) {
+			return fmt.Errorf("creating %s for media file owner %d:%d needs permission to set ownership; rerun the approved install with sudo or provision the directory explicitly", dir, uid, gid)
+		}
 	}
 	if err := p.mkdirAll(dir); err != nil {
 		return err
@@ -94,6 +109,15 @@ func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMo
 		if err := os.Chown(dir, uid, gid); err != nil {
 			return err
 		}
+	} else if err := os.Chown(dir, -1, gid); err != nil {
+		return err
 	}
 	return os.Chmod(dir, mode)
+}
+
+func mediaOwnershipAllowed(uid, gid, euid, egid int, groups []int) bool {
+	if euid == 0 {
+		return true
+	}
+	return uid == euid && (gid == egid || slices.Contains(groups, gid))
 }

@@ -18,6 +18,9 @@ tests, not runtime acceptance. Runtime evidence belongs in the existing CI or
 an approved runtime evaluation; this guide does not authorize Docker runs for a
 focused change.
 
+The current Linux rootless acceptance run and its platform limits are recorded
+in [the Compose and media verification](../compose-hardlinks-proof.md).
+
 ## Media storage and ownership
 
 These are independent choices:

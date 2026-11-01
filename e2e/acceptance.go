@@ -104,7 +104,7 @@ func installArgumentsWithCatalog(c *catalog.Catalog, t targetSpec, root string, 
 			args = append(args, id)
 		}
 	}
-	args = append(args, "--yes", "--json", "--exposure", "local", "--media-root", filepath.Join(root, "media"), "--downloads-root", filepath.Join(root, "downloads"))
+	args = append(args, "--yes", "--json", "--exposure", "local", "--data-root", filepath.Join(root, "data"))
 	for _, id := range t.Apps {
 		if port := ports[id]; port > 0 {
 			args = append(args, "--set", fmt.Sprintf("%s.port=%d", id, port))
@@ -365,7 +365,7 @@ func safeCommand(args []string) []string {
 				out[i] = key + "=<owned-credential>"
 			}
 		}
-		if i > 0 && (out[i-1] == "--media-root" || out[i-1] == "--downloads-root" || out[i-1] == "-o") {
+		if i > 0 && (out[i-1] == "--media-root" || out[i-1] == "--downloads-root" || out[i-1] == "--data-root" || out[i-1] == "-o") {
 			out[i] = "<owned-path>"
 		}
 		if strings.HasSuffix(out[i], ".tar.zst") {

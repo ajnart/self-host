@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/ajnart/self-host/internal/compose"
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/host"
 	"github.com/ajnart/self-host/internal/project"
 	ts "github.com/ajnart/self-host/internal/tailscale"
 )
@@ -354,6 +356,33 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 	if err != nil {
 		return err
 	}
+	if settings["MEDIA_SEPARATE_USERS"] == "on" {
+		checkedPlatform := false
+		reserved := map[int]bool{p.Owner.UID: true}
+		for _, id := range rs.targets {
+			if rs.r.Manifest.Folder(id) == project.ExtraDirName || !slices.Contains(mediaIdentityApps, id) {
+				continue
+			}
+			if !checkedPlatform {
+				if err := host.MediaUsersSupported(ctx, rs.s.Deps); err != nil {
+					return fmt.Errorf("restore separate media App users: %w", err)
+				}
+				checkedPlatform = true
+			}
+			if p.Exists() {
+				continue // Existing Projects validate their persisted ownership below.
+			}
+			key := mediaUIDKey(id)
+			uid, err := strconv.Atoi(settings[key])
+			if err != nil || uid <= 0 || reserved[uid] {
+				return fmt.Errorf("%s must be a positive file owner distinct from the Project owner and other restored media Apps; an explicit ownership migration is required before Restore", key)
+			}
+			reserved[uid] = true
+			if err := host.CheckUnusedMediaUID(ctx, rs.s.Deps, uid); err != nil {
+				return fmt.Errorf("restore %s: %w", key, err)
+			}
+		}
+	}
 	state, err := archived.LoadState()
 	if err != nil {
 		return err
@@ -443,10 +472,6 @@ func (rs *restoration) planEnvironment(p *project.Project, replacements map[stri
 	if err != nil {
 		return err
 	}
-	currentSecrets, err := p.LoadSecrets()
-	if err != nil {
-		return err
-	}
 	shared := map[string]bool{}
 	ids, err := p.AppIDs()
 	if err != nil {
@@ -492,8 +517,15 @@ func (rs *restoration) planEnvironment(p *project.Project, replacements map[stri
 				}
 				continue
 			}
-			if shared[key] && value != currentSecrets[key] {
-				return fmt.Errorf("restoring %s would change Project environment assignment %s used by another App; restore the dependent Apps together or migrate the shared assignment explicitly", id, key)
+			if shared[key] {
+				matches, err := p.EnvironmentAssignmentMatches(archived, key)
+				if err != nil {
+					return err
+				}
+				if !matches {
+					return fmt.Errorf("restoring %s would change Project environment assignment %s used by another App; restore the dependent Apps together or migrate the shared assignment explicitly", id, key)
+				}
+				continue // Keep the current shared assignment byte for byte.
 			}
 			rs.restoreEnv[key] = value
 		}

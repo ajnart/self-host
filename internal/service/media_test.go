@@ -35,7 +35,10 @@ func TestMediaSettingsDefaultSharedWithOptionalUsersOff(t *testing.T) {
 }
 
 func TestSeparateMediaUsersHaveStableDistinctIDsWithoutChangingOtherApps(t *testing.T) {
-	svc := New(systemtest.NewDeps(t), events.Discard(), nil)
+	deps := systemtest.NewDeps(t)
+	deps.Runner.(*systemtest.Runner).On("getent passwd", system.Result{ExitCode: 2})
+	deps.Runner.(*systemtest.Runner).On("getent passwd 0", system.Result{Stdout: []byte("root:x:0:0:root:/root:/bin/sh\n")})
+	svc := New(deps, events.Discard(), nil)
 	settings := map[string]string{"MEDIA_LAYOUT": "shared", "DATA_ROOT": t.TempDir(), "PUID": "1000", "PGID": "1000", "UMASK": "022", "MEDIA_SEPARATE_USERS": "on"}
 	if err := svc.initializeMediaSettings(context.Background(), settings); err != nil {
 		t.Fatal(err)

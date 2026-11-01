@@ -654,7 +654,39 @@ func resourceExclusivelyOwned(root *yaml.Node, id, kind, name string) bool {
 			}
 		}
 	}
+	services := field(root, "services")
+	if services != nil {
+		for i := 0; i < len(services.Content); i += 2 {
+			if serviceOwner(root, services.Content[i].Value) == id {
+				continue
+			}
+			var service map[string]any
+			if err := services.Content[i+1].Decode(&service); err != nil {
+				return false
+			}
+			for _, reference := range referencedResources(service[kind], kind) {
+				if reference == name {
+					return false
+				}
+			}
+			if kind == "networks" && name == "default" && service["network_mode"] == nil && emptyNetworks(service["networks"]) {
+				return false
+			}
+		}
+	}
 	return owned
+}
+
+func emptyNetworks(value any) bool {
+	switch networks := value.(type) {
+	case nil:
+		return true
+	case []any:
+		return len(networks) == 0
+	case map[string]any:
+		return len(networks) == 0
+	}
+	return false
 }
 
 func mergeApp(root *yaml.Node, id, folder string, fragment *yaml.Node) error {
@@ -788,21 +820,10 @@ func (p *Project) RemoveNames() error {
 	return p.removeLegacyNames()
 }
 
-// WriteRoot upgrades the include layout once. Once services are canonical it
-// only imports genuinely new extra/ folders and never re-reads App snapshots.
-func (p *Project) WriteRoot() error {
-	root, err := p.readRoot()
-	if err != nil {
-		return err
-	}
+// consolidateRoot validates and merges supported legacy definitions in memory.
+// Restore uses the same model before changing containers or replacing data.
+func (p *Project) consolidateRoot(root *yaml.Node) error {
 	canonical := canonicalRoot(root)
-	var before []byte
-	if canonical {
-		before, err = encodeCompose(root)
-		if err != nil {
-			return err
-		}
-	}
 	if !canonical {
 		includes := field(root, "include")
 		var paths []string
@@ -839,6 +860,9 @@ func (p *Project) WriteRoot() error {
 			} else {
 				return errors.New("unrecognized Compose include requires explicit migration; Project left unchanged")
 			}
+			if err := p.validateFragmentEnvironment(filepath.Dir(path)); err != nil {
+				return err
+			}
 			content, err := os.ReadFile(p.Path(path))
 			if err != nil {
 				return err
@@ -874,6 +898,9 @@ func (p *Project) WriteRoot() error {
 		if !p.legacyIsExtra(id) || ownerRecord(root, id) != nil || field(field(root, "services"), id) != nil {
 			continue
 		}
+		if err := p.validateFragmentEnvironment(filepath.Join(ExtraDirName, id)); err != nil {
+			return err
+		}
 		data, err := os.ReadFile(p.Path(ExtraDirName, id, "compose.yml"))
 		if err != nil {
 			return err
@@ -888,6 +915,38 @@ func (p *Project) WriteRoot() error {
 		if err := mergeApp(root, id, ExtraDirName, fragment); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (p *Project) validateFragmentEnvironment(base string) error {
+	_, err := os.Lstat(p.Path(base, ".env"))
+	if err == nil {
+		return fmt.Errorf("Compose fragment %s has a local .env; explicitly consolidate its interpolation values before migration; Project left unchanged", filepath.ToSlash(base))
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+// WriteRoot upgrades the include layout once. Once services are canonical it
+// only imports genuinely new extra/ folders and never re-reads App snapshots.
+func (p *Project) WriteRoot() error {
+	root, err := p.readRoot()
+	if err != nil {
+		return err
+	}
+	canonical := canonicalRoot(root)
+	var before []byte
+	if canonical {
+		before, err = encodeCompose(root)
+		if err != nil {
+			return err
+		}
+	}
+	if err := p.consolidateRoot(root); err != nil {
+		return err
 	}
 	data, err := encodeCompose(root)
 	if err != nil {

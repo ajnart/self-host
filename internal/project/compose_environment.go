@@ -8,7 +8,8 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// ComposeEnvironmentReferences identifies interpolation inputs in YAML values.
+// ComposeEnvironmentReferences identifies interpolation inputs in YAML values
+// and explicit environment sources for Compose configs and secrets.
 // Its bool reports whether an assignment is required rather than defaulted.
 // Escaped dollars are container literals, not Project environment references.
 func ComposeEnvironmentReferences(data []byte) (map[string]bool, error) {
@@ -35,6 +36,18 @@ func ComposeEnvironmentReferences(data []byte) (map[string]bool, error) {
 		}
 	}
 	walk(root)
+	for _, kind := range []string{"configs", "secrets"} {
+		resources := field(root, kind)
+		if resources == nil {
+			continue
+		}
+		for i := 1; i < len(resources.Content); i += 2 {
+			source := field(resources.Content[i], "environment")
+			if source != nil && source.Kind == yaml.ScalarNode && source.Value != "" {
+				keys[source.Value] = true
+			}
+		}
+	}
 	return keys, nil
 }
 
@@ -128,6 +141,29 @@ func environmentAssignments(data []byte) map[string]string {
 		}
 	}
 	return lines
+}
+
+// EnvironmentAssignmentMatches conservatively compares the saved syntax of
+// one assignment, including quoting and interpolation. Parsed values alone
+// cannot distinguish a literal dollar expression from an interpolated one.
+// Callers must retain the current assignment when it is shared by other Apps.
+func (p *Project) EnvironmentAssignmentMatches(source *Project, key string) (bool, error) {
+	current, err := p.ReadHomeFile(".env")
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	archived, err := source.ReadHomeFile(".env")
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	currentLine, currentFound := environmentAssignments(current)[key]
+	archivedLine, archivedFound := environmentAssignments(archived)[key]
+	if !currentFound || !archivedFound {
+		return currentFound == archivedFound, nil
+	}
+	_, currentValue, _ := strings.Cut(currentLine, "=")
+	_, archivedValue, _ := strings.Cut(archivedLine, "=")
+	return strings.TrimSpace(currentValue) == strings.TrimSpace(archivedValue), nil
 }
 
 // RestoreEnvironmentAssignments preserves quoting and interpolation semantics

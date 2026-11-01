@@ -17,6 +17,66 @@ func TestComposeEnvironmentReferencesRespectDefaultsAndEscapes(t *testing.T) {
 	}
 }
 
+func TestComposeEnvironmentReferencesIncludeResourceEnvironmentSources(t *testing.T) {
+	got, err := ComposeEnvironmentReferences([]byte(`services:
+  app:
+    image: example/app
+    environment:
+      TOKEN: ${RESOURCE_TOKEN:-optional}
+      LITERAL: ordinary-value
+    secrets: [token]
+    configs: [configuration]
+secrets:
+  token:
+    environment: RESOURCE_TOKEN
+  file-secret:
+    file: ./private.txt
+configs:
+  configuration:
+    environment: RESOURCE_CONFIG
+  inline:
+    content: literal-content
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"RESOURCE_TOKEN": true, "RESOURCE_CONFIG": true}
+	if !maps.Equal(got, want) {
+		t.Fatalf("references = %#v, want %#v", got, want)
+	}
+}
+
+func TestEnvironmentAssignmentMatchesPreservesQuotingSemantics(t *testing.T) {
+	for _, tc := range []struct {
+		name, current, archived string
+		match                   bool
+	}{
+		{"same interpolation", "TOKEN=${BASE}\n", "TOKEN=${BASE}\n", true},
+		{"literal versus interpolation", "TOKEN=${BASE}\n", "TOKEN='${BASE}'\n", false},
+		{"double versus single quotes", "TOKEN=\"${BASE}\"\n", "TOKEN='${BASE}'\n", false},
+		{"conservative quote comparison", "TOKEN=fixture-value\n", "TOKEN='fixture-value'\n", false},
+		{"assignment prefix", "export TOKEN = ${BASE}\n", "TOKEN=${BASE}\n", true},
+		{"different value", "TOKEN=fixture-current\n", "TOKEN=fixture-archived\n", false},
+		{"absent versus empty", "UNRELATED=fixture\n", "TOKEN=\n", false},
+		{"both absent", "UNRELATED=fixture\n", "OTHER=fixture\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			current := &Project{Root: t.TempDir()}
+			archived := &Project{Root: t.TempDir()}
+			if err := current.WriteHomeFile(".env", []byte(tc.current), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := archived.WriteHomeFile(".env", []byte(tc.archived), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := current.EnvironmentAssignmentMatches(archived, "TOKEN")
+			if err != nil || got != tc.match {
+				t.Fatalf("assignment match = %t, want %t: %v", got, tc.match, err)
+			}
+		})
+	}
+}
+
 func TestRestoreEnvironmentAssignmentsKeepInterpolationAndDependencies(t *testing.T) {
 	source := &Project{Root: t.TempDir()}
 	current := &Project{Root: t.TempDir()}

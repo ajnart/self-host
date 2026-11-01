@@ -108,6 +108,8 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.x"
+      - name: Project and Host compatibility
+        run: go test ./internal/project ./internal/host ./internal/compose ./internal/helpers ./internal/service
       - name: Build and execute native binary
         shell: bash
         run: |

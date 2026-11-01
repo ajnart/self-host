@@ -110,5 +110,43 @@ func (p *Project) ValidateServiceOwnership(replacements map[string]string) error
 			owners[name] = id
 		}
 	}
-	return nil
+	return p.validateResourceReplacements(replacements)
+}
+
+// Resource conflicts must fail before Restore stops Apps or replaces their
+// files. Simulate the same consolidation and merges used by the live write.
+func (p *Project) validateResourceReplacements(replacements map[string]string) error {
+	if len(replacements) == 0 {
+		return nil
+	}
+	root, err := p.readRoot()
+	if err != nil {
+		return err
+	}
+	if err := p.consolidateRoot(root); err != nil {
+		return err
+	}
+	ids := make([]string, 0, len(replacements))
+	for id := range replacements {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		fragment, err := decodeCompose([]byte(replacements[id]))
+		if err != nil {
+			return err
+		}
+		folder := p.AppFolder(id)
+		if folder == ExtraDirName && ownerRecord(root, id) == nil && field(field(root, "services"), id) != nil && serviceOwner(root, id) == "" {
+			record := mapping()
+			put(record, "folder", scalar(folder))
+			put(record, "services", &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Content: []*yaml.Node{scalar(id)}})
+			put(appOwners(root), id, record)
+		}
+		if err := mergeApp(root, id, folder, fragment); err != nil {
+			return err
+		}
+	}
+	_, err = encodeCompose(root)
+	return err
 }

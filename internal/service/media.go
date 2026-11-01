@@ -91,7 +91,7 @@ func (s *Service) ensureMediaIdentities(ctx context.Context, settings map[string
 		if settings[key] != "" {
 			continue
 		}
-		uid, err := host.UnusedMediaUID(10001, reserved)
+		uid, err := host.UnusedMediaUID(ctx, s.Deps, 10001, reserved)
 		if err != nil {
 			return err
 		}
