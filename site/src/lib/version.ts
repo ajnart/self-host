@@ -79,3 +79,4 @@ export async function latestVersion(): Promise<string> {
 }
 
 export const VERSION = await latestVersion();
+

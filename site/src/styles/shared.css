@@ -1,3 +1,43 @@
+:root {
+  --scrollbar-thumb: var(--control-border, var(--dim, var(--sl-color-gray-4)));
+  --scrollbar-thumb-hover: var(--muted, var(--sl-color-gray-3));
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    min-height: 2rem;
+    border: 3px solid transparent;
+    border-radius: 6px;
+    background-color: var(--scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+}
+
 .codeblock select.variant {
   font: inherit;
   font-size: 0.8rem;
@@ -153,9 +193,32 @@
   color: var(--accent-text);
 }
 
+a.ext-link {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.ext-arrow {
+  display: inline-block;
+  margin-left: 0.2em;
+  font-size: 0.85em;
+  text-decoration: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .ver {
   color: var(--dim);
-  text-decoration: none;
 }
 
 .tag {

@@ -229,15 +229,15 @@ Cloudflare's GitHub app, rebuilds the site when a push to `main` changes one of
 its watch paths, and makes a preview for other branches. GitHub Actions is
 not involved. Its build settings:
 
-| Setting                | Value                                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Production branch      | `main`                                                                                                                                            |
-| Build command          | `bash scripts/build-site-pages.sh`                                                                                                                |
-| Build output directory | `site/dist-pages`                                                                                                                                 |
-| Root directory         | (repository root)                                                                                                                                 |
-| Build watch paths      | include `site/*`, `install.sh`, `scripts/build-installer-site.sh`, `scripts/build-site-pages.sh`                                                  |
-| `BUN_VERSION`          | `1.4.3`                                                                                                                                           |
-| `GITHUB_TOKEN` secret  | optional; without it the build reads the newest `vX.Y.Z` tag of the Go CLI from the checkout, since the releases API is private while the repo is |
+| Setting                | Value                                                                                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production branch      | `main`                                                                                                                                                                     |
+| Build command          | `bash scripts/build-site-pages.sh`                                                                                                                                         |
+| Build output directory | `site/dist-pages`                                                                                                                                                          |
+| Root directory         | (repository root)                                                                                                                                                          |
+| Build watch paths      | include `site/*`, `dcm/*`, `tools/sitegen/*`, `install.sh`, `scripts/build-*`, `docs/telemetry.md`, `video/reel/assets/agents/*`, `package.json`, `bun.lock`, `turbo.json` |
+| `BUN_VERSION`          | `1.4.3`                                                                                                                                                                    |
+| `GITHUB_TOKEN` secret  | optional; without it the build reads the newest `vX.Y.Z` tag of the Go CLI from the checkout, since the releases API is private while the repo is                          |
 
 A release does not push to `main`, so the site would keep showing the old
 version: `scripts/publish-channels.sh` ends with `scripts/publish-site.sh X.Y.Z`,
@@ -250,29 +250,36 @@ same project with Wrangler. The apex is the project's only custom domain;
 ```bash
 stage="$(mktemp -d)"
 bash scripts/build-installer-site.sh "$stage/deploy"
-(cd "$stage/deploy" && wrangler pages deploy --branch main)
+wrangler pages deploy "$stage/deploy/public" --project-name self-host-fyi --branch main
 ```
 
-`site/` is a static Astro project, built with bun (`bun install`, `bun run dev`,
-`bun run check`). Its definitions come from the Go code:
+The repository is a bun workspace (`site`, `dcm`) with turbo at the root:
+`bun install --frozen-lockfile` runs once at the root (`bun.lock` there only),
+and `bunx turbo run build test test:compose lint check` runs the web checks that
+`ci.yml`'s `web` job also runs. The `test` job checks that the generated
+`site/src/data`, `dcm/src/data` and `site/src/styles` are committed.
+`site/` is a static Astro project (`bun run dev`, `bun run check` inside
+it) that also renders Docker Compose Maker at `/compose`. Its definitions come from the Go code:
 `go run ./tools/sitegen` writes `site/src/data/catalog.json` from the
-Catalog and `site/src/styles/theme.css` from the Dashboard's dark palette.
+Catalog, `site/src/styles/theme.css` from the Dashboard's dark palette and
+`dcm/src/data/selfhost.json`, one compose per App for DCM.
 `src/lib/catalog.ts` is the one typed model of the catalog, shared by the
 build and the browser playground; the `apps` content collection validates it
 with a schema, so a generator change that breaks the shape fails the build.
 From it Astro renders the landing page, one page per App under `/apps`,
-`/catalog.json` (read by DCM), `/llms.txt`, the sitemap and `robots.txt`.
+`/catalog.json`, `/llms.txt`, the sitemap and `robots.txt`.
 Starlight serves the docs at `/docs` from `src/content/docs/docs/`, plus one
 page per Recipe under `/docs/recipes`; `src/lib/docs-route.ts` strips `.html`
 from its links and adds share tags. `src/pages/og/` renders every page's
-1200×630 share image with sharp at build time (App icons are fetched from the
-icon CDN, with the App's initial as fallback); the landing keeps
+1200×630 share image with sharp at build time (bundled local App icons,
+with the App's initial as fallback and no icon-network fetch); the landing keeps
 `src/assets/og.png`.
 `go run ./tools/introframes` writes `site/public/intro.json`, the onboarding
 Intro recorded from `internal/intro`. The theme makes the site's
-accent and state colours the CLI's. `GITHUB_TOKEN=$(gh auth token) go run
-./tools/sitegen -stars` also writes `site/src/data/stars.json`, the GitHub stars that
-order Apps by popularity; give a new App its repository in `tools/sitegen/stars.go`, or it
+accent and state colours the CLI's. `GITHUB_TOKEN=$(gh auth token) bun run stars`
+at the root writes `site/src/data/stars.json`, the GitHub stars that
+order Apps by popularity, and `dcm/src/data/stars.json` for DCM's Containers;
+give a new App its repository in `tools/sitegen/stars.go`, or it
 sorts last.
 
 The version the site shows is looked up at build time the way the installer
@@ -282,17 +289,94 @@ or `gh auth token` while the repository is private, and fails rather than show
 a stale version; `SELF_HOST_SITE_VERSION` overrides it. **Redeploy the site
 after every release** so the page and the playground show the new version.
 
-`site/wrangler.toml` names the Pages project. `public/_headers` sets `nosniff`,
+Nothing reads a `wrangler.toml`: the Git integration takes its settings from the table above. `publish-site.sh` defaults to `--project-name self-host-fyi`; `SELF_HOST_PAGES_PROJECT` overrides that existing project for the migration wrapper. `public/_headers` sets `nosniff`,
 `no-referrer`, `frame-ancestors`, plain-text types for the installer and CORS
-for `catalog.json`; Astro adds the rest of the Content Security Policy as a
-`<meta>` tag with hashes (`security.csp` in `astro.config.mjs`). Starlight's
-inline scripts are hashed from its installed components, its inline `style`
-attributes are allowed by hash through `'unsafe-hashes'`, and `img-src` allows
-`data:` for its search icons; `src/lib/csp.mjs` fails the build when any inline
-script, style or style attribute is not covered. Pages move
-with native cross-document view transitions, which need no script and work
-under that policy; Astro's `<ClientRouter />` does not support its CSP.
+for `catalog.json`. `src/lib/seo.mjs` fails the build when a page lacks its
+title, description, canonical or share tags. Pages move with
+native cross-document view transitions, including the docs, and links are preloaded as described in
+`docs/agents/dcm.md` (Preloading).
 `404.astro` makes unknown paths such as `/go.mod` return 404.
+
+### Docker Compose Maker at /compose
+
+Docker Compose Maker (`dcm/`, merged from `ajnart/dcm`) is part of the one
+site build and is served by the same Pages project at
+`https://self-host.fyi/compose`: its pages are `site/src/pages/compose/` and
+`dcm/` holds the components and libraries they use. The build lands as
+`public/compose.html` plus `public/compose/` (`/compose/templates`,
+`/compose/template/<id>`). The site is fully static: there are no Pages
+Functions, so there is no `_routes.json` and no binding to configure. The
+`_astro/*` immutable cache rule in the site's `_headers` covers DCM's assets too.
+
+`scripts/publish-site.sh` refuses to deploy a build that has no `/compose` page.
+
+GitHub star counts are committed, not fetched at build time:
+`.github/workflows/stars.yml` runs `bun run stars` weekly (and on demand) and
+opens a pull request with the refreshed `site/src/data/stars.json` and
+`dcm/src/data/stars.json`. That needs the repository setting
+Settings → Actions → General → "Allow GitHub Actions to create and approve
+pull requests". Pull requests opened with `GITHUB_TOKEN` (the stars refresh and
+`dcm-add-container.yml`) do not trigger `ci.yml`: close and reopen the pull
+request, or push to its branch, to run CI before merging.
+
+The standalone `dcm` Pages project is retired: its `wrangler.toml` and
+`scripts/build-dcm-pages.sh` are gone. After the merge `compose.ajnart.dev`
+(zone `ajnart.dev`) and `compose.homarr.dev` (zone `homarr.dev`) should not
+serve their own copy. On each zone add two Single Redirects, 301, "Preserve
+query string", for that host, in this order:
+
+| Rule | When                           | Redirect to                                                              |
+| ---- | ------------------------------ | ------------------------------------------------------------------------ |
+| 1    | `http.request.uri.path eq "/"` | static `https://self-host.fyi/compose`                                   |
+| 2    | any other path on the host     | dynamic `concat("https://self-host.fyi/compose", http.request.uri.path)` |
+
+The site uses no trailing slash, so the root must not become `/compose/`. DCM's
+own paths (`/template/<id>`) are the same under `/compose`. Check with
+`curl -I "https://compose.ajnart.dev/?x=1"` and
+`curl -I https://compose.homarr.dev/template/recipe-full`.
+
+The image `ghcr.io/ajnart/dcm` is built by `.github/workflows/dcm-image.yml` on
+pushes to `main` that touch `dcm/**`, `site/**`, `tools/sitegen/**`,
+`docs/telemetry.md`, `video/reel/assets/agents/**`, `LICENSE`, `package.json`,
+`turbo.json`, `bun.lock` or the workflow, on manual runs, and on `dcm-v*` tags
+(`dcm-v1.2.3` pushes `1.2.3`, `1.2`, `1` and `latest` comes from `main`; path
+filters do not apply to tag pushes). CLI `vX.Y.Z` tags never trigger it. The
+workflow runs `bunx turbo run test test:compose build` and packs `site/dist`
+(the named build context `site`, with the repository root as the main
+context) into a busybox static server on port 7576. busybox is pinned by
+digest in `dcm/Dockerfile`; `dcm/Dockerfile.dockerignore` limits the root
+context to the licenses and `dcm/httpd.conf`. The three platforms need no
+QEMU: the only stage that runs commands uses the build platform, and the final
+stage has no `RUN`.
+
+The image serves the same site as Pages with these differences:
+
+- `X.html` is moved to `X/index.html`, so `/compose/templates` redirects to
+  `/compose/templates/` (busybox cannot serve extensionless `.html`), and `/`
+  is a small page that forwards to `/compose/` with the query and hash kept.
+- `og/`, `reel.mp4`, `reel.jpg` and `_headers` are dropped. busybox cannot add
+  headers, so the image sends no `nosniff` or other `_headers` rules.
+- `dcm/httpd.conf` maps the extensions busybox does not know (`.js`, `.json`,
+  `.svg`, `.webmanifest`, `.xml`, `.md`, `.txt`, `.pagefind`, `.pf_*`) and
+  serves `404.html` for unknown paths.
+- It runs as `USER 65534:65534` and carries `LICENSE.txt` at `/`. The OCI
+  labels name the license (`Apache-2.0`), the source and the revision.
+
+To try it locally, after `bun run --cwd site build`:
+
+```bash
+docker buildx build --load --build-context site=site/dist \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t dcm-test -f dcm/Dockerfile .
+docker run --rm -p 7576:7576 dcm-test
+```
+
+The `Latest CLI release` step in the workflow sets `SELF_HOST_SITE_VERSION` from
+the newest release, because turbo cannot hash the GitHub lookup the site build
+does and a cache hit would otherwise show a stale version.
+
+Issue-driven container submissions are handled by `dcm-add-container.yml`,
+which validates the form (Container ID, `https://` URLs), adds the container to
+`dcm/src/tools/` and opens a pull request.
 
 The old `selfhost.ajnart.dev` host keeps working for installs already in the
 wild: a Cloudflare redirect rule on the `ajnart.dev` zone sends it, path and
@@ -300,9 +384,10 @@ query preserved, to `concat("https://self-host.fyi", http.request.uri.path)`
 with a 301. A second rule on the `self-host.fyi` zone does the same for `www`.
 Check with `curl -I https://selfhost.ajnart.dev/install.sh`.
 
-The builder needs `bun`. It runs `bun install --frozen-lockfile` and
-`astro build` straight into `public/`, then adds `install`, `install.sh` and
-`install.sh.sha256`, and puts `wrangler.toml` beside it. The showreel reaches
+The builder needs `bun`. It runs `bun install --frozen-lockfile` at the
+repository root and `astro build` straight into `public/` (DCM included, under
+`public/compose/`), adds `install`, `install.sh` and
+`install.sh.sha256`. The showreel reaches
 the build as the committed file `site/public/reel.mp4`, which Astro copies.
 Renders in `video/reel/out/` are git-ignored; after a new render, copy the
 mp4 over `site/public/reel.mp4` and commit that. It refuses a

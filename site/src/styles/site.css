@@ -32,7 +32,6 @@
 html {
   scroll-behavior: smooth;
   overflow-x: clip;
-  scrollbar-color: var(--control-border) var(--bg);
 }
 
 body {
@@ -105,19 +104,6 @@ kbd {
 }
 .bold {
   font-weight: 700;
-}
-
-.bar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  padding: 0.5rem clamp(1rem, 4vw, 3rem);
-  background: color-mix(in oklab, var(--bg) 92%, transparent);
-  border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(6px);
 }
 
 .landing {
@@ -285,16 +271,6 @@ h1 {
 
 .hero-notes a:hover {
   color: var(--ink);
-}
-
-.foot nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-}
-
-.foot a {
-  white-space: nowrap;
 }
 
 .herologo {
@@ -781,57 +757,6 @@ h2 {
   max-width: 65ch;
 }
 
-.card {
-  font: inherit;
-  text-align: left;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  padding: 0.7rem 0.9rem;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  position: relative;
-  transition:
-    transform 0.15s,
-    border-color 0.15s,
-    background 0.15s;
-}
-
-.card::before {
-  content: "";
-  position: absolute;
-  inset: -1px -1px auto;
-  height: 3px;
-  background: transparent;
-  transition: background 0.2s;
-}
-
-.card:hover {
-  border-color: var(--muted);
-}
-
-.card:hover::before {
-  background: color-mix(in oklab, var(--accent) 40%, transparent);
-}
-
-.card[aria-pressed="true"] {
-  background: color-mix(in oklab, var(--accent) 18%, var(--panel));
-  border-color: var(--accent-text);
-}
-
-.card[aria-pressed="true"]::before {
-  background: var(--accent);
-}
-
-.card .who {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  min-width: 0;
-}
-
 .ico {
   flex: none;
   width: 30px;
@@ -851,104 +776,6 @@ h2 {
   margin: auto;
   width: 22px;
   height: 22px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .card:hover,
-  .cardbox:hover .card,
-  .cardbox:hover .stars {
-    transform: translateY(-2px);
-  }
-}
-
-.card .t {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  gap: 1ch;
-}
-
-.card .t > .muted {
-  white-space: nowrap;
-}
-
-.card .t b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card small {
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card .meta {
-  color: var(--dim);
-  font-size: 0.75rem;
-}
-
-.cardbox {
-  position: relative;
-  display: flex;
-}
-
-.cardbox[hidden] {
-  display: none;
-}
-
-.cardbox > .card {
-  flex: 1;
-  min-width: 0;
-}
-
-.stars {
-  position: absolute;
-  right: 0.6rem;
-  bottom: 0.55rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35ch;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.8rem;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  text-decoration: none;
-  opacity: 0;
-  transition:
-    opacity 0.15s,
-    border-color 0.15s,
-    color 0.15s,
-    transform 0.15s;
-}
-
-.stars .star {
-  font-size: 1.25rem;
-  line-height: 1;
-  color: var(--warn);
-}
-
-.cardbox:hover .stars,
-.cardbox:focus-within .stars {
-  opacity: 1;
-}
-
-.stars:hover,
-.stars:focus-visible {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-@media (hover: none) {
-  .stars {
-    opacity: 1;
-  }
 }
 
 .selbar {
@@ -1277,23 +1104,6 @@ h2 {
   margin-bottom: 1rem;
 }
 
-.apps {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.5rem;
-}
-
-.foot {
-  position: static;
-  margin-top: 5rem;
-  border-top: 1px solid var(--line);
-  border-bottom: 0;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  font-size: 0.8rem;
-  padding-block: 1rem;
-}
-
 @media (max-width: 1100px) {
   .landing {
     display: block;
@@ -1370,10 +1180,6 @@ h2 {
   }
   .keys {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .bar:not(.foot) {
-    flex-wrap: wrap;
-    row-gap: 0.35rem;
   }
   .ext {
     gap: 0.6rem;
@@ -1569,11 +1375,6 @@ h2 {
   margin: 0;
 }
 
-.applist .card {
-  height: 100%;
-  text-decoration: none;
-}
-
 .crumbs {
   color: var(--muted);
   font-size: 0.85rem;
@@ -1654,6 +1455,11 @@ h2 {
   border: 1px solid var(--line);
   background: var(--deep);
   padding: 0.9rem 1rem;
+  overflow-x: auto;
+}
+
+.prose table {
+  display: block;
   overflow-x: auto;
 }
 

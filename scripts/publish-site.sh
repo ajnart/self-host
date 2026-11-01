@@ -10,4 +10,5 @@ gh release view "v$version" -R ajnart/self-host --json isDraft --jq '.isDraft' |
   || { echo "release v$version is not published yet" >&2; exit 1; }
 bash scripts/build-site-pages.sh
 grep -q "v$version" site/dist-pages/index.html || { echo "the site build does not show v$version" >&2; exit 1; }
-wrangler pages deploy site/dist-pages --project-name self-host-fyi --branch main --commit-dirty=true
+test -f site/dist-pages/compose.html || { echo "the site build has no Docker Compose Maker at /compose" >&2; exit 1; }
+wrangler pages deploy site/dist-pages --project-name "${SELF_HOST_PAGES_PROJECT:-self-host-fyi}" --branch main --commit-hash "$(git rev-parse HEAD)" --commit-dirty=true

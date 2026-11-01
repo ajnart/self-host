@@ -30,6 +30,11 @@ func (App) Info() app.Info {
 func (App) Inputs() []app.Input { return nil }
 func (App) Links() []app.Link   { return nil }
 
+func (App) StandaloneGuide() string {
+	return "After the first start, complete the setup wizard and create the administrator. " +
+		"Bridge networking publishes only the web UI, so HomeKit pairing and LAN device discovery do not work; upstream runs Homebridge with host networking for that."
+}
+
 // Compose disables Avahi and publishes administration on loopback; HomeKit
 // discovery needs separate LAN networking approval.
 func (App) Compose(rc app.RenderContext) string {

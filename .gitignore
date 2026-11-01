@@ -5,7 +5,8 @@ dist/
 /.sessions/
 
 # Disposable client and installer state
-/.claude/
+/.claude/*
+!/.claude/skills/
 /.codex/
 /.cursor/
 /.gemini/
@@ -26,3 +27,6 @@ dist/
 
 # self-host skill eval runs
 evals/self-host/runs/
+node_modules/
+.turbo/
+.wrangler/

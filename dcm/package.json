@@ -1,0 +1,60 @@
+{
+  "name": "dcm",
+  "version": "1.0.0",
+  "description": "A tool to create docker-compose.yaml files",
+  "author": "ajnart",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome format",
+    "stars": "bun run scripts/stars.ts",
+    "test:compose": "bun test tests/validate-compose.test.ts",
+    "test:containers": "bun test tests/validate-all-containers.test.ts",
+    "test:templates": "bun test tests/templates.test.ts",
+    "test": "bun test --path-ignore-patterns='**/validate-compose.test.ts'"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@radix-ui/react-alert-dialog": "^1.1.24",
+    "@radix-ui/react-collapsible": "^1.1.21",
+    "@radix-ui/react-dialog": "^1.2.0",
+    "@radix-ui/react-hover-card": "^1.1.24",
+    "@radix-ui/react-label": "^2.1.16",
+    "@radix-ui/react-popover": "^1.2.0",
+    "@radix-ui/react-select": "^2.3.8",
+    "@radix-ui/react-separator": "^1.1.16",
+    "@radix-ui/react-slot": "^1.4.0",
+    "@radix-ui/react-switch": "^1.3.8",
+    "@radix-ui/react-tabs": "^1.1.22",
+    "canvas-confetti": "^1.9.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "1.1.1",
+    "lucide-react": "^1.52.0",
+    "monaco-editor": "^0.57.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "simple-icons": "^14.15.0",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/bun": "latest",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^6.0.3",
+    "yaml": "^2.9.1"
+  },
+  "trustedDependencies": ["@biomejs/biome", "@parcel/watcher"],
+  "packageManager": "bun@1.4.3",
+  "engines": {
+    "bun": ">=1.4.3"
+  }
+}

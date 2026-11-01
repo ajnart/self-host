@@ -1,5 +1,7 @@
+import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import starlightPageActions from "starlight-page-actions";
 import starlightLinksValidator from "starlight-links-validator";
@@ -8,14 +10,16 @@ import starlightHeadingBadges from "starlight-heading-badges";
 import starlightChangelogs, { makeChangelogsSidebarLinks } from "starlight-changelogs";
 import { changelog } from "./src/lib/changelog";
 import catalog from "./src/data/catalog.json" with { type: "json" };
-import { cspCheck, starlightInlineScriptHashes, styleAttributeHashes } from "./src/lib/csp.mjs";
+import { SPECULATION_RULES } from "./src/lib/speculation.mjs";
+import { isNoindex } from "./src/lib/indexing.mjs";
+import { seoCheck } from "./src/lib/seo.mjs";
 
 export default defineConfig({
   site: "https://self-host.fyi",
   output: "static",
   trailingSlash: "never",
   build: { format: "file", inlineStylesheets: "never" },
-  prefetch: { prefetchAll: true, defaultStrategy: "hover" },
+  prefetch: { prefetchAll: true, defaultStrategy: "viewport" },
   integrations: [
     starlight({
       title: "self-host docs",
@@ -24,7 +28,7 @@ export default defineConfig({
       favicon: "/logo.svg",
       disable404Route: true,
       expressiveCode: false,
-      customCss: ["./src/styles/theme.css", "./src/styles/shared.css", "./src/styles/transitions.css", "./src/styles/docs.css"],
+      customCss: ["./src/styles/theme.css", "./src/styles/shared.css", "./src/styles/docs.css", "./src/styles/transitions.css"],
       components: {
         Header: "./src/components/docs/Header.astro",
         SiteTitle: "./src/components/docs/SiteTitle.astro",
@@ -39,7 +43,7 @@ export default defineConfig({
         starlightGitHubAlerts(),
         starlightHeadingBadges(),
         starlightChangelogs(),
-        starlightLinksValidator({ exclude: ["/apps", "/apps/**", "/docs/recipes", "/docs/recipes/**", "/telemetry"] }),
+        starlightLinksValidator({ exclude: ["/apps", "/apps/**", "/compose", "/compose/**", "/docs/recipes", "/docs/recipes/**", "/telemetry"] }),
         starlightPageActions({ actions: { markdown: true, chatgpt: true, claude: true, cursor: true } }),
       ],
       head: [
@@ -48,14 +52,7 @@ export default defineConfig({
         { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png" } },
         { tag: "link", attrs: { rel: "manifest", href: "/site.webmanifest" } },
         { tag: "link", attrs: { rel: "alternate", type: "text/plain", href: "/llms.txt", title: "llms.txt" } },
-        {
-          tag: "script",
-          attrs: {
-            defer: true,
-            src: "https://static.cloudflareinsights.com/beacon.min.js",
-            "data-cf-beacon": '{"token": "048a529692b643f79d0b152c27926bdf"}',
-          },
-        },
+        { tag: "script", attrs: { type: "speculationrules" }, content: SPECULATION_RULES },
       ],
       sidebar: [
         {
@@ -80,24 +77,11 @@ export default defineConfig({
         },
       ],
     }),
-    sitemap({ filter: (page) => !page.endsWith("/404") }),
-    cspCheck(),
+    react(),
+    sitemap({ filter: (page) => !isNoindex(new URL(page).pathname) }),
+    seoCheck(),
   ],
   markdown: { syntaxHighlight: false },
   devToolbar: { enabled: false },
-  security: {
-    csp: {
-      directives: [
-        "default-src 'none'",
-        "connect-src 'self' https://cloudflareinsights.com",
-        "media-src 'self'",
-        "manifest-src 'self'",
-        "img-src 'self' data: https://cdn.jsdelivr.net",
-        "base-uri 'none'",
-        "form-action 'none'",
-      ],
-      scriptDirective: { resources: ["'self'", "https://static.cloudflareinsights.com"], hashes: await starlightInlineScriptHashes() },
-      styleDirective: { resources: ["'self'", "'unsafe-hashes'"], hashes: styleAttributeHashes },
-    },
-  },
+  vite: { plugins: [tailwindcss()] },
 });

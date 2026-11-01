@@ -11,6 +11,7 @@
 }
 
 .site-header {
+  view-transition-name: site-header;
   --ink: var(--site-header-ink);
   --muted: var(--site-header-muted);
   --dim: var(--site-header-muted);
@@ -47,12 +48,17 @@
 .site-header .pages {
   gap: 1rem;
   font-size: inherit;
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .site-header .ext {
   gap: 1rem;
+  margin-left: 0;
   font-size: inherit;
+}
+
+.site-header-tools:empty + .ext {
+  margin-left: auto;
 }
 
 .site-header-tools {

@@ -1,0 +1,25 @@
+{
+  "name": "self-host-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["site", "dcm"],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "check": "turbo run check",
+    "test": "turbo run test",
+    "test:compose": "turbo run test:compose",
+    "lint": "turbo run lint",
+    "stars": "go run ./tools/sitegen -stars && bun run --cwd dcm stars"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.10"
+  },
+  "packageManager": "bun@1.4.3",
+  "engines": {
+    "bun": ">=1.4.3"
+  },
+  "patchedDependencies": {
+    "starlight-page-actions@0.7.1": "site/patches/starlight-page-actions@0.7.1.patch"
+  }
+}

@@ -2,11 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/ajnart/self-host/internal/catalog"
+	"github.com/ajnart/self-host/tools/sitegen/standalone"
 )
 
 type appJSON struct {
@@ -19,33 +18,7 @@ type appJSON struct {
 	Links       []string `json:"l"`
 	LinkTitles  []string `json:"lt"`
 	Icon        string   `json:"i,omitempty"`
-}
-
-var icons = map[string]string{
-	"archive-team-warrior": "png/archiveteam-warrior.png",
-	"aria2":                "png/ariang.png",
-	"borgmatic":            "svg/borg.svg",
-	"cleanuparr":           "png/cleanuparr.png",
-	"cloudflare-tunnel":    "svg/cloudflare.svg",
-	"dashdot":              "png/dashdot.png",
-	"pihole":               "svg/pi-hole.svg",
-	"stalwart-mail":        "svg/stalwart.svg",
-	"technitium-dns":       "svg/technitium.svg",
-	"victoria-metrics":     "svg/victoriametrics.svg",
-	"wud":                  "svg/whats-up-docker.svg",
-	"docmost":              "",
-	"linkwarden":           "",
-	"passbolt":             "",
-	"restic":               "",
-	"scrypted":             "",
-	"speedtest-tracker":    "",
-}
-
-func icon(id string) string {
-	if path, ok := icons[id]; ok {
-		return path
-	}
-	return "svg/" + id + ".svg"
+	LightIcon   string   `json:"il,omitempty"`
 }
 
 type recipeJSON struct {
@@ -55,16 +28,31 @@ type recipeJSON struct {
 	Apps        []string `json:"apps"`
 }
 
+// offeredApps lists a Recipe's Apps that are offered for new installs, never nil.
+func offeredApps(r catalog.Recipe) []string {
+	offered := []string{}
+	for _, id := range r.Apps {
+		if catalog.Unavailable(id) == "" {
+			offered = append(offered, id)
+		}
+	}
+	return offered
+}
+
 func writeCatalog() error {
 	cat := catalog.Default()
+	if err := checkIcons(cat); err != nil {
+		return err
+	}
 	apps := []appJSON{}
 	for _, ap := range cat.Apps() {
 		info := ap.Info()
-		out := appJSON{ID: info.ID, Name: info.Name, Description: info.Description, Category: info.Category, Image: info.Image, Port: info.Port, Links: []string{}, LinkTitles: []string{}, Icon: icon(info.ID)}
-		for _, link := range ap.Links() {
-			if catalog.Unavailable(link.Target) != "" {
-				continue
-			}
+		iconPath, err := icon(info.ID)
+		if err != nil {
+			return err
+		}
+		out := appJSON{ID: info.ID, Name: info.Name, Description: info.Description, Category: info.Category, Image: info.Image, Port: info.Port, Links: []string{}, LinkTitles: []string{}, Icon: iconPath, LightIcon: lightIcons[info.ID]}
+		for _, link := range standalone.AvailableLinks(ap) {
 			out.Links = append(out.Links, link.Target)
 			out.LinkTitles = append(out.LinkTitles, link.Title)
 		}
@@ -72,13 +60,7 @@ func writeCatalog() error {
 	}
 	recipes := []recipeJSON{}
 	for _, r := range cat.Recipes() {
-		offered := []string{}
-		for _, id := range r.Apps {
-			if catalog.Unavailable(id) == "" {
-				offered = append(offered, id)
-			}
-		}
-		recipes = append(recipes, recipeJSON{ID: r.ID, Name: r.Name, Description: r.Description, Apps: offered})
+		recipes = append(recipes, recipeJSON{ID: r.ID, Name: r.Name, Description: r.Description, Apps: offeredApps(r)})
 	}
 	doc, err := json.MarshalIndent(struct {
 		Apps    []appJSON    `json:"apps"`
@@ -87,10 +69,5 @@ func writeCatalog() error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join("site", "src", "data", "catalog.json")
-	if err := os.WriteFile(path, append(doc, '\n'), 0o644); err != nil {
-		return err
-	}
-	fmt.Println(path)
-	return nil
+	return writeFile(filepath.Join("site", "src", "data", "catalog.json"), append(doc, '\n'))
 }

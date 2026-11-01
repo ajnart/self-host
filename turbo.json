@@ -1,0 +1,62 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"tasks": {
+		"self-host-site#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"../docs/telemetry.md",
+				"../docs/images/install-search.png",
+				"../video/reel/assets/agents/*.svg",
+				"../video/reel/assets/icons/*",
+				"../video/reel/thumbs/frames/*.png",
+				"../dcm/src/**",
+				"../dcm/package.json",
+				"../dcm/tsconfig.json"
+			],
+			"outputs": ["dist/**"],
+			"env": ["SELF_HOST_SITE_VERSION"],
+			"passThroughEnv": ["GITHUB_TOKEN"]
+		},
+		"self-host-site#check": {
+			"dependsOn": ["self-host-site#build"],
+			"passThroughEnv": ["SELF_HOST_SITE_VERSION"]
+		},
+		"dcm#check": {
+			"inputs": [
+				"src/**",
+				"tests/**",
+				"scripts/**",
+				"tsconfig.json",
+				"package.json",
+				"$TURBO_ROOT$/site/src/data/stars.json"
+			]
+		},
+		"dcm#lint": {
+			"inputs": ["src/**", "tests/**", "scripts/**", "biome.json"]
+		},
+		"dcm#test": {
+			"inputs": [
+				"src/**",
+				"tests/**",
+				"package.json",
+				"$TURBO_ROOT$/site/src/data/stars.json"
+			]
+		},
+		"dcm#test:compose": {
+			"inputs": [
+				"src/**",
+				"tests/**",
+				"package.json",
+				"$TURBO_ROOT$/site/src/data/stars.json"
+			]
+		},
+		"check": {},
+		"lint": {},
+		"test": {},
+		"test:compose": {},
+		"dev": {
+			"cache": false,
+			"persistent": true
+		}
+	}
+}
