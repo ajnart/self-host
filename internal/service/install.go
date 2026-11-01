@@ -274,6 +274,11 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	}
 	var previous map[string]map[string]string
 	existed := p.Exists()
+	if !existed {
+		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
+			return err
+		}
+	}
 	if existed {
 		state, err := p.LoadState()
 		if err != nil {

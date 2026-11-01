@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/cli"
@@ -141,6 +144,73 @@ func TestDoctorHumanOutputShowsHints(t *testing.T) {
 
 	if !strings.Contains(out, "✗") || !strings.Contains(out, "https://docs.docker.com/engine/install/") {
 		t.Fatalf("human output lacks failure mark or docs link:\n%s", out)
+	}
+}
+
+func TestDoctorUnraidFindingsSurviveMissingProjectAndDocker(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		deps := systemtest.NewDeps(t)
+		root := filepath.Join(t.TempDir(), "not-created")
+		systemtest.SetEnv(deps, map[string]string{"SELF_HOST_HOME": root})
+		deps.UnraidRelease = func() ([]byte, error) { return []byte("version=\"7.2.0\"\n"), nil }
+		deps.Storage = func(path string) (system.Storage, error) {
+			if path != root {
+				t.Fatalf("inspected %q, want override %q", path, root)
+			}
+			return system.Storage{Path: path, Existing: filepath.Dir(path), MountPoint: "/", Type: "tmpfs"}, nil
+		}
+		deps.FileSystem = func(string) (system.FileSystem, error) {
+			t.Fatal("Doctor used the mutating filesystem probe")
+			return system.FileSystem{}, nil
+		}
+		deps.LookPath = func(string) (string, error) { return "", system.ErrNotFound }
+		args := []string{"doctor"}
+		if jsonOutput {
+			args = append(args, "--json")
+		}
+		code, out := run(t, deps, args...)
+		if code != 1 || !strings.Contains(out, "7.2.0") || !strings.Contains(out, "memory-backed") || !strings.Contains(out, root) {
+			t.Fatalf("missing findings: %d\n%s", code, out)
+		}
+		if jsonOutput {
+			for _, id := range []string{"unraid", "unraid-home"} {
+				if check := findCheck(decodeEvents(t, out), id); check == nil || check["event"] != "step.warn" {
+					t.Fatalf("missing warning %s:\n%s", id, out)
+				}
+			}
+		}
+		if _, err := os.Stat(root); !os.IsNotExist(err) {
+			t.Fatalf("Doctor created the Home folder: %v", err)
+		}
+		if calls := deps.Runner.(*systemtest.Runner).Calls(); len(calls) != 0 {
+			t.Fatalf("unexpected external commands: %v", calls)
+		}
+	}
+}
+
+func TestDoctorChecksPlannedPortsWithoutCreatingProject(t *testing.T) {
+	deps := systemtest.NewDeps(t)
+	deps.DiskUsage = func(string) (system.DiskUsage, error) {
+		return system.DiskUsage{AvailableBytes: 20 << 30}, nil
+	}
+	deps.BindTCP = func(_ string, address string) error {
+		if strings.HasSuffix(address, ":80") || strings.HasSuffix(address, ":443") {
+			return syscall.EADDRINUSE
+		}
+		return nil
+	}
+	code, out := runWith(t, deps, testCatalog(&echoApp{id: "one"}), "doctor", "one", "--set", "one.port=443", "--easy-names", "--json")
+	if code != 1 || !strings.Contains(out, "selected port 443") || !strings.Contains(out, "port 80") {
+		t.Fatalf("planned conflicts missing: %d\n%s", code, out)
+	}
+	owner, _ := deps.Owner()
+	if _, err := os.Stat(filepath.Join(owner.Home, ".self-host")); !os.IsNotExist(err) {
+		t.Fatalf("planned Doctor created a Project: %v", err)
+	}
+	for _, call := range deps.Runner.(*systemtest.Runner).Calls() {
+		if !strings.HasPrefix(call, "docker version ") && !strings.HasPrefix(call, "docker compose version ") && !strings.HasPrefix(call, "docker info ") {
+			t.Fatalf("unexpected command: %s", call)
+		}
 	}
 }
 

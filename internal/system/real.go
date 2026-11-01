@@ -124,6 +124,8 @@ func Real(version string) *Deps {
 		MachineResources: machineResources,
 		FileLimits:       fileLimits,
 		FileSystem:       fileSystem,
+		UnraidRelease:    func() ([]byte, error) { return os.ReadFile("/etc/unraid-version") },
+		Storage:          inspectStorage,
 		Resolver:         newResolver(),
 		ListFolders:      ListFolders,
 		ProcessAlive:     processAlive,

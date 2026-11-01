@@ -10,12 +10,18 @@ import (
 )
 
 // OnboardingChecks prepares the approved non-secret App inputs for Host-owned
-// disk and port inspection. Doctor is deliberately unchanged.
+// disk and port inspection.
 func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []host.Check {
 	p, err := s.Project()
 	if err != nil {
 		return []host.Check{{ID: "disk", Title: "Disk space", Level: host.Fail,
 			Detail: err.Error(), Hint: "Fix the Home folder, then press r to recheck."}}
+	}
+	var checks []host.Check
+	if !p.Exists() {
+		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
+			checks = append(checks, host.Check{ID: "unraid-install", Title: "Unraid installation locations", Level: host.Fail, Detail: err.Error()})
+		}
 	}
 	apps, err := s.Resolve(opts.Targets)
 	if err != nil {
@@ -26,6 +32,9 @@ func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []hos
 		return []host.Check{{ID: "plan", Title: "Selected ports", Level: host.Fail, Detail: err.Error()}}
 	}
 	var ports []host.PortRequirement
+	if opts.EasyNames {
+		ports = append(ports, host.PortRequirement{Title: "Easy names at home port", Port: 80, Protocols: []string{"tcp"}})
+	}
 	for _, a := range apps {
 		info, values := a.Info(), inputs[a.Info().ID]
 		if info.Port > 0 {
@@ -48,7 +57,7 @@ func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []hos
 				Input: input.Key, Protocols: input.HostPortProtocols, Automatic: !inputWasSet(opts.Sets, info.ID, input.Key)})
 		}
 	}
-	return host.Onboarding(s.Deps, p.Root, len(apps), ports)
+	return append(checks, host.Onboarding(s.Deps, p.Root, len(apps), ports)...)
 }
 
 func plannedPort(value string, fallback int) (int, error) {

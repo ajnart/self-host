@@ -51,10 +51,18 @@ func installDocs(goos string) string {
 // the active context, and that Compose v2 is available. Later checks are
 // skipped when an earlier one fails.
 func Docker(ctx context.Context, deps *system.Deps) []Check {
+	unraid := false
+	if deps.GOOS == "linux" && deps.UnraidRelease != nil {
+		data, err := deps.UnraidRelease()
+		unraid = err == nil && unraidVersion.Match(data)
+	}
 	if _, err := deps.LookPath("docker"); err != nil {
 		hint := "Install Docker Engine, then run self-host again."
 		if deps.GOOS == "darwin" {
 			hint = "Install OrbStack, start it once, then run self-host again."
+		}
+		if unraid {
+			hint = "Check Docker availability in Unraid Settings before installing; self-host does not install Docker or plugins."
 		}
 		return []Check{{ID: "docker", Title: "Docker", Level: Fail, Detail: "docker command not found", Hint: hint, Docs: installDocs(deps.GOOS)}}
 	}
@@ -80,6 +88,12 @@ func Docker(ctx context.Context, deps *system.Deps) []Check {
 
 	compose, err := deps.Runner.Run(ctx, system.Cmd{Name: "docker", Args: []string{"compose", "version", "--short"}})
 	short := strings.TrimPrefix(strings.TrimSpace(string(compose.Stdout)), "v")
+	if unraid && (err != nil || compose.ExitCode != 0 || !composeIncludes(short)) {
+		return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
+			Detail: "docker compose with include support is required; reported version: " + short,
+			Hint:   "Use Docker Compose 2.20.0 or later with include support, available as docker compose on this Unraid version. Check the operator's version-specific installation method; no particular third-party management plugin is required or installed by self-host.",
+			Docs:   unraidDocs})
+	}
 	if err != nil || compose.ExitCode != 0 || majorVersion(short) < 2 {
 		return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
 			Detail: "Docker Compose v2 plugin not available",
@@ -98,6 +112,16 @@ func Docker(ctx context.Context, deps *system.Deps) []Check {
 		detail = "rootless Docker: container 0:0 maps to the daemon's host user; new Projects default to PUID=0 and PGID=0. Images with fixed nonzero users need separate bind-mount ownership; backups may require additional read access"
 	}
 	return append(checks, Check{ID: "docker-userns", Title: "Container IDs", Level: OK, Detail: detail, Docs: rootlessDocs})
+}
+
+func composeIncludes(version string) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) < 3 {
+		return false
+	}
+	major := majorVersion(version)
+	minor, err := strconv.Atoi(parts[1])
+	return err == nil && (major > 2 || major == 2 && minor >= 20)
 }
 
 func majorVersion(v string) int {

@@ -14,6 +14,11 @@ import (
 // reachability checks when a Project exists.
 func (s *Service) Doctor(ctx context.Context) []host.Check {
 	checks := host.Docker(ctx, s.Deps)
+	home := ""
+	if p, err := s.Project(); err == nil {
+		home = p.Root
+	}
+	checks = append(checks, host.Unraid(s.Deps, home)...)
 	if host.Worst(checks) == host.Fail {
 		return checks
 	}
@@ -73,6 +78,14 @@ func (s *Service) Doctor(ctx context.Context) []host.Check {
 	}
 	checks = append(checks, ss.tailscaleChecks(ctx, byService)...)
 	return checks
+}
+
+func (s *Service) DoctorPlan(ctx context.Context, opts InstallOptions) []host.Check {
+	if p, err := s.Project(); err != nil || p.Exists() {
+		return []host.Check{{ID: "plan", Title: "Planned ports", Level: host.Warn,
+			Detail: "planned port checks require a new Project", Hint: "Use Doctor's existing App findings for this Project; do not relocate it."}}
+	}
+	return s.OnboardingChecks(ctx, opts)
 }
 
 func (s *Service) appChecks(ctx context.Context, app AppStatus, byService map[string]compose.Container, lan bool) []host.Check {
