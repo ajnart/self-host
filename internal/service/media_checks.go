@@ -17,7 +17,7 @@ func (s *Service) mediaHardlinkChecks(ctx context.Context, settings map[string]s
 		return []host.Check{{ID: "hardlinks", Title: "Media hardlinks (host)", Level: host.Warn,
 			Detail: "The shared data folder must be an absolute path before hardlinks can be checked."}}
 	}
-	usenet := slices.ContainsFunc(apps, func(a app.App) bool { return a.Info().ID == "sabnzbd" })
+	usenet := slices.ContainsFunc(apps, func(a app.App) bool { return a.Info().ID == "sabnzbd" || a.Info().ID == "nzbget" })
 	var requirements []host.HardlinkRequirement
 	for _, a := range apps {
 		info := a.Info()
