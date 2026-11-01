@@ -32,12 +32,14 @@ func TestUnraidChecksUseReleaseAndResolvedStorageEvidence(t *testing.T) {
 	}
 }
 
-func TestUnraidComposeRequiresIncludeWithoutMandatingManagementPlugin(t *testing.T) {
+func TestUnraidComposeRequiresV2WithoutMandatingManagementPlugin(t *testing.T) {
 	for _, tc := range []struct {
 		version string
 		level   host.Level
 	}{
-		{"2.19.1", host.Fail},
+		{"1.29.2", host.Fail},
+		{"2.0.0", host.OK},
+		{"2.19.1", host.OK},
 		{"2.20.0", host.OK},
 		{"5.5.1", host.OK},
 	} {
@@ -50,7 +52,7 @@ func TestUnraidComposeRequiresIncludeWithoutMandatingManagementPlugin(t *testing
 					if check.Level != tc.level {
 						t.Fatalf("compose check = %+v", check)
 					}
-					if check.Level == host.Fail && (!strings.Contains(check.Hint, "include") || !strings.Contains(check.Hint, "Unraid")) {
+					if check.Level == host.Fail && (!strings.Contains(check.Hint, "v2") || !strings.Contains(check.Hint, "Unraid")) {
 						t.Fatalf("missing capability guidance: %+v", check)
 					}
 					return
@@ -61,14 +63,14 @@ func TestUnraidComposeRequiresIncludeWithoutMandatingManagementPlugin(t *testing
 	}
 }
 
-func TestUncertainUnraidEvidenceStillRequiresComposeInclude(t *testing.T) {
+func TestUncertainUnraidEvidenceStillRequiresComposeV2(t *testing.T) {
 	for _, read := range []func() ([]byte, error){
 		func() ([]byte, error) { return nil, os.ErrPermission },
 		func() ([]byte, error) { return []byte("version=unrecognized\n"), nil },
 	} {
 		deps := systemtest.NewDeps(t)
 		deps.UnraidRelease = read
-		deps.Runner.(*systemtest.Runner).On("docker compose version", system.Result{Stdout: []byte("2.19.1")})
+		deps.Runner.(*systemtest.Runner).On("docker compose version", system.Result{Stdout: []byte("1.29.2")})
 		if checks := host.Docker(context.Background(), deps); host.Worst(checks) != host.Fail {
 			t.Fatalf("uncertain identity bypassed Compose compatibility: %+v", checks)
 		}

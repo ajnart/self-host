@@ -86,13 +86,13 @@ func Docker(ctx context.Context, deps *system.Deps) []Check {
 
 	compose, err := deps.Runner.Run(ctx, system.Cmd{Name: "docker", Args: []string{"compose", "version", "--short"}})
 	short := strings.TrimPrefix(strings.TrimSpace(string(compose.Stdout)), "v")
-	if unraid && (err != nil || compose.ExitCode != 0 || !composeIncludes(short)) {
-		return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
-			Detail: "docker compose with include support is required; reported version: " + short,
-			Hint:   "Use Docker Compose 2.20.0 or later with include support, available as docker compose on this Unraid version. Check the operator's version-specific installation method; no particular third-party management plugin is required or installed by self-host.",
-			Docs:   unraidDocs})
-	}
 	if err != nil || compose.ExitCode != 0 || majorVersion(short) < 2 {
+		if unraid {
+			return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
+				Detail: "Docker Compose v2 plugin not available; reported version: " + short,
+				Hint:   "Use Docker Compose v2 or later, available as docker compose on this Unraid version. Check the operator's version-specific installation method; no particular third-party management plugin is required or installed by self-host.",
+				Docs:   unraidDocs})
+		}
 		return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
 			Detail: "Docker Compose v2 plugin not available",
 			Hint:   "Install the Docker Compose v2 plugin (docker compose, not docker-compose).",
@@ -110,16 +110,6 @@ func Docker(ctx context.Context, deps *system.Deps) []Check {
 		detail = "rootless Docker: container 0:0 maps to the daemon's host user; new Projects default to PUID=0 and PGID=0. Images with fixed nonzero users need separate bind-mount ownership; backups may require additional read access"
 	}
 	return append(checks, Check{ID: "docker-userns", Title: "Container IDs", Level: OK, Detail: detail, Docs: rootlessDocs})
-}
-
-func composeIncludes(version string) bool {
-	parts := strings.Split(version, ".")
-	if len(parts) < 3 {
-		return false
-	}
-	major := majorVersion(version)
-	minor, err := strconv.Atoi(parts[1])
-	return err == nil && (major > 2 || major == 2 && minor >= 20)
 }
 
 func majorVersion(v string) int {
