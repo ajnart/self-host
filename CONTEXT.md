@@ -11,8 +11,9 @@ automatic setup built into the binary.
 _Avoid_: service, recipe (for a single app)
 
 **Unmanaged app**:
-An app an agent or user added to the Project by writing its own Compose file
-under `~/.self-host/extra/<name>/`, usually because it is not in the Catalog.
+An app an agent or user added to the Project's Compose definition, usually
+because it is not in the Catalog. Its configuration can live under
+`~/.self-host/extra/<name>/`.
 The CLI lists it with its Address and starts, stops, updates and backs it up,
 but runs no Setup for it.
 _Avoid_: custom app
@@ -91,7 +92,8 @@ _Avoid_: integration (reserved for Homarr's own feature)
 
 **Project**:
 The single Docker Compose project on a host that holds every App the CLI
-manages. Nothing outside it is touched.
+manages, operated through self-host or directly through Docker Compose.
+Nothing outside it is touched.
 _Avoid_: stack, deployment
 
 **Access**:

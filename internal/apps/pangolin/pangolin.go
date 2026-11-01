@@ -214,9 +214,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}); err != nil {
 		return err
 	}
-	secretPath := "Project secrets.env"
+	secretPath := "Project .env"
 	if h.Dir != "" {
-		secretPath = filepath.Join(h.Dir, "..", "..", "secrets.env")
+		secretPath = filepath.Join(h.Dir, "..", "..", ".env")
 	}
 	if err := h.Step(ctx, "setup-token", "validate the saved Pangolin bootstrap token", helpers.StepSpec{
 		Check: func(context.Context) (bool, error) {

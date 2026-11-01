@@ -102,7 +102,7 @@ func signedListBuckets(ctx context.Context, h *helpers.H) (helpers.Response, err
 	}
 	user, password := h.AdminUser(), h.AdminPassword()
 	if user == "" || password == "" {
-		return helpers.Response{}, errors.New("the Admin login is missing from secrets.env")
+		return helpers.Response{}, errors.New("the Admin login is missing from .env")
 	}
 	timestamp := h.Now().UTC().Format("20060102T150405Z")
 	date := timestamp[:8]
@@ -151,9 +151,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	return h.Step(ctx, "root-s3-auth", "the S3 API accepts the saved root credentials", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return rootWorks(ctx, h) },
 		Do: func(context.Context) error {
-			return errors.New("the root credentials are read from secrets.env when the container starts")
+			return errors.New("the root credentials are read from .env when the container starts")
 		},
-		Hint:       "Recreate the container so it reads " + h.AdminUser() + " and the password from secrets.env: self-host start minio",
+		Hint:       "Recreate the container so it reads " + h.AdminUser() + " and the password from .env: self-host start minio",
 		Credential: "admin",
 	})
 }

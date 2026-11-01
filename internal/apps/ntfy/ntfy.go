@@ -164,7 +164,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return tokenReadsTopic(ctx, h, homarrToken(h), h.Secret(h.Key("topic")))
 		},
 		Do: func(ctx context.Context) error { return createHomarrToken(ctx, h) },
-		Hint: "Create an ntfy access token for " + user + " and save it in secrets.env as " +
+		Hint: "Create an ntfy access token for " + user + " and save it in .env as " +
 			h.Key("homarr_token") + ".",
 		Credential: "admin",
 	})

@@ -38,6 +38,7 @@ type fakeDeluge struct {
 	connectOnHosts string
 	connects       int
 	configWrites   int
+	coreConfig     map[string]any
 	missingRates   bool
 	rotations      int
 	sessions       map[string]bool
@@ -88,6 +89,19 @@ func (f *fakeDeluge) handler() http.Handler {
 				f.password = newPassword
 				f.rotations++
 				result = true
+			}
+		case "core.get_config":
+			if f.coreConfig == nil {
+				f.coreConfig = map[string]any{"download_location": "/downloads", "move_completed_path": "/downloads", "max_upload_speed": float64(100)}
+			}
+			result = f.coreConfig
+		case "core.set_config":
+			var patch map[string]any
+			if len(req.Params) == 1 && json.Unmarshal(req.Params[0], &patch) == nil {
+				for key, value := range patch {
+					f.coreConfig[key] = value
+				}
+				result = nil
 			}
 		case "web.connected":
 			result = f.connected
@@ -147,10 +161,14 @@ func TestSetupRotatesTheInitialPasswordThenCheckAndRerunSkip(t *testing.T) {
 	t.Cleanup(srv.Close)
 	var records []helpers.StepResult
 	h := newH(t, srv, &records)
+	h.Settings["MEDIA_LAYOUT"] = "shared"
 	ctx := context.Background()
 
 	if err := (deluge.App{}).Setup(ctx, h); err != nil {
 		t.Fatalf("Setup: %v", err)
+	}
+	if fake.coreConfig["download_location"] != "/data/torrents" || fake.coreConfig["move_completed_path"] != "/data/torrents" || fake.coreConfig["max_upload_speed"] != float64(100) {
+		t.Fatal("shared storage paths were not configured while retaining unrelated settings")
 	}
 	if fake.password != adminPass {
 		t.Fatalf("Setup did not rotate the Web password, got %q", fake.password)

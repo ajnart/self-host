@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -133,7 +134,16 @@ type Deps struct {
 	FileSystem       func(path string) (FileSystem, error)
 	UnraidRelease    func() ([]byte, error)
 	Storage          func(path string) (Storage, error)
-	Resolver         Resolver
+	// Hardlink creates, verifies and removes a temporary file/link pair in the
+	// exact existing folders, using this process's host identity.
+	Hardlink func(sourceDir, targetDir string) error
+	// InspectDockerNamespace resolves a local Unix socket's daemon identity and
+	// verifies that its user namespace can be entered without elevated access.
+	InspectDockerNamespace func(context.Context, string) (*UserNamespace, error)
+	// SetNamespaceMetadata changes one newly created path in that verified user
+	// namespace. IDs are relative to the namespace; the mount view stays local.
+	SetNamespaceMetadata func(context.Context, *UserNamespace, string, int, int, os.FileMode) error
+	Resolver             Resolver
 	// ListFolders returns the names of the folders inside dir.
 	ListFolders func(dir string) ([]string, error)
 	// ProcessAlive reports whether a PID belongs to a running process.

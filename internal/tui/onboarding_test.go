@@ -828,7 +828,7 @@ func TestWhatAsksOnlyTheChosenAppsInputs(t *testing.T) {
 func flat(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 const (
-	lanExplanation   = "Phones, TVs and laptops on the same Wi-Fi or router as this computer can open your Apps at 192.168.1.20. Nobody on the internet can."
+	lanExplanation   = "Phones, TVs and laptops on the same Wi-Fi or router as this computer can open your Apps at 192.168.1.20. Internet access depends on your firewall."
 	localExplanation = "Your Apps open only in a browser on this computer. Other devices can't reach them."
 )
 
@@ -883,7 +883,7 @@ func TestTheAccessStepExplainsHomeNetworkWithTheDetectedLANAddressAndItsDiagram(
 
 	out := screen(m)
 	if !strings.Contains(flat(out), lanExplanation) || !strings.Contains(out, "phones · TVs · laptops ──── router ──── this computer 192.168.1.20") ||
-		!strings.Contains(out, "internet ✗") {
+		!strings.Contains(out, "firewall") {
 		t.Fatalf("the highlighted option shows its explanation and its diagram\n%s", out)
 	}
 	if strings.Contains(out, "0.0.0.0") || strings.Contains(out, "127.0.0.1") {
@@ -932,7 +932,7 @@ func TestTheAccessStepNamesTheLANAddressChosenAtWhere(t *testing.T) {
 
 	out := screen(m)
 
-	if m.onboarding.step != stepAccess || !strings.Contains(flat(out), "can open your Apps at 10.0.0.7. Nobody") || strings.Contains(out, "192.168.1.20") {
+	if m.onboarding.step != stepAccess || !strings.Contains(flat(out), "can open your Apps at 10.0.0.7. Internet access depends") || strings.Contains(out, "192.168.1.20") {
 		t.Fatalf("the explanation names the address that will be used\n%s", out)
 	}
 }
@@ -1063,8 +1063,8 @@ func TestTheHomeNetworkHelpPageEndsWithTechnicalDetails(t *testing.T) {
 	m = drive(t, m, press("?"))
 
 	page := flat(screen(m))
-	for _, want := range []string{"What is a LAN address?", "Nobody on the internet can open your Apps unless your router forwards ports",
-		"firewall", "Technical details", "Apps are published on 0.0.0.0", "internet ✗"} {
+	for _, want := range []string{"What is a LAN address?", "A public address may expose Apps directly to the internet",
+		"firewall", "Technical details", "Apps are published on 0.0.0.0"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("the help page lacks %q\n%s", want, screen(m))
 		}
@@ -1171,7 +1171,7 @@ func TestTheAccessStepAndItsHelpPageFitEightyByTwentyFourAndNothingIsCut(t *test
 	m, _ := onboardingHost(t, 80, 24, readyChecks...)
 	m = frames(t, m, introFrames)
 	m = atAccess(t, m)
-	if lines := strings.Split(screen(m), "\n"); len(lines) > 24 || !strings.Contains(flat(screen(m)), "internet ✗") || !strings.Contains(flat(lines[23]), "? more") {
+	if lines := strings.Split(screen(m), "\n"); len(lines) > 24 || !strings.Contains(flat(screen(m)), "firewall") || !strings.Contains(flat(lines[23]), "? more") {
 		t.Fatalf("the Access step with its explanation and diagram fits 80x24 with its bar, %d lines\n%s", len(lines), screen(m))
 	}
 

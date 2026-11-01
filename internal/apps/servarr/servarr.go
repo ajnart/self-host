@@ -70,7 +70,7 @@ func (s Servarr) Check(ctx context.Context, h *helpers.H) error {
 func (s Servarr) APIKey(h *helpers.H) helpers.APIKey {
 	return helpers.APIKey{
 		Msg:      "read the " + s.Name + " API key",
-		Hint:     "Copy the API key from " + s.Name + " > Settings > General into secrets.env as " + h.Key("api_key") + ".",
+		Hint:     "Copy the API key from " + s.Name + " > Settings > General into .env as " + h.Key("api_key") + ".",
 		Scheme:   scheme,
 		Probe:    s.API + "/system/status",
 		Discover: helpers.ConfigKey(filepath.Join("config", "config.xml"), helpers.XMLElement("ApiKey"), 2*time.Minute),

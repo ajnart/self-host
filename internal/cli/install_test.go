@@ -126,21 +126,21 @@ func TestInstallCreatesProjectAndStartsApp(t *testing.T) {
 			t.Errorf(".env lacks %q:\n%s", want, env)
 		}
 	}
-	info, err := os.Stat(filepath.Join(root, "secrets.env"))
+	info, err := os.Stat(filepath.Join(root, ".env"))
 	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("secrets.env missing or not 0600: %v %v", err, info)
+		t.Fatalf("private .env missing or not 0600: %v %v", err, info)
 	}
-	if !strings.Contains(readFile(t, filepath.Join(root, "secrets.env")), "ADMIN_PASSWORD=") {
+	if !strings.Contains(readFile(t, filepath.Join(root, ".env")), "ADMIN_PASSWORD=") {
 		t.Fatal("no generated Admin login")
 	}
 	if !strings.Contains(readFile(t, filepath.Join(root, "apps", "one", "compose.yml")), "${BIND_IP}:9000:80") {
 		t.Fatal("fragment not rendered with default port")
 	}
-	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "apps/one/compose.yml") {
-		t.Fatal("root compose does not include the app fragment")
+	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "one:") {
+		t.Fatal("root Compose does not contain the App service")
 	}
 	calls := strings.Join(deps.Runner.(*systemtest.Runner).Calls(), "\n")
-	if !strings.Contains(calls, "docker compose --project-directory "+root+" -p selfhost --env-file "+root+"/.env --env-file "+root+"/secrets.env up -d --remove-orphans one") {
+	if !strings.Contains(calls, "docker compose --project-directory "+root+" -p selfhost up -d --remove-orphans one") {
 		t.Fatalf("compose up not run:\n%s", calls)
 	}
 	if !strings.Contains(out, `"command":"docker compose --project-directory `+root) {

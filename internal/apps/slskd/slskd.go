@@ -126,7 +126,7 @@ func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
 	}
 	key := h.Secret(h.Key("api_key"))
 	if key == "" {
-		return false, fmt.Errorf("%s is missing from secrets.env", h.Key("api_key"))
+		return false, fmt.Errorf("%s is missing from .env", h.Key("api_key"))
 	}
 	keyed, err := h.HTTP(ctx, helpers.Request{Path: "/api/v0/session", Header: map[string]string{"X-API-Key": key}})
 	if err != nil {

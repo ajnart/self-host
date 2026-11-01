@@ -429,14 +429,29 @@ func TestAuthKeyOnlyEverLandsInItsPrivateFiles(t *testing.T) {
 		}
 		data, _ := os.ReadFile(path)
 		rel, _ := filepath.Rel(h.root(), path)
-		allowed := rel == "secrets.env" || rel == filepath.Join("apps", "tailscale", "keys", "auth-key")
-		if strings.Contains(string(data), "secretsecret") && !allowed {
-			t.Errorf("the key leaked into %s", rel)
+		allowed := rel == ".env" || rel == "secrets.env" || rel == filepath.Join("apps", "tailscale", "keys", "auth-key")
+		if strings.Contains(string(data), "secretsecret") {
+			if !allowed {
+				t.Errorf("the key leaked into %s", rel)
+			} else {
+				info, err := os.Stat(path)
+				if err != nil || info.Mode().Perm() != 0o600 {
+					t.Errorf("key-bearing file %s is not private", rel)
+				}
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	status, statusErr := h.svc.Status(context.Background())
+	if statusErr != nil {
+		t.Fatal(statusErr)
+	}
+	public, marshalErr := json.Marshal(status)
+	if marshalErr != nil || strings.Contains(string(public), "secretsecret") {
+		t.Fatal("private Compose environment credential escaped into public Status")
 	}
 	info, err := os.Stat(filepath.Join(h.root(), "apps", "tailscale", "keys", "auth-key"))
 	if err != nil || info.Mode().Perm() != 0o600 {

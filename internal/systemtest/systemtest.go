@@ -194,6 +194,7 @@ func NewDeps(t *testing.T, opts ...Option) *system.Deps {
 	runner := &Runner{}
 	runner.On("docker version", system.Result{Stdout: []byte("27.3.1\n")})
 	runner.On("docker info", system.Result{Stdout: []byte(`["name=seccomp,profile=builtin","name=cgroupns"]`)})
+	runner.On("docker context inspect", system.Result{Stdout: []byte("unix:///var/run/docker.sock\n")})
 	runner.On("docker compose version", system.Result{Stdout: []byte("2.29.7\n")})
 	f := &fakes{}
 	for _, opt := range opts {

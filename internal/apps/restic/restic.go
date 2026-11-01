@@ -84,7 +84,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 		return errors.New("no restic repository is configured; set it with: self-host install restic --set restic.repository=<path>")
 	}
 	if h.Secret(h.Key("repository_password")) == "" {
-		return errors.New("the restic repository password is missing from secrets.env")
+		return errors.New("the restic repository password is missing from .env")
 	}
 	return nil
 }

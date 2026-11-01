@@ -92,7 +92,7 @@ func setup(t *testing.T) (*system.Deps, *fakeVaultwarden, *upRecord, *httptest.S
 		if !strings.Contains(systemtest.Line(cmd), " up -d") {
 			return system.Result{}
 		}
-		record.secretsAtUp = clitest.Read(t, filepath.Join(clitest.Root(t, deps), "secrets.env"))
+		record.secretsAtUp = clitest.Read(t, filepath.Join(clitest.Root(t, deps), ".env"))
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
 		for _, line := range strings.Split(record.secretsAtUp, "\n") {
@@ -129,7 +129,7 @@ func TestInstallGeneratesAdminTokenBeforeTheContainerStarts(t *testing.T) {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
 	}
 	if !strings.Contains(record.secretsAtUp, "VAULTWARDEN_ADMIN_TOKEN=") {
-		t.Fatalf("secrets.env had no admin token when Compose started the container:\n%s", record.secretsAtUp)
+		t.Fatalf(".env had no admin token when Compose started the container:\n%s", record.secretsAtUp)
 	}
 	token := readCredentials(t, deps, cat).Apps["vaultwarden"]["VAULTWARDEN_ADMIN_TOKEN"]
 	if len(token) < 32 || fake.token != token {

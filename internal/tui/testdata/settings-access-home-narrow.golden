@@ -10,11 +10,11 @@
 │   ↑/↓ focus · space selects · enter confirms choice · ctrl+s applies         │
 │                                                                              │
 │   Phones, TVs and laptops on the same Wi-Fi or router as this computer can   │
-│   open your Apps at 192.168.1.20. Nobody on the internet can.                │
+│   open your Apps at 192.168.1.20. Internet access depends on your firewall.  │
 │                                                                              │
 │   phones · TVs · laptops ──── router ──── this computer 192.168.1.20         │
 │                                  │                                           │
-│                             internet ✗                                       │
+│                              firewall                                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 

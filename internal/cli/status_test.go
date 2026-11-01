@@ -138,10 +138,15 @@ func TestStatusJSONGoldenForAnAppInstalledThroughARecipe(t *testing.T) {
   "lan_ip": "192.168.1.20",
   "settings": {
     "BIND_IP": "0.0.0.0",
-    "DOWNLOADS_ROOT": "{HOME}/downloads",
+    "DATA_ROOT": "{HOME}/data",
+    "DOWNLOADS_ROOT": "{HOME}/data/torrents",
     "EXPOSURE": "lan",
     "LAN_IP": "192.168.1.20",
-    "MEDIA_ROOT": "{HOME}/media",
+    "MEDIA_COPY_FALLBACK": "off",
+    "MEDIA_LAYOUT": "shared",
+    "MEDIA_ROOT": "{HOME}/data/media",
+    "MEDIA_SEPARATE_USERS": "off",
+    "MEDIA_UMASK": "022",
     "PGID": "1000",
     "PUID": "1000",
     "TZ": "Europe/Paris",
@@ -165,7 +170,7 @@ func TestStatusJSONGoldenForAnAppInstalledThroughARecipe(t *testing.T) {
         {
           "id": "render",
           "status": "ok",
-          "msg": "wrote apps/one/compose.yml (example/echo:latest on port 9000)"
+          "msg": "wrote one in compose.yml (example/echo:latest on port 9000)"
         },
         {
           "id": "pull",
@@ -210,7 +215,7 @@ func TestStatusJSONGoldenForAnAppInstalledThroughARecipe(t *testing.T) {
         {
           "id": "render",
           "status": "ok",
-          "msg": "wrote apps/two/compose.yml (example/echo:latest on port 9001)"
+          "msg": "wrote two in compose.yml (example/echo:latest on port 9001)"
         },
         {
           "id": "pull",

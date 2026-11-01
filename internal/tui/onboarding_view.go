@@ -192,12 +192,15 @@ func (o *onboarding) renderReview(ctx *viewContext) []string {
 	}
 	if len(o.hostChecks) > 0 {
 		lines = append(lines, "", "  "+t.heading().Render("Machine checks"))
-		for _, level := range []host.Level{host.Fail, host.Warn, host.OK} {
+		for _, level := range []host.Level{host.Fail, host.Warn, host.OK, host.Skipped} {
 			for _, check := range o.hostChecks {
 				if check.Level != level {
 					continue
 				}
-				mark := t.dot(checkLevel(check.Level))
+				mark := t.dim().Render("○")
+				if check.Level != host.Skipped {
+					mark = t.dot(checkLevel(check.Level))
+				}
 				lines = append(lines, indent("  "+mark+" ", t.body().Render(check.Title)+t.dim().Render(" — "+check.Detail), ctx.width))
 				if check.Hint != "" {
 					lines = append(lines, indent("    ", t.dim().Render(check.Hint), ctx.width))
@@ -233,6 +236,8 @@ func (o *onboarding) whereExplanation(ctx *viewContext) []string {
 // folderListing lists the folders inside what the focused folder field holds.
 func (o *onboarding) folderListing(key string, width int) []string {
 	switch key {
+	case whereData:
+		return o.folders.listing(o.answers.dataRoot, width, folderListLines)
 	case whereMedia:
 		return o.folders.listing(o.answers.media, width, folderListLines)
 	case whereDownloads:

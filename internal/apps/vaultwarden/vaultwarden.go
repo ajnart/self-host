@@ -86,7 +86,7 @@ const rateLimitHint = "Vaultwarden limits admin logins to 3 per 5 minutes: wait 
 
 // adminSession returns a session signed in to the admin page. Vaultwarden
 // allows 3 logins per 5 minutes per address, so a session cookie (valid for
-// 20 minutes) is kept in secrets.env and reused by later runs; only an
+// 20 minutes) is kept in .env and reused by later runs; only an
 // expired or missing one costs a login. Only POST /admin is rate-limited.
 func adminSession(ctx context.Context, h *helpers.H) (*helpers.Session, error) {
 	cookie, err := h.Remember("admin-cookie", func() (string, error) {
@@ -96,7 +96,7 @@ func adminSession(ctx context.Context, h *helpers.H) (*helpers.Session, error) {
 		}
 		token := h.Secret(h.Key("admin_token"))
 		if token == "" {
-			return "", fmt.Errorf("%s is missing from secrets.env", h.Key("admin_token"))
+			return "", fmt.Errorf("%s is missing from .env", h.Key("admin_token"))
 		}
 		s := h.Session()
 		resp, err := s.HTTP(ctx, helpers.Request{
@@ -144,7 +144,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	// Sign in once up front so the hint can tell a rate limit from a stale token.
 	_, loginErr := adminSession(ctx, h)
 	hint := "The admin token is read from the container environment when it starts. " +
-		"Recreate the container so it picks up " + h.Key("admin_token") + " from secrets.env: self-host start vaultwarden"
+		"Recreate the container so it picks up " + h.Key("admin_token") + " from .env: self-host start vaultwarden"
 	if errors.Is(loginErr, errRateLimited) {
 		hint = rateLimitHint
 	}

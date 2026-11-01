@@ -126,7 +126,7 @@ type CloudflareResult struct {
 
 // cloudflareRecord is what self-host remembers of what it published. It holds
 // no secret: the API token is never stored and the run token lives in
-// secrets.env.
+// .env.
 type cloudflareRecord struct {
 	Ownership    cloudflare.Ownership `json:"ownership"`
 	Suspended    bool                 `json:"suspended,omitempty"`

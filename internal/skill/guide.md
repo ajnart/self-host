@@ -583,37 +583,60 @@ recreated.
 
 ## Unmanaged apps
 
-For software outside the Catalog, add an Unmanaged app in the Home folder's
-`extra/`. The CLI discovers it on its own: it shows in `status` with its
+For software outside the Catalog, add an Unmanaged app to the Project's root
+`compose.yml`. The CLI discovers it on its own: it shows in `status` with its
 Address, `start`, `stop`, `update` and `backup` work on it, and the Dashboard
 (Homarr) gets a tile for it once it runs. No Setup runs for it, so you do the
 configuring.
 
-1. Write `~/.self-host/extra/<name>/compose.yml` with one service. The folder
-   name is the App's ID. Do not publish ports with a bare `"8080:80"`. Use the
+1. Add a service to `~/.self-host/compose.yml`, preserving existing services,
+   comments and `x-self-host` ownership metadata. Its service name is the App's
+   ID. Do not publish ports with a bare `"8080:80"`. Use the
    shared settings, which Compose reads from the Project's `.env`:
    - `${BIND_IP}` for the published address, for example
      `"${BIND_IP}:8099:80"`
    - `${TZ}`, `${PUID}`, `${PGID}`, `${UMASK}`
-   - `${MEDIA_ROOT}`, `${DOWNLOADS_ROOT}`
-2. Keep persistent data in the same folder, with relative bind mounts such as
-   `./data:/data`, so backups include it. Do not use named volumes.
+   - `${DATA_ROOT}` for new shared media storage; `${MEDIA_ROOT}` and
+     `${DOWNLOADS_ROOT}` retain their configured meaning on existing Projects.
+2. Keep persistent data under `extra/<name>/`, with a root-relative bind such
+   as `./extra/<name>/data:/data`, so backups include it. Named volumes and
+   arbitrary external folders are not automatically included in App backups.
 3. Pick a name no Catalog App uses, and service names no other App uses.
 4. Run `self-host start <name>`, then `self-host status --json`: the App shows
    with setup `unmanaged` and its `url`.
 
-An Unmanaged app joins the same Compose Project as every other App; the root
-`compose.yml` includes it. Its folder is under `self-host backup <name>`, and
+An Unmanaged app joins the same Compose Project as every other App. Its
+`extra/<name>/` folder is under `self-host backup <name>`, and
 `self-host remove <name>` keeps the folder unless you add `--purge`.
 
-Apps added before `extra/` existed, in `~/.self-host/apps/<id>/compose.yml`,
-keep working where they are. Leave them there, or move the folder into
-`extra/` while the App is stopped.
+Legacy per-App definitions are imported into the root file without moving
+their configuration or media. The root file is authoritative afterward;
+per-App Compose snapshots are for recovery, not future editing.
 
 Never mount the Docker socket in an Unmanaged app.
 
-Never run `docker compose` or `docker` against the Project by hand when a
-`self-host` command exists; the Project is the single mutation boundary.
+Ordinary `docker compose up -d`, `down`, `logs` and other lifecycle commands
+work from the Home folder against that same root file. Prefer self-host for
+API Setup, Links and App-aware backup/restore. Keep changes within the approved
+Project and avoid concurrent edits while a self-host Action runs.
+
+## Shared media storage
+
+New Projects use one `DATA_ROOT` containing `torrents/`, `usenet/` and `media/`.
+Sonarr and Radarr see one parent mount so hardlinks and atomic moves can work;
+downloaders see narrower folders at matching internal paths. Setup checks
+temporary hardlink creation as the importing App's actual user. That capability
+probe does not establish that an actual import used hardlinks.
+
+Use `--data-root PATH` for a new Project. Hardlinks depend on the filesystem,
+mount boundaries and permissions. If the person accepts extra disk usage, use
+`--media-copy-fallback` or `self-host config set MEDIA_COPY_FALLBACK=on`.
+
+The default media identity is shared. Separate supported media App file owners
+are optional and off by default; Onboarding and Settings expose the same choice,
+and new CLI installs accept `--separate-media-users`. This concerns Unix file
+ownership, not App login accounts. Existing media paths or ownership are not
+moved or rewritten by a settings toggle; they need an explicit migration.
 
 ## Beszel
 
@@ -662,8 +685,10 @@ Test a backup by restoring one App, not by assuming it works.
 Never print, log or paste a password or API key into your reply, a command line
 or a file you write. The only way to read them is `self-host credentials`; use
 its output where needed (a login form, an API header) and say only where it
-came from. Secrets live in `~/.self-host/secrets.env` with mode 0600; do not
-read that file directly.
+came from. Secrets live in the private `~/.self-host/.env` with mode 0600;
+legacy `secrets.env` remains readable for compatible migration and restore.
+Do not read either file directly. Public Host settings are filtered before
+status/config output.
 
 For inputs marked `private` by `self-host apps info <app> --json`, pass
 `--set-file app.key=/owned/private/credential-file` during install. Use an

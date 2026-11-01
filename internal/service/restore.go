@@ -11,33 +11,40 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/backup"
 	"github.com/ajnart/self-host/internal/compose"
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/host"
 	"github.com/ajnart/self-host/internal/project"
 	ts "github.com/ajnart/self-host/internal/tailscale"
 )
 
 type restoration struct {
-	s              *Service
-	file           string
-	r              *backup.Reader
-	targets        []string
-	dockerApps     map[string]bool
-	all            bool
-	staging        *project.Staging
-	scope          string
-	startup        *project.RestoreStartup
-	nodes          []string
-	runningTargets []string
-	fresh          bool
-	replaced       bool
-	keepRecovery   bool
+	s               *Service
+	file            string
+	r               *backup.Reader
+	targets         []string
+	dockerApps      map[string]bool
+	all             bool
+	staging         *project.Staging
+	scope           string
+	startup         *project.RestoreStartup
+	nodes           []string
+	runningTargets  []string
+	fresh           bool
+	replaced        bool
+	keepRecovery    bool
+	originalCompose []byte
+	originalEnv     []byte
+	restoreEnv      map[string]string
 }
 
 // Restore puts Apps back from a Backup: every App in it when ids is empty.
@@ -92,17 +99,24 @@ func validBackupAppID(id string) error {
 func (s *Service) newRestoration(ctx context.Context, file string, r *backup.Reader, ids []string) (*restoration, error) {
 	// Manifest and target IDs enter mount and cleanup paths. Validate them
 	// before preparing helpers, creating staging, or registering cleanup.
+	seen := map[string]bool{}
 	for _, app := range r.Manifest.Apps {
 		if err := validBackupAppID(app.ID); err != nil {
 			return nil, err
 		}
+		if seen[app.ID] {
+			return nil, fmt.Errorf("backup lists App %s more than once", app.ID)
+		}
+		seen[app.ID] = true
 	}
 	for _, id := range ids {
 		if err := validBackupAppID(id); err != nil {
 			return nil, err
 		}
 	}
-	targets := ids
+	targets := slices.Clone(ids)
+	slices.Sort(targets)
+	targets = slices.Compact(targets)
 	if len(targets) == 0 {
 		for _, a := range r.Manifest.Apps {
 			targets = append(targets, a.ID)
@@ -170,7 +184,7 @@ func (rs *restoration) cleanup(ctx context.Context) error {
 
 func (rs *restoration) extract() error {
 	return rs.r.Extract(rs.staging.Dir(), func(name string) string {
-		if name == ".env" || name == "secrets.env" || name == "state.json" || name == cloudflareRecordFile {
+		if name == ".env" || name == "secrets.env" || name == "state.json" || name == "compose.yml" || name == cloudflareRecordFile {
 			return rs.staging.Path(name)
 		}
 		parts := strings.SplitN(name, "/", 3)
@@ -184,12 +198,25 @@ func (rs *restoration) extract() error {
 func (rs *restoration) verifyArchive(ctx context.Context) error {
 	// Reject an incomplete archive before stopping containers or replacing data.
 	for _, id := range rs.targets {
-		services, err := rs.staging.FragmentServices(id)
+		content, err := rs.readFragment(id)
 		if err != nil {
 			return fmt.Errorf("backup is missing a valid replacement for %s: %w", id, err)
 		}
+		var model struct {
+			Services map[string]any `yaml:"services"`
+		}
+		if err := yaml.Unmarshal(content, &model); err != nil {
+			return fmt.Errorf("backup has invalid Compose for %s: %w", id, err)
+		}
+		services := model.Services
 		if len(services) == 0 {
 			return fmt.Errorf("backup replacement for %s declares no services", id)
+		}
+		if _, err := os.Lstat(rs.staging.AppDir(id)); errors.Is(err, os.ErrNotExist) && rs.staging.Records().Canonical() && rs.r.Manifest.Folder(id) == "extra" {
+			// A manual service in canonical YAML may have no local App files.
+			if err := os.MkdirAll(rs.staging.AppDir(id), 0o700); err != nil {
+				return err
+			}
 		}
 	}
 	// Validate safely extracted prerequisites before inspecting or removing
@@ -217,6 +244,13 @@ func (rs *restoration) verifyArchive(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (rs *restoration) readFragment(id string) ([]byte, error) {
+	if rs.staging.Records().Canonical() {
+		return rs.staging.Records().ReadFragment(id)
+	}
+	return rs.staging.ReadFragment(id)
 }
 
 func (rs *restoration) apply(ctx context.Context) error {
@@ -271,8 +305,46 @@ func (rs *restoration) initialize(p *project.Project) error {
 	if err != nil {
 		return err
 	}
-	if err := p.SaveSettings(settings); err != nil {
-		return err
+	if rs.staging.Records().Canonical() {
+		if rs.s.Deps.Getenv("SELF_HOST_COMPOSE_PROJECT") == "" {
+			name, err := rs.staging.Records().StoredComposeName()
+			if err != nil {
+				return err
+			}
+			if name != "" {
+				p.ComposeName = name
+			}
+		}
+		root, err := rs.staging.Records().ReadCompose()
+		if err != nil {
+			return err
+		}
+		if err := p.RestoreComposeBase(root); err != nil {
+			return err
+		}
+		data, err := rs.staging.Records().ReadHomeFile(".env")
+		if err != nil {
+			return err
+		}
+		if err := p.WriteHomeFile(".env", data, 0o600); err != nil {
+			return err
+		}
+		if rs.s.Deps.Getenv("SELF_HOST_COMPOSE_PROJECT") != "" {
+			secrets, err := p.LoadSecrets()
+			if err != nil {
+				return err
+			}
+			if _, present := secrets["COMPOSE_PROJECT_NAME"]; present {
+				secrets["COMPOSE_PROJECT_NAME"] = p.ComposeName
+				if err := p.SaveSecrets(secrets); err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		if err := p.SaveSettings(settings); err != nil {
+			return err
+		}
 	}
 	rs.fresh = true
 	return nil
@@ -284,20 +356,85 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 	if err != nil {
 		return err
 	}
+	if settings["MEDIA_SEPARATE_USERS"] == "on" {
+		checkedPlatform := false
+		reserved := map[int]bool{p.Owner.UID: true}
+		var namespace *host.MediaNamespace
+		for _, id := range rs.targets {
+			if rs.r.Manifest.Folder(id) == project.ExtraDirName || !slices.Contains(mediaIdentityApps, id) {
+				continue
+			}
+			if !checkedPlatform {
+				var err error
+				namespace, err = host.MediaUserNamespace(ctx, rs.s.Deps)
+				if err != nil {
+					return fmt.Errorf("restore separate media App users: %w", err)
+				}
+				if namespace != nil {
+					reserved = map[int]bool{0: true}
+					gid, err := strconv.Atoi(settings["PGID"])
+					if err != nil || gid < 0 {
+						return fmt.Errorf("PGID must be a mapped non-negative group before Restore")
+					}
+					if _, err := namespace.HostGID(gid); err != nil {
+						return fmt.Errorf("restore shared media group: %w", err)
+					}
+				}
+				checkedPlatform = true
+			}
+			if namespace != nil && !rs.dockerApps[id] {
+				return fmt.Errorf("restore %s: this Backup records host file owners; an explicit ownership migration is required before restoring separate media App users into rootless Docker", id)
+			}
+			if namespace != nil {
+				uid, err := strconv.Atoi(settings[mediaUIDKey(id)])
+				if err != nil || uid <= 0 {
+					return fmt.Errorf("restore %s: a positive mapped media file owner is required", id)
+				}
+				if _, err := namespace.HostUID(uid); err != nil {
+					return fmt.Errorf("restore %s file owner: %w", id, err)
+				}
+			}
+			if p.Exists() {
+				continue // Existing Projects validate their persisted ownership below.
+			}
+			key := mediaUIDKey(id)
+			uid, err := strconv.Atoi(settings[key])
+			if err != nil || uid <= 0 || reserved[uid] {
+				return fmt.Errorf("%s must be a positive file owner distinct from the Project owner and other restored media Apps; an explicit ownership migration is required before Restore", key)
+			}
+			reserved[uid] = true
+			if err := host.CheckUnusedMediaUIDInNamespace(ctx, rs.s.Deps, uid, namespace); err != nil {
+				return fmt.Errorf("restore %s: %w", key, err)
+			}
+		}
+	}
 	state, err := archived.LoadState()
 	if err != nil {
 		return err
 	}
 	for _, id := range rs.targets {
+		if p.Exists() && slices.ContainsFunc(rs.r.Manifest.Apps, func(entry backup.ManifestApp) bool { return entry.ID == id && entry.Extra != p.IsExtra(id) }) {
+			existing, err := p.AppIDs()
+			if err != nil {
+				return err
+			}
+			if slices.Contains(existing, id) {
+				return fmt.Errorf("%s has different App folder ownership in this Project and the backup; migrate apps/extra explicitly before restoring", id)
+			}
+		}
 		if rs.r.Manifest.Folder(id) != "extra" && state.Apps[id] == nil {
 			return fmt.Errorf("backup is missing the configuration record for %s", id)
 		}
 	}
 	if p.Exists() {
-		settings, err = p.LoadSettings()
+		currentSettings, err := p.LoadSettings()
 		if err != nil {
 			return err
 		}
+		if err := rs.validateMediaSettings(settings, currentSettings); err != nil {
+			return err
+		}
+		settings = currentSettings
 		current, err := p.LoadState()
 		if err != nil {
 			return err
@@ -312,11 +449,14 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 	if err := rs.s.validateNames(ctx, settings, state); err != nil {
 		return err
 	}
-	replacements, err := rs.replacements(rs.staging.ReadFragment)
+	replacements, err := rs.replacements(rs.readFragment)
 	if err != nil {
 		return err
 	}
 	if err := p.ValidateServiceOwnership(replacements); err != nil {
+		return err
+	}
+	if err := rs.planEnvironment(p, replacements); err != nil {
 		return err
 	}
 	pending, err := p.LoadRestoreStartup()
@@ -340,6 +480,111 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 	}
 	rs.runningTargets = slices.Clone(rs.startup.Targets)
 	rs.nodes = slices.Clone(rs.startup.Services)
+	return nil
+}
+
+func (rs *restoration) planEnvironment(p *project.Project, replacements map[string]string) error {
+	rs.restoreEnv = map[string]string{}
+	if !p.Exists() && rs.staging.Records().Canonical() {
+		return nil // Fresh canonical Restore keeps the complete archived .env.
+	}
+	archived := rs.staging.Records()
+	oldSettings, err := archived.LoadSettings()
+	if err != nil {
+		return err
+	}
+	oldSecrets, err := archived.LoadSecrets()
+	if err != nil {
+		return err
+	}
+	shared := map[string]bool{}
+	ids, err := p.AppIDs()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if slices.Contains(rs.targets, id) {
+			continue
+		}
+		data, err := p.ReadFragment(id)
+		if err != nil {
+			return err
+		}
+		keys, err := project.ComposeEnvironmentReferences(data)
+		if err != nil {
+			return err
+		}
+		keys, err = p.ExpandEnvironmentReferences(keys)
+		if err != nil {
+			return err
+		}
+		for key := range keys {
+			shared[key] = true
+		}
+	}
+	for _, id := range rs.targets {
+		keys, err := project.ComposeEnvironmentReferences([]byte(replacements[id]))
+		if err != nil {
+			return err
+		}
+		keys, err = archived.ExpandEnvironmentReferences(keys)
+		if err != nil {
+			return err
+		}
+		for key, required := range keys {
+			if _, public := oldSettings[key]; public || key == "ADMIN_USER" || key == "ADMIN_PASSWORD" || key == "COMPOSE_PROJECT_NAME" {
+				continue // Host settings and the shared Admin login stay current.
+			}
+			value, found := oldSecrets[key]
+			if !found {
+				if required && rs.r.Manifest.Folder(id) == "extra" {
+					return fmt.Errorf("backup lacks required Project environment assignment %s used by Unmanaged app %s; supply an explicit configuration migration before Restore", key, id)
+				}
+				continue
+			}
+			if shared[key] {
+				matches, err := p.EnvironmentAssignmentMatches(archived, key)
+				if err != nil {
+					return err
+				}
+				if !matches {
+					return fmt.Errorf("restoring %s would change Project environment assignment %s used by another App; restore the dependent Apps together or migrate the shared assignment explicitly", id, key)
+				}
+				continue // Keep the current shared assignment byte for byte.
+			}
+			rs.restoreEnv[key] = value
+		}
+	}
+	return nil
+}
+
+// A saved Arr database records its container paths. Reusing it with another
+// layout or file owner would be a migration, even when its YAML is valid.
+func (rs *restoration) validateMediaSettings(archived, current map[string]string) error {
+	value := func(settings map[string]string, key, fallback string) string {
+		if settings[key] == "" {
+			return fallback
+		}
+		return settings[key]
+	}
+	for _, id := range rs.targets {
+		a, found := rs.s.Catalog.App(id)
+		if !found || !a.Info().UsesMedia {
+			continue
+		}
+		for key, fallback := range map[string]string{"MEDIA_LAYOUT": "legacy", "MEDIA_SEPARATE_USERS": "off"} {
+			if value(archived, key, fallback) != value(current, key, fallback) {
+				return fmt.Errorf("%s in the backup differs from this Project for media App %s; an explicit storage and ownership migration is required before Restore", key, id)
+			}
+		}
+		if current["MEDIA_SEPARATE_USERS"] == "on" {
+			for _, key := range []string{"PGID", mediaUIDKey(id)} {
+				if archived[key] != current[key] {
+					return fmt.Errorf("%s in the backup differs from this Project; migrate media App %s ownership explicitly before Restore", key, id)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -388,7 +633,7 @@ func (rs *restoration) edit(ctx context.Context, ss *session) (result error) {
 	if err := ss.restoreCloudflare(ctx, rs.staging, rs.targets); err != nil {
 		return err
 	}
-	replacements, err := rs.replacements(rs.staging.ReadFragment)
+	replacements, err := rs.replacements(rs.readFragment)
 	if err != nil {
 		return err
 	}
@@ -409,8 +654,25 @@ func (rs *restoration) edit(ctx context.Context, ss *session) (result error) {
 	}
 	oldApps := maps.Clone(ss.state.Apps)
 	oldSecrets := maps.Clone(ss.secrets.values)
+	rs.originalEnv, err = ss.p.ReadHomeFile(".env")
+	if err != nil {
+		return err
+	}
+	rs.originalCompose, err = ss.p.ReadCompose()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	if err := rs.staging.SaveOriginalRecords(oldSecrets, ss.state, ss.settings); err != nil {
 		return err
+	}
+	original := project.Project{Root: rs.staging.Path("original-records")}
+	if err := original.WriteHomeFile(".env", rs.originalEnv, 0o600); err != nil {
+		return err
+	}
+	if len(rs.originalCompose) > 0 {
+		if err := original.WriteCompose(rs.originalCompose); err != nil {
+			return err
+		}
 	}
 	var recoverServices, recoverApps []string
 	defer func() {
@@ -447,8 +709,41 @@ func (rs *restoration) edit(ctx context.Context, ss *session) (result error) {
 			return err
 		}
 	}
+	for key, value := range rs.restoreEnv {
+		ss.secrets.values[key] = value
+	}
+	registerSecrets(ss.s.Log, ss.secrets.values)
+	if len(rs.restoreEnv) > 0 {
+		keys := make([]string, 0, len(rs.restoreEnv))
+		for key := range rs.restoreEnv {
+			keys = append(keys, key)
+		}
+		if err := ss.p.RestoreEnvironmentAssignments(rs.staging.Records(), keys); err != nil {
+			return err
+		}
+	}
 	if err := ss.restoreRecords(rs.staging, rs.targets, rs.fresh || rs.startup.Fresh); err != nil {
 		return err
+	}
+	for _, id := range rs.targets {
+		if err := ss.p.RestoreFragment(id, replacements[id], rs.r.Manifest.Folder(id), rs.staging.Records().Canonical()); err != nil {
+			return err
+		}
+		if st := ss.state.Apps[id]; st != nil {
+			// Only a snapshot matching its archived generation may acquire a
+			// new hash after rebasing. Otherwise Update must continue treating
+			// the restored service as a manual edit, including old records that
+			// had no generation hash at all.
+			if st.FragmentSHA256 != "" && fragmentSum([]byte(replacements[id])) == st.FragmentSHA256 {
+				data, err := ss.p.ReadFragment(id)
+				if err != nil {
+					return err
+				}
+				st.FragmentSHA256 = fragmentSum(data)
+			} else {
+				st.FragmentSHA256 = "restored-custom"
+			}
+		}
 	}
 	if _, err := ss.renderTailscale(); err != nil {
 		return err
@@ -486,7 +781,14 @@ func (rs *restoration) rollback(ctx context.Context, ss *session, oldApps map[st
 		return rs.s.removeDockerAppDirectory(cleanup, dir)
 	})}
 	ss.state.Apps, ss.secrets.values = oldApps, oldSecrets
-	recoveryErrors = append(recoveryErrors, ss.p.SaveSecrets(oldSecrets), ss.p.SaveState(ss.state), ss.p.WriteRoot())
+	if len(rs.originalCompose) > 0 {
+		recoveryErrors = append(recoveryErrors, ss.p.WriteCompose(rs.originalCompose))
+	}
+	recoveryErrors = append(recoveryErrors, ss.p.SaveSecrets(oldSecrets), ss.p.SaveState(ss.state))
+	if len(rs.originalEnv) > 0 {
+		recoveryErrors = append(recoveryErrors, ss.p.WriteHomeFile(".env", rs.originalEnv, 0o600))
+	}
+	recoveryErrors = append(recoveryErrors, ss.p.WriteRoot())
 	if err := errors.Join(recoveryErrors...); err != nil {
 		rs.keepRecovery = true
 		return fmt.Errorf("restore rollback failed; original data retained in %s: %w", rs.staging.Dir(), err)
@@ -517,12 +819,16 @@ func (ss *session) restoreRecords(staging *project.Staging, targets []string, in
 		ss.secrets.values["ADMIN_USER"] = secrets["ADMIN_USER"]
 		ss.secrets.values["ADMIN_PASSWORD"] = secrets["ADMIN_PASSWORD"]
 	}
+	var changedAssignments []string
 	for key, value := range secrets {
 		if key == "ADMIN_USER" || key == "ADMIN_PASSWORD" {
 			continue
 		}
 		for _, id := range targets {
 			if strings.HasPrefix(key, SecretKey(id, "")) {
+				if ss.secrets.values[key] != value {
+					changedAssignments = append(changedAssignments, key)
+				}
 				ss.secrets.values[key] = value
 			}
 		}
@@ -533,6 +839,9 @@ func (ss *session) restoreRecords(staging *project.Staging, targets []string, in
 			Hint: "Run self-host setup " + strings.Join(targets, " ") + " to switch the restored Apps to the current Admin login."})
 	}
 	registerSecrets(ss.s.Log, ss.secrets.values)
+	if err := ss.p.RestoreEnvironmentAssignments(backupProject, changedAssignments); err != nil {
+		return err
+	}
 	if err := ss.p.SaveSecrets(ss.secrets.values); err != nil {
 		return err
 	}

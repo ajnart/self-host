@@ -14,7 +14,7 @@ func (a *program) doctorCmd() *cobra.Command {
 	var opts service.InstallOptions
 	cmd := &cobra.Command{
 		Use:   "doctor [app|recipe...]",
-		Short: "Check Docker, Compose, App bindings, firewalls and LAN reachability",
+		Short: "Check Docker, Compose, media hardlinks, App bindings, firewalls and LAN reachability",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 && (len(opts.Sets) > 0 || opts.EasyNames) {
 				return fmt.Errorf("name the planned Apps or Recipes when checking selected ports")
