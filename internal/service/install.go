@@ -482,6 +482,24 @@ func warnIgnoredProjectFlags(log *events.Logger, opts InstallOptions) {
 
 func (s *Service) createProject(ctx context.Context, p *project.Project, opts InstallOptions) error {
 	settings := s.detectSettings(ctx, p.Owner, opts.Exposure)
+	applyInstallSettings(settings, opts)
+	if err := s.initializeMediaSettings(ctx, settings); err != nil {
+		return err
+	}
+	if err := p.MkdirAll(); err != nil {
+		return err
+	}
+	if err := p.SaveSettings(settings); err != nil {
+		return err
+	}
+	s.Log.Emit(events.Event{Event: events.StepOK, Step: "project",
+		Msg: fmt.Sprintf("created %s (exposure %s, LAN IP %s, TZ %s, PUID %s, PGID %s)", p.Root,
+			settings["EXPOSURE"], settings["LAN_IP"], settings["TZ"], settings["PUID"], settings["PGID"])})
+	return nil
+}
+
+// Keep Onboarding's storage preview consistent with the approved install.
+func applyInstallSettings(settings map[string]string, opts InstallOptions) {
 	if opts.EasyNames {
 		settings[settingNames] = namesOn
 	}
@@ -510,19 +528,6 @@ func (s *Service) createProject(ctx context.Context, p *project.Project, opts In
 	if (opts.MediaRoot != "" || opts.DownloadsRoot != "") && opts.DataRoot == "" && opts.Settings["MEDIA_LAYOUT"] == "" {
 		settings["MEDIA_LAYOUT"] = "legacy"
 	}
-	if err := s.initializeMediaSettings(ctx, settings); err != nil {
-		return err
-	}
-	if err := p.MkdirAll(); err != nil {
-		return err
-	}
-	if err := p.SaveSettings(settings); err != nil {
-		return err
-	}
-	s.Log.Emit(events.Event{Event: events.StepOK, Step: "project",
-		Msg: fmt.Sprintf("created %s (exposure %s, LAN IP %s, TZ %s, PUID %s, PGID %s)", p.Root,
-			settings["EXPOSURE"], settings["LAN_IP"], settings["TZ"], settings["PUID"], settings["PGID"])})
-	return nil
 }
 
 func (ss *session) ensureAdmin(opts InstallOptions) error {

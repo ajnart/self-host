@@ -12,9 +12,14 @@ import (
 // PrepareMediaDirectories creates only missing storage and configuration
 // directories. It never changes ownership or modes on existing data.
 // identities contains only Apps whose selected image supports PUID/PGID.
-func (p *Project) PrepareMediaDirectories(settings map[string]string, identities map[string]int, uid, gid int) error {
+// A metadata setter provisions mapped host IDs inside a verified user namespace.
+func (p *Project) PrepareMediaDirectories(settings map[string]string, identities map[string]int, uid, gid int, metadata ...func(string, int, int, os.FileMode) error) error {
 	if uid < 0 || gid < 0 {
 		return fmt.Errorf("media host ownership must use non-negative IDs")
+	}
+	var setMetadata func(string, int, int, os.FileMode) error
+	if len(metadata) > 0 {
+		setMetadata = metadata[0]
 	}
 	separate := settings["MEDIA_SEPARATE_USERS"] == "on"
 	// The caller resolves container IDs to host ownership. Rootless container
@@ -22,10 +27,12 @@ func (p *Project) PrepareMediaDirectories(settings map[string]string, identities
 	mode := os.FileMode(0o755)
 	if separate {
 		uid = p.Owner.UID
-		var err error
-		gid, err = strconv.Atoi(settings["PGID"])
-		if err != nil || gid < 0 {
-			return fmt.Errorf("PGID must be a non-negative integer")
+		if setMetadata == nil {
+			var err error
+			gid, err = strconv.Atoi(settings["PGID"])
+			if err != nil || gid < 0 {
+				return fmt.Errorf("PGID must be a non-negative integer")
+			}
 		}
 		mode = 0o775 | os.ModeSetgid
 	}
@@ -43,7 +50,7 @@ func (p *Project) PrepareMediaDirectories(settings map[string]string, identities
 		}
 	}
 	for _, dir := range dirs {
-		if err := p.prepareMediaDirectory(dir, uid, gid, mode, separate); err != nil {
+		if err := p.prepareMediaDirectory(dir, uid, gid, mode, separate, setMetadata); err != nil {
 			return err
 		}
 	}
@@ -54,14 +61,14 @@ func (p *Project) PrepareMediaDirectories(settings map[string]string, identities
 		if err := p.MkdirAll("apps", id); err != nil {
 			return err
 		}
-		if err := p.prepareMediaDirectory(p.Path("apps", id, "config"), uid, gid, 0o700, true); err != nil {
+		if err := p.prepareMediaDirectory(p.Path("apps", id, "config"), uid, gid, 0o700, true, setMetadata); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMode, checkExisting bool) error {
+func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMode, checkExisting bool, setMetadata func(string, int, int, os.FileMode) error) error {
 	info, err := os.Lstat(dir)
 	if err == nil {
 		if !checkExisting && info.Mode()&os.ModeSymlink != 0 {
@@ -93,7 +100,7 @@ func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMo
 	if !os.IsNotExist(err) {
 		return err
 	}
-	if os.Geteuid() != 0 {
+	if setMetadata == nil && os.Geteuid() != 0 {
 		groups, err := os.Getgroups()
 		if err != nil {
 			return fmt.Errorf("inspect media directory group permissions: %w", err)
@@ -104,6 +111,15 @@ func (p *Project) prepareMediaDirectory(dir string, uid, gid int, mode os.FileMo
 	}
 	if err := p.mkdirAll(dir); err != nil {
 		return err
+	}
+	if setMetadata != nil {
+		if err := setMetadata(dir, uid, gid, mode); err != nil {
+			// This directory was just created and must still be empty. Avoid
+			// leaving a partly provisioned owner that makes retry ambiguous.
+			_ = os.Remove(dir)
+			return fmt.Errorf("provision media directory %s: %w", dir, err)
+		}
+		return nil
 	}
 	if os.Geteuid() == 0 {
 		if err := os.Chown(dir, uid, gid); err != nil {

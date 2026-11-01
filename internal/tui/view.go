@@ -481,13 +481,17 @@ func (m Model) headerContext() (essential, extra []headerPiece) {
 	}
 	if m.loaded && m.statusErr == "" && m.status.Project != "" {
 		var lan headerPiece
+		scope := host.ClassifyAddress(m.status.LANIP)
+		address := scope.Label() + " " + m.status.LANIP
 		switch {
 		case m.status.Exposure == service.ExposureLocal:
 			lan = piece("LOCAL ONLY", t.chip("LOCAL ONLY", t.warn))
 		case m.status.LANIPStale:
-			lan = piece("⚠ LAN "+m.status.LANIP, t.chip("⚠ LAN "+m.status.LANIP, t.warn))
+			lan = piece("⚠ "+address, t.chip("⚠ "+address, t.warn))
+		case scope == host.AddressPublic:
+			lan = piece("⚠ "+address, t.chip("⚠ "+address, t.warn))
 		default:
-			lan = piece("LAN "+m.status.LANIP, t.chip("LAN "+m.status.LANIP, t.info))
+			lan = piece(address, t.chip(address, t.info))
 		}
 		lan.restated = true
 		essential = append(essential, lan)

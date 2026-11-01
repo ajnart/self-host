@@ -120,6 +120,8 @@ func (v *settingsView) Keys() []key.Binding {
 		return v.cloudflare.keys()
 	}
 	switch {
+	case v.editingOnOff():
+		return []key.Binding{hint("←/→", "choose"), hint("y/n", "yes/no"), hint("enter", "accept"), hint("esc", "cancel")}
 	case v.editing && len(v.choices) > 1:
 		return append(slices.Clone(settingsEditKeys), settingsChoiceKey)
 	case v.editing:
@@ -364,6 +366,22 @@ func (v *settingsView) handleKey(ctx *viewContext, msg tea.KeyPressMsg) (view, t
 		return v, nil, nav{}
 	}
 	if v.editing {
+		if v.editingOnOff() {
+			switch msg.String() {
+			case "y", "Y":
+				v.input.SetValue("on")
+				msg = tea.KeyPressMsg{Code: tea.KeyEnter}
+			case "n", "N":
+				v.input.SetValue("off")
+				msg = tea.KeyPressMsg{Code: tea.KeyEnter}
+			case "left", "right", "up", "down", "space", "tab", "shift+tab":
+				v.cycleChoice()
+				return v, nil, nav{}
+			case "enter", "esc":
+			default:
+				return v, nil, nav{}
+			}
+		}
 		switch msg.String() {
 		case "esc":
 			v.editing, v.err = false, ""
@@ -578,6 +596,9 @@ func saveGlyphs(backend Backend, g activity.Glyphs) tea.Cmd {
 func (v *settingsView) beginEdit(ctx *viewContext) (view, tea.Cmd, nav) {
 	row := v.rows[v.cursor]
 	v.editing, v.key, v.err = true, row.Key, ""
+	if row.Key == "MEDIA_SEPARATE_USERS" || row.Key == "MEDIA_COPY_FALLBACK" {
+		row.Choices = []string{"off", "on"}
+	}
 	if len(row.Choices) > 1 {
 		v.choices = row.Choices
 		v.choiceIdx = max(slices.Index(v.choices, v.value(v.cursor)), 0)
@@ -598,6 +619,10 @@ func (v *settingsView) beginEdit(ctx *viewContext) (view, tea.Cmd, nav) {
 	}
 	v.input.Focus()
 	return v, textinput.Blink, nav{}
+}
+
+func (v *settingsView) editingOnOff() bool {
+	return v.editing && len(v.choices) == 2 && slices.Contains(v.choices, "off") && slices.Contains(v.choices, "on")
 }
 
 func (v *settingsView) cycleChoice() {
@@ -702,7 +727,9 @@ func (v *settingsView) hostBox(ctx *viewContext, width, avail int) string {
 	}
 	if v.editing && len(v.choices) > 1 {
 		hint := "Text input: space types; tab fills the next choice."
-		if v.key == "LAN_IP" {
+		if v.editingOnOff() {
+			hint = "Select Yes/No: ←/→ choose; enter accepts; y/n answers."
+		} else if v.key == "LAN_IP" {
 			hint = "Text input: space types; tab fills next detected address."
 		}
 		head = append(head, truncate(t.dim().Render(hint), inner))
@@ -862,7 +889,15 @@ func (v *settingsView) renderRow(ctx *viewContext, i, width int) string {
 		label = row.Key + " "
 	}
 	line := cursor + t.body().Render(label)
-	if v.editing && i == v.cursor {
+	if v.editingOnOff() && i == v.cursor {
+		for _, choice := range []struct{ label, value string }{{"Yes (y)", "on"}, {"No (n)", "off"}} {
+			if choice.value == v.input.Value() {
+				line += t.title().Render("[" + choice.label + "] ")
+			} else {
+				line += t.dim().Render(" " + choice.label + "  ")
+			}
+		}
+	} else if v.editing && i == v.cursor {
 		line += v.input.View()
 	} else {
 		line += t.body().Render(pad(v.value(i), 22))

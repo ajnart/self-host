@@ -467,7 +467,21 @@ func copyExpanded(n *yaml.Node, parents map[*yaml.Node]bool) *yaml.Node {
 	parents[n] = true
 	defer delete(parents, n)
 	if n.Kind == yaml.AliasNode {
-		return copyExpanded(n.Alias, parents)
+		clone := copyExpanded(n.Alias, parents)
+		if n.HeadComment != "" {
+			clone.HeadComment = n.HeadComment
+		}
+		if n.LineComment != "" {
+			if clone.Kind == yaml.ScalarNode {
+				clone.LineComment = n.LineComment
+			} else {
+				clone.HeadComment = strings.TrimSpace(clone.HeadComment + "\n" + n.LineComment)
+			}
+		}
+		if n.FootComment != "" {
+			clone.FootComment = n.FootComment
+		}
+		return clone
 	}
 	clone := *n
 	clone.Anchor = ""
@@ -993,6 +1007,9 @@ func (p *Project) RestoreComposeBase(data []byte) error {
 	if !canonicalRoot(root) {
 		return errors.New("Compose base restoration requires a canonical Backup")
 	}
+	// Global extensions can alias anchors defined on services. Make their
+	// values self-contained before selecting which services to restore.
+	root = expandAliases(root)
 	put(root, "services", mapping())
 	if metadata := field(root, ownershipKey); metadata != nil {
 		drop(metadata, "apps")

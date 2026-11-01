@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/ajnart/self-host/internal/host"
 )
 
 // The Access options are shared by Onboarding's Access step and Settings'
@@ -41,13 +43,28 @@ var accessOptions = []accessOption{
 	{
 		id: "home", label: "Home network (default)", name: "Home network", value: "lan",
 		text: func(lanIP string) string {
+			if text := publicAccessWarning(lanIP); text != "" {
+				return text
+			}
+			if host.ClassifyAddress(lanIP) == host.AddressShared {
+				return lanIP + " is a shared/VPN address, not a private LAN address. Devices need a route to it; Apps still listen on every host address. Restrict access with your firewall."
+			}
 			return "Phones, TVs and laptops on the same Wi-Fi or router as this computer can open your Apps at " + lanAddressOr(lanIP, "this computer's address") +
-				". Nobody on the internet can."
+				". Internet access depends on your firewall."
 		},
 		diagram: func(lanIP string) accessDiagram {
+			if host.ClassifyAddress(lanIP) == host.AddressPublic {
+				return publicAccessDiagram("this computer", lanIP)
+			}
+			if host.ClassifyAddress(lanIP) == host.AddressShared {
+				return accessDiagram{
+					nodes: []diagramNode{devicesNode, {lines: []string{"shared/VPN", "network"}, heading: true}, {lines: []string{"this computer", lanIP}, accent: true}},
+					under: 1, note: "routing required", tone: toneNone,
+				}
+			}
 			return accessDiagram{
 				nodes: []diagramNode{devicesNode, routerNode, {lines: []string{"this computer", lanAddressOr(lanIP, "LAN address")}, accent: true}},
-				under: 1, note: "internet", tone: toneClosed,
+				under: 1, note: "firewall", tone: toneNone,
 			}
 		},
 		sections: []accessSection{
@@ -56,7 +73,7 @@ var accessOptions = []accessOption{
 					"Other devices type it into a browser, followed by an App's port. self-host finds it on this machine and uses it " +
 					"only to build App links; change it if this computer has more than one."},
 			{"The internet",
-				"Nobody on the internet can open your Apps unless your router forwards ports to this computer. self-host never sets that up."},
+				"A public address may expose Apps directly to the internet, without router port forwarding. Apps listen on every host address. Behind a typical home router, internet access usually requires port forwarding; self-host never sets that up. Check host and provider firewall rules, including IPv6."},
 			{"The firewall",
 				"If another device cannot connect, this computer's firewall may need a rule that allows the App's port from your network."},
 		},
@@ -64,14 +81,20 @@ var accessOptions = []accessOption{
 	},
 	{
 		id: "names", label: "Easy names at home", name: "Easy names at home", value: "lan",
-		text: func(string) string {
+		text: func(lanIP string) string {
+			if text := publicAccessWarning(lanIP); text != "" {
+				return "Easy names use this address. " + text
+			}
 			return "Open each App by name instead of a port number. Caddy answers the names on your home network. " +
 				"The addresses with numbers keep working if a name doesn't."
 		},
 		diagram: func(lanIP string) accessDiagram {
+			if host.ClassifyAddress(lanIP) == host.AddressPublic {
+				return publicAccessDiagram("Caddy", lanIP)
+			}
 			return accessDiagram{
 				nodes: []diagramNode{devicesNode, routerNode, {lines: []string{"Caddy", "jellyfin." + strings.ReplaceAll(lanAddressOr(lanIP, "LAN-IP"), ".", "-") + ".sslip.io"}, short: "Caddy · App name", accent: true}},
-				under: 1, note: "internet", tone: toneClosed,
+				under: 1, note: "firewall", tone: toneNone,
 			}
 		},
 		sections: []accessSection{
@@ -82,7 +105,7 @@ var accessOptions = []accessOption{
 			{"If your network address changes",
 				"The names contain this computer's network address. If your router changes it, old bookmarks stop working. Review the LAN address in Settings. Ask your router to keep the same address to avoid this."},
 			{"The internet",
-				"self-host opens no port on your router. Do not forward port 80 to this computer; these pages are meant for your home network."},
+				"self-host opens no port on your router. A public host address can expose Caddy and App ports directly; restrict them with your host/provider firewall. Do not forward port 80 to this computer; these pages are meant for your home network."},
 		},
 		facts: "One managed Caddy in the Compose Project owns port 80 and routes HTTP requests by Host to each App. " +
 			"Names are <app>.<lan-ip-with-dashes>.sslip.io on every OS. sslip.io sees the LAN address in DNS queries. " +
@@ -92,7 +115,7 @@ var accessOptions = []accessOption{
 	{
 		id: "tailscale", label: "From anywhere, privately", name: "From anywhere, privately",
 		text: func(string) string {
-			return "Tailscale lets you open each App with its own private HTTPS name from your phone, laptop or TV, wherever you are. Your Home network Addresses keep working."
+			return "Tailscale lets you open each App with its own private HTTPS name from your phone, laptop or TV, wherever you are. Existing IP:port Addresses and firewall rules stay unchanged."
 		},
 		diagram: func(string) accessDiagram {
 			return accessDiagram{
@@ -101,12 +124,12 @@ var accessOptions = []accessOption{
 					{lines: []string{"Tailscale", "private network"}, short: "Tailscale", heading: true},
 					{lines: []string{"this computer", "private name"}, accent: true},
 				},
-				under: 1, note: "internet", tone: toneClosed,
+				under: 1, note: "private names", tone: toneNone,
 			}
 		},
 		sections: []accessSection{
 			{"What is Tailscale?",
-				"A service that joins your own devices into one private network, wherever they are. Only devices you sign in can see your Apps."},
+				"A service that joins your own devices into one private network, wherever they are. Access to Tailscale Addresses follows your Tailscale access rules. Existing IP:port Addresses are separate."},
 			{"On your phone or TV",
 				"Install Tailscale on your phone, laptop or TV and sign in to the same account. Apple TV and Android TV have apps; other TVs may need the Home network Address."},
 			{"Turn on HTTPS",
@@ -115,7 +138,7 @@ var accessOptions = []accessOption{
 				"At https://login.tailscale.com/admin/settings/keys, generate an auth key with Reusable and Pre-approved on. Leave Ephemeral off so names survive restarts. The key lasts up to 90 days; adding Apps later may need a new one. Paste it only into the hidden Tailscale field, never into chat."},
 			{"For agents", "--set-file tailscale.auth_key=PATH reads the private key from a file, never from command arguments."},
 			{"The internet",
-				"Your Apps stay closed to everyone else on the internet."},
+				"Only the Tailscale Addresses are private. Tailscale does not close published App ports or change your firewall; a public host may still expose the existing IP:port Addresses."},
 		},
 		facts: "Each App with a web page gets its own Tailscale node and HTTPS proxy, with persistent state. Addresses come from Self.DNSName in tailscale status --json, not a guessed name. " +
 			"No Funnel is enabled. An OAuth client secret also works in the same private input with tag:self-host owned by that client. The IP:port Address keeps working.",
@@ -231,6 +254,20 @@ func lanAddressOr(lanIP, fallback string) string {
 		return address
 	}
 	return fallback
+}
+
+func publicAccessWarning(address string) string {
+	if host.ClassifyAddress(address) != host.AddressPublic {
+		return ""
+	}
+	return address + " is a public IP, not a private LAN address. This option lets Apps listen on every host address, so the internet may reach them. Restrict access with your firewall or choose This computer only."
+}
+
+func publicAccessDiagram(name, address string) accessDiagram {
+	return accessDiagram{
+		nodes: []diagramNode{devicesNode, {lines: []string{"internet"}, heading: true}, {lines: []string{name, address}, accent: true}},
+		under: 1, note: "firewall", tone: toneNone,
+	}
 }
 
 // accessStays is where the Apps stay while an option is not available.

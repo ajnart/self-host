@@ -5,10 +5,10 @@
   ╭───────────────╮      ╭────────╮      ╭───────────────╮
   │ phones        │──────│ router │──────│ this computer │
   │ TVs · laptops │      ╰───┬────╯      │ 192.168.1.20  │
-  ╰───────────────╯      internet ✗      ╰───────────────╯
+  ╰───────────────╯       firewall       ╰───────────────╯
 
   Phones, TVs and laptops on the same Wi-Fi or router as this computer can open your Apps at
-  192.168.1.20. Nobody on the internet can.
+  192.168.1.20. Internet access depends on your firewall.
 
   What is a LAN address?
   The address of this computer on your home or office network, like 192.168.1.20. Your router
@@ -17,13 +17,13 @@
   more than one.
 
   The internet
-  Nobody on the internet can open your Apps unless your router forwards ports to this computer.
-  self-host never sets that up.
+  A public address may expose Apps directly to the internet, without router port forwarding. Apps
+  listen on every host address. Behind a typical home router, internet access usually requires
+  port forwarding; self-host never sets that up. Check host and provider firewall rules, including
+  IPv6.
 
   The firewall
   If another device cannot connect, this computer's firewall may need a rule that allows the App's
-  port from your network.
-
 
   ↑/↓ scroll · esc or ? closes · more below ↓
 

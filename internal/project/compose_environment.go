@@ -129,15 +129,9 @@ func (p *Project) ExpandEnvironmentReferences(refs map[string]bool) (map[string]
 
 func environmentAssignments(data []byte) map[string]string {
 	lines := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		key, _, found := strings.Cut(trimmed, "=")
-		if found {
-			key = strings.TrimSpace(strings.TrimPrefix(key, "export "))
-			lines[key] = line
+	for _, entry := range environmentEntries(data) {
+		if entry.key != "" {
+			lines[entry.key] = entry.text
 		}
 	}
 	return lines
@@ -186,10 +180,9 @@ func (p *Project) RestoreEnvironmentAssignments(source *Project, keys []string) 
 	}
 	var out strings.Builder
 	seen := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSuffix(string(current), "\n"), "\n") {
-		key, _, found := strings.Cut(strings.TrimSpace(line), "=")
-		key = strings.TrimSpace(strings.TrimPrefix(key, "export "))
-		if found && selected[key] {
+	for _, entry := range environmentEntries(current) {
+		key, line := entry.key, entry.text
+		if key != "" && selected[key] {
 			line = assignments[key]
 			seen[key] = true
 		}

@@ -3,7 +3,6 @@
 package project
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -121,36 +120,10 @@ func (p *Project) writeFile(name string, data []byte, mode os.FileMode) error {
 
 func parseEnv(data []byte) map[string]string {
 	values := map[string]string{}
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	for _, entry := range environmentEntries(data) {
+		if entry.key != "" {
+			values[entry.key] = entry.value
 		}
-		key, value, found := strings.Cut(line, "=")
-		if !found {
-			continue
-		}
-		key = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(key), "export "))
-		value = strings.TrimSpace(value)
-		if len(value) > 0 && (value[0] == '\'' || value[0] == '"') {
-			quote := value[0]
-			for i := 1; i < len(value); i++ {
-				if value[i] == quote && (i == 1 || value[i-1] != '\\') {
-					quoted := value[:i+1]
-					value = quoted[1 : len(quoted)-1]
-					if quote == '"' {
-						if decoded, err := strconv.Unquote(quoted); err == nil {
-							value = decoded
-						}
-					}
-					break
-				}
-			}
-		} else if prefix, _, ok := strings.Cut(value, " #"); ok {
-			value = strings.TrimSpace(prefix)
-		}
-		values[key] = value
 	}
 	return values
 }
@@ -165,7 +138,7 @@ func formatEnv(header string, values map[string]string, order []string) []byte {
 			return
 		}
 		seen[key] = true
-		if strings.ContainsAny(value, " $#\"\\`") {
+		if strings.ContainsAny(value, " $#\"\\`\n\r") {
 			value = "'" + value + "'"
 		}
 		fmt.Fprintf(&b, "%s=%s\n", key, value)
@@ -362,23 +335,20 @@ func (p *Project) updateEnv(updates map[string]string, remove map[string]bool) e
 	updates = changed
 	var out strings.Builder
 	seen := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
-		key, _, found := strings.Cut(strings.TrimSpace(line), "=")
-		key = strings.TrimSpace(strings.TrimPrefix(key, "export "))
-		if found && remove[key] {
+	for _, entry := range environmentEntries(data) {
+		key := entry.key
+		if key != "" && remove[key] {
 			continue
 		}
-		if value, ok := updates[key]; found && ok {
+		if value, ok := updates[key]; key != "" && ok {
 			if !seen[key] {
 				out.Write(formatEnv("", map[string]string{key: value}, []string{key}))
 			}
 			seen[key] = true
 			continue
 		}
-		if line != "" || len(data) > 0 {
-			out.WriteString(line)
-			out.WriteByte('\n')
-		}
+		out.WriteString(entry.text)
+		out.WriteByte('\n')
 	}
 	order := append([]string{}, SettingKeys...)
 	order = append(order, "ADMIN_USER", "ADMIN_PASSWORD")

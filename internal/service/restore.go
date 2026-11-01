@@ -359,15 +359,40 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 	if settings["MEDIA_SEPARATE_USERS"] == "on" {
 		checkedPlatform := false
 		reserved := map[int]bool{p.Owner.UID: true}
+		var namespace *host.MediaNamespace
 		for _, id := range rs.targets {
 			if rs.r.Manifest.Folder(id) == project.ExtraDirName || !slices.Contains(mediaIdentityApps, id) {
 				continue
 			}
 			if !checkedPlatform {
-				if err := host.MediaUsersSupported(ctx, rs.s.Deps); err != nil {
+				var err error
+				namespace, err = host.MediaUserNamespace(ctx, rs.s.Deps)
+				if err != nil {
 					return fmt.Errorf("restore separate media App users: %w", err)
 				}
+				if namespace != nil {
+					reserved = map[int]bool{0: true}
+					gid, err := strconv.Atoi(settings["PGID"])
+					if err != nil || gid < 0 {
+						return fmt.Errorf("PGID must be a mapped non-negative group before Restore")
+					}
+					if _, err := namespace.HostGID(gid); err != nil {
+						return fmt.Errorf("restore shared media group: %w", err)
+					}
+				}
 				checkedPlatform = true
+			}
+			if namespace != nil && !rs.dockerApps[id] {
+				return fmt.Errorf("restore %s: this Backup records host file owners; an explicit ownership migration is required before restoring separate media App users into rootless Docker", id)
+			}
+			if namespace != nil {
+				uid, err := strconv.Atoi(settings[mediaUIDKey(id)])
+				if err != nil || uid <= 0 {
+					return fmt.Errorf("restore %s: a positive mapped media file owner is required", id)
+				}
+				if _, err := namespace.HostUID(uid); err != nil {
+					return fmt.Errorf("restore %s file owner: %w", id, err)
+				}
 			}
 			if p.Exists() {
 				continue // Existing Projects validate their persisted ownership below.
@@ -378,7 +403,7 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 				return fmt.Errorf("%s must be a positive file owner distinct from the Project owner and other restored media Apps; an explicit ownership migration is required before Restore", key)
 			}
 			reserved[uid] = true
-			if err := host.CheckUnusedMediaUID(ctx, rs.s.Deps, uid); err != nil {
+			if err := host.CheckUnusedMediaUIDInNamespace(ctx, rs.s.Deps, uid, namespace); err != nil {
 				return fmt.Errorf("restore %s: %w", key, err)
 			}
 		}
@@ -684,16 +709,10 @@ func (rs *restoration) edit(ctx context.Context, ss *session) (result error) {
 			return err
 		}
 	}
-	if err := ss.restoreRecords(rs.staging, rs.targets, rs.fresh || rs.startup.Fresh); err != nil {
-		return err
-	}
 	for key, value := range rs.restoreEnv {
 		ss.secrets.values[key] = value
 	}
 	registerSecrets(ss.s.Log, ss.secrets.values)
-	if err := ss.p.SaveSecrets(ss.secrets.values); err != nil {
-		return err
-	}
 	if len(rs.restoreEnv) > 0 {
 		keys := make([]string, 0, len(rs.restoreEnv))
 		for key := range rs.restoreEnv {
@@ -702,6 +721,9 @@ func (rs *restoration) edit(ctx context.Context, ss *session) (result error) {
 		if err := ss.p.RestoreEnvironmentAssignments(rs.staging.Records(), keys); err != nil {
 			return err
 		}
+	}
+	if err := ss.restoreRecords(rs.staging, rs.targets, rs.fresh || rs.startup.Fresh); err != nil {
+		return err
 	}
 	for _, id := range rs.targets {
 		if err := ss.p.RestoreFragment(id, replacements[id], rs.r.Manifest.Folder(id), rs.staging.Records().Canonical()); err != nil {
@@ -797,12 +819,16 @@ func (ss *session) restoreRecords(staging *project.Staging, targets []string, in
 		ss.secrets.values["ADMIN_USER"] = secrets["ADMIN_USER"]
 		ss.secrets.values["ADMIN_PASSWORD"] = secrets["ADMIN_PASSWORD"]
 	}
+	var changedAssignments []string
 	for key, value := range secrets {
 		if key == "ADMIN_USER" || key == "ADMIN_PASSWORD" {
 			continue
 		}
 		for _, id := range targets {
 			if strings.HasPrefix(key, SecretKey(id, "")) {
+				if ss.secrets.values[key] != value {
+					changedAssignments = append(changedAssignments, key)
+				}
 				ss.secrets.values[key] = value
 			}
 		}
@@ -813,6 +839,9 @@ func (ss *session) restoreRecords(staging *project.Staging, targets []string, in
 			Hint: "Run self-host setup " + strings.Join(targets, " ") + " to switch the restored Apps to the current Admin login."})
 	}
 	registerSecrets(ss.s.Log, ss.secrets.values)
+	if err := ss.p.RestoreEnvironmentAssignments(backupProject, changedAssignments); err != nil {
+		return err
+	}
 	if err := ss.p.SaveSecrets(ss.secrets.values); err != nil {
 		return err
 	}

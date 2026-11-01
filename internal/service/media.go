@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/host"
 	"github.com/ajnart/self-host/internal/project"
 )
@@ -66,13 +68,26 @@ func (s *Service) ensureMediaIdentities(ctx context.Context, settings map[string
 	if settings["MEDIA_SEPARATE_USERS"] != "on" {
 		return nil
 	}
-	if err := host.MediaUsersSupported(ctx, s.Deps); err != nil {
+	namespace, err := host.MediaUserNamespace(ctx, s.Deps)
+	if err != nil {
 		return err
 	}
 	reserved := map[int]bool{0: true}
 	base, err := strconv.Atoi(settings["PUID"])
 	if err != nil || base < 0 {
 		return fmt.Errorf("PUID must be a non-negative integer")
+	}
+	if namespace != nil {
+		if _, err := namespace.HostUID(base); err != nil {
+			return err
+		}
+		gid, err := strconv.Atoi(settings["PGID"])
+		if err != nil || gid < 0 {
+			return fmt.Errorf("PGID must be a non-negative integer")
+		}
+		if _, err := namespace.HostGID(gid); err != nil {
+			return err
+		}
 	}
 	reserved[base] = true
 	for _, id := range mediaIdentityApps {
@@ -84,6 +99,11 @@ func (s *Service) ensureMediaIdentities(ctx context.Context, settings map[string
 		if err != nil || uid <= 0 || reserved[uid] {
 			return fmt.Errorf("%s must be a distinct positive media App file owner, separate from PUID", key)
 		}
+		if namespace != nil {
+			if _, err := namespace.HostUID(uid); err != nil {
+				return fmt.Errorf("%s: %w", key, err)
+			}
+		}
 		reserved[uid] = true
 	}
 	for _, id := range mediaIdentityApps {
@@ -91,7 +111,7 @@ func (s *Service) ensureMediaIdentities(ctx context.Context, settings map[string
 		if settings[key] != "" {
 			continue
 		}
-		uid, err := host.UnusedMediaUID(ctx, s.Deps, 10001, reserved)
+		uid, err := host.UnusedMediaUIDInNamespace(ctx, s.Deps, 10001, reserved, namespace)
 		if err != nil {
 			return err
 		}
@@ -165,17 +185,54 @@ func (ss *session) prepareMedia(ctx context.Context, apps []app.App) error {
 		}
 	}
 	uid, gid := ss.p.Owner.UID, ss.p.Owner.GID
-	if ss.settings["MEDIA_SEPARATE_USERS"] != "on" {
+	var setMetadata func(string, int, int, os.FileMode) error
+	if ss.settings["MEDIA_SEPARATE_USERS"] == "on" {
+		namespace, err := host.MediaUserNamespace(ctx, ss.s.Deps)
+		if err != nil {
+			return err
+		}
+		if namespace != nil {
+			containerGID, err := strconv.Atoi(ss.settings["PGID"])
+			if err != nil {
+				return err
+			}
+			gid, err = namespace.HostGID(containerGID)
+			if err != nil {
+				return err
+			}
+			for id, containerUID := range identities {
+				identities[id], err = namespace.HostUID(containerUID)
+				if err != nil {
+					return err
+				}
+			}
+			setMetadata = func(path string, uid, gid int, mode os.FileMode) error {
+				return namespace.SetMetadata(ctx, path, uid, gid, mode)
+			}
+		}
+	} else {
 		var err error
 		uid, gid, err = ss.s.mediaHostOwner(ctx, ss.p, ss.settings)
 		if err != nil {
 			return err
 		}
 	}
-	if err := ss.p.PrepareMediaDirectories(ss.settings, identities, uid, gid); err != nil {
+	if err := ss.p.PrepareMediaDirectories(ss.settings, identities, uid, gid, setMetadata); err != nil {
 		return err
 	}
-	return ss.p.SaveSettings(ss.settings)
+	if err := ss.p.SaveSettings(ss.settings); err != nil {
+		return err
+	}
+	for _, check := range ss.mediaHardlinkChecks(ctx, apps) {
+		event := events.StepOK
+		if check.Level == host.Skipped {
+			event = events.StepSkip
+		} else if check.Level != host.OK {
+			event = events.StepWarn
+		}
+		ss.s.Log.Emit(events.Event{Event: event, App: check.App, Step: check.ID, Msg: check.Title + ": " + check.Detail, Hint: check.Hint, Docs: check.Docs})
+	}
+	return nil
 }
 
 // mediaHostOwner resolves only the supported ownership mappings. Existing

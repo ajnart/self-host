@@ -57,8 +57,8 @@ func (o *onboarding) buildForm(ctx *viewContext, s step) *huh.Form {
 		if v.mediaLayout == "shared" {
 			folderFields = []huh.Field{
 				data.Key(whereData).Title("Data folder (media and downloads)"),
-				huh.NewInput().Key(whereMediaUsers).Title("Separate Linux file owners (off/on)").Value(&v.separateMediaUsers).Validate(onOff),
-				huh.NewInput().Key(whereCopyFallback).Title("Allow copying when hardlinks fail (off/on)").Value(&v.mediaCopyFallback).Validate(onOff),
+				huh.NewConfirm().Key(whereMediaUsers).Title("Separate Linux file owners?").Affirmative("Yes (y)").Negative("No (n)").Accessor(onOffAccessor{&v.separateMediaUsers}),
+				huh.NewConfirm().Key(whereCopyFallback).Title("Allow copying when hardlinks fail?").Affirmative("Yes (y)").Negative("No (n)").Accessor(onOffAccessor{&v.mediaCopyFallback}),
 			}
 		}
 		groups = append(groups,
@@ -179,8 +179,8 @@ var whereExplanations = map[string]string{
 	whereMedia:        "Where movies, shows and music live. The folder must exist or sit inside one that does. " + folderKeysHint,
 	whereDownloads:    "Where downloads land before they move to media. The folder must exist or sit inside one that does. " + folderKeysHint,
 	whereData:         "One folder contains media, torrents and Usenet downloads for hardlink-friendly storage. Capability is checked inside importing Apps. " + folderKeysHint,
-	whereMediaUsers:   "Off by default. On gives supported media Apps distinct Linux file owners, a shared group and umask 002; these are not App logins. Creating private config folders needs ownership permissions.",
-	whereCopyFallback: "Off requires a successful hardlink capability check. On acknowledges extra disk space and writes when files must be copied. Hardlinks also depend on the filesystem and permissions.",
+	whereMediaUsers:   "No by default. Yes gives supported media Apps distinct Linux file owners, a shared group and umask 002; these are not App logins. Creating private config folders needs ownership permissions.",
+	whereCopyFallback: "No requires a successful hardlink capability check. Yes acknowledges extra disk space and writes when files must be copied. Hardlinks also depend on the filesystem and permissions.",
 }
 
 // inputGroups ask each chosen App's own inputs; an answer survives the
@@ -235,9 +235,16 @@ func numeric(s string) error {
 	return nil
 }
 
-func onOff(s string) error {
-	if s != "off" && s != "on" {
-		return errors.New("off or on")
+// onOffAccessor lets Yes/No controls keep the existing persisted on/off values.
+type onOffAccessor struct {
+	value *string
+}
+
+func (a onOffAccessor) Get() bool { return *a.value == "on" }
+
+func (a onOffAccessor) Set(value bool) {
+	*a.value = "off"
+	if value {
+		*a.value = "on"
 	}
-	return nil
 }
