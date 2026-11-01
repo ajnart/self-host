@@ -27,7 +27,8 @@ type Info struct {
 	// Path is appended to the App URL when users open it (e.g. "/web").
 	Path string
 	// NoWebUI identifies a published protocol endpoint that is not a browser URL.
-	NoWebUI bool
+	NoWebUI         bool
+	HomeAddressOnly bool
 	// WebSockets and LongTimeouts say what a reverse proxy in front of the App
 	// must allow: upgraded connections, and long uploads or streams. Unset
 	// means not known, not no.

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/helpers"
 	"go.yaml.in/yaml/v3"
 
@@ -99,6 +100,10 @@ func (s *Service) AccessExport(ctx context.Context) (AccessExport, error) {
 		if info.NoWebUI || st.Port <= 0 || info.ContainerPort <= 0 {
 			continue
 		}
+		if info.HomeAddressOnly {
+			export.Warnings = append(export.Warnings, ExportWarning{ID: id, Reason: homeAddressRestriction(info)})
+			continue
+		}
 		item := ExportApp{
 			ID: id, Name: info.Name, Hostname: id + ExportHostnameSuffix,
 			Service: info.Service, ContainerPort: info.ContainerPortFor(st.Port),
@@ -114,6 +119,10 @@ func (s *Service) AccessExport(ctx context.Context) (AccessExport, error) {
 		export.Apps = append(export.Apps, item)
 	}
 	return export, nil
+}
+
+func homeAddressRestriction(info app.Info) string {
+	return info.Name + " supports only its Home network or This computer only Address. Its fixed browser origin prevents alternate Addresses; Easy names, Tailscale, Cloudflare and Bring your own Access are not configured for this App."
 }
 
 var exportAppID = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)

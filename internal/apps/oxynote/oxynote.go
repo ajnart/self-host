@@ -12,7 +12,6 @@ import (
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/helpers"
-	"github.com/ajnart/self-host/internal/names"
 )
 
 // App is Oxynote. Traps: docs/catalog/traps/oxynote.md.
@@ -32,13 +31,14 @@ const (
 func (App) Info() app.Info {
 	return app.Info{
 		ID: id, Name: "Oxynote", Category: "Productivity",
-		Description:   "Write team docs together, with live charts and queries next to the text",
-		Image:         "ghcr.io/oxynote/oxynote:latest",
-		Docs:          "https://github.com/oxynote/oxynote/blob/main/docker/prod/README.md",
-		Port:          8085,
-		ContainerPort: 8080,
-		WebSockets:    true,
-		Service:       service,
+		Description:     "Write team docs together, with live charts and queries next to the text",
+		Image:           "ghcr.io/oxynote/oxynote:latest",
+		Docs:            "https://github.com/oxynote/oxynote/blob/main/docker/prod/README.md",
+		Port:            8085,
+		ContainerPort:   8080,
+		WebSockets:      true,
+		HomeAddressOnly: true,
+		Service:         service,
 	}
 }
 
@@ -48,11 +48,6 @@ func (App) Inputs() []app.Input { return nil }
 // this host only, so it must be the address people open. lan is the LAN
 // address, or ${LAN_IP} in Compose.
 func publicURL(settings map[string]string, lan string, port int) string {
-	if settings["EASY_NAMES"] == "on" {
-		if host, ok := names.Host(id, settings["LAN_IP"]); ok {
-			return "http://" + host
-		}
-	}
 	if settings["EXPOSURE"] == "local" {
 		lan = "127.0.0.1"
 	}
@@ -168,5 +163,5 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "After the first start, sign in as " + email + " with the password " + defaultPassword + " and change it in the account settings."
+	return "Open the exact Address configured in OXYNOTE_PUBLIC_URL. All browser API calls, WebSockets and sign-in cookies use this one origin; alternate Addresses do not work. To use a proxy, change OXYNOTE_PUBLIC_URL to its public origin and restart first. After the first start, sign in as " + email + " with the password " + defaultPassword + " and change it in the account settings before allowing anyone else to connect."
 }
