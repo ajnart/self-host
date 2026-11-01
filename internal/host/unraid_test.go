@@ -61,6 +61,20 @@ func TestUnraidComposeRequiresIncludeWithoutMandatingManagementPlugin(t *testing
 	}
 }
 
+func TestUncertainUnraidEvidenceStillRequiresComposeInclude(t *testing.T) {
+	for _, read := range []func() ([]byte, error){
+		func() ([]byte, error) { return nil, os.ErrPermission },
+		func() ([]byte, error) { return []byte("version=unrecognized\n"), nil },
+	} {
+		deps := systemtest.NewDeps(t)
+		deps.UnraidRelease = read
+		deps.Runner.(*systemtest.Runner).On("docker compose version", system.Result{Stdout: []byte("2.19.1")})
+		if checks := host.Docker(context.Background(), deps); host.Worst(checks) != host.Fail {
+			t.Fatalf("uncertain identity bypassed Compose compatibility: %+v", checks)
+		}
+	}
+}
+
 func TestUnraidDoesNotClassifyGenericLinuxOrMacOS(t *testing.T) {
 	for _, goos := range []string{"linux", "darwin"} {
 		t.Run(goos, func(t *testing.T) {

@@ -561,10 +561,12 @@ fresh-session invocation, approval boundaries and the real-Host evidence gate.
 New Unraid Projects require explicit persistent locations; unsupported storage
 stops before Project creation. No plugin or boot configuration is changed.
 
-Plain Doctor does not check unapproved App ports or free disk. For a new Project,
+Plain Doctor does not check unapproved App ports or free disk. For proposed Apps,
 `self-host doctor <app|recipe>... --set app.port=N --json` checks a proposed plan
 without applying it; `--easy-names` also checks port 80. Use the same non-secret
-inputs in the approved install. Existing-project Doctor behaviour stays intact.
+inputs in the approved install. Existing Projects reserve recorded App ports and
+Easy names; planned checks skip targets already installed. Plain Doctor's
+existing-project behaviour stays intact.
 Onboarding checks free space in the Home folder and the
 selected Apps' default ports at Review, before approval. A failed check blocks
 approval and `r` rechecks it. An occupied default is a warning naming the free

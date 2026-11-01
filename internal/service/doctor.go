@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -81,11 +82,65 @@ func (s *Service) Doctor(ctx context.Context) []host.Check {
 }
 
 func (s *Service) DoctorPlan(ctx context.Context, opts InstallOptions) []host.Check {
-	if p, err := s.Project(); err != nil || p.Exists() {
-		return []host.Check{{ID: "plan", Title: "Planned ports", Level: host.Warn,
-			Detail: "planned port checks require a new Project", Hint: "Use Doctor's existing App findings for this Project; do not relocate it."}}
+	p, err := s.Project()
+	failed := func(err error) []host.Check {
+		return []host.Check{{ID: "plan", Title: "Planned ports", Level: host.Fail, Detail: err.Error()}}
 	}
-	return s.OnboardingChecks(ctx, opts)
+	if err != nil {
+		return failed(err)
+	}
+	if !p.Exists() {
+		return s.OnboardingChecks(ctx, opts)
+	}
+	apps, err := s.Resolve(opts.Targets)
+	if err != nil {
+		return failed(err)
+	}
+	installed, err := p.AppIDs()
+	if err != nil {
+		return failed(err)
+	}
+	state, err := p.LoadState()
+	if err != nil {
+		return failed(err)
+	}
+	settings, err := p.LoadSettings()
+	if err != nil {
+		return failed(err)
+	}
+	var reserved []host.PortRequirement
+	if settings[settingNames] == namesOn {
+		reserved = append(reserved, host.PortRequirement{Port: 80, Protocols: []string{"tcp"}})
+		opts.EasyNames = false
+	}
+	for id, st := range state.Apps {
+		if st == nil {
+			continue
+		}
+		reserved = append(reserved, host.PortRequirement{Port: st.Port, Protocols: []string{"tcp"}})
+		if a, found := s.Catalog.App(id); found {
+			for _, input := range a.Inputs() {
+				if len(input.HostPortProtocols) > 0 {
+					port, err := plannedPort(st.Inputs[input.Key], 0)
+					if err != nil {
+						return failed(err)
+					}
+					reserved = append(reserved, host.PortRequirement{Port: port, Protocols: input.HostPortProtocols})
+				}
+			}
+		}
+	}
+	opts.Targets = nil
+	for _, a := range apps {
+		if !slices.Contains(installed, a.Info().ID) {
+			opts.Targets = append(opts.Targets, a.Info().ID)
+		}
+	}
+	if len(opts.Targets) == 0 {
+		return []host.Check{{ID: "plan", Title: "Planned Apps", Level: host.Warn,
+			Detail: "all selected Apps are already installed", Hint: "Use plain Doctor for their current ports; planned checks inspect additions only."}}
+	}
+	return s.onboardingChecks(opts, reserved)
 }
 
 func (s *Service) appChecks(ctx context.Context, app AppStatus, byService map[string]compose.Container, lan bool) []host.Check {

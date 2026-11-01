@@ -18,9 +18,12 @@ type PortRequirement struct {
 }
 
 // Onboarding checks the machine against an unapproved plan without changing it.
-func Onboarding(deps *system.Deps, projectPath string, appCount int, ports []PortRequirement) []Check {
+func Onboarding(deps *system.Deps, projectPath string, appCount int, ports []PortRequirement, existing ...PortRequirement) []Check {
 	checks := []Check{onboardingDisk(deps, projectPath, appCount)}
 	reserved := map[string]bool{}
+	for _, requirement := range existing {
+		reservePort(requirement.Port, requirement.Protocols, reserved)
+	}
 	for _, requirement := range ports {
 		checks = append(checks, onboardingPort(deps, requirement, reserved))
 	}

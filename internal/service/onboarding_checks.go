@@ -12,6 +12,10 @@ import (
 // OnboardingChecks prepares the approved non-secret App inputs for Host-owned
 // disk and port inspection.
 func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []host.Check {
+	return s.onboardingChecks(opts, nil)
+}
+
+func (s *Service) onboardingChecks(opts InstallOptions, reserved []host.PortRequirement) []host.Check {
 	p, err := s.Project()
 	if err != nil {
 		return []host.Check{{ID: "disk", Title: "Disk space", Level: host.Fail,
@@ -57,7 +61,7 @@ func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []hos
 				Input: input.Key, Protocols: input.HostPortProtocols, Automatic: !inputWasSet(opts.Sets, info.ID, input.Key)})
 		}
 	}
-	return append(checks, host.Onboarding(s.Deps, p.Root, len(apps), ports)...)
+	return append(checks, host.Onboarding(s.Deps, p.Root, len(apps), ports, reserved...)...)
 }
 
 func plannedPort(value string, fallback int) (int, error) {

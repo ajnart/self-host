@@ -91,7 +91,9 @@ SELF_HOST_HOME="$SELF_HOST_HOME" "$SELF_HOST_BINARY_DIR/self-host" doctor ntfy -
 ```
 
 Use the agreed App set instead of this single-App example. Planned Doctor checks
-are for a new Project; plain Doctor inspects an existing Project. Add
+also inspect additions to an existing Project, reserving its recorded App ports
+and port 80 when Easy names are on, even when those Apps are stopped. Already
+installed targets are skipped; plain Doctor inspects their current bindings. Add
 `--easy-names` to planned Doctor only if choosing Easy names. An occupied
 explicit port fails; an occupied default suggests the existing allocator's
 alternative. Review that alternative before approval. Permission/unsupported

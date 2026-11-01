@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ajnart/self-host/internal/host"
 	stepstatus "github.com/ajnart/self-host/internal/status"
 	"github.com/ajnart/self-host/internal/system"
 	"github.com/ajnart/self-host/internal/systemtest"
@@ -48,6 +49,67 @@ func TestUnraidInstallRefusesUnsafeLocationsBeforeCreatingProject(t *testing.T) 
 				t.Fatalf("refusal reached Docker: %v", calls)
 			}
 		})
+	}
+}
+
+func TestDoctorPlanChecksAdditionsAgainstExistingProjectPortsWithoutMutation(t *testing.T) {
+	h := newHarness(t, &testApp{id: "one", done: map[string]bool{}}, &testApp{id: "two", done: map[string]bool{}})
+	if err := h.install("one"); err != nil {
+		t.Fatal(err)
+	}
+	h.deps.DiskUsage = func(string) (system.DiskUsage, error) {
+		return system.DiskUsage{AvailableBytes: 20 << 30}, nil
+	}
+	statePath := filepath.Join(h.root(), "state.json")
+	before, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := len(h.runner.Calls())
+	checks := h.svc.DoctorPlan(context.Background(), InstallOptions{Targets: []string{"one", "two"}, Sets: []string{"two.port=9000"}})
+	found := false
+	for _, check := range checks {
+		if check.ID == "port" && check.App == "two" && check.Level == host.Fail && strings.Contains(check.Detail, "9000") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("existing Project port was not reserved: %+v", checks)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil || string(before) != string(after) || len(h.runner.Calls()) != calls {
+		t.Fatalf("planned checks mutated state or ran external commands: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(h.root(), "apps", "two")); !os.IsNotExist(err) {
+		t.Fatalf("planned checks created App files: %v", err)
+	}
+}
+
+func TestDoctorPlanReservesExistingEasyNamesAndSecondaryPorts(t *testing.T) {
+	h := newHarness(t, &portInputApp{testApp{id: "paired", done: map[string]bool{}}}, &testApp{id: "new", done: map[string]bool{}})
+	if err := h.install("paired"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := h.svc.Project()
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := p.LoadSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings[settingNames] = namesOn
+	if err := p.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	h.deps.DiskUsage = func(string) (system.DiskUsage, error) {
+		return system.DiskUsage{AvailableBytes: 20 << 30}, nil
+	}
+	for _, port := range []string{"80", "6881"} {
+		checks := h.svc.DoctorPlan(context.Background(), InstallOptions{Targets: []string{"new"}, Sets: []string{"new.port=" + port}})
+		if host.Worst(checks) != host.Fail || !strings.Contains(checksText(checks), "selected port "+port) {
+			t.Fatalf("existing reserved port %s was not checked: %+v", port, checks)
+		}
 	}
 }
 

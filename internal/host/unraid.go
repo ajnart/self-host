@@ -14,19 +14,30 @@ const unraidDocs = "https://github.com/ajnart/self-host/blob/main/docs/unraid.md
 
 var unraidVersion = regexp.MustCompile(`(?m)^version\s*=\s*["']?([0-9]+\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9]+)*)["']?\s*$`)
 
-func Unraid(deps *system.Deps, home string) []Check {
+func detectUnraid(deps *system.Deps) (string, bool) {
 	if deps.GOOS != "linux" || deps.UnraidRelease == nil {
-		return nil
+		return "", false
 	}
 	data, err := deps.UnraidRelease()
 	if os.IsNotExist(err) {
+		return "", false
+	}
+	if version := unraidVersion.FindSubmatch(data); err == nil && len(version) == 2 {
+		return string(version[1]), true
+	}
+	return "", true
+}
+
+func Unraid(deps *system.Deps, home string) []Check {
+	version, detected := detectUnraid(deps)
+	if !detected {
 		return nil
 	}
 	check := Check{ID: "unraid", Title: "Unraid", Level: Warn, Docs: unraidDocs,
 		Detail: "Unraid identity/version could not be established from /etc/unraid-version; compatibility is unverified",
 		Hint:   "Verify the Unraid version in the management interface. Detection is not tested support; review the provisional Unraid guide before installing."}
-	if version := unraidVersion.FindSubmatch(data); err == nil && len(version) == 2 {
-		check.Detail = "Unraid " + string(version[1]) + " from /etc/unraid-version; compatibility and reboot persistence are unverified"
+	if version != "" {
+		check.Detail = "Unraid " + version + " from /etc/unraid-version; compatibility and reboot persistence are unverified"
 	}
 	return []Check{check, unraidStorage(deps, home)}
 }
@@ -59,7 +70,7 @@ func unraidStorage(deps *system.Deps, home string) Check {
 }
 
 func UnraidInstall(deps *system.Deps, home string) error {
-	if len(Unraid(deps, home)) == 0 {
+	if _, detected := detectUnraid(deps); !detected {
 		return nil
 	}
 	if deps.Getenv("SELF_HOST_HOME") == "" {

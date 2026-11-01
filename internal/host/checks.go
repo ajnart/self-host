@@ -51,20 +51,18 @@ func installDocs(goos string) string {
 // the active context, and that Compose v2 is available. Later checks are
 // skipped when an earlier one fails.
 func Docker(ctx context.Context, deps *system.Deps) []Check {
-	unraid := false
-	if deps.GOOS == "linux" && deps.UnraidRelease != nil {
-		data, err := deps.UnraidRelease()
-		unraid = err == nil && unraidVersion.Match(data)
-	}
+	_, unraid := detectUnraid(deps)
 	if _, err := deps.LookPath("docker"); err != nil {
 		hint := "Install Docker Engine, then run self-host again."
+		docs := installDocs(deps.GOOS)
 		if deps.GOOS == "darwin" {
 			hint = "Install OrbStack, start it once, then run self-host again."
 		}
 		if unraid {
 			hint = "Check Docker availability in Unraid Settings before installing; self-host does not install Docker or plugins."
+			docs = unraidDocs
 		}
-		return []Check{{ID: "docker", Title: "Docker", Level: Fail, Detail: "docker command not found", Hint: hint, Docs: installDocs(deps.GOOS)}}
+		return []Check{{ID: "docker", Title: "Docker", Level: Fail, Detail: "docker command not found", Hint: hint, Docs: docs}}
 	}
 	checks := []Check{{ID: "docker", Title: "Docker", Level: OK, Detail: "docker command found"}}
 
