@@ -113,6 +113,31 @@ func TestDoctorPlanReservesExistingEasyNamesAndSecondaryPorts(t *testing.T) {
 	}
 }
 
+func TestDoctorPlanAlternativeMatchesInstallWithStoppedSecondaryPortOwner(t *testing.T) {
+	h := newHarness(t, &portInputApp{testApp{id: "paired", done: map[string]bool{}}}, &testApp{id: "new", done: map[string]bool{}})
+	if err := h.svc.Install(context.Background(), InstallOptions{Targets: []string{"paired"}, Sets: []string{"paired.port=9002", "paired.peer-port=9000"}}); err != nil {
+		t.Fatal(err)
+	}
+	h.deps.DiskUsage = func(string) (system.DiskUsage, error) {
+		return system.DiskUsage{AvailableBytes: 20 << 30}, nil
+	}
+	checks := h.svc.DoctorPlan(context.Background(), InstallOptions{Targets: []string{"new"}})
+	if !strings.Contains(checksText(checks), "install will use 9001 instead") {
+		t.Fatalf("missing planned alternative: %+v", checks)
+	}
+	if err := h.install("new"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := h.svc.Project()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := p.LoadState()
+	if err != nil || state.Apps["new"] == nil || state.Apps["new"].Port != 9001 {
+		t.Fatalf("installed port differs from approved alternative: %+v, %v", state, err)
+	}
+}
+
 func TestUnraidExplicitLocationsReuseTheSameProjectInAFreshService(t *testing.T) {
 	h := newHarness(t, &testApp{id: "one", done: map[string]bool{}})
 	root := filepath.Join(t.TempDir(), "persistent-home")

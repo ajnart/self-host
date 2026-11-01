@@ -611,6 +611,14 @@ func (ss *session) allocatePort(info app.Info, requested string, current int) (i
 	for id, st := range ss.state.Apps {
 		if id != info.ID {
 			used[st.Port] = true
+			if installed, found := ss.s.Catalog.App(id); found {
+				for _, input := range installed.Inputs() {
+					if slices.Contains(input.HostPortProtocols, "tcp") {
+						port, _ := strconv.Atoi(st.Inputs[input.Key])
+						used[port] = true
+					}
+				}
+			}
 		}
 	}
 	for port := info.Port; port <= 65535; port++ {
