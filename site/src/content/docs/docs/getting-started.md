@@ -52,6 +52,11 @@ memory-backed or read-only storage, unsupported Home folder filesystems and a
 binary on `noexec` storage. Reuse the same Home folder and full binary path in
 every fresh session after checking the mount is available.
 
+Docker Compose v2 or later must be available as `docker compose`; `include`
+support is not required. Audit the authoritative root `compose.yml` for storage
+and ports; per-App Compose files are recovery snapshots. Keep the Project's
+private `.env` (mode `0600`) with the persistent Home folder.
+
 Follow the [provisional Unraid installation and reboot procedure](https://github.com/ajnart/self-host/blob/main/docs/unraid.md)
 for the plan, separate approvals, storage checks and limitations. No plugin,
 boot configuration, existing Project or unrelated container is changed
@@ -257,7 +262,7 @@ On start, when it is idle, the Dashboard asks once about what it found: a change
 
 ## Where things live
 
-Everything self-host knows on a host lives in the Home folder, `~/.self-host`: the Project, its Apps' files, Unmanaged apps under `extra/`, and the Profile. `SELF_HOST_HOME` moves it. Secrets live only in the Project's `secrets.env`; read them with `self-host credentials`.
+Everything self-host knows on a host lives in the Home folder, `~/.self-host`: the Project, its Apps' files, Unmanaged apps under `extra/`, and the Profile. `SELF_HOST_HOME` moves it. Secrets live in the Project's private `.env` (mode `0600`); legacy `secrets.env` remains compatible with migration and restore. Read credentials with `self-host credentials`.
 
 ## Share your setup
 

@@ -37,13 +37,15 @@ spelling `/root`, `/mnt/user` or a pool name.
    `zfs` or `ext2/3/4` Home folder filesystems; shared/FUSE, layered and unknown
    layouts stop with guidance. This is a conservative guard, not certification of
    those local filesystems for every App. Permissions are not rewritten.
-4. Keep the whole Home folder on the selected storage: Compose files, state,
-   Profile, `secrets.env` and App configuration/database bind mounts under
-   `apps/`. Audit selected App fragments for other bind paths or named volumes;
+4. Keep the whole Home folder on the selected storage: root `compose.yml`, state,
+   Profile, private `.env` (mode `0600`) and App configuration/database bind mounts under
+   `apps/`. Legacy `secrets.env` remains a compatible migration/restore input.
+   Audit the authoritative root Compose services for other bind paths or named volumes;
+   per-App Compose files are recovery snapshots, not the current configuration.
    those depend on their own mounts or Docker's data storage. Media and downloads
    are separate Host settings and are not included in App Backups.
-5. Use a Docker Compose implementation available as `docker compose`, with
-   `include` support (introduced in 2.20.0; later majors are accepted). A
+5. Use Docker Compose v2 or later, available as `docker compose`. The root
+   Compose file contains services directly and does not require `include` support. A
    third-party Compose-management plugin is not inherently required. If Compose
    is missing, the operator must establish an installation method supported by
    their Unraid version under a separate approval; self-host installs no plugin.
@@ -91,7 +93,8 @@ SELF_HOST_HOME="$SELF_HOST_HOME" "$SELF_HOST_BINARY_DIR/self-host" doctor ntfy -
 ```
 
 Use the agreed App set instead of this single-App example. Planned Doctor checks
-also inspect additions to an existing Project, reserving its recorded App ports
+also inspect additions to an existing Project, reserving its effective Compose publications
+including manual services and Unmanaged apps, alongside recorded App ports
 and port 80 when Easy names are on, even when those Apps are stopped. Already
 installed targets are skipped; plain Doctor inspects their current bindings. Add
 `--easy-names` to planned Doctor only if choosing Easy names. An occupied
@@ -109,7 +112,9 @@ SELF_HOST_HOME="$SELF_HOST_HOME" "$SELF_HOST_BINARY_DIR/self-host" status --json
 New Unraid installs require explicit `SELF_HOST_HOME`; they refuse known volatile
 or read-only backing storage, unknown inspection results, and a binary on known
 volatile, read-only or `noexec` storage. These guards cannot verify future mount
-availability or database semantics. Existing Projects are not moved or migrated.
+availability or database semantics. Existing storage is not moved. The first
+approved mutation consolidates supported legacy includes into the root Compose
+file, preserving data paths and `compose.legacy.yml` as a recovery snapshot.
 Doctor warnings require operator review even when its exit code is zero.
 
 Installation success is provisional. Verify that the Apps do their jobs, accounts
@@ -174,8 +179,9 @@ arrangements, Access choices and reboot behaviours remain unverified.
 - Unraid's WebGUI reads `version` from `/etc/unraid-version`:
   [upstream source pinned to 9754759](https://github.com/unraid/webgui/blob/975475904af36845053e3f96bd7a84f85fd2a969/emhttp/plugins/dynamix/include/DefaultPageLayout/Header.php).
   This establishes a detection convention, not version-specific support.
-- [Compose 2.20.0 release](https://github.com/docker/compose/releases/tag/v2.20.0)
-  introduced `include`, which self-host's Project Compose file uses.
+- [ADR 0014](adr/0014-one-editable-compose-file.md) defines the authoritative root
+  Compose file and private `.env`; legacy includes are consolidated by self-host,
+  not a prerequisite for the installed Compose plugin.
 - [Unraid container guidance](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/)
   covers external App data, host port mappings and startup dependencies. Its
   example `appdata` share is not evidence of database suitability for every App
