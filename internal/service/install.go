@@ -634,6 +634,13 @@ func (ss *session) ensureSecrets(a app.App) error {
 // allocatePort keeps an App's existing port, honours an explicit one, and
 // otherwise takes the first free port from the App's default.
 func (ss *session) allocatePort(info app.Info, requested string, current int) (int, error) {
+	reserved, err := ss.s.reservedPorts(ss.p, ss.state, ss.settings, info.ID)
+	if err != nil {
+		return 0, err
+	}
+	conflicts := func(port int) bool {
+		return host.PortReserved(host.PortRequirement{Port: port, BindIP: ss.settings["BIND_IP"], Protocols: []string{"tcp"}}, reserved)
+	}
 	if requested != "" {
 		port, err := strconv.Atoi(requested)
 		if err != nil || port < 1 || port > 65535 {
@@ -642,27 +649,16 @@ func (ss *session) allocatePort(info app.Info, requested string, current int) (i
 		if port == 80 && ss.namesOn() {
 			return 0, fmt.Errorf("port 80 belongs to Easy names; choose another App port")
 		}
+		if conflicts(port) {
+			return 0, fmt.Errorf("%s.port: selected port %d tcp is already reserved by the Project", info.ID, port)
+		}
 		return port, nil
 	}
 	if current != 0 {
 		return current, nil
 	}
-	used := map[int]bool{}
-	for id, st := range ss.state.Apps {
-		if id != info.ID {
-			used[st.Port] = true
-			if installed, found := ss.s.Catalog.App(id); found {
-				for _, input := range installed.Inputs() {
-					if slices.Contains(input.HostPortProtocols, "tcp") {
-						port, _ := strconv.Atoi(st.Inputs[input.Key])
-						used[port] = true
-					}
-				}
-			}
-		}
-	}
 	for port := info.Port; port <= 65535; port++ {
-		if !used[port] && !(port == 80 && ss.namesOn()) && host.PortAvailable(host.ProbePort(ss.s.Deps, port)) {
+		if !conflicts(port) && host.PortAvailable(host.ProbePort(ss.s.Deps, port)) {
 			if port != info.Port {
 				ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: info.ID, Step: "port",
 					Msg: fmt.Sprintf("port %d is taken, using %d", info.Port, port)})
@@ -685,31 +681,31 @@ func inputWasSet(sets []string, id, key string) bool {
 
 func (ss *session) allocateInputPorts(a app.App, values map[string]string, sets []string, previous map[string]string, primaryPort int) error {
 	id := a.Info().ID
-	used := map[int]bool{primaryPort: true}
-	for installedID, st := range ss.state.Apps {
-		used[st.Port] = true
-		installed, found := ss.s.Catalog.App(installedID)
-		if !found || installedID == id {
-			continue
-		}
-		for _, input := range installed.Inputs() {
-			if len(input.HostPortProtocols) > 0 {
-				port, _ := strconv.Atoi(st.Inputs[input.Key])
-				used[port] = true
-			}
-		}
+	reserved, err := ss.s.reservedPorts(ss.p, ss.state, ss.settings, id)
+	if err != nil {
+		return err
 	}
+	reserved = append(reserved, host.PortRequirement{Port: primaryPort, BindIP: ss.settings["BIND_IP"], Protocols: []string{"tcp"}})
 	for _, input := range a.Inputs() {
-		if len(input.HostPortProtocols) == 0 || previous[input.Key] != "" || inputWasSet(sets, id, input.Key) {
+		if len(input.HostPortProtocols) == 0 {
 			continue
 		}
 		start, err := strconv.Atoi(values[input.Key])
 		if err != nil {
 			return fmt.Errorf("%s.%s: %q is not a port", id, input.Key, values[input.Key])
 		}
+		requirement := host.PortRequirement{Port: start, BindIP: ss.settings["BIND_IP"], Protocols: input.HostPortProtocols}
+		if previous[input.Key] != "" || inputWasSet(sets, id, input.Key) {
+			if host.PortReserved(requirement, reserved) {
+				return fmt.Errorf("%s.%s: selected port %d is already reserved by the Project", id, input.Key, start)
+			}
+			reserved = append(reserved, requirement)
+			continue
+		}
 		selected := 0
 		for port := start; port <= 65535; port++ {
-			if !used[port] && portProtocolsAvailable(ss.s.Deps, port, input.HostPortProtocols) {
+			requirement.Port = port
+			if !host.PortReserved(requirement, reserved) && portProtocolsAvailable(ss.s.Deps, port, input.HostPortProtocols) {
 				selected = port
 				break
 			}
@@ -718,7 +714,8 @@ func (ss *session) allocateInputPorts(a app.App, values map[string]string, sets 
 			return fmt.Errorf("%s.%s: no free port from %d", id, input.Key, start)
 		}
 		values[input.Key] = strconv.Itoa(selected)
-		used[selected] = true
+		requirement.Port = selected
+		reserved = append(reserved, requirement)
 		if selected != start {
 			ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: id, Step: "port",
 				Msg: fmt.Sprintf("port %d is taken, using %d", start, selected)})
