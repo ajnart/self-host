@@ -173,3 +173,22 @@ their example address is fixture data, not a private host observation.
 | Before | After |
 | --- | --- |
 | ![Access before](compose-hardlinks-proof/access-before.png) | ![Access after](compose-hardlinks-proof/access-after.png) |
+
+## PR review fixes
+
+A further complete-diff review found four defects. Media HTTP fixtures used
+fixed `1000:1000` owners for real temporary storage and failed on CI runners
+with different IDs; they now use the executing test user's IDs, including
+Seerr's ownership expectation. Legacy environment consolidation now retains raw
+interpolation and declaration order, including synchronization for recovery.
+Scoped Restore keeps selected assignments in archive order, preserving repeated
+assignments and multiline values. Migration also retains CDI device selectors
+instead of rebasing them as host device paths.
+
+The new regression cases failed before the fixes and passed afterward. The
+affected media App packages and the full Project, service and CLI suites passed;
+focused vet, formatting and diff checks passed. No Docker runtime, browser or
+installer was run for these focused fixes. An additional different-UID user
+namespace probe was unavailable because this host refused its UID map; CI
+provides the different-user check. The preceding PR revision passed all four
+native platform jobs; its general Go job exposed the media fixture issue above.

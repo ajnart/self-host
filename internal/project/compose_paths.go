@@ -61,6 +61,11 @@ func (p *Project) rebaseCompose(root *yaml.Node, base string) error {
 				for _, device := range devices.Content {
 					if device.Kind == yaml.ScalarNode {
 						source, tail, found := strings.Cut(device.Value, ":")
+						// CDI qualified names select devices through the runtime;
+						// they are not paths relative to the included file.
+						if !found && strings.Contains(source, "=") && !strings.HasPrefix(source, ".") && !filepath.IsAbs(source) {
+							continue
+						}
 						if found {
 							device.Value = fixPath(source) + ":" + tail
 						} else {

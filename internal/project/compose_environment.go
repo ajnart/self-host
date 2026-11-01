@@ -2,7 +2,6 @@ package project
 
 import (
 	"os"
-	"sort"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -171,30 +170,81 @@ func (p *Project) RestoreEnvironmentAssignments(source *Project, keys []string) 
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	assignments := environmentAssignments(archived)
 	selected := map[string]bool{}
+	assignments := environmentAssignments(archived)
 	for _, key := range keys {
 		if _, exists := assignments[key]; exists {
 			selected[key] = true
 		}
 	}
+	if len(selected) == 0 {
+		return nil
+	}
 	var out strings.Builder
-	seen := map[string]bool{}
 	for _, entry := range environmentEntries(current) {
-		key, line := entry.key, entry.text
-		if key != "" && selected[key] {
-			line = assignments[key]
-			seen[key] = true
+		if selected[entry.key] {
+			continue
 		}
-		out.WriteString(line)
+		out.WriteString(entry.text)
 		out.WriteByte('\n')
 	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		if selected[key] && !seen[key] {
-			out.WriteString(assignments[key])
+	// Compose expands .env values as it reads them. Keep archived declaration
+	// order and duplicate assignments; sorting keys changes their values.
+	for _, entry := range environmentEntries(archived) {
+		if selected[entry.key] {
+			out.WriteString(entry.text)
 			out.WriteByte('\n')
 		}
 	}
 	return p.WriteHomeFile(".env", []byte(out.String()), 0o600)
+}
+
+// Import missing legacy assignments before comparing values for a write. Raw
+// syntax matters: quoting an interpolated legacy value makes it a literal.
+func (p *Project) legacyEnvironment(data []byte) ([]byte, error) {
+	if p.Canonical() {
+		return data, nil
+	}
+	legacy, err := os.ReadFile(p.Path("secrets.env"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return data, nil
+		}
+		return nil, err
+	}
+	current := environmentAssignments(data)
+	var extra strings.Builder
+	for _, entry := range environmentEntries(legacy) {
+		if entry.key == "" || publicSetting(entry.key) {
+			continue
+		}
+		if _, exists := current[entry.key]; !exists {
+			extra.WriteString(entry.text)
+			extra.WriteByte('\n')
+		}
+	}
+	if extra.Len() == 0 {
+		return data, nil
+	}
+	merged := append([]byte(nil), data...)
+	if len(merged) > 0 && merged[len(merged)-1] != '\n' {
+		merged = append(merged, '\n')
+	}
+	return append(merged, extra.String()...), nil
+}
+
+func (p *Project) syncLegacySecrets() error {
+	data, err := os.ReadFile(p.Path(".env"))
+	if err != nil {
+		return err
+	}
+	var out strings.Builder
+	out.WriteString("# Private credentials; the live Compose environment is .env.\n")
+	for _, entry := range environmentEntries(data) {
+		if entry.key != "" && !publicSetting(entry.key) {
+			out.WriteString(entry.text)
+			out.WriteByte('\n')
+		}
+	}
+	return p.writeFile(p.Path("secrets.env"), []byte(out.String()), 0o600)
 }

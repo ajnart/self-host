@@ -3,6 +3,7 @@ package seerr_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/seerr"
@@ -22,7 +23,7 @@ func TestInstallUsesConfiguredConfigUserAndPreservesRerunSecrets(t *testing.T) {
 		explicit            bool
 	}{
 		{name: "rootless", options: `["name=rootless"]`, want: "0:0"},
-		{name: "rootful", options: `["name=seccomp"]`, want: "1000:1000"},
+		{name: "rootful", options: `["name=seccomp"]`, want: strconv.Itoa(os.Geteuid()) + ":" + strconv.Itoa(os.Getegid())},
 		{name: "saved-override", options: `["name=rootless"]`, want: "1234:5678", explicit: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
