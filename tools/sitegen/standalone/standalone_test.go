@@ -280,3 +280,29 @@ func TestSecretWithoutBytesFails(t *testing.T) {
 		t.Fatalf("an external secret needs no Bytes: %v", err)
 	}
 }
+
+func TestLoggingDefaultsPreserveExplicitPolicyAndOneShotServices(t *testing.T) {
+	for _, tc := range []struct {
+		name, policy, logging, want string
+	}{
+		{"long running", "unless-stopped", "", "driver: local"},
+		{"explicit", "unless-stopped", "    logging:\n      driver: journald\n", "driver: journald"},
+		{"one shot", "no", "", "restart:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			entry, err := Project(fake{compose: "services:\n  web:\n    image: x/web:1\n    restart: \"" + tc.policy + "\"\n" + tc.logging})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(entry.Compose, tc.want) {
+				t.Fatal(entry.Compose)
+			}
+			if tc.policy == "no" && strings.Contains(entry.Compose, "logging:") {
+				t.Fatal("one-shot logging changed")
+			}
+			if tc.logging != "" && strings.Contains(entry.Compose, "max-size") {
+				t.Fatal("explicit logging changed")
+			}
+		})
+	}
+}

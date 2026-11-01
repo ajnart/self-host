@@ -134,7 +134,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return errors.New("the bootstrap administrator is created only at first start")
 		},
 		Hint: func(*helpers.H, string) string {
-			return "Recreate Keycloak so it reads KC_BOOTSTRAP_ADMIN_PASSWORD from secrets.env: self-host start keycloak"
+			return "Recreate Keycloak so it reads KC_BOOTSTRAP_ADMIN_PASSWORD from .env: self-host start keycloak"
 		},
 	}.Admin(ctx, h)
 }

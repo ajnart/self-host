@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -49,8 +48,7 @@ func New(deps *system.Deps, log *events.Logger, root, name string) *Compose {
 }
 
 func (c *Compose) args(extra ...string) []string {
-	base := []string{"compose", "--project-directory", c.root, "-p", c.name,
-		"--env-file", filepath.Join(c.root, ".env"), "--env-file", filepath.Join(c.root, "secrets.env")}
+	base := []string{"compose", "--project-directory", c.root, "-p", c.name}
 	return append(base, extra...)
 }
 

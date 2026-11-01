@@ -67,9 +67,19 @@ func (s *Service) Project() (*project.Project, error) {
 		}
 		p.Root = root
 	}
+	storedName, err := p.StoredComposeName()
+	if err != nil {
+		return nil, err
+	}
+	if storedName != "" {
+		p.ComposeName = storedName
+	}
 	if name := s.Deps.Getenv("SELF_HOST_COMPOSE_PROJECT"); name != "" {
 		if !composeName.MatchString(name) {
 			return nil, fmt.Errorf("SELF_HOST_COMPOSE_PROJECT %q: use lowercase letters, digits, - and _", name)
+		}
+		if storedName != "" && storedName != name {
+			return nil, fmt.Errorf("SELF_HOST_COMPOSE_PROJECT conflicts with this Project's Compose name; use its saved name %q to preserve containers and storage", storedName)
 		}
 		p.ComposeName = name
 	}
@@ -109,16 +119,22 @@ func (s *Service) detectSettings(ctx context.Context, owner system.User, exposur
 		lan = "127.0.0.1"
 	}
 	settings := map[string]string{
-		"TZ":             s.Deps.TimeZone(),
-		"PUID":           strconv.Itoa(owner.UID),
-		"PGID":           strconv.Itoa(owner.GID),
-		"UMASK":          "022",
-		"LAN_IP":         lan,
-		"EXPOSURE":       exposure,
-		"BIND_IP":        BindIP(exposure),
-		"MEDIA_ROOT":     filepath.Join(owner.Home, "media"),
-		"DOWNLOADS_ROOT": filepath.Join(owner.Home, "downloads"),
+		"TZ":                   s.Deps.TimeZone(),
+		"PUID":                 strconv.Itoa(owner.UID),
+		"PGID":                 strconv.Itoa(owner.GID),
+		"UMASK":                "022",
+		"LAN_IP":               lan,
+		"EXPOSURE":             exposure,
+		"BIND_IP":              BindIP(exposure),
+		"MEDIA_ROOT":           filepath.Join(owner.Home, "media"),
+		"DOWNLOADS_ROOT":       filepath.Join(owner.Home, "downloads"),
+		"DATA_ROOT":            filepath.Join(owner.Home, "data"),
+		"MEDIA_LAYOUT":         "shared",
+		"MEDIA_SEPARATE_USERS": "off",
+		"MEDIA_COPY_FALLBACK":  "off",
 	}
+	settings["MEDIA_ROOT"] = filepath.Join(settings["DATA_ROOT"], "media")
+	settings["DOWNLOADS_ROOT"] = filepath.Join(settings["DATA_ROOT"], "torrents")
 	if rootless, err := host.Rootless(ctx, s.Deps); err == nil && rootless {
 		// Container root maps to the rootless daemon's host user, who owns
 		// the Project folders. Project ownership itself stays unchanged.

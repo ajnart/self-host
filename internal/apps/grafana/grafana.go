@@ -92,7 +92,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return errors.New("Grafana reads GF_SECURITY_ADMIN_USER and GF_SECURITY_ADMIN_PASSWORD only on first start")
 		},
 		Hint: func(h *helpers.H, _ string) string {
-			return "Grafana applies the Admin login on first start. Recreate the container so it reads secrets.env: " +
+			return "Grafana applies the Admin login on first start. Recreate the container so it reads .env: " +
 				"self-host start grafana, then sign in at " + h.URL + " with the password from `self-host credentials`."
 		},
 	}.Admin(ctx, h)

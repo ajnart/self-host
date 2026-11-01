@@ -48,7 +48,7 @@ func (p *Project) ValidateFragment(id, content string) error {
 		if other == id {
 			continue
 		}
-		data, err := os.ReadFile(p.FragmentPath(other))
+		data, err := p.ReadFragment(other)
 		if err != nil {
 			return err
 		}
@@ -91,7 +91,7 @@ func (p *Project) ValidateServiceOwnership(replacements map[string]string) error
 		data := []byte(content)
 		if !replaced {
 			var err error
-			data, err = os.ReadFile(p.FragmentPath(id))
+			data, err = p.ReadFragment(id)
 			if err != nil {
 				return err
 			}

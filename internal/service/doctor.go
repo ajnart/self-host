@@ -102,7 +102,7 @@ func (s *Service) appChecks(ctx context.Context, app AppStatus, byService map[st
 	switch {
 	case bind == "":
 		checks = append(checks, host.Check{ID: "binding", App: id, Title: "Port", Level: host.Warn,
-			Detail: "no published port found", Hint: "The App is not reachable from outside Docker; check apps/" + id + "/compose.yml ports."})
+			Detail: "no published port found", Hint: "The App is not reachable from outside Docker; check " + id + "'s ports in compose.yml."})
 	case lan && loopback:
 		checks = append(checks, host.Check{ID: "binding", App: id, Title: "Port", Level: host.Fail,
 			Detail: fmt.Sprintf("port %d is bound to %s, so other devices cannot connect", app.Port, bind),

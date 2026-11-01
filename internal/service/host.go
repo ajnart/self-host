@@ -120,9 +120,10 @@ func (s *Service) ReviewSettings(ctx context.Context) ([]SettingReview, error) {
 		}
 		review = append(review, r)
 	}
-	for _, key := range []string{"UMASK", "MEDIA_ROOT", "DOWNLOADS_ROOT"} {
+	for _, key := range []string{"UMASK"} {
 		review = append(review, SettingReview{Key: key, Current: settings[key]})
 	}
+	review = append(review, mediaSettingReviews(settings)...)
 	return review, nil
 }
 

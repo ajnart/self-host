@@ -44,6 +44,9 @@ func (a *program) installCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.EasyNames, "easy-names", false, "use Easy names at home, for a new Project; port 80 must be free")
 	cmd.Flags().StringVar(&opts.MediaRoot, "media-root", "", "media library folder, for a new Project")
 	cmd.Flags().StringVar(&opts.DownloadsRoot, "downloads-root", "", "downloads folder, for a new Project")
+	cmd.Flags().StringVar(&opts.DataRoot, "data-root", "", "shared media and downloads parent folder, for a new Project")
+	cmd.Flags().BoolVar(&opts.SeparateMediaUsers, "separate-media-users", false, "use distinct supported media App file owners, for a new Project")
+	cmd.Flags().BoolVar(&opts.MediaCopyFallback, "media-copy-fallback", false, "allow copying when media storage cannot hardlink, for a new Project")
 	cmd.Flags().StringVar(&opts.AdminUser, "admin-user", "", "Admin login username (default admin)")
 	return cmd
 }
@@ -253,7 +256,7 @@ func (a *program) credentialsCmd() *cobra.Command {
 					fmt.Fprintf(a.deps.Out, "  %s  %s\n", key, value)
 				}
 			}
-			fmt.Fprintf(a.deps.Out, "\nPasswords and API keys stored in %s (mode 0600).\n", "secrets.env")
+			fmt.Fprintf(a.deps.Out, "\nPasswords and API keys stored in %s (mode 0600).\n", ".env")
 			return nil
 		},
 	}

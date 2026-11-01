@@ -104,7 +104,13 @@ func newSettingsView(ctx *viewContext) *settingsView {
 	v := &settingsView{edits: map[string]string{}, goos: runtime.GOOS, goarch: runtime.GOARCH, exposure: cmp.Or(ctx.status.Exposure, service.ExposureLAN)}
 	v.names = cmp.Or(ctx.status.Settings["EASY_NAMES"], "off")
 	for _, key := range settingsKeys {
+		if ctx.status.Settings["MEDIA_LAYOUT"] == "shared" && (key == "MEDIA_ROOT" || key == "DOWNLOADS_ROOT") {
+			continue
+		}
 		v.rows = append(v.rows, service.SettingReview{Key: key, Current: settingCurrent(ctx, key)})
+	}
+	if ctx.status.Settings["MEDIA_LAYOUT"] != "" {
+		v.appendMediaRows(ctx.status.Settings)
 	}
 	return v
 }
@@ -242,6 +248,27 @@ func (v *settingsView) apply(rows []service.SettingReview, err error) {
 		if row.Current != "" && !v.changed(i) {
 			v.rows[i].Current = row.Current
 		}
+	}
+	for _, row := range rows {
+		if row.Key != "DATA_ROOT" && row.Key != "MEDIA_LAYOUT" && row.Key != "MEDIA_SEPARATE_USERS" && row.Key != "MEDIA_COPY_FALLBACK" {
+			continue
+		}
+		if !slices.ContainsFunc(v.rows, func(existing service.SettingReview) bool { return existing.Key == row.Key }) {
+			v.rows = append(v.rows, row)
+		}
+	}
+}
+
+func (v *settingsView) appendMediaRows(settings map[string]string) {
+	if settings["MEDIA_LAYOUT"] == "shared" {
+		v.rows = append(v.rows, service.SettingReview{Key: "DATA_ROOT", Current: settings["DATA_ROOT"]})
+	}
+	for _, key := range []string{"MEDIA_LAYOUT", "MEDIA_SEPARATE_USERS", "MEDIA_COPY_FALLBACK"} {
+		value := settings[key]
+		if value == "" {
+			value = "off"
+		}
+		v.rows = append(v.rows, service.SettingReview{Key: key, Current: value})
 	}
 }
 
@@ -551,7 +578,7 @@ func saveGlyphs(backend Backend, g activity.Glyphs) tea.Cmd {
 func (v *settingsView) beginEdit(ctx *viewContext) (view, tea.Cmd, nav) {
 	row := v.rows[v.cursor]
 	v.editing, v.key, v.err = true, row.Key, ""
-	if row.Key == "LAN_IP" && len(row.Choices) > 1 {
+	if len(row.Choices) > 1 {
 		v.choices = row.Choices
 		v.choiceIdx = max(slices.Index(v.choices, v.value(v.cursor)), 0)
 	} else {
@@ -561,9 +588,10 @@ func (v *settingsView) beginEdit(ctx *viewContext) (view, tea.Cmd, nav) {
 	v.input.Prompt = ""
 	v.input.SetValue(v.value(v.cursor))
 	v.input.CursorEnd()
-	v.input.SetWidth(max(ctx.width-24, 20))
+	labelWidth := max(16, len(row.Key)+1)
+	v.input.SetWidth(max(ctx.width-labelWidth-8, 20))
 	v.folders = nil
-	if row.Key == "MEDIA_ROOT" || row.Key == "DOWNLOADS_ROOT" {
+	if row.Key == "MEDIA_ROOT" || row.Key == "DOWNLOADS_ROOT" || row.Key == "DATA_ROOT" {
 		v.folders = newFolderPicker(ctx.backend)
 		v.input.ShowSuggestions = true
 		v.input.SetSuggestions(v.folders.suggestions(v.input.Value()))
@@ -664,6 +692,21 @@ func (v *settingsView) hostBox(ctx *viewContext, width, avail int) string {
 			head = append(head, t.dim().Render(line))
 		}
 	}
+	if v.cursor >= 0 && v.cursor < len(v.rows) {
+		row := v.rows[v.cursor]
+		if row.Note != "" && (strings.HasPrefix(row.Key, "MEDIA_") || row.Key == "DATA_ROOT") {
+			for _, line := range strings.Split(wrap(row.Note, inner), "\n") {
+				head = append(head, t.dim().Render(line))
+			}
+		}
+	}
+	if v.editing && len(v.choices) > 1 {
+		hint := "Text input: space types; tab fills the next choice."
+		if v.key == "LAN_IP" {
+			hint = "Text input: space types; tab fills next detected address."
+		}
+		head = append(head, truncate(t.dim().Render(hint), inner))
+	}
 	space := avail - len(head) - len(confirm)
 	window := min(len(v.rows), max(minRows, space-v.pendingHeight()))
 	pending := v.pendingLines(ctx, max(space-window, 0))
@@ -671,10 +714,6 @@ func (v *settingsView) hostBox(ctx *viewContext, width, avail int) string {
 	v.offset = scrolled(v.cursor, v.offset, window, len(v.rows))
 
 	lines := head
-	if v.editing && len(v.choices) > 1 {
-		lines = append(lines, truncate(t.dim().Render("Text input: space types; tab fills next detected address."), inner))
-		window = max(window-1, 1)
-	}
 	for i := v.offset; i < v.offset+window && i < len(v.rows); i++ {
 		lines = append(lines, v.renderRow(ctx, i, inner))
 	}
@@ -818,7 +857,11 @@ func (v *settingsView) renderRow(ctx *viewContext, i, width int) string {
 	if i == v.cursor {
 		cursor = t.cursor()
 	}
-	line := cursor + t.body().Render(pad(row.Key, 16))
+	label := pad(row.Key, 16)
+	if len(row.Key) >= 16 {
+		label = row.Key + " "
+	}
+	line := cursor + t.body().Render(label)
 	if v.editing && i == v.cursor {
 		line += v.input.View()
 	} else {

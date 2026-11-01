@@ -12,11 +12,13 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-func (p *Project) ReadFragment(id string) ([]byte, error) { return os.ReadFile(p.FragmentPath(id)) }
-
 // FragmentServices lists the Compose services an App's fragment declares.
 func (p *Project) FragmentServices(id string) ([]string, error) {
-	return fragmentServices(p.FragmentPath(id))
+	data, err := p.ReadFragment(id)
+	if err != nil {
+		return nil, err
+	}
+	return fragmentServiceNames(id, data)
 }
 
 func fragmentServices(path string) ([]string, error) {
@@ -37,9 +39,6 @@ func fragmentServices(path string) ([]string, error) {
 	sort.Strings(names)
 	return names, nil
 }
-
-// RemoveFragment deletes an App's Compose fragment.
-func (p *Project) RemoveFragment(id string) error { return os.Remove(p.FragmentPath(id)) }
 
 // RemoveAppDir deletes an App's folder and everything in it.
 func (p *Project) RemoveAppDir(dir string) error {

@@ -109,8 +109,13 @@ func (e *Env) Execs() []string {
 }
 
 func (e *Env) docker(cmd system.Cmd) system.Result {
-	line := systemtest.Line(cmd)
-	_, verb, _ := strings.Cut(line, "secrets.env ")
+	verb := ""
+	for index, arg := range cmd.Args {
+		if slices.Contains([]string{"up", "restart", "logs", "exec"}, arg) {
+			verb = strings.Join(cmd.Args[index:], " ")
+			break
+		}
+	}
 	switch {
 	case strings.HasPrefix(verb, "up -d"):
 		e.start(strings.Fields(strings.TrimPrefix(verb, "up -d")))
@@ -126,6 +131,9 @@ func (e *Env) docker(cmd system.Cmd) system.Result {
 		e.mu.Lock()
 		e.execs = append(e.execs, strings.TrimPrefix(verb, "exec -T "))
 		e.mu.Unlock()
+		if strings.Contains(verb, "self-host-hardlink") {
+			return system.Result{Stdout: []byte("hardlink-capable\n")}
+		}
 	}
 	return system.Result{}
 }
@@ -198,10 +206,10 @@ func (e *Env) logs(fields []string) string {
 	return out.String()
 }
 
-// secret reads a value the CLI saved to secrets.env, like Compose passing it
+// secret reads a value the CLI saved to the private Project environment, like Compose passing it
 // to a container.
 func (e *Env) secret(key string) string {
-	data, err := os.ReadFile(filepath.Join(clitest.Root(e.T, e.Deps), "secrets.env"))
+	data, err := os.ReadFile(filepath.Join(clitest.Root(e.T, e.Deps), ".env"))
 	if err != nil {
 		return ""
 	}

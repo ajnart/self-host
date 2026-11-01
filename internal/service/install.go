@@ -33,12 +33,15 @@ type InstallOptions struct {
 	// PrivateInputs carries interactive values only in memory.
 	PrivateInputs map[string]map[string]string
 	// Exposure, MediaRoot and DownloadsRoot apply when the Project is created.
-	Exposure      string
-	EasyNames     bool
-	MediaRoot     string
-	DownloadsRoot string
-	AdminUser     string
-	AdminPassword string
+	Exposure           string
+	EasyNames          bool
+	MediaRoot          string
+	DownloadsRoot      string
+	DataRoot           string
+	SeparateMediaUsers bool
+	MediaCopyFallback  bool
+	AdminUser          string
+	AdminPassword      string
 	// Settings overrides detected Host settings for a new Project.
 	Settings map[string]string
 }
@@ -347,6 +350,9 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			if existed {
 				warnIgnoredProjectFlags(s.Log, opts)
 			}
+			if err := ss.prepareMedia(ctx, apps); err != nil {
+				return err
+			}
 			var containers []compose.Container
 			if ss.tailscaleOn() && !slices.Contains(names, tailscaleID) {
 				var err error
@@ -411,9 +417,9 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err := ss.writeFragment(info.ID, fragment); err != nil {
 					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
 				}
-				wrote := fmt.Sprintf("wrote apps/%s/compose.yml (%s)", info.ID, info.Image)
+				wrote := fmt.Sprintf("wrote %s in compose.yml (%s)", info.ID, info.Image)
 				if port > 0 {
-					wrote = fmt.Sprintf("wrote apps/%s/compose.yml (%s on port %d)", info.ID, info.Image, port)
+					wrote = fmt.Sprintf("wrote %s in compose.yml (%s on port %d)", info.ID, info.Image, port)
 				}
 				if err := ss.recordStage([]string{info.ID}, events.Event{Event: events.StepOK, App: info.ID, Step: StageRender, Msg: wrote}); err != nil {
 					return err
@@ -426,7 +432,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			if !slices.Contains(names, tailscaleID) {
 				nodes = ss.pendingTailscaleServices(names, containers)
 			}
-			return ss.ensureMediaFolders(apps)
+			return nil
 		},
 		targets: func(*session) ([]string, error) { return names, nil },
 		compose: composePullUp,
@@ -454,6 +460,18 @@ func warnIgnoredProjectFlags(log *events.Logger, opts InstallOptions) {
 		flags = append(flags, "--downloads-root")
 		fixes = append(fixes, "DOWNLOADS_ROOT="+opts.DownloadsRoot)
 	}
+	if opts.DataRoot != "" {
+		flags = append(flags, "--data-root")
+		fixes = append(fixes, "DATA_ROOT="+opts.DataRoot)
+	}
+	if opts.SeparateMediaUsers {
+		flags = append(flags, "--separate-media-users")
+		fixes = append(fixes, "MEDIA_SEPARATE_USERS=on")
+	}
+	if opts.MediaCopyFallback {
+		flags = append(flags, "--media-copy-fallback")
+		fixes = append(fixes, "MEDIA_COPY_FALLBACK=on")
+	}
 	if len(flags) == 0 {
 		return
 	}
@@ -477,6 +495,23 @@ func (s *Service) createProject(ctx context.Context, p *project.Project, opts In
 	}
 	if opts.DownloadsRoot != "" {
 		settings["DOWNLOADS_ROOT"] = opts.DownloadsRoot
+	}
+	if opts.DataRoot != "" {
+		settings["DATA_ROOT"] = opts.DataRoot
+	}
+	if opts.SeparateMediaUsers {
+		settings["MEDIA_SEPARATE_USERS"] = "on"
+	}
+	if opts.MediaCopyFallback {
+		settings["MEDIA_COPY_FALLBACK"] = "on"
+	}
+	// Existing path flags keep their explicit folders instead of silently
+	// moving them beneath the new shared root.
+	if (opts.MediaRoot != "" || opts.DownloadsRoot != "") && opts.DataRoot == "" && opts.Settings["MEDIA_LAYOUT"] == "" {
+		settings["MEDIA_LAYOUT"] = "legacy"
+	}
+	if err := s.initializeMediaSettings(ctx, settings); err != nil {
+		return err
 	}
 	if err := p.MkdirAll(); err != nil {
 		return err

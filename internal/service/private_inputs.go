@@ -212,7 +212,7 @@ func (ss *session) migratePrivateInputs() error {
 			key := SecretKey(id, input.Key)
 			if value != "" && ss.secrets.Get(key) == "" {
 				if err := validPrivateValue(value); err != nil {
-					return fmt.Errorf("legacy private input %s.%s cannot be migrated; privately repair %s in %s, then retry (keep the legacy state until the credential is saved)", id, input.Key, key, ss.p.Path("secrets.env"))
+					return fmt.Errorf("legacy private input %s.%s cannot be migrated; privately repair %s in %s, then retry (keep the legacy state until the credential is saved)", id, input.Key, key, ss.p.Path(".env"))
 				}
 				ss.secrets.values[key] = value
 			}

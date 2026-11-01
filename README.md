@@ -97,7 +97,7 @@ self-host status --json
 
 With no Project yet, `status` reports "no Project yet"; read `self-host profile --json` and continue with Doctor and the Catalog. `--json` gives agents structured documents for inspection and newline-delimited events for operations.
 
-- Pass secrets with `--set-file app.key=/path`, never as arguments. They land only in the Project's `secrets.env`.
+- Pass secrets with `--set-file app.key=/path`, never as arguments. They land in the Project's private `.env` (mode 0600); public status output excludes them.
 - Retry unfinished Setup with `self-host setup <app> --json`; inspect failures with `self-host debug <app> --json`.
 - Exit codes: `0` success, `1` error, `2` incomplete Setup, `3` only Manual steps remain.
 - A running container or HTTP 200 is not acceptance. Check that the App does its job.
@@ -254,7 +254,20 @@ Prefix with `self-host`. `--verbose` (`-v`) adds detail. `--yes` authorizes an a
 | `cloudflare plan\|publish\|remove`                   | Publish Apps on your domain behind a login; `plan` previews.                              |
 | `self-update`                                        | Replace the binary with the latest checksummed release.                                   |
 
-A Compose folder you add by hand under `~/.self-host/extra/<name>/` is an Unmanaged app: it gets lifecycle, Address listing and Backup, but no Setup.
+Every App lives in one editable `~/.self-host/compose.yml`. self-host and ordinary Docker Compose use that same file:
+
+```bash
+cd ~/.self-host
+docker compose up -d
+docker compose logs -f sonarr
+docker compose down
+```
+
+The private `.env` supplies settings and credentials. App configuration stays in its existing folders; updates preserve manual Compose edits. Existing multi-file Projects are converted without moving media or configuration, with the original root retained as `compose.legacy.yml` for recovery.
+
+New media Projects use one data parent (`~/data` by default, configurable with `--data-root`) for torrents, Usenet and libraries. Importing Apps share that parent mount so hardlinks and atomic moves can work; actual filesystem support is checked as the App user. Copy fallback requires `--media-copy-fallback` or `MEDIA_COPY_FALLBACK=on`. Separate media App file owners are optional and off by default; enable them during Onboarding or with `--separate-media-users` for a new Project. Changing existing media paths or ownership requires an explicit migration.
+
+A service you add directly to `compose.yml` is an Unmanaged app: it gets lifecycle, Address listing and Backup, but no Setup. Put its configuration under `extra/<name>/` for Backup coverage. Legacy `extra/<name>/compose.yml` definitions are imported for compatibility; the root file is authoritative afterward.
 
 </details>
 
@@ -286,7 +299,7 @@ A failing Link marks the consuming App as needing attention, not its target. Bro
 <details>
 <summary><b>Requirements, validated platforms and the runtime matrix</b></summary>
 
-You need Docker with the `docker compose` v2 plugin (with `include` support), write access to the Project and data folders, free published ports, and enough storage and RAM for the Apps. Start with one App; photos, AI and multi-App Recipes need more. Run `self-host doctor` first.
+You need Docker with the `docker compose` v2 plugin, write access to the Project and data folders, free published ports, and enough storage and RAM for the Apps. Start with one App; photos, AI and multi-App Recipes need more. Run `self-host doctor` first.
 
 Each status below is a dated launch run on a real host or VM, linked to its issue. Nothing else counts.
 

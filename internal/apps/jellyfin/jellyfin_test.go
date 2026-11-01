@@ -53,10 +53,10 @@ func TestInstallFinishesTheWizardCreatesAKeyAndLibraries(t *testing.T) {
 	if !slices.Equal(e.Jellyfin.Keys(), []string{"selfhost"}) {
 		t.Errorf("API keys %v, want one named selfhost", e.Jellyfin.Keys())
 	}
-	if !strings.Contains(clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "secrets.env")), "JELLYFIN_API_KEY=selfhost-key-1") {
-		t.Error("secrets.env lacks the Jellyfin API key")
+	if !strings.Contains(clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), ".env")), "JELLYFIN_API_KEY=selfhost-key-1") {
+		t.Error(".env lacks the Jellyfin API key")
 	}
-	want := []string{"Movies movies /media/movies", "Shows tvshows /media/tv"}
+	want := []string{"Movies movies /data/media/movies", "Shows tvshows /data/media/tv", "Music music /data/media/music"}
 	if got := libraries(e); !slices.Equal(got, want) {
 		t.Errorf("libraries %v, want %v", got, want)
 	}
@@ -70,7 +70,7 @@ func TestInstallFinishesTheWizardCreatesAKeyAndLibraries(t *testing.T) {
 func TestLibrariesFollowExtraMediaFolders(t *testing.T) {
 	e := newEnv(t)
 	user, _ := e.Deps.CurrentUser()
-	if err := os.MkdirAll(filepath.Join(user.Home, "media", "music"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(user.Home, "data", "media", "books"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -78,9 +78,9 @@ func TestLibrariesFollowExtraMediaFolders(t *testing.T) {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
 	}
 
-	want := []string{"Movies movies /media/movies", "Shows tvshows /media/tv", "Music music /media/music"}
+	want := []string{"Movies movies /data/media/movies", "Shows tvshows /data/media/tv", "Music music /data/media/music", "Books books /data/media/books"}
 	if got := libraries(e); !slices.Equal(got, want) {
-		t.Errorf("libraries %v, want %v (no Books folder, so no Books library)", got, want)
+		t.Errorf("libraries %v, want %v", got, want)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestRerunChangesNothing(t *testing.T) {
 
 	r := e.Run("setup", "jellyfin", "--json")
 
-	if r.Code != 0 || e.Jellyfin.WizardRuns() != 1 || len(e.Jellyfin.Keys()) != 1 || len(e.Jellyfin.Libraries()) != 2 {
+	if r.Code != 0 || e.Jellyfin.WizardRuns() != 1 || len(e.Jellyfin.Keys()) != 1 || len(e.Jellyfin.Libraries()) != 3 {
 		t.Fatalf("rerun changed Jellyfin: exit %d, wizard %d, keys %v, libraries %v\n%s",
 			r.Code, e.Jellyfin.WizardRuns(), e.Jellyfin.Keys(), libraries(e), r.Out)
 	}
@@ -134,9 +134,9 @@ func TestFragmentMountsMediaAndPublishesTheLANURL(t *testing.T) {
 	e := newEnv(t)
 	e.Run("install", "jellyfin", "--yes")
 
-	fragment := clitest.Read(t, filepath.Join(e.AppDir("jellyfin"), "compose.yml"))
+	fragment := clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))
 
-	for _, want := range []string{"image: lscr.io/linuxserver/jellyfin:latest", "${MEDIA_ROOT}:/media", "./config:/config",
+	for _, want := range []string{"image: lscr.io/linuxserver/jellyfin:latest", "${MEDIA_ROOT}:/data/media", "./apps/jellyfin/config:/config",
 		"JELLYFIN_PublishedServerUrl: http://${LAN_IP}:" + e.Port("jellyfin"), "${BIND_IP}:" + e.Port("jellyfin") + ":8096"} {
 		if !strings.Contains(fragment, want) {
 			t.Errorf("fragment lacks %q:\n%s", want, fragment)

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -27,6 +28,7 @@ func (App) Info() app.Info {
 		Port:          9091,
 		ContainerPort: 9091,
 		Service:       "transmission",
+		UsesMedia:     true,
 	}
 }
 
@@ -34,19 +36,25 @@ func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("transmission", rc.Settings)
+	mount := "./media-data:/downloads"
+	if mediastorage.Shared(rc.Settings) {
+		mount = "${DATA_ROOT}/torrents:/data/torrents"
+	}
 	return `services:
   transmission:
     image: linuxserver/transmission:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
+      UMASK: ` + mask + `
       USER: ${ADMIN_USER}
       PASS: ${ADMIN_PASSWORD}
     volumes:
       - ./config:/config
-      - ./media-data:/downloads
+      - ` + mount + `
     ports:
       - ${BIND_IP}:` + port + `:9091
 `
@@ -212,10 +220,27 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if h.AdminUser() == "" || h.AdminPassword() == "" {
 		return fmt.Errorf("%w: Transmission's Project Admin login is missing; restore it through the Project secret boundary and retry self-host setup transmission", helpers.ErrManual)
 	}
-	return setup().Setup(ctx, h)
+	if err := setup().Setup(ctx, h); err != nil {
+		return err
+	}
+	return downloadFolder(ctx, h)
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error { return setup().Check(ctx, h) }
+func (App) Check(ctx context.Context, h *helpers.H) error {
+	if err := setup().Check(ctx, h); err != nil {
+		return err
+	}
+	if mediastorage.Shared(h.Settings) {
+		ok, err := downloadFolderMatches(ctx, h)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New("Transmission's default download folder is not /data/torrents")
+		}
+	}
+	return nil
+}
 
 func rpcSemverCompatible(value any) bool {
 	semver, _ := value.(string)
@@ -223,5 +248,24 @@ func rpcSemverCompatible(value any) bool {
 }
 
 func (App) StandaloneGuide() string {
-	return "Peers cannot connect in until you publish 51413 (tcp and udp) as well as the web port."
+	return "Set the default download folder to /data/torrents. Peers cannot connect in until you publish 51413 (tcp and udp) as well as the web port."
+}
+
+func downloadFolderMatches(ctx context.Context, h *helpers.H) (bool, error) {
+	config, err := rpcRead(ctx, h, h.AdminUser(), h.AdminPassword(), "session-get", map[string]any{"fields": []string{"download-dir"}})
+	return config["download-dir"] == "/data/torrents", err
+}
+
+func downloadFolder(ctx context.Context, h *helpers.H) error {
+	if !mediastorage.Shared(h.Settings) {
+		return nil
+	}
+	return h.Step(ctx, "save-path", "save torrents in /data/torrents", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) { return downloadFolderMatches(ctx, h) },
+		Do: func(ctx context.Context) error {
+			_, err := rpcRead(ctx, h, h.AdminUser(), h.AdminPassword(), "session-set", map[string]any{"download-dir": "/data/torrents"})
+			return err
+		},
+		Hint: "In Transmission > Preferences > Downloading set the download folder to /data/torrents.",
+	})
 }

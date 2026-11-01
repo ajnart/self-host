@@ -94,7 +94,16 @@ func (ss *session) renderTailscale() (bool, error) {
 		return false, err
 	}
 	previous, _ := ss.p.ReadFragment(tailscaleID)
-	changed := !strings.HasSuffix(string(previous), fragment)
+	expected, err := ss.normalizeRender(tailscaleID, fragment)
+	if err != nil {
+		return false, err
+	}
+	changed := string(previous) != expected
+	if changed && ss.p.Canonical() && st.FragmentSHA256 != "" && fragmentSum(previous) != st.FragmentSHA256 {
+		ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: tailscaleID, Step: "refresh",
+			Msg: "kept manual Tailscale Compose changes", Hint: "Add any new App's Tailscale node in compose.yml, or explicitly reinstall Tailscale to regenerate its services."})
+		return false, nil
+	}
 	if err := ss.writeFiles(a, rc); err != nil {
 		return false, err
 	}

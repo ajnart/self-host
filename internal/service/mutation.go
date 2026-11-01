@@ -166,7 +166,7 @@ func (s *Service) runLocked(ctx context.Context, c change, p *project.Project) e
 	if err := ss.migratePrivateInputs(); err != nil {
 		return s.finish(err)
 	}
-	if err := ss.p.WriteRoot(); err != nil {
+	if err := ss.migrateCompose(); err != nil {
 		return s.finish(err)
 	}
 	if !started {

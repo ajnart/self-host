@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -54,19 +55,20 @@ func (App) StandaloneGuide() string {
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("jellyfin", rc.Settings)
 	return `services:
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: ${UMASK}
+      UMASK: ` + mask + `
       JELLYFIN_PublishedServerUrl: http://${LAN_IP}:` + port + `
     volumes:
       - ./config:/config
-      - ${MEDIA_ROOT}:/media
+      - ${MEDIA_ROOT}:` + mediastorage.Media(rc.Settings) + `
     ports:
       - ${BIND_IP}:` + port + `:8096
     healthcheck:
@@ -93,7 +95,9 @@ var libraries = []library{
 	{name: "Books", folder: "books", collectionType: "books"},
 }
 
-func (l library) path() string { return "/media/" + l.folder }
+func (l library) path(settings map[string]string) string {
+	return mediastorage.Media(settings) + "/" + l.folder
+}
 
 // authorization is the header Jellyfin 10.9 through 12 accept; token is a
 // session token or an API key, or "" before signing in.
@@ -233,7 +237,7 @@ func apiKey(h *helpers.H) helpers.APIKey {
 	return helpers.APIKey{
 		Msg: "create the " + apiKeyApp + " API key",
 		Hint: "Open " + h.URL + "/web/#/dashboard/keys, add a key named " + apiKeyApp +
-			" and save it in secrets.env as " + h.Key("api_key") + ".",
+			" and save it in .env as " + h.Key("api_key") + ".",
 		Credential: "admin",
 		Scheme:     keyScheme,
 		Probe:      "/System/Info",
@@ -320,13 +324,13 @@ func hasLibrary(ctx context.Context, h *helpers.H, l library) (bool, error) {
 }
 
 func addLibrary(ctx context.Context, h *helpers.H, l library) error {
-	if _, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "mkdir", "-p", l.path()); err != nil {
+	if _, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "mkdir", "-p", l.path(h.Settings)); err != nil {
 		return err
 	}
-	query := url.Values{"name": {l.name}, "collectionType": {l.collectionType}, "paths": {l.path()}, "refreshLibrary": {"true"}}
+	query := url.Values{"name": {l.name}, "collectionType": {l.collectionType}, "paths": {l.path(h.Settings)}, "refreshLibrary": {"true"}}
 	_, err := h.Expect(ctx, helpers.Request{
 		Method: "POST", Path: "/Library/VirtualFolders?" + query.Encode(), Header: authorization(APIKey(h)),
-		JSON: map[string]any{"LibraryOptions": map[string]any{"PathInfos": []map[string]string{{"Path": l.path()}}}},
+		JSON: map[string]any{"LibraryOptions": map[string]any{"PathInfos": []map[string]string{{"Path": l.path(h.Settings)}}}},
 	})
 	return err
 }
@@ -370,11 +374,11 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	for _, l := range wanted(h) {
-		err := h.Step(ctx, "library-"+l.folder, "add the "+l.name+" library ("+l.path()+")", helpers.StepSpec{
+		err := h.Step(ctx, "library-"+l.folder, "add the "+l.name+" library ("+l.path(h.Settings)+")", helpers.StepSpec{
 			Check: func(ctx context.Context) (bool, error) { return hasLibrary(ctx, h, l) },
 			Do:    func(ctx context.Context) error { return addLibrary(ctx, h, l) },
 			Hint: "Open " + h.URL + "/web/#/dashboard/libraries > Add Media Library: " + l.name +
-				", folder " + l.path() + ".",
+				", folder " + l.path(h.Settings) + ".",
 			Credential: "admin",
 		})
 		if err != nil {

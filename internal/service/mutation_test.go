@@ -132,12 +132,12 @@ func (h *harness) install(ids ...string) error {
 // composeCalls lists the Compose subcommands, in order.
 func (h *harness) composeCalls() []string {
 	var out []string
-	for _, line := range h.runner.Calls() {
-		if _, rest, found := strings.Cut(line, "secrets.env "); found {
-			if strings.HasPrefix(rest, "ps ") {
-				continue
+	for _, cmd := range h.runner.Cmds() {
+		if cmd.Name == "docker" && len(cmd.Args) > 5 && cmd.Args[0] == "compose" {
+			rest := strings.Join(cmd.Args[5:], " ")
+			if !strings.HasPrefix(rest, "ps ") {
+				out = append(out, rest)
 			}
-			out = append(out, rest)
 		}
 	}
 	return out
@@ -346,20 +346,15 @@ func TestRemoveEveryAppTakesDownOnlyItsProject(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, include := range strings.Split(string(root), "\n") {
-					if fragment, ok := strings.CutPrefix(include, "  - "); ok {
-						if _, err := os.Stat(filepath.Join(h.root(), fragment)); err != nil {
-							t.Fatalf("Compose references a deleted fragment: %s", fragment)
-						}
-					}
+				if strings.Contains(string(root), "include:") {
+					t.Fatal("live Compose still references per-App snapshots")
 				}
 				if strings.HasSuffix(line, " down") {
-					want := []string{"compose", "--project-directory", h.root(), "-p", "isolated-project",
-						"--env-file", filepath.Join(h.root(), ".env"), "--env-file", filepath.Join(h.root(), "secrets.env"), "down"}
+					want := []string{"compose", "--project-directory", h.root(), "-p", "isolated-project", "down"}
 					if cmd.Dir != h.root() || !reflect.DeepEqual(cmd.Args, want) {
 						t.Fatalf("teardown is not scoped to the Project or removes volumes: %s", line)
 					}
-					if !strings.Contains(string(root), "apps/two/compose.yml") {
+					if !strings.Contains(string(root), "two:") {
 						t.Fatal("last App fragment was removed before teardown")
 					}
 				}

@@ -52,7 +52,7 @@ type Input struct {
 	Default      string
 	Required     bool
 	RecoveryOnly bool `json:",omitempty"`
-	// Private inputs are stored in secrets.env, never in Project state.
+	// Private inputs are stored in .env, never in Project state.
 	Private bool
 	// HostPortProtocols declares a non-secret host port published by the App.
 	// Install keeps an existing or explicitly selected value and otherwise
@@ -93,7 +93,7 @@ type App interface {
 	Inputs() []Input
 	// Compose returns apps/<id>/compose.yml. It refers to Host settings as
 	// ${TZ}, ${PUID}, ${PGID}, ${UMASK}, ${BIND_IP}, ${MEDIA_ROOT},
-	// ${DOWNLOADS_ROOT} and to secrets by their secrets.env names.
+	// ${DOWNLOADS_ROOT} and to secrets by their .env names.
 	Compose(rc RenderContext) string
 	// Setup configures the running App headlessly through idempotent steps.
 	Setup(ctx context.Context, h *helpers.H) error
@@ -105,7 +105,7 @@ type App interface {
 // SecretSpec is a secret an App needs before its container first starts.
 type SecretSpec struct {
 	// Name is namespaced with the App ID: "admin_token" for vaultwarden is
-	// VAULTWARDEN_ADMIN_TOKEN in secrets.env.
+	// VAULTWARDEN_ADMIN_TOKEN in .env.
 	Name string
 	// Length is the size of the generated random value.
 	Length int
@@ -116,7 +116,7 @@ type SecretSpec struct {
 
 // SecretDeclarer is an optional interface for Apps whose Compose fragment
 // refers to a secret by name, e.g. ${VAULTWARDEN_ADMIN_TOKEN}. Install
-// generates each missing secret and saves it to secrets.env before it renders
+// generates each missing secret and saves it to .env before it renders
 // the fragment, so Compose can interpolate it on the first start. Existing
 // values are kept: rerunning Install never rotates a secret.
 type SecretDeclarer interface {

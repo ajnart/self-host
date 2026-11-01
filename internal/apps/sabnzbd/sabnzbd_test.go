@@ -127,11 +127,15 @@ func TestSetsTheWebUILoginThroughTheFormAPI(t *testing.T) {
 	h := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Dir: dir,
 		Secrets: porttest.Secrets{"ADMIN_USER": "admin", "ADMIN_PASSWORD": "secret", "SABNZBD_API_KEY": apiKey}}, server, rec)
 
+	h.Settings["MEDIA_LAYOUT"] = "shared"
 	if err := (sabnzbd.App{}).Setup(context.Background(), h); err != nil {
 		t.Fatalf("Setup: %v", err)
 	}
 	if err := (sabnzbd.App{}).Check(context.Background(), h); err != nil {
 		t.Fatalf("Check: %v", err)
+	}
+	if fake.misc["download_dir"] != "/data/usenet/incomplete" || fake.misc["complete_dir"] != "/data/usenet/complete" {
+		t.Fatal("shared Usenet download paths were not configured")
 	}
 	if rec.Status("admin") != stepstatus.StepOK {
 		t.Fatalf("admin step = %q, want ok", rec.Status("admin"))

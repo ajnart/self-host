@@ -233,6 +233,8 @@ func (o *onboarding) whereExplanation(ctx *viewContext) []string {
 // folderListing lists the folders inside what the focused folder field holds.
 func (o *onboarding) folderListing(key string, width int) []string {
 	switch key {
+	case whereData:
+		return o.folders.listing(o.answers.dataRoot, width, folderListLines)
 	case whereMedia:
 		return o.folders.listing(o.answers.media, width, folderListLines)
 	case whereDownloads:

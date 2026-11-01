@@ -32,7 +32,7 @@ One package owns one boundary. Do not reach around it.
 
 - Inspect, plan, approval, apply, verify. Loading the skill conveys intent, never approval (ADR 0005).
 - Apps share one Compose Project, the mutation boundary. No broad Docker teardown, prune, volume deletion or casual socket mount.
-- Secrets live only in the Project's `secrets.env`. Keep them out of arguments, output, fixtures and screenshots. Treat `.sessions/`, `.env*`, credential stores and browser profiles as out of scope: never read or print them.
+- Secrets live in the Project's private `.env` (mode 0600); legacy `secrets.env` is read for compatible migration and restore. Public Host settings must be filtered before output. Keep secrets out of arguments, output, fixtures and screenshots. Treat `.sessions/`, `.env*`, credential stores and browser profiles as out of scope: never read or print them.
 - Container liveness and HTTP 200 are narrow observations, not acceptance.
 - Existing `--json` keys, non-TTY output and persisted formats keep working; new fields are additive.
 - Telemetry follows ADR 0006.
@@ -70,6 +70,7 @@ Preserve concurrent work: check `git status` before and after edits and stage on
 
 ## Agent skills
 
+- Self-hosting practices: before changing App Compose or Setup, Host settings, Project storage, lifecycle or Backup/Restore, read `docs/agents/self-hosting-practices.md`.
 - Catalog: before adding an App, changing an App's image, port, Compose, env or notes, editing a Recipe or hiding an App, load the `edit-catalog` skill (`.claude/skills/edit-catalog/SKILL.md`).
 - DCM Container: before adding or editing a Container in `dcm/src/tools/`, load the `add-container` skill (`.claude/skills/add-container/SKILL.md`).
 - Generated data: before changing `site/src/data/`, `dcm/src/data/`, `site/src/styles/theme.css`, an icon, a star repository or an App count, read `docs/agents/generated-data.md`.
