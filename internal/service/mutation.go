@@ -132,6 +132,9 @@ func (s *Service) runLocked(ctx context.Context, c change, p *project.Project) e
 			return err
 		}
 	}
+	if err := p.ValidateRoot(); err != nil {
+		return err
+	}
 	if err := p.RecoverState(); err != nil {
 		return err
 	}
