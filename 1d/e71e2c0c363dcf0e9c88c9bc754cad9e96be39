@@ -1,0 +1,18 @@
+docs/catalog/traps/sportarr.md
+  h_d6e478ca18e517 20-22,35
+internal/apps/homarr/target_sportarr.go
+  h_d6e478ca18e517 1-136
+internal/apps/homarr/target_sportarr_test.go
+  h_d6e478ca18e517 1-391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1de71e2c0c363dcf0e9c88c9bc754cad9e96be39",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
