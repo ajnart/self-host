@@ -1,0 +1,16 @@
+docs/catalog/traps/audiobookshelf.md
+  h_d6e478ca18e517 6
+internal/apps/borgmatic/borgmatic.go
+  h_d6e478ca18e517 89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "179963113caeae2c9606cc4548a564a577462da4",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
