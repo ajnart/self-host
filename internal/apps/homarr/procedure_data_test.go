@@ -143,3 +143,56 @@ func TestHomarrProcedureReadersShareUndefinedNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestHomarrProcedureRejectsUnsupportedAnnotationKinds(t *testing.T) {
+	for _, scenario := range []struct {
+		name string
+		data string
+	}{
+		{name: "unknown singleton", data: `{"json":null,"meta":{"values":["unknown"],"v":1}}`},
+		{name: "unknown outer transformation", data: `{"json":{"seriesTitle":null},"meta":{"values":["unknown",{"seriesTitle":["undefined"]}],"v":1}}`},
+		{name: "unknown inner singleton", data: `{"json":{"name":"Error","message":"synthetic","cause":null},"meta":{"values":["Error",{"cause":["unknown"]}],"v":1}}`},
+		{name: "unknown inner transformation", data: `{"json":{"name":"Error","message":"synthetic","cause":{"seriesTitle":null}},"meta":{"values":["Error",{"cause":["unknown",{"seriesTitle":["undefined"]}]}],"v":1}}`},
+		{name: "unknown tuple singleton", data: `{"json":null,"meta":{"values":[["unknown","private-test-password"]],"v":1}}`},
+		{name: "unknown outer tuple", data: `{"json":{"seriesTitle":null},"meta":{"values":[["unknown","private-test-password"],{"seriesTitle":["undefined"]}],"v":1}}`},
+		{name: "unknown inner tuple", data: `{"json":{"name":"Error","message":"synthetic","cause":{"seriesTitle":null}},"meta":{"values":["Error",{"cause":[["unknown","private-test-password"],{"seriesTitle":["undefined"]}]}],"v":1}}`},
+		{name: "missing discriminator", data: `{"json":null,"meta":{"values":[null],"v":1}}`},
+		{name: "numeric discriminator", data: `{"json":null,"meta":{"values":[1],"v":1}}`},
+		{name: "object discriminator", data: `{"json":null,"meta":{"values":[{"kind":"Date"}],"v":1}}`},
+		{name: "primitive tuple", data: `{"json":null,"meta":{"values":[["Date","synthetic"]],"v":1}}`},
+		{name: "primitive with children", data: `{"json":{"seriesTitle":null},"meta":{"values":["Date",{"seriesTitle":["undefined"]}],"v":1}}`},
+		{name: "number with children", data: `{"json":{"seriesTitle":null},"meta":{"values":["number",{"seriesTitle":["undefined"]}],"v":1}}`},
+		{name: "typed array string", data: `{"json":[0],"meta":{"values":["typed-array"],"v":1}}`},
+		{name: "short typed array tuple", data: `{"json":[0],"meta":{"values":[["typed-array"]],"v":1}}`},
+		{name: "long typed array tuple", data: `{"json":[0],"meta":{"values":[["typed-array","Uint8Array","extra"]],"v":1}}`},
+		{name: "nonstrings typed array tuple", data: `{"json":[0],"meta":{"values":[["typed-array",0]],"v":1}}`},
+		{name: "unknown typed array constructor", data: `{"json":[0],"meta":{"values":[["typed-array","private-test-password"]],"v":1}}`},
+		{name: "unsupported bigint typed array", data: `{"json":["0"],"meta":{"values":[["typed-array","BigInt64Array"]],"v":1}}`},
+		{name: "typed array with children", data: `{"json":[null],"meta":{"values":[["typed-array","Uint8Array"],{"0":["undefined"]}],"v":1}}`},
+		{name: "unregistered class", data: `{"json":{"seriesTitle":null},"meta":{"values":[["class","private-test-password"],{"seriesTitle":["undefined"]}],"v":1}}`},
+		{name: "unregistered custom transformation", data: `{"json":{"seriesTitle":null},"meta":{"values":[["custom","private-test-password"],{"seriesTitle":["undefined"]}],"v":1}}`},
+		{name: "unregistered symbol", data: `{"json":"synthetic","meta":{"values":[["symbol","private-test-password"]],"v":1}}`},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			value, err := decodeProcedure(helpers.Response{Status: 200, Body: []byte(`{"result":{"data":` + scenario.data + `}}`)})
+			if value != nil || err != errProcedureData || len(err.Error()) > 128 {
+				t.Fatal("unsupported annotation did not return the fixed bounded error")
+			}
+		})
+	}
+}
+
+func TestHomarrProcedureSupportedAnnotationShapes(t *testing.T) {
+	wire := `{"result":{"data":{"json":{"date":"2026-10-13T00:00:00.000Z","number":"NaN","bigint":"123","regexp":"/synthetic/gi","url":"https://example.test/","map":[["synthetic",{"optional":null,"nullable":null}]],"set":[null,null],"error":{"name":"Error","message":"synthetic","cause":null},"arrays":[[0],[0],[0],[0],[0],[0],[0],[0],[0]]},"meta":{"values":{"date":["Date"],"number":["number"],"bigint":["bigint"],"regexp":["regexp"],"url":["URL"],"map":["map",{"0.1.optional":["undefined"]}],"set":["set",{"0":["undefined"]}],"error":["Error",{"cause":["undefined"]}],"arrays.0":[["typed-array","Int8Array"]],"arrays.1":[["typed-array","Uint8Array"]],"arrays.2":[["typed-array","Int16Array"]],"arrays.3":[["typed-array","Uint16Array"]],"arrays.4":[["typed-array","Int32Array"]],"arrays.5":[["typed-array","Uint32Array"]],"arrays.6":[["typed-array","Float32Array"]],"arrays.7":[["typed-array","Float64Array"]],"arrays.8":[["typed-array","Uint8ClampedArray"]]},"v":1}}}}`
+	value, err := decodeProcedure(helpers.Response{Status: 200, Body: []byte(wire)})
+	want := map[string]any{
+		"date": "2026-10-13T00:00:00.000Z", "number": "NaN", "bigint": "123", "regexp": "/synthetic/gi", "url": "https://example.test/",
+		"map":    []any{[]any{"synthetic", map[string]any{"nullable": nil}}},
+		"set":    []any{procedureUndefined{}, nil},
+		"error":  map[string]any{"name": "Error", "message": "synthetic"},
+		"arrays": []any{[]any{float64(0)}, []any{float64(0)}, []any{float64(0)}, []any{float64(0)}, []any{float64(0)}, []any{float64(0)}, []any{float64(0)}, []any{float64(0)}, []any{float64(0)}},
+	}
+	if err != nil || !reflect.DeepEqual(value, want) {
+		t.Fatal("supported annotations changed unrelated data representations", err)
+	}
+}

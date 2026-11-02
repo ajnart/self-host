@@ -61,13 +61,10 @@ func applyProcedureUndefined(value, annotations any, legacy bool, path []string)
 			}
 		}
 	case []any:
-		if len(tree) < 1 || len(tree) > 2 {
+		if len(tree) < 1 || len(tree) > 2 || !validProcedureAnnotation(tree[0], len(tree) == 2) {
 			return nil, errProcedureData
 		}
 		if kind, _ := tree[0].(string); kind == "undefined" {
-			if len(tree) != 1 {
-				return nil, errProcedureData
-			}
 			return markProcedureUndefined(value, path)
 		}
 		if len(tree) == 2 {
@@ -81,6 +78,32 @@ func applyProcedureUndefined(value, annotations any, legacy bool, path []string)
 		return nil, errProcedureData
 	}
 	return value, nil
+}
+
+func validProcedureAnnotation(annotation any, children bool) bool {
+	switch kind := annotation.(type) {
+	case string:
+		switch kind {
+		case "undefined", "bigint", "Date", "regexp", "number", "URL":
+			return !children
+		case "Error", "map", "set":
+			return true
+		}
+	case []any:
+		if len(kind) != 2 || children {
+			return false
+		}
+		name, _ := kind[0].(string)
+		if name != "typed-array" {
+			return false
+		}
+		constructor, _ := kind[1].(string)
+		switch constructor {
+		case "Int8Array", "Uint8Array", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array", "Float64Array", "Uint8ClampedArray":
+			return true
+		}
+	}
+	return false
 }
 
 func procedureDataPath(text string, legacy bool) ([]string, error) {
