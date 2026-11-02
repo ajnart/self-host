@@ -1,0 +1,20 @@
+docs/catalog/traps/healthchecks.md
+  h_d6e478ca18e517 1-35
+internal/apps/healthchecks/healthchecks.go
+  h_d6e478ca18e517 1-202
+internal/apps/healthchecks/healthchecks_test.go
+  h_d6e478ca18e517 1-388
+internal/apps/healthchecks/setup.go
+  h_d6e478ca18e517 1-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b2cdc435acba0c9a63583bd911ca00edb1989cd",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
