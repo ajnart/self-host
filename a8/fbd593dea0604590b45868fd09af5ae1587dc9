@@ -1,0 +1,20 @@
+docs/catalog/traps/trilium.md
+  h_d6e478ca18e517 1-22
+internal/apps/trilium/login.go
+  h_d6e478ca18e517 1-138
+internal/apps/trilium/trilium.go
+  h_d6e478ca18e517 1-84
+internal/apps/trilium/trilium_test.go
+  h_d6e478ca18e517 1-352
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8fbd593dea0604590b45868fd09af5ae1587dc9",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
