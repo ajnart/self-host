@@ -481,10 +481,10 @@ func (p providerLink) create(ctx context.Context, from, to *helpers.H, fields []
 		}
 	}
 	var created provider
-	if err := resp.Decode(&created); err != nil || created.id() == 0 || created["implementation"] != p.implementation || created.field(p.endpointField) != endpoint || !p.pointsAtTarget(endpoint, to) {
+	if err := resp.Decode(&created); err != nil || created.id() == 0 || p.connectionFields == nil && created["implementation"] != p.implementation || created.field(p.endpointField) != endpoint || !p.pointsAtTarget(endpoint, to) {
 		return p.manual(from, "creation did not return a positive resource ID with the expected implementation and target")
 	}
-	if p.connectionFields != nil && (created["configContract"] != p.configContract || created["protocol"] != p.protocol || created["enable"] != true || created.field(p.categoryField) != item.field(p.categoryField)) {
+	if p.connectionFields != nil && (!p.downloadIdentity(created) || created.field(p.categoryField) != item.field(p.categoryField)) {
 		return p.manual(from, "creation did not return the expected download-client contract and category")
 	}
 	record.ID = created.id()

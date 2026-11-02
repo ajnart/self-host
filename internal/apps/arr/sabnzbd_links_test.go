@@ -25,14 +25,15 @@ import (
 )
 
 type sabnzbdLinkFixture struct {
-	mu                                     sync.Mutex
-	key, root, resolved, directory, script string
-	missing, rejected, malformed, sorting  bool
-	calls                                  []string
+	mu                                           sync.Mutex
+	key, incomplete, root, directory, script     string
+	missing, missingDefault, rejected, malformed bool
+	sorting                                      bool
+	calls                                        []string
 }
 
 func newSabnzbdLinkFixture() *sabnzbdLinkFixture {
-	return &sabnzbdLinkFixture{key: "fixture-full-key", root: "/data/usenet/complete", resolved: "/data/usenet/complete", script: "Default"}
+	return &sabnzbdLinkFixture{key: "fixture-full-key", incomplete: "/data/usenet/incomplete", root: "/data/usenet/complete", script: "Default"}
 }
 
 func (f *sabnzbdLinkFixture) handler(t *testing.T) http.Handler {
@@ -61,8 +62,8 @@ func (f *sabnzbdLinkFixture) handler(t *testing.T) http.Handler {
 			w.WriteHeader(405)
 			return
 		}
-		mode, section := r.PostForm.Get("mode"), r.PostForm.Get("section")
-		f.calls = append(f.calls, mode+":"+section)
+		mode, section, keyword := r.PostForm.Get("mode"), r.PostForm.Get("section"), r.PostForm.Get("keyword")
+		f.calls = append(f.calls, mode+":"+section+":"+keyword)
 		if mode == "auth" {
 			auth := "badkey"
 			if r.PostForm.Get("key") == f.key && !f.rejected {
@@ -81,15 +82,20 @@ func (f *sabnzbdLinkFixture) handler(t *testing.T) http.Handler {
 		case "history":
 			json.NewEncoder(w).Encode(map[string]any{"history": map[string]any{"slots": []any{}}})
 		case "fullstatus":
-			if r.PostForm.Get("skip_dashboard") != "1" {
-				t.Error("fullstatus may not perform dashboard network probes")
-			}
-			json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"completedir": f.resolved}})
+			t.Error("the Link must not resolve folders through potentially mutating fullstatus")
+			w.WriteHeader(400)
 		case "get_config":
 			switch section {
 			case "categories":
+				if keyword == "*" && f.missingDefault {
+					json.NewEncoder(w).Encode(map[string]any{"config": map[string]any{}})
+					return
+				}
 				var entries []any
 				for _, category := range []string{"*", "tv", "movies", "music", "chosen"} {
+					if keyword != "" && category != keyword {
+						continue
+					}
 					if f.missing && category != "*" {
 						continue
 					}
@@ -99,7 +105,7 @@ func (f *sabnzbdLinkFixture) handler(t *testing.T) http.Handler {
 					}
 					entries = append(entries, map[string]any{"name": category, "dir": directory, "script": script, "pp": "3"})
 				}
-				if f.malformed {
+				if f.malformed && keyword == "" {
 					json.NewEncoder(w).Encode(map[string]any{"config": map[string]any{"categories": nil}})
 					return
 				}
@@ -117,7 +123,7 @@ func (f *sabnzbdLinkFixture) handler(t *testing.T) http.Handler {
 				case "complete_dir":
 					value = f.root
 				case "download_dir":
-					value = "/data/usenet/incomplete"
+					value = f.incomplete
 				case "username":
 					value = "admin"
 				}
@@ -137,19 +143,33 @@ func (f *sabnzbdLinkFixture) handler(t *testing.T) http.Handler {
 
 type sabnzbdLinkExecutor struct {
 	helpers.Executor
-	distinct bool
+	distinct, missingPrerequisites    bool
+	downloadService, consumerDownload string
 }
 
 func (e *sabnzbdLinkExecutor) Exec(_ context.Context, service string, _ map[string]string, args ...string) (system.Result, error) {
+	targetService := e.downloadService
+	if targetService == "" {
+		targetService = "sabnzbd"
+	}
+	if len(args) == 9 && args[6] == "self-host-sabnzbd-read-prerequisites" {
+		if service != targetService || strings.Join(args[:3], " ") != "s6-setuidgid abc sh" || e.missingPrerequisites {
+			return system.Result{ExitCode: 1}, nil
+		}
+		return system.Result{Stdout: []byte("existing-download-folders\n")}, nil
+	}
 	if len(args) != 8 || strings.Join(args[:3], " ") != "s6-setuidgid abc sh" || args[6] != "self-host-download-path" {
 		return system.Result{}, errors.New("unexpected command")
 	}
 	directory := args[7]
+	if e.consumerDownload != "" && service != targetService && !strings.Contains(directory, "/media/") && directory != e.consumerDownload {
+		return system.Result{ExitCode: 1}, nil
+	}
 	identity := "1:42"
 	if strings.Contains(directory, "/media/") {
 		identity = "1:99"
 	}
-	if e.distinct && service != "sabnzbd" {
+	if e.distinct && service != targetService {
 		identity = "1:77"
 	}
 	backing := "/shared/downloads"
@@ -278,8 +298,7 @@ func TestSABnzbdPathResolutionAndManualPrerequisites(t *testing.T) {
 				want = f.directory
 			case "resolved":
 				f.root = "Downloads/complete"
-				f.resolved = "/data/complete"
-				want = f.resolved
+				manual = true
 			case "missing":
 				f.missing = true
 				manual = true
@@ -305,6 +324,7 @@ func TestSABnzbdPathResolutionAndManualPrerequisites(t *testing.T) {
 			server := httptest.NewServer(f.handler(t))
 			t.Cleanup(server.Close)
 			h := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Secrets: porttest.Secrets{"SABNZBD_API_KEY": f.key}}, server, &porttest.Recorder{})
+			h.Config.Exec = &sabnzbdLinkExecutor{}
 			got, err := sabnzbd.CompletedDownloadPath(context.Background(), h, "tv")
 			if manual {
 				if !errors.Is(err, helpers.ErrManual) {
@@ -327,50 +347,59 @@ func TestSABnzbdPathResolutionAndManualPrerequisites(t *testing.T) {
 
 func TestSABnzbdExistingLegacyMappingForEachConsumer(t *testing.T) {
 	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
-		t.Run(consumer.Info().ID, func(t *testing.T) {
-			id := consumer.Info().ID
-			backend := arrtest.NewArr(id)
-			backend.SeedRootFolder("/media/library")
-			backend.AcceptDownloadProvider = func(client map[string]any) bool {
-				return client["implementation"] == "Sabnzbd" && arrtest.Field(client, "apiKey") == "fixture-full-key"
-			}
-			handler := backend.Handler()
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if strings.HasSuffix(r.URL.Path, "/remotepathmapping") {
-					if r.Method != "GET" || r.Header.Get("X-Api-Key") != backend.Key {
-						t.Error("mapping read must be authenticated and read-only")
-						w.WriteHeader(400)
+		for _, mappingHost := range []string{"selected-sabnzbd", "SELECTED-SABNZBD", "selected-sabnzbd.", "sabnzbd"} {
+			t.Run(consumer.Info().ID+"/"+mappingHost, func(t *testing.T) {
+				id := consumer.Info().ID
+				backend := arrtest.NewArr(id)
+				backend.SeedRootFolder("/media/library")
+				backend.AcceptDownloadProvider = func(client map[string]any) bool {
+					return client["implementation"] == "Sabnzbd" && arrtest.Field(client, "apiKey") == "fixture-full-key"
+				}
+				handler := backend.Handler()
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.HasSuffix(r.URL.Path, "/remotepathmapping") {
+						if r.Method != "GET" || r.Header.Get("X-Api-Key") != backend.Key {
+							t.Error("mapping read must be authenticated and read-only")
+							w.WriteHeader(400)
+							return
+						}
+						json.NewEncoder(w).Encode([]map[string]any{{"id": 8, "host": mappingHost, "remotePath": "/data/complete", "localPath": "/downloads/sab"}})
 						return
 					}
-					json.NewEncoder(w).Encode([]map[string]any{{"id": 8, "host": "sabnzbd", "remotePath": "/data/complete", "localPath": "/downloads/sab"}})
+					handler.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				fixture := newSabnzbdLinkFixture()
+				fixture.root, fixture.directory = "/data/complete", "kept-category-folder"
+				target := httptest.NewServer(fixture.handler(t))
+				t.Cleanup(target.Close)
+				secrets := porttest.Secrets{strings.ToUpper(id) + "_API_KEY": backend.Key, "SABNZBD_API_KEY": fixture.key}
+				from := porttest.New(t, porttest.Options{App: id, Service: id, Secrets: secrets}, server, &porttest.Recorder{})
+				executor := &sabnzbdLinkExecutor{downloadService: "selected-sabnzbd", consumerDownload: "/downloads/sab/kept-category-folder"}
+				from.Config.Exec = executor
+				to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "selected-sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
+				to.ContainerPort, to.Config.Exec = 8080, executor
+				err := sabnzbdConsumerLink(t, consumer).Apply(context.Background(), from, to)
+				if mappingHost == "selected-sabnzbd." || mappingHost == "sabnzbd" {
+					if !errors.Is(err, helpers.ErrManual) || backend.DownloadClientTests() != 0 || len(backend.DownloadClients()) != 0 || secrets[from.Key("link_sabnzbd_resource")] != "" {
+						t.Fatal("nonmatching provider host reached a native test or ownership write", err)
+					}
 					return
 				}
-				handler.ServeHTTP(w, r)
-			}))
-			t.Cleanup(server.Close)
-			fixture := newSabnzbdLinkFixture()
-			fixture.root, fixture.directory = "/data/complete", "kept-category-folder"
-			target := httptest.NewServer(fixture.handler(t))
-			t.Cleanup(target.Close)
-			secrets := porttest.Secrets{strings.ToUpper(id) + "_API_KEY": backend.Key, "SABNZBD_API_KEY": fixture.key}
-			from := porttest.New(t, porttest.Options{App: id, Service: id, Secrets: secrets}, server, &porttest.Recorder{})
-			executor := &sabnzbdLinkExecutor{}
-			from.Config.Exec = executor
-			to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
-			to.ContainerPort, to.Config.Exec = 8080, executor
-			if err := sabnzbdConsumerLink(t, consumer).Apply(context.Background(), from, to); err != nil {
-				t.Fatal(err)
-			}
-			if len(backend.DownloadClients()) != 1 || backend.DownloadClientTests() != 2 || fixture.root != "/data/complete" || fixture.directory != "kept-category-folder" {
-				t.Fatal("compatible existing legacy mapping failed or target paths changed")
-			}
-		})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(backend.DownloadClients()) != 1 || backend.DownloadClientTests() != 2 || fixture.root != "/data/complete" || fixture.directory != "kept-category-folder" {
+					t.Fatal("compatible existing legacy mapping failed or target paths changed")
+				}
+			})
+		}
 	}
 }
 
 func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
 	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
-		for _, scenario := range []string{"category", "library", "legacy", "upload-key"} {
+		for _, scenario := range []string{"category", "library", "legacy", "upload-key", "missing-folders", "relative-incomplete", "relative-complete", "missing-default-category"} {
 			t.Run(consumer.Info().ID+"/"+scenario, func(t *testing.T) {
 				id := consumer.Info().ID
 				backend := arrtest.NewArr(id)
@@ -381,6 +410,13 @@ func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
 				t.Cleanup(server.Close)
 				fixture := newSabnzbdLinkFixture()
 				fixture.missing = scenario == "category"
+				fixture.missingDefault = scenario == "missing-default-category"
+				if scenario == "relative-incomplete" {
+					fixture.incomplete = "Downloads/incomplete"
+				}
+				if scenario == "relative-complete" {
+					fixture.root = "Downloads/complete"
+				}
 				target := httptest.NewServer(fixture.handler(t))
 				t.Cleanup(target.Close)
 				key := fixture.key
@@ -390,7 +426,7 @@ func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
 				secrets := porttest.Secrets{strings.ToUpper(id) + "_API_KEY": backend.Key, "SABNZBD_API_KEY": key}
 				recorder := &porttest.Recorder{}
 				from := porttest.New(t, porttest.Options{App: id, Service: id, Secrets: secrets}, server, recorder)
-				executor := &sabnzbdLinkExecutor{distinct: scenario == "legacy"}
+				executor := &sabnzbdLinkExecutor{distinct: scenario == "legacy", missingPrerequisites: scenario == "missing-folders"}
 				from.Config.Exec = executor
 				to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
 				to.ContainerPort, to.Config.Exec = 8080, executor
@@ -400,6 +436,13 @@ func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
 				if backend.DownloadClientTests() != 0 || len(backend.DownloadClients()) != 0 || secrets[from.Key("link_sabnzbd_resource")] != "" || recorder.Status("link-sabnzbd") != stepstatus.StepManual || !strings.Contains(recorder.Hint(), "Setup") && !strings.Contains(recorder.Hint(), "setup") {
 					t.Fatal("Manual boundary ran a native test/mutation or failed to persist recovery")
 				}
+				if executor.missingPrerequisites || strings.HasPrefix(scenario, "relative-") || fixture.missingDefault {
+					for _, call := range fixture.calls {
+						if call == "queue::" || call == "get_config:categories:" || strings.HasPrefix(call, "fullstatus:") {
+							t.Fatalf("unsafe prerequisite reached a lazy-writing API: %s", call)
+						}
+					}
+				}
 			})
 		}
 	}
@@ -408,6 +451,11 @@ func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
 type sabnzbdLinkRunner struct{ system.Runner }
 
 func (r *sabnzbdLinkRunner) Run(ctx context.Context, cmd system.Cmd) (system.Result, error) {
+	for _, arg := range cmd.Args {
+		if arg == "self-host-sabnzbd-read-prerequisites" {
+			return system.Result{Stdout: []byte("existing-download-folders\n")}, nil
+		}
+	}
 	for index, arg := range cmd.Args {
 		if arg == "self-host-download-path" && index+1 < len(cmd.Args) {
 			directory := cmd.Args[index+1]

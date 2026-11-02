@@ -35,7 +35,8 @@ func SABnzbdLink(api, categoryField, category string) app.Link {
 			}
 			return err
 		}
-		return p.verifyDownloadPath(ctx, from, to, completed)
+		host, _ := item.field(p.endpointField).(string)
+		return p.verifyDownloadPath(ctx, from, to, host, completed)
 	}
 	return p.link("download client: SABnzbd", app.LinkStep{
 		Message: "connect SABnzbd as an additional download client",

@@ -63,38 +63,38 @@ func TestDownloadPathsVerifySharedAndExistingLegacyMappings(t *testing.T) {
 			from.Config.Exec = exec
 			to := helpers.New(helpers.Config{App: "contract", Service: "contract", Exec: exec, Log: from.Log})
 			p := providerLink{api: V3, target: "contract", name: "Contract"}
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); err != nil {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); err != nil {
 				t.Fatal(err)
 			}
 			exec.mounts = "2 1 0:6 /nested " + remote + "/nested rw - ext4 /dev/nested rw\n"
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("nested mount was accepted without review", err)
 			}
 			exec.mounts = "2 1 0:5 /stacked " + remote + " rw - ext4 /dev/stacked rw\n"
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("stacked mount was accepted without review", err)
 			}
 			exec.mounts = ""
 			exec.paths["sonarr:"+library] = library + "\n1:42\n"
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("aliased library directory accepted", err)
 			}
 			exec.paths["sonarr:"+library] = library + "\n1:99\n"
 			exec.backing["sonarr:"+library] = "/shared"
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("library mounted as a backing ancestor was accepted", err)
 			}
 			delete(exec.backing, "sonarr:"+library)
 			exec.paths["sonarr:"+local] = local + "\n1:77\n"
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("separate App-local storage accepted", err)
 			}
 			exec.paths["sonarr:"+local] = library + "\n1:42\n"
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("canonical library overlap accepted", err)
 			}
 			delete(exec.paths, "contract:"+remote)
-			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("unreadable target path accepted", err)
 			}
 		})
@@ -133,8 +133,39 @@ func TestDownloadPathsRejectMissingRootsAmbiguousMappingsAndTraversal(t *testing
 			from.Config.Exec = &servarrPathExecutor{paths: map[string]string{}}
 			to := helpers.New(helpers.Config{App: "contract", Service: "contract", Log: from.Log})
 			p := providerLink{api: V1, target: "contract", name: "Contract"}
-			if err := p.verifyDownloadPath(context.Background(), from, to, "/data/complete"); !errors.Is(err, helpers.ErrManual) {
+			if err := p.verifyDownloadPath(context.Background(), from, to, to.Service, "/data/complete"); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestDownloadMappingMatchesSelectedHostWithoutDNSEquivalence(t *testing.T) {
+	for _, scenario := range []struct {
+		mappingHost, selectedHost string
+		mapped                    bool
+	}{
+		{"selected-sabnzbd", "selected-sabnzbd", true},
+		{"SELECTED-SABNZBD", "selected-sabnzbd", true},
+		{"selected-sabnzbd.", "selected-sabnzbd", false},
+		{"selected-sabnzbd", "selected-sabnzbd.", false},
+		{"SELECTED-SABNZBD.", "selected-sabnzbd.", true},
+		{"sabnzbd", "selected-sabnzbd", false},
+	} {
+		t.Run(scenario.mappingHost+"/"+scenario.selectedHost, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				json.NewEncoder(w).Encode([]map[string]any{{"id": 1, "host": scenario.mappingHost, "remotePath": "/remote", "localPath": "/local"}})
+			}))
+			t.Cleanup(server.Close)
+			from := porttest.New(t, porttest.Options{App: "sonarr", Secrets: porttest.Secrets{}}, server, &porttest.Recorder{})
+			p := providerLink{api: V3, target: "sabnzbd", name: "SABnzbd"}
+			got, err := p.mappedDownloadPath(context.Background(), from, scenario.selectedHost, "/remote/tv")
+			want := "/remote/tv"
+			if scenario.mapped {
+				want = "/local/tv"
+			}
+			if err != nil || got != want {
+				t.Fatalf("mapped path %q, want %q: %v", got, want, err)
 			}
 		})
 	}

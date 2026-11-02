@@ -43,7 +43,7 @@ func (p providerLink) readDownloadPaths(ctx context.Context, h *helpers.H, endpo
 	return nil
 }
 
-func (p providerLink) mappedDownloadPath(ctx context.Context, from, to *helpers.H, completed string) (string, error) {
+func (p providerLink) mappedDownloadPath(ctx context.Context, from *helpers.H, host, completed string) (string, error) {
 	var mappings []struct {
 		ID                          int64 `json:"id"`
 		Host, RemotePath, LocalPath string
@@ -61,7 +61,7 @@ func (p providerLink) mappedDownloadPath(ctx context.Context, from, to *helpers.
 			return "", p.pathManual(from, "the Remote Path Mapping identities are invalid or ambiguous")
 		}
 		ids[mapping.ID] = true
-		if !p.pointsAtTarget(mapping.Host, to) {
+		if !strings.EqualFold(mapping.Host, host) {
 			continue
 		}
 		remote, destination := strings.TrimRight(mapping.RemotePath, "/"), strings.TrimRight(mapping.LocalPath, "/")
@@ -151,11 +151,11 @@ func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory stri
 	return observation, nil
 }
 
-func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.H, completed string) error {
+func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.H, host, completed string) error {
 	if !downloadPathValid(completed) {
 		return p.pathManual(from, "the downloader did not identify a supported absolute completed folder")
 	}
-	local, err := p.mappedDownloadPath(ctx, from, to, completed)
+	local, err := p.mappedDownloadPath(ctx, from, host, completed)
 	if err != nil {
 		return err
 	}

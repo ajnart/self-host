@@ -10,12 +10,20 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
+const downloadReadPrerequisiteProbe = `for directory in "$@"; do
+test -d "$directory"
+test -r "$directory"
+test -w "$directory"
+test -x "$directory"
+done
+printf 'existing-download-folders\n'`
+
 func downloadClientManual(reason string) error {
 	return &helpers.ManualError{Hint: "Review SABnzbd > Config > Categories and Folders: " + reason + ". Preserve existing category folders, scripts, jobs and media. Choose a dedicated category with job folders enabled and no sorting or moving script, then retry the consuming App's Setup. Setup does not change categories or migrate storage."}
 }
 
-func downloadClientConfig(ctx context.Context, h *helpers.H, section string) (map[string]any, error) {
-	result, err := apiForm(ctx, h, map[string]string{"mode": "get_config", "section": section, "apikey": h.Secret(h.Key("api_key"))})
+func downloadClientConfig(ctx context.Context, h *helpers.H, section, keyword string) (map[string]any, error) {
+	result, err := apiForm(ctx, h, map[string]string{"mode": "get_config", "section": section, "keyword": keyword, "apikey": h.Secret(h.Key("api_key"))})
 	if err != nil {
 		return nil, errors.New("SABnzbd download-client configuration could not be read; retry self-host setup sabnzbd and the consuming App")
 	}
@@ -26,16 +34,57 @@ func downloadClientConfig(ctx context.Context, h *helpers.H, section string) (ma
 	return config, nil
 }
 
+func downloadReadPrerequisites(ctx context.Context, h *helpers.H) (string, error) {
+	key := h.Secret(h.Key("api_key"))
+	h.Log.Secret(key)
+	folders := make([]string, 0, 2)
+	for _, setting := range []string{"download_dir", "complete_dir"} {
+		folder, err := readSetting(ctx, h, key, setting)
+		if err != nil {
+			return "", &helpers.ManualError{Hint: "SABnzbd's existing " + setting + " could not be read safely. Run self-host setup sabnzbd to recover its full API key, then retry the consuming App's Setup. Preserve credentials and folders; do not rotate keys or disable authentication."}
+		}
+		folder = strings.TrimRight(folder, "/")
+		if !path.IsAbs(folder) || folder == "" || path.Clean(folder) != folder || strings.TrimSpace(folder) != folder || strings.ContainsAny(folder, "\r\n\x00\\") {
+			return "", downloadClientManual("the existing " + setting + " is not a supported absolute folder; resolve and review it explicitly before retrying because resolving it through status can create directories")
+		}
+		folders = append(folders, folder)
+	}
+	config, err := downloadClientConfig(ctx, h, "categories", "*")
+	if err != nil {
+		return "", downloadClientManual("the existing default (*) category could not be read without initializing defaults; verify the full API key with self-host setup sabnzbd and review that category explicitly")
+	}
+	categories, ok := config["categories"].([]any)
+	if !ok || len(categories) != 1 {
+		return "", downloadClientManual("the default (*) category is missing or unreadable; initialize and review categories explicitly in SABnzbd before retrying")
+	}
+	category, ok := categories[0].(map[string]any)
+	if !ok || category["name"] != "*" {
+		return "", downloadClientManual("the existing default (*) category could not be verified without initializing defaults; review categories explicitly before retrying")
+	}
+	if h.Config.Exec == nil {
+		return "", downloadClientManual("read-only App-user access checks are unavailable; verify the existing incomplete and completed folders in the running App before retrying")
+	}
+	result, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "sh", "-eu", "-c", downloadReadPrerequisiteProbe, "self-host-sabnzbd-read-prerequisites", folders[0], folders[1])
+	if err != nil || result.ExitCode != 0 || len(result.Stderr) != 0 || string(result.Stdout) != "existing-download-folders\n" {
+		return "", downloadClientManual("the existing incomplete and completed folders could not both be verified as accessible directories by the App user; restore or review the folders and mounts explicitly before retrying; this Link creates no directory")
+	}
+	return folders[1], nil
+}
+
 func CompletedDownloadPath(ctx context.Context, h *helpers.H, category string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if _, err := verifyAPIKey(ctx, h, h.Secret(h.Key("api_key"))); err != nil {
-		return "", &helpers.ManualError{Hint: "Run self-host setup sabnzbd to recover and verify its existing full API key, then retry the consuming App's Setup. The NZB upload-only key is insufficient. Do not rotate credentials or disable authentication."}
-	}
 	if category == "" || category == "*" || strings.TrimSpace(category) != category || strings.ContainsAny(category, "\r\n\x00") {
 		return "", downloadClientManual("choose an explicit isolated category, not the default catch-all")
 	}
-	config, err := downloadClientConfig(ctx, h, "categories")
+	root, err := downloadReadPrerequisites(ctx, h)
+	if err != nil {
+		return "", err
+	}
+	if _, err := verifyAPIKey(ctx, h, h.Secret(h.Key("api_key"))); err != nil {
+		return "", &helpers.ManualError{Hint: "Run self-host setup sabnzbd to recover and verify its existing full API key, then retry the consuming App's Setup. The NZB upload-only key is insufficient. Do not rotate credentials or disable authentication."}
+	}
+	config, err := downloadClientConfig(ctx, h, "categories", "")
 	if err != nil {
 		return "", err
 	}
@@ -82,31 +131,10 @@ func CompletedDownloadPath(ctx context.Context, h *helpers.H, category string) (
 	if err := verifyDownloadClientSorting(ctx, h, category); err != nil {
 		return "", err
 	}
-	root, err := readSetting(ctx, h, h.Secret(h.Key("api_key")), "complete_dir")
-	if err != nil {
-		return "", errors.New("SABnzbd did not return its completed download folder")
-	}
-	if !path.IsAbs(root) {
-		result, err := apiForm(ctx, h, map[string]string{"mode": "fullstatus", "skip_dashboard": "1", "apikey": h.Secret(h.Key("api_key"))})
-		if err != nil {
-			return "", errors.New("SABnzbd's resolved completed folder could not be read")
-		}
-		status, ok := result["status"].(map[string]any)
-		if !ok {
-			return "", errors.New("SABnzbd returned invalid completed-folder status")
-		}
-		root, ok = status["completedir"].(string)
-		if !ok {
-			return "", errors.New("SABnzbd did not identify its resolved completed folder")
-		}
-	}
 	if directory != "" && strings.TrimRight(directory, "/") == "" {
 		return "", downloadClientManual("the category folder cannot be the filesystem root")
 	}
-	root, directory = strings.TrimRight(root, "/"), strings.TrimRight(directory, "/")
-	if !path.IsAbs(root) || root == "/" || path.Clean(root) != root || strings.ContainsAny(root, "\r\n\x00\\") {
-		return "", downloadClientManual("the completed download folder is not a supported absolute path")
-	}
+	directory = strings.TrimRight(directory, "/")
 	if directory == "" {
 		return root, nil
 	}
@@ -120,7 +148,7 @@ func CompletedDownloadPath(ctx context.Context, h *helpers.H, category string) (
 }
 
 func verifyDownloadClientSorting(ctx context.Context, h *helpers.H, category string) error {
-	config, err := downloadClientConfig(ctx, h, "sorters")
+	config, err := downloadClientConfig(ctx, h, "sorters", "")
 	if err != nil {
 		return err
 	}

@@ -23,6 +23,7 @@ type servarrContractFixture struct {
 	tests, creates, updates, deletes, guards int
 	guardErr                                 error
 	uncertain                                bool
+	responseEdit                             func(provider)
 	from, to                                 *helpers.H
 	recorder                                 *porttest.Recorder
 	secrets                                  porttest.Secrets
@@ -94,6 +95,9 @@ func newServarrContract(t *testing.T, api string) *servarrContractFixture {
 			return
 		}
 		w.WriteHeader(201)
+		if f.responseEdit != nil {
+			f.responseEdit(item)
+		}
 		json.NewEncoder(w).Encode(item)
 	})
 	mux.HandleFunc(api+"/downloadclient/17", func(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +107,9 @@ func newServarrContract(t *testing.T, api string) *servarrContractFixture {
 			var item provider
 			json.NewDecoder(r.Body).Decode(&item)
 			f.items[0] = item
+			if f.responseEdit != nil {
+				f.responseEdit(item)
+			}
 			json.NewEncoder(w).Encode(item)
 		case "DELETE":
 			f.deletes++
@@ -161,6 +168,44 @@ func TestDownloadProviderCreatesTestsRerunsAndPreservesChoices(t *testing.T) {
 				t.Fatal("owned removal failed")
 			}
 		})
+	}
+}
+
+func TestDownloadProviderIdentityRemainsRequiredForVerifyCreateAndUpdate(t *testing.T) {
+	for _, field := range []struct {
+		name  string
+		value any
+	}{{"implementation", "ChangedClient"}, {"configContract", "ChangedSettings"}, {"protocol", "torrent"}, {"enable", false}} {
+		for _, operation := range []string{"verify", "create", "update"} {
+			t.Run(field.name+"/"+operation, func(t *testing.T) {
+				f := newServarrContract(t, V3)
+				if operation != "create" {
+					if err := f.link().Apply(context.Background(), f.from, f.to); err != nil {
+						t.Fatal(err)
+					}
+				}
+				record := f.secrets[f.p.ownershipKey(f.from)]
+				if operation == "verify" {
+					f.items[0][field.name] = field.value
+				} else {
+					f.responseEdit = func(item provider) { item[field.name] = field.value }
+				}
+				if operation == "update" {
+					f.secrets["CONTRACT_API_KEY"] = "new-accepted-key"
+				}
+				if err := f.link().Apply(context.Background(), f.from, f.to); err == nil {
+					t.Fatal("changed provider identity was accepted")
+				}
+				if operation == "create" {
+					var pending providerOwnership
+					if err := json.Unmarshal([]byte(f.secrets[f.p.ownershipKey(f.from)]), &pending); err != nil || pending.ID != 0 {
+						t.Fatal("invalid creation identity acquired an owned ID", err)
+					}
+				} else if f.secrets[f.p.ownershipKey(f.from)] != record {
+					t.Fatal("changed identity advanced the ownership record")
+				}
+			})
+		}
 	}
 }
 

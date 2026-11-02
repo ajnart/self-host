@@ -42,8 +42,12 @@ func downloadFieldEqual(actual, expected any) bool {
 	return reflect.DeepEqual(actual, expected) || actual == nil && expected == ""
 }
 
+func (p providerLink) downloadIdentity(item provider) bool {
+	return item["implementation"] == p.implementation && item["configContract"] == p.configContract && item["protocol"] == p.protocol && item["enable"] == true
+}
+
 func (p providerLink) verifyDownload(ctx context.Context, from, to *helpers.H, item provider, fields []connectionField) error {
-	if item["implementation"] != p.implementation || item["configContract"] != p.configContract || item["protocol"] != p.protocol || item["enable"] != true {
+	if !p.downloadIdentity(item) {
 		return p.manual(from, "the recorded download-client identity or enabled state changed")
 	}
 	template, err := p.downloadTemplate(ctx, from)
@@ -177,7 +181,7 @@ func (p providerLink) updateDownload(ctx context.Context, from, to *helpers.H, i
 		return fmt.Errorf("the recorded %s credential update could not be verified; retry Setup without replacing the resource", p.name)
 	}
 	var updated provider
-	if resp.Status != 200 && resp.Status != 202 || resp.Decode(&updated) != nil || updated.id() != record.ID || updated["implementation"] != p.implementation || updated["configContract"] != p.configContract || updated["protocol"] != p.protocol || updated["enable"] != true || updated.field(p.endpointField) != item.field(p.endpointField) || updated.field(p.categoryField) != item.field(p.categoryField) {
+	if resp.Status != 200 && resp.Status != 202 || resp.Decode(&updated) != nil || updated.id() != record.ID || !p.downloadIdentity(updated) || updated.field(p.endpointField) != item.field(p.endpointField) || updated.field(p.categoryField) != item.field(p.categoryField) {
 		return fmt.Errorf("the recorded %s credential update did not return its expected identity; retry Setup without changing ownership", p.name)
 	}
 	record.Fingerprint = connectionFingerprint(fields)
