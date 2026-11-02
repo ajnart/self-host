@@ -1,0 +1,18 @@
+docs/catalog/traps/spoolman.md
+  h_d6e478ca18e517 1-114
+internal/apps/spoolman/spoolman.go
+  h_d6e478ca18e517 1-214
+internal/apps/spoolman/spoolman_test.go
+  h_d6e478ca18e517 1-372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9f87f7e29c2d54a9eeab4ad778b963a64f2a767",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
