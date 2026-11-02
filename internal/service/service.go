@@ -470,6 +470,20 @@ func (ss *session) applyLink(ctx context.Context, from app.App, link app.Link, i
 	if !slices.Contains(installed, link.Target) {
 		return
 	}
+	if link.Applicable != nil {
+		selected, err := link.Applicable(ctx, h)
+		if err != nil {
+			ss.reportUnexpected(h, link.ID, h.Step(ctx, link.ID, link.Title, helpers.StepSpec{
+				Do:   func(context.Context) error { return err },
+				Hint: "Review the selected target, then run self-host setup " + from.Info().ID + ".",
+			}))
+			return
+		}
+		if !selected {
+			h.Skip(link.ID, "not selected: "+link.Title)
+			return
+		}
+	}
 	to := ss.readyPeer(link.Target)
 	if to == nil {
 		h.Skip(link.ID, linkWaitingMessage(link.Target))
