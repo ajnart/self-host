@@ -1,0 +1,46 @@
+internal/apps/homarr/external_connections.go
+  h_d6e478ca18e517 1-10,12-109
+  h_d6e478ca18e517 11
+internal/service/connections.go
+  h_d6e478ca18e517 1-354,390-486
+  h_d6e478ca18e517 355-389
+internal/cli/connections_test.go
+  h_d6e478ca18e517 1-88
+internal/cli/connections.go
+  h_d6e478ca18e517 1-64
+internal/apps/homarr/external_connections_test.go
+  h_d6e478ca18e517 1-207
+internal/apps/homarr/ownership.go
+  h_d6e478ca18e517 61-73
+internal/helpers/helpers.go
+  h_d6e478ca18e517 83-85
+internal/service/status.go
+  h_d6e478ca18e517 64-68,100-103
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 1-11
+internal/helpers/external_connections.go
+  h_d6e478ca18e517 1-15
+internal/service/service.go
+  h_d6e478ca18e517 258-262,307,335-338,441-447
+internal/cli/cli.go
+  h_d6e478ca18e517 254
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 48-55,137-139,606,608-612,632,635-639,823-841,848,932-935,939-940,944-962,964-970,974-980,982-983,987-997,999,1002-1006,1020-1022,1046-1050,1055-1057,1073-1076,1111-1113,1210-1212,1272-1274,1276-1277
+  h_d6e478ca18e517 981,984-986,1271,1275,1287-1294
+internal/app/external_connections.go
+  h_d6e478ca18e517 1-12
+internal/service/connections_test.go
+  h_d6e478ca18e517 1-151,153-155,159-247,272-332
+  h_d6e478ca18e517 152,156-158,248-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b6d7f1b44bcb8844e7d91b80911aacd9f8cdc22d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
