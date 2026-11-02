@@ -1,0 +1,28 @@
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 2018,2028-2030,2142-2166
+internal/apps/homarr/installed.go
+  h_d6e478ca18e517 126-129,131-133
+internal/apps/homarr/installed_test.go
+  h_d6e478ca18e517 7-8,16,216,225-272
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 519-521
+internal/apps/ntfy/ntfy.go
+  h_d6e478ca18e517 189,200-201,203
+internal/apps/ntfy/ntfy_test.go
+  h_d6e478ca18e517 29,52-56,93,107,115-120,208-250
+internal/skill/guide_test.go
+  h_d6e478ca18e517 1-49
+internal/skill/skill.go
+  h_d6e478ca18e517 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "085c8f97bca56deea5594925bb59c40d3d12558a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
