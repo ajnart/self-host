@@ -1,0 +1,22 @@
+docs/catalog/traps/homebox.md
+  h_d6e478ca18e517 22-34
+internal/apps/homebox/account.go
+  h_d6e478ca18e517 104-110,112-113
+internal/apps/homebox/homebox.go
+  h_d6e478ca18e517 36-37,49-58,97
+internal/apps/homebox/homebox_test.go
+  h_d6e478ca18e517 175
+internal/apps/homebox/install_test.go
+  h_d6e478ca18e517 1-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29e8b94a705f463488d34823b52f008d50658200",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
