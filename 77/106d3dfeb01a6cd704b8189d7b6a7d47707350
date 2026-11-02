@@ -1,0 +1,18 @@
+docs/catalog/traps/tubearchivist.md
+  h_d6e478ca18e517 1-116
+internal/apps/tubearchivist/tubearchivist.go
+  h_d6e478ca18e517 1-214
+internal/apps/tubearchivist/tubearchivist_test.go
+  h_d6e478ca18e517 1-448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77106d3dfeb01a6cd704b8189d7b6a7d47707350",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
