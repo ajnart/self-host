@@ -291,6 +291,9 @@ func (a *App) apiKeyFor(ctx context.Context, id, name string) (string, error) {
 		return "", errors.New("testkit App is closed")
 	}
 	if a.pair != nil {
+		if a.pair.failed {
+			return "", errors.New("testkit pair is unavailable")
+		}
 		if err := (&AppView{owner: a, id: id}).present(); err != nil {
 			return "", err
 		}
@@ -333,6 +336,9 @@ func (a *App) credentialsFor(ctx context.Context, id string) (Credentials, error
 		return Credentials{}, errors.New("testkit App is closed")
 	}
 	if a.pair != nil {
+		if a.pair.failed {
+			return Credentials{}, errors.New("testkit pair is unavailable")
+		}
 		if err := (&AppView{owner: a, id: id}).present(); err != nil {
 			return Credentials{}, err
 		}
@@ -367,6 +373,10 @@ func (a *App) Info(ctx context.Context) (Info, error) {
 func (a *App) Close(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.closeLocked(ctx)
+}
+
+func (a *App) closeLocked(ctx context.Context) error {
 	if a.closed {
 		return nil
 	}

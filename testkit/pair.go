@@ -75,6 +75,7 @@ type pairState struct {
 	install service.InstallOptions
 	link    string
 	initial PairInspection
+	failed  bool
 }
 
 func StartPair(ctx context.Context, options PairOptions) (*Pair, error) {
@@ -218,13 +219,40 @@ func (p *Pair) Initial() PairInspection {
 	return initial
 }
 
-func (p *Pair) Inspect(ctx context.Context) (PairInspection, error) {
+func (p *Pair) Inspect(ctx context.Context) (_ PairInspection, err error) {
 	p.owner.mu.Lock()
 	defer p.owner.mu.Unlock()
-	if p.owner.closed {
+	if p.owner.closed || p.owner.pair.failed {
 		return PairInspection{}, errors.New("testkit pair is closed")
 	}
+	defer p.owner.closeOnPairFailure(&err)
 	return p.owner.inspectPair(ctx)
+}
+
+func (a *App) closeOnPairFailure(err *error) {
+	if *err == nil {
+		return
+	}
+	a.pair.failed = true
+	reason := StartupReasonSetup
+	primary := startupError(reason, "testkit pair operation failed")
+	var safe *StartupError
+	if errors.As(*err, &safe) {
+		primary = safe
+		reason = StartupReason(safe.Reason())
+	}
+	if errors.Is(*err, context.DeadlineExceeded) {
+		primary = errors.Join(primary, context.DeadlineExceeded)
+	} else if errors.Is(*err, context.Canceled) {
+		primary = errors.Join(primary, context.Canceled)
+	}
+	cleanup, stop := context.WithDeadline(context.Background(), a.deadline)
+	defer stop()
+	var cleanupError error
+	if a.closeLocked(cleanup) != nil {
+		cleanupError = errors.New("testkit pair cleanup incomplete")
+	}
+	*err = &OperationError{primary: primary, reason: reason, cleanup: cleanupError}
 }
 
 func (a *App) inspectPair(ctx context.Context) (PairInspection, error) {
@@ -235,8 +263,14 @@ func (a *App) inspectPair(ctx context.Context) (PairInspection, error) {
 		return PairInspection{}, err
 	}
 	status, err := a.service.Status(ctx)
-	if err != nil || status.DockerError != "" {
-		return PairInspection{}, errors.New("testkit pair status unavailable")
+	if err := ctx.Err(); err != nil {
+		return PairInspection{}, err
+	}
+	if err != nil {
+		return PairInspection{}, startupError(StartupReasonStorage, "testkit pair status unavailable")
+	}
+	if status.DockerError != "" {
+		return PairInspection{}, startupError(StartupReasonDocker, "testkit pair container status unavailable")
 	}
 	result := PairInspection{Outcome: "prerequisite", Reason: "not-run", Link: a.pair.link, Apps: []PairAppStatus{}}
 	for _, selected := range a.pair.apps {
@@ -301,22 +335,22 @@ func (p *Pair) Install(ctx context.Context, id string) (PairInspection, error) {
 	return p.action(ctx, "install", id)
 }
 
-func (p *Pair) action(ctx context.Context, action, id string) (PairInspection, error) {
+func (p *Pair) action(ctx context.Context, action, id string) (_ PairInspection, err error) {
 	a := p.owner
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
+	if a.closed || a.pair.failed {
 		return PairInspection{}, errors.New("testkit pair is closed")
 	}
 	if _, err := p.App(id); err != nil && (action != "setup" || id != "") {
 		return PairInspection{}, err
 	}
+	defer a.closeOnPairFailure(&err)
 	work, cancel := context.WithDeadline(ctx, a.workDeadline)
 	defer cancel()
 	if err := work.Err(); err != nil {
 		return PairInspection{}, err
 	}
-	var err error
 	switch action {
 	case "setup":
 		ids := []string{id}
@@ -335,7 +369,7 @@ func (p *Pair) action(ctx context.Context, action, id string) (PairInspection, e
 		return PairInspection{}, err
 	}
 	if err != nil && !errors.Is(err, service.ErrManual) && !errors.Is(err, service.ErrIncomplete) {
-		return PairInspection{}, errors.New("testkit pair action failed")
+		return PairInspection{}, err
 	}
 	if err := a.guard.verify(work); err != nil {
 		return PairInspection{}, err
@@ -368,20 +402,21 @@ func (v *AppView) Credentials(ctx context.Context) (Credentials, error) {
 	return v.owner.credentialsFor(ctx, v.id)
 }
 
-func (v *AppView) Info(ctx context.Context) (Info, error) {
+func (v *AppView) Info(ctx context.Context) (_ Info, err error) {
 	a := v.owner
 	work, cancel := context.WithDeadline(ctx, a.workDeadline)
 	defer cancel()
 	ctx = work
-	if err := ctx.Err(); err != nil {
-		return Info{}, err
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
+	if a.closed || a.pair.failed {
 		return Info{}, errors.New("testkit pair is closed")
 	}
 	if err := v.present(); err != nil {
+		return Info{}, err
+	}
+	defer a.closeOnPairFailure(&err)
+	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
 	if err := a.guard.verify(ctx); err != nil {
@@ -393,7 +428,7 @@ func (v *AppView) Info(ctx context.Context) (Info, error) {
 		}
 		container := a.guard.containers[selected.Info().Service]
 		if container.ID == "" {
-			return Info{}, errors.New("testkit selected App container is absent")
+			return Info{}, startupError(StartupReasonContainer, "testkit selected App container is absent")
 		}
 		data, err := docker(ctx, a.runner, "image", "inspect", "--format", `{{json .RepoDigests}}`, container.Image)
 		if err != nil {

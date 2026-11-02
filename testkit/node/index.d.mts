@@ -75,12 +75,13 @@ export interface SelfHostOptions {
     timeoutMs?: number;
     manifest?: string;
 }
-export type TestkitErrorCode = "PROTOCOL" | "STATE" | "START" | "CREDENTIALS" | "INFO" | "CLEANUP" | "TIMEOUT" | "TRANSPORT" | "OPERATION" | "BINARY";
+export type TestkitErrorCode = "PROTOCOL" | "STATE" | "START" | "CREDENTIALS" | "INFO" | "CLEANUP" | "TIMEOUT" | "TRANSPORT" | "OPERATION" | "CANCELED" | "BINARY";
 export declare class TestkitError extends Error {
     readonly code: TestkitErrorCode;
     readonly reason: TestkitStartupReason | undefined;
+    readonly cleanupFailed: boolean;
     readonly recoveryPath?: string;
-    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string);
+    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string, cleanupFailed?: boolean);
 }
 export declare function createSelfHost(options?: SelfHostOptions): SelfHost;
 export declare function withApp<T>(app: string, callback: (app: App) => T | Promise<T>, options?: SelfHostOptions & SpinupOptions): Promise<T>;

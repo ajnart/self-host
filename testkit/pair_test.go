@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -160,6 +161,10 @@ func TestPairExplicitManualAndFailedOutcomes(t *testing.T) {
 		if strings.Contains(fmt.Sprint(observed), syntheticKey) {
 			t.Fatal("raw provider error exposed")
 		}
+		retried, err := p.Setup(t.Context(), "")
+		if err != nil || retried.Outcome != want || p.owner.closed || p.owner.pair.failed {
+			t.Fatal("expected Setup outcome closed the pair", err)
+		}
 	}
 }
 
@@ -198,5 +203,126 @@ func TestPairActionsNeverRenewWorkDeadline(t *testing.T) {
 	}
 	if err := p.Close(t.Context()); err != nil {
 		t.Fatal("work deadline canceled reserved cleanup")
+	}
+}
+
+type pairContextRunner struct{ base system.Runner }
+
+func (r pairContextRunner) Run(ctx context.Context, cmd system.Cmd) (system.Result, error) {
+	if err := ctx.Err(); err != nil {
+		return system.Result{}, err
+	}
+	return r.base.Run(ctx, cmd)
+}
+func (r pairContextRunner) Stream(ctx context.Context, cmd system.Cmd, w io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return r.base.Stream(ctx, cmd, w)
+}
+
+func TestPairInfrastructureActionFailureClosesWholeOwner(t *testing.T) {
+	for _, mode := range []string{"partial", "caps", "timeout", "cancel", "timeout-cleanup-failure", "inspection", "view-caps"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newFakeDocker(t)
+			f.deps.Runner = pairContextRunner{base: f.deps.Runner}
+			active := false
+			var cancel context.CancelFunc
+			consumer := pairFixtureApp{id: "consumer", consumer: true}
+			consumer.setup = func(ctx context.Context, _ *helpers.H) error {
+				if !active {
+					return nil
+				}
+				if mode == "cancel" {
+					cancel()
+				}
+				<-ctx.Done()
+				return ctx.Err()
+			}
+			peer := pairFixtureApp{id: "peer"}
+			p, err := startPair(context.Background(), PairOptions{Consumer: "consumer", Target: "peer", Order: ConsumerFirst, Timeout: time.Minute, RootParent: t.TempDir()}, f.deps, catalog.New([]app.App{consumer, peer}, nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				f.cleanupFailure = false
+				if err := p.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			root := p.RecoveryPath()
+			ctx := context.Background()
+			wantReason := string(StartupReasonSetup)
+			switch mode {
+			case "partial", "caps":
+				if _, err := p.Remove(t.Context(), "peer"); err != nil {
+					t.Fatal(err)
+				}
+				f.partialFailure = mode == "partial"
+				f.unboundedCaps = mode == "caps"
+				if mode == "caps" {
+					wantReason = string(StartupReasonLimits)
+				}
+				_, err = p.Install(ctx, "peer")
+			case "inspection":
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+				_, err = p.Inspect(ctx)
+			case "view-caps":
+				for key, container := range f.containers {
+					container.Memory = 0
+					f.containers[key] = container
+				}
+				view, _ := p.App("peer")
+				_, err = view.Info(ctx)
+				wantReason = string(StartupReasonLimits)
+			default:
+				active = true
+				if mode == "cancel" {
+					ctx, cancel = context.WithCancel(ctx)
+				} else {
+					ctx, cancel = context.WithTimeout(ctx, 20*time.Millisecond)
+				}
+				defer cancel()
+				f.cleanupFailure = mode == "timeout-cleanup-failure"
+				_, err = p.Setup(ctx, "consumer")
+			}
+			var operation *OperationError
+			if !errors.As(err, &operation) || operation.Reason() != wantReason || strings.Contains(err.Error(), syntheticKey) || strings.Contains(err.Error(), root) {
+				t.Fatalf("unsafe or untyped operation cause: %v", err)
+			}
+			if mode == "cancel" || mode == "inspection" {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("primary cancellation lost")
+				}
+			}
+			if strings.HasPrefix(mode, "timeout") && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatal("primary timeout lost")
+			}
+			if mode == "timeout-cleanup-failure" {
+				if operation.CleanupError() == nil || len(f.containers) != 2 || p.owner.closed {
+					t.Fatal("cleanup failure was hidden")
+				}
+				if _, err := readOwnership(root); err != nil {
+					t.Fatal("recovery ownership lost")
+				}
+				before := f.creations
+				if _, err := p.Install(t.Context(), "peer"); err == nil || f.creations != before {
+					t.Fatal("failed owner accepted further mutation")
+				}
+				f.cleanupFailure = false
+				if err := p.Close(t.Context()); err != nil {
+					t.Fatal("failed cleanup could not retry", err)
+				}
+			} else if operation.CleanupError() != nil || !p.owner.closed {
+				t.Fatal("independent cleanup did not complete", operation.CleanupError())
+			}
+			if len(f.containers) != 0 {
+				t.Fatal("pair resources remained after successful cleanup")
+			}
+			if _, err := p.Inspect(t.Context()); err == nil {
+				t.Fatal("failed pair remained available")
+			}
+		})
 	}
 }

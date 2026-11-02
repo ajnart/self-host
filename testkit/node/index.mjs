@@ -18,6 +18,7 @@ const messages = new Map([
     ["TIMEOUT", "Fixture operation timed out."],
     ["TRANSPORT", "Testkit helper transport failed."],
     ["OPERATION", "Fixture pair action or inspection failed."],
+    ["CANCELED", "Fixture operation was canceled."],
     [
         "BINARY",
         "Testkit helper not found. Run self-host-testkit-setup or set SELF_HOST_TESTKIT_BINARY.",
@@ -26,19 +27,21 @@ const messages = new Map([
 export class TestkitError extends Error {
     code;
     reason;
-    constructor(code, reason, recoveryPath) {
+    cleanupFailed;
+    constructor(code, reason, recoveryPath, cleanupFailed = false) {
         let message = messages.get(code);
-        if (code === "START" && reason)
+        if ((code === "START" || code === "OPERATION") && reason)
             message = `${message} ${startupReasons[reason]}`;
         super(message);
         this.name = "TestkitError";
         this.code = code;
         this.reason = reason;
+        this.cleanupFailed = cleanupFailed;
         Object.defineProperty(this, "recoveryPath", { value: recoveryPath });
     }
 }
-function fault(code, reason, recoveryPath) {
-    return new TestkitError(code, reason, recoveryPath);
+function fault(code, reason, recoveryPath, cleanupFailed = false) {
+    return new TestkitError(code, reason, recoveryPath, cleanupFailed);
 }
 function record(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -120,8 +123,8 @@ class Bridge {
     get recoveryPath() {
         return this.#manifest;
     }
-    #fault(code, reason) {
-        return fault(code, reason, this.#manifest);
+    #fault(code, reason, cleanupFailed = false) {
+        return fault(code, reason, this.#manifest, cleanupFailed);
     }
     #fail(code) {
         this.#failed = true;
@@ -170,7 +173,8 @@ class Bridge {
                     }
                     let reason;
                     if (response.error.reason !== undefined) {
-                        if (response.error.code !== "START" ||
+                        if ((response.error.code !== "START" &&
+                            response.error.code !== "OPERATION") ||
                             typeof response.error.reason !== "string" ||
                             !isStartupReason(response.error.reason)) {
                             pending.reject(this.#fault("PROTOCOL"));
@@ -179,7 +183,13 @@ class Bridge {
                         }
                         reason = response.error.reason;
                     }
-                    pending.reject(this.#fault(response.error.code, reason));
+                    if (response.error.cleanupFailed !== undefined &&
+                        typeof response.error.cleanupFailed !== "boolean") {
+                        pending.reject(this.#fault("PROTOCOL"));
+                        this.#fail("PROTOCOL");
+                        return;
+                    }
+                    pending.reject(this.#fault(response.error.code, reason, response.error.cleanupFailed === true));
                 }
                 else {
                     pending.resolve(response.result);

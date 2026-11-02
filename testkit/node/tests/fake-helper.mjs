@@ -22,6 +22,7 @@ const input = createInterface({ input: process.stdin });
 let app;
 let pair;
 let installed;
+let pairFailed = false;
 const inspection = () => ({
 	outcome: installed.size === 2 ? "complete" : "prerequisite",
 	reason: installed.size === 2 ? "verified" : "absent",
@@ -90,7 +91,37 @@ input.on("line", (line) => {
 			target: { id: pair.target, url: "http://127.0.0.1:12346" },
 			initial,
 		});
+	} else if (pairFailed && req.method !== "close") {
+		process.stdout.write(
+			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
+		);
 	} else if (["inspect", "setup", "remove", "install"].includes(req.method)) {
+		if (req.method === "install" && pair.consumer.startsWith("action-")) {
+			pairFailed = true;
+			event("owned-cleanup");
+			const error = {
+				code: "OPERATION",
+				reason: "LIMITS",
+				cleanupFailed: false,
+				message: "private-test-raw-secret",
+			};
+			if (
+				pair.consumer === "action-timeout" ||
+				pair.consumer === "action-cancel"
+			) {
+				error.code = "CANCELED";
+				if (pair.consumer === "action-timeout") error.code = "TIMEOUT";
+				error.reason = undefined;
+			}
+			if (pair.consumer === "action-cleanup") {
+				error.cleanupFailed = true;
+				writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+			}
+			process.stdout.write(
+				`${JSON.stringify({ version: 1, id: req.id, error })}\n`,
+			);
+			return;
+		}
 		if (req.method === "remove") installed.delete(req.params.app);
 		if (req.method === "install") installed.add(req.params.app);
 		const result = inspection();

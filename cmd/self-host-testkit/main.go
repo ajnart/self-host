@@ -37,9 +37,10 @@ type params struct {
 }
 
 type protocolError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Reason  string `json:"reason,omitempty"`
+	Code          string `json:"code"`
+	Message       string `json:"message"`
+	Reason        string `json:"reason,omitempty"`
+	CleanupFailed bool   `json:"cleanupFailed,omitempty"`
 }
 
 type response struct {
@@ -79,14 +80,15 @@ type pairAdapter struct{ *testkit.Pair }
 func (p pairAdapter) View(id string) (fixtureView, error) { return p.Pair.App(id) }
 
 type bridge struct {
-	app       fixture
-	appCancel context.CancelFunc
-	started   bool
-	manifest  string
-	owner     string
-	start     func(context.Context, testkit.Options) (fixture, error)
-	pair      pairFixture
-	startPair func(context.Context, testkit.PairOptions) (pairFixture, error)
+	app        fixture
+	appCancel  context.CancelFunc
+	started    bool
+	manifest   string
+	owner      string
+	start      func(context.Context, testkit.Options) (fixture, error)
+	pair       pairFixture
+	pairFailed bool
+	startPair  func(context.Context, testkit.PairOptions) (pairFixture, error)
 }
 
 type protocolWriter struct {
@@ -266,6 +268,7 @@ func failure(code string) *protocolError {
 		"CLEANUP":     "Fixture cleanup failed; run manifest cleanup.",
 		"TIMEOUT":     "Fixture operation timed out.",
 		"OPERATION":   "Fixture pair action or inspection failed.",
+		"CANCELED":    "Fixture operation was canceled.",
 	}
 	return &protocolError{Code: code, Message: messages[code]}
 }
@@ -378,7 +381,17 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		res.Result = map[string]bool{"closed": true}
 		return res
 	}
-	if b.pair != nil && (req.Method == "inspect" || req.Method == "setup" || req.Method == "remove" || req.Method == "install") {
+	if req.Method == "inspect" || req.Method == "setup" || req.Method == "remove" || req.Method == "install" {
+		if b.pair == nil || b.pairFailed {
+			res.Error = failure("STATE")
+			return res
+		}
+		if req.Method != "inspect" && !(req.Method == "setup" && p.App == "") {
+			if _, err := b.pair.View(p.App); err != nil {
+				res.Error = failure("STATE")
+				return res
+			}
+		}
 		opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		if req.Method == "setup" || req.Method == "install" {
 			cancel()
@@ -398,7 +411,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 			value, err = b.pair.Install(opCtx, p.App)
 		}
 		if err != nil {
-			res.Error = failure("OPERATION")
+			res.Error = b.pairOperationFailure(err)
 		} else {
 			res.Result = value
 		}
@@ -408,7 +421,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		res.Error = failure("PROTOCOL")
 		return res
 	}
-	if b.app == nil && b.pair == nil {
+	if b.app == nil && b.pair == nil || b.pairFailed {
 		res.Error = failure("STATE")
 		return res
 	}
@@ -441,7 +454,12 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 	case "info":
 		value, err := selected.Info(opCtx)
 		if err != nil {
-			res.Error = failure("INFO")
+			var operation *testkit.OperationError
+			if errors.As(err, &operation) {
+				res.Error = b.pairOperationFailure(err)
+			} else {
+				res.Error = failure("INFO")
+			}
 		} else {
 			digests := value.RepoDigests
 			if digests == nil {
@@ -451,4 +469,34 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		}
 	}
 	return res
+}
+
+func (b *bridge) pairOperationFailure(err error) *protocolError {
+	b.pairFailed = true
+	var operation *testkit.OperationError
+	cleanupFailed := false
+	reason := string(testkit.StartupReasonSetup)
+	if errors.As(err, &operation) {
+		cleanupFailed = operation.CleanupError() != nil
+		reason = operation.Reason()
+	} else {
+		cleanup, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+		cleanupFailed = b.pair.Close(cleanup) != nil
+		cancel()
+	}
+	if b.appCancel != nil {
+		b.appCancel()
+	}
+	if !cleanupFailed {
+		b.pair = nil
+	}
+	result := failure("OPERATION")
+	result.Reason = reason
+	if errors.Is(err, context.DeadlineExceeded) {
+		result = failure("TIMEOUT")
+	} else if errors.Is(err, context.Canceled) {
+		result = failure("CANCELED")
+	}
+	result.CleanupFailed = cleanupFailed
+	return result
 }

@@ -108,6 +108,7 @@ export type TestkitErrorCode =
 	| "TIMEOUT"
 	| "TRANSPORT"
 	| "OPERATION"
+	| "CANCELED"
 	| "BINARY";
 
 const MAX_MESSAGE = 65536;
@@ -122,6 +123,7 @@ const messages = new Map<TestkitErrorCode, string>([
 	["TIMEOUT", "Fixture operation timed out."],
 	["TRANSPORT", "Testkit helper transport failed."],
 	["OPERATION", "Fixture pair action or inspection failed."],
+	["CANCELED", "Fixture operation was canceled."],
 	[
 		"BINARY",
 		"Testkit helper not found. Run self-host-testkit-setup or set SELF_HOST_TESTKIT_BINARY.",
@@ -131,20 +133,23 @@ const messages = new Map<TestkitErrorCode, string>([
 export class TestkitError extends Error {
 	readonly code: TestkitErrorCode;
 	readonly reason: TestkitStartupReason | undefined;
+	readonly cleanupFailed: boolean;
 	declare readonly recoveryPath?: string;
 
 	constructor(
 		code: TestkitErrorCode,
 		reason?: TestkitStartupReason,
 		recoveryPath?: string,
+		cleanupFailed = false,
 	) {
 		let message = messages.get(code);
-		if (code === "START" && reason)
+		if ((code === "START" || code === "OPERATION") && reason)
 			message = `${message} ${startupReasons[reason]}`;
 		super(message);
 		this.name = "TestkitError";
 		this.code = code;
 		this.reason = reason;
+		this.cleanupFailed = cleanupFailed;
 		Object.defineProperty(this, "recoveryPath", { value: recoveryPath });
 	}
 }
@@ -153,8 +158,9 @@ function fault(
 	code: TestkitErrorCode,
 	reason?: TestkitStartupReason,
 	recoveryPath?: string,
+	cleanupFailed = false,
 ): TestkitError {
-	return new TestkitError(code, reason, recoveryPath);
+	return new TestkitError(code, reason, recoveryPath, cleanupFailed);
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -265,8 +271,12 @@ class Bridge {
 		return this.#manifest;
 	}
 
-	#fault(code: TestkitErrorCode, reason?: TestkitStartupReason) {
-		return fault(code, reason, this.#manifest);
+	#fault(
+		code: TestkitErrorCode,
+		reason?: TestkitStartupReason,
+		cleanupFailed = false,
+	) {
+		return fault(code, reason, this.#manifest, cleanupFailed);
 	}
 
 	#fail(code: TestkitErrorCode) {
@@ -320,7 +330,8 @@ class Bridge {
 					let reason: TestkitStartupReason | undefined;
 					if (response.error.reason !== undefined) {
 						if (
-							response.error.code !== "START" ||
+							(response.error.code !== "START" &&
+								response.error.code !== "OPERATION") ||
 							typeof response.error.reason !== "string" ||
 							!isStartupReason(response.error.reason)
 						) {
@@ -330,7 +341,21 @@ class Bridge {
 						}
 						reason = response.error.reason;
 					}
-					pending.reject(this.#fault(response.error.code, reason));
+					if (
+						response.error.cleanupFailed !== undefined &&
+						typeof response.error.cleanupFailed !== "boolean"
+					) {
+						pending.reject(this.#fault("PROTOCOL"));
+						this.#fail("PROTOCOL");
+						return;
+					}
+					pending.reject(
+						this.#fault(
+							response.error.code,
+							reason,
+							response.error.cleanupFailed === true,
+						),
+					);
 				} else {
 					pending.resolve(response.result);
 				}

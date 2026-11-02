@@ -259,3 +259,38 @@ test("scoped pair preserves undefined failure and reports cleanup separately", a
 		),
 	).rejects.toBe(primary);
 });
+
+test("pair action failures retain typed primary causes and cleanup status", async () => {
+	for (const consumer of [
+		"action-caps",
+		"action-timeout",
+		"action-cancel",
+		"action-cleanup",
+	]) {
+		const { selfHost, manifest } = fixture();
+		const pair = await selfHost.spinupPair(consumer, "peer", {
+			order: "consumer-first",
+		});
+		await pair.remove("peer");
+		let caught: unknown;
+		try {
+			await pair.install("peer");
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(TestkitError);
+		if (!(caught instanceof TestkitError))
+			throw new Error("Missing typed action error");
+		let code = "OPERATION";
+		if (consumer === "action-timeout") code = "TIMEOUT";
+		if (consumer === "action-cancel") code = "CANCELED";
+		expect(caught.code).toBe(code);
+		if (code === "OPERATION") expect(caught.reason).toBe("LIMITS");
+		expect(caught.cleanupFailed).toBe(consumer === "action-cleanup");
+		expect(inspect(caught)).not.toContain("private-test-raw-secret");
+		expect(
+			events(manifest).filter((event) => event.method === "owned-cleanup"),
+		).toHaveLength(1);
+		await expect(pair.inspect()).rejects.toThrow("Fixture is not available.");
+	}
+});
