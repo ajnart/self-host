@@ -7,5 +7,9 @@ import (
 )
 
 func externalTarget(c helpers.ExternalConnection) (target, error) {
+	switch c.Kind {
+	case "proxmox":
+		return proxmoxExternalTarget(c)
+	}
 	return target{}, errors.New("unsupported external integration kind; use a supported exact Homarr kind")
 }
