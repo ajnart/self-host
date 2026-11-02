@@ -1,0 +1,36 @@
+docs/catalog/traps/seerr.md
+  h_d6e478ca18e517 9-25
+internal/apps/arrtest/seerr.go
+  h_d6e478ca18e517 24-49,53,113-116,121-129,144,170-175
+internal/apps/emby/homarr.go
+  h_d6e478ca18e517 20-24,27,30,34,36
+internal/apps/emby/libraries.go
+  h_d6e478ca18e517 1-72
+internal/apps/emby/libraries_test.go
+  h_d6e478ca18e517 1-80
+internal/apps/plex/libraries.go
+  h_d6e478ca18e517 1-42
+internal/apps/plex/libraries_test.go
+  h_d6e478ca18e517 1-55
+internal/apps/plex/plex.go
+  h_d6e478ca18e517 113,116,120,124,128,131,135,138,142,145-151,207-209,231,234,237-244
+internal/apps/seerr/backend.go
+  h_d6e478ca18e517 1-275
+internal/apps/seerr/backend_test.go
+  h_d6e478ca18e517 1-426
+internal/apps/seerr/links_test.go
+  h_d6e478ca18e517 52
+internal/apps/seerr/seerr.go
+  h_d6e478ca18e517 44,84,98,102-110,203-204,207-212,218,222-224,266,278-279,397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d65cd7da9c5e3b381f7798e853dacd26ff241ab8",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
