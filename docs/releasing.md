@@ -17,7 +17,7 @@ self-host-testkit-X.Y.Z.tgz
 The four existing archives also contain `self-host-testkit`; their names and
 CLI Telemetry checks stay unchanged. Native packages still install only
 `self-host`. The dependency-free Node SDK is a separate checksummed release
-asset, not an npm publication; see the [testkit overview](../testkit/README.md)
+asset and is published to npm as `@ajnart/self-host-testkit`; see the [testkit overview](../testkit/README.md)
 and [Node guide](../testkit/node/README.md). Version 1.2.1 adds the helper setup
 command and cleanup fixes without replacing the immutable v1.2.0 assets.
 
@@ -154,13 +154,13 @@ from the published one. Each component script also runs alone.
 
 ### npm
 
-The CLI and SDK are not published to the npm registry. The SDK's npm-compatible
-tarball is attached to the GitHub release instead; `@self-host/testkit` is the
-package name inside that archive. The package has public publishing metadata,
-generated TypeScript declarations, a checksummed helper setup command and a
-small runnable demo. This is packaging readiness, not registry availability.
+The CLI is not an npm package. From 1.2.1, the SDK is published as
+`@ajnart/self-host-testkit`, using the same npm-compatible tarball attached to
+the GitHub release. Version 1.2.0's archive used `@self-host/testkit` and was not
+published on npm; do not replace it. The package includes generated TypeScript
+declarations, a checksummed helper setup command and a small runnable demo.
 
-Registry publication requires explicit approval, control of the `@self-host`
+Registry publication requires explicit approval, control of the `@ajnart`
 npm scope, and either an authorized publishing token or a configured trusted
 publisher. A token must permit publishing this package and satisfy the account's
 2FA policy. Never put it in a command argument, Git file or public log.
@@ -171,7 +171,7 @@ tarball, not a second build:
 ```bash
 npm whoami
 npm publish dist/self-host-testkit-X.Y.Z.tgz --access public --ignore-scripts
-npm view @self-host/testkit@X.Y.Z version dist.integrity
+npm view @ajnart/self-host-testkit@X.Y.Z version dist.integrity
 ```
 
 Only advertise a bare registry install after publication succeeds and its

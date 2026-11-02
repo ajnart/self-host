@@ -5,7 +5,7 @@ then clean it up. The testkit reuses self-host's existing App Setup; your tests
 do not need to configure Sonarr, Radarr or another supported App themselves.
 
 ```typescript
-import { createSelfHost } from "@self-host/testkit";
+import { createSelfHost } from "@ajnart/self-host-testkit";
 
 const selfHost = createSelfHost();
 try {
@@ -40,20 +40,23 @@ separate temporary Project, random loopback-only ports and private credentials.
 It never uses your normal self-host Project. Always close fixtures; Docker access
 is privileged, and a killed runner cannot guarantee cleanup.
 
-## Where does `@self-host/testkit` come from?
+## TypeScript install
 
-It is the package in [`node/`](node/), not a third-party dependency. **It is not
-published on npm.** The npm-compatible tarball is attached to the
-[v1.2.1 GitHub release](https://github.com/ajnart/self-host/releases/tag/v1.2.1):
+The package in [`node/`](node/) is published as `@ajnart/self-host-testkit`:
 
 ```bash
-npm install --save-dev https://github.com/ajnart/self-host/releases/download/v1.2.1/self-host-testkit-1.2.1.tgz
+npm install --save-dev @ajnart/self-host-testkit@1.2.1
 npm exec -- self-host-testkit-setup
 ```
 
-Its `package.json` names it `@self-host/testkit`, so that is the import path even
-when npm installs it from a tarball. `npm install @self-host/testkit` will not work
-until a registry publication is explicitly configured and approved.
+The same package is also attached to the
+[v1.2.1 GitHub release](https://github.com/ajnart/self-host/releases/tag/v1.2.1)
+as `self-host-testkit-1.2.1.tgz`. You can install that archive instead of using the
+registry; the import path is still `@ajnart/self-host-testkit`.
+
+The older v1.2.0 tarball called itself `@self-host/testkit` and was never published
+to npm. From 1.2.1 onward, update imports to `@ajnart/self-host-testkit`; the
+maintainer owns the `@ajnart` scope. Existing v1.2.0 assets remain unchanged.
 
 **Use SDK 1.2.1 and its matching helper.** The setup command, generated types,
 typed errors and cleanup fixes are not in the older v1.2.0 tarball. Its release

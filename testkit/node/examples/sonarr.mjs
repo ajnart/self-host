@@ -1,4 +1,4 @@
-import { createSelfHost } from "@self-host/testkit";
+import { createSelfHost } from "@ajnart/self-host-testkit";
 
 const selfHost = createSelfHost();
 

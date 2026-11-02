@@ -1,5 +1,5 @@
 {
-	"name": "@self-host/testkit",
+	"name": "@ajnart/self-host-testkit",
 	"version": "1.2.1",
 	"description": "Real, isolated Docker App fixtures for Node.js and TypeScript integration tests",
 	"type": "module",

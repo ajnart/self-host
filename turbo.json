@@ -1,7 +1,7 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"tasks": {
-		"@self-host/testkit#build": {
+		"@ajnart/self-host-testkit#build": {
 			"inputs": [
 				"src/**",
 				"tsconfig.json",
@@ -18,10 +18,10 @@
 				"LICENSE"
 			]
 		},
-		"@self-host/testkit#test": {
+		"@ajnart/self-host-testkit#test": {
 			"dependsOn": ["build"]
 		},
-		"@self-host/testkit#check": {
+		"@ajnart/self-host-testkit#check": {
 			"dependsOn": ["build"]
 		},
 		"self-host-site#build": {

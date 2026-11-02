@@ -1,4 +1,4 @@
-# @self-host/testkit
+# @ajnart/self-host-testkit
 
 Real, isolated Docker App fixtures for TypeScript and JavaScript integration
 tests. Start an App through self-host's existing Setup, call its API, and close
@@ -13,18 +13,21 @@ supported; Docker must use a local Unix socket and enforce memory, CPU and PID
 limits. Allow up to 5 GiB RAM and five CPUs per fixture, plus image/storage space.
 First startup pulls images and can take several minutes.
 
-The npm package name is `@self-host/testkit`, but **no npm registry version has
-been published**. Install version 1.2.1 from its GitHub release asset:
+Install the SDK as a dev dependency:
 
 ```bash
-npm install --save-dev https://github.com/ajnart/self-host/releases/download/v1.2.1/self-host-testkit-1.2.1.tgz
+npm install --save-dev @ajnart/self-host-testkit@1.2.1
 ```
 
 This guide describes version 1.2.1. The older v1.2.0 tarball does not contain the setup command,
 `TestkitError` export or safe startup reasons. For that release, extract
 `self-host-testkit` from its platform archive, verify `checksums.txt`, and set
 `SELF_HOST_TESTKIT_BINARY` to the helper's absolute path. For the improved source,
-follow the [checkout quickstart](../README.md#where-does-self-hosttestkit-come-from).
+follow the [checkout quickstart](../README.md#typescript-install).
+
+Version 1.2.0 used the unpublished package name `@self-host/testkit`. When
+upgrading, change imports to `@ajnart/self-host-testkit`. The exact npm package
+is also available as `self-host-testkit-1.2.1.tgz` on the matching GitHub release.
 
 ## Install the matching helper
 
@@ -57,7 +60,7 @@ the same release or immutable source commit. Never substitute the normal
 Save this as `demo.mjs` and run `node demo.mjs` after installing the SDK/helper:
 
 ```javascript
-import { createSelfHost } from "@self-host/testkit";
+import { createSelfHost } from "@ajnart/self-host-testkit";
 
 const selfHost = createSelfHost();
 try {
@@ -86,7 +89,7 @@ the default hook timeout is too short for image pulls and Setup.
 
 ```typescript
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createSelfHost, type App } from "@self-host/testkit";
+import { createSelfHost, type App } from "@ajnart/self-host-testkit";
 
 const selfHost = createSelfHost();
 let sonarr: App;
@@ -156,7 +159,7 @@ await selfHost.close();
 ## Errors and recovery
 
 ```typescript
-import { TestkitError } from "@self-host/testkit";
+import { TestkitError } from "@ajnart/self-host-testkit";
 
 try {
   await selfHost.spinup("sonarr");
