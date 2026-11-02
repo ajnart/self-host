@@ -1,0 +1,16 @@
+internal/helpers/issuance.go
+  h_d6e478ca18e517 1-232
+internal/helpers/issuance_test.go
+  h_d6e478ca18e517 1-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53617d4dc7ca811d58b330c958b60df09ce3a8f4",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
