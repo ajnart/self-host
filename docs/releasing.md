@@ -11,7 +11,13 @@ self-host_X.Y.Z_linux_amd64.rpm       self-host_X.Y.Z_linux_arm64.rpm
 self-host_X.Y.Z_linux_amd64.apk       self-host_X.Y.Z_linux_arm64.apk
 self-host_X.Y.Z_linux_amd64.pkg.tar.zst  self-host_X.Y.Z_linux_arm64.pkg.tar.zst
 PKGBUILD
+self-host-testkit-X.Y.Z.tgz
 ```
+
+The four existing archives also contain `self-host-testkit`; their names and
+CLI Telemetry checks stay unchanged. Native packages still install only
+`self-host`. The dependency-free Node SDK is a separate checksummed release
+asset, not an npm publication; see [testkit usage](../testkit/node/README.md).
 
 The installer and `self-host self-update` pick the highest semver among
 non-draft, non-prerelease releases that carry `checksums.txt` and a
@@ -76,14 +82,18 @@ Build the same archives with the same pinned goreleaser (v2.18.3 needs Go 1.27.1
 
 ```bash
 SELF_HOST_RELEASE_VERSION=X.Y.Z go run github.com/goreleaser/goreleaser/v2@v2.18.3 release --snapshot --clean
+SELF_HOST_RELEASE_VERSION=X.Y.Z node testkit/node/pack.mjs
 ```
+
+Keep `testkit/node/package.json` at the release version. The packing command
+checks the package allowlist and adds the SDK tarball to `dist/checksums.txt`.
 
 Then follow what the workflow does: draft, download, compare, publish.
 
 ```bash
 cp dist/aur/self-host-bin.pkgbuild dist/PKGBUILD
 cd dist
-assets=(self-host_X.Y.Z_linux_amd64.tar.gz self-host_X.Y.Z_linux_arm64.tar.gz self-host_X.Y.Z_darwin_amd64.tar.gz self-host_X.Y.Z_darwin_arm64.tar.gz self-host_X.Y.Z_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} PKGBUILD checksums.txt)
+assets=(self-host_X.Y.Z_linux_amd64.tar.gz self-host_X.Y.Z_linux_arm64.tar.gz self-host_X.Y.Z_darwin_amd64.tar.gz self-host_X.Y.Z_darwin_arm64.tar.gz self-host_X.Y.Z_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} self-host-testkit-X.Y.Z.tgz PKGBUILD checksums.txt)
 shasum -a 256 -c checksums.txt
 gh release create vX.Y.Z "${assets[@]}" --target "$(git rev-parse HEAD)" --draft --title "self-host X.Y.Z" \
   --notes "Linux and macOS amd64/arm64 CLI. WSL2 uses Linux binaries. Native Windows is unsupported."
@@ -120,7 +130,8 @@ script also runs alone, with `--dry-run` for Docker.
 
 ### npm
 
-Not published. npm only allows unattended publishing through trusted
+The CLI and SDK are not published to the npm registry. The SDK's npm-compatible
+tarball is attached to the GitHub release instead. npm only allows unattended publishing through trusted
 publishing (OIDC) from GitHub Actions or GitLab; 2FA-bypass tokens last at most
 90 days and lose direct publishing in January 2027. Now that the repository is
 public, a trusted-publishing job in `release.yml` could publish from the release
