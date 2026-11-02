@@ -86,7 +86,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	h.Info("Borgmatic is prepared but cron is disabled; no repository is initialized and no backup is run by Setup. " +
 		"Review and approve the sources, destination and repository writes before creating a repository or running a backup. " +
 		"Once the repository is ready and the backup is approved, run from the Project folder, replacing PROJECT_NAME with its existing Compose project name: " +
-		"docker compose -p PROJECT_NAME -f compose.yml --env-file .env --env-file secrets.env run --rm --no-deps -T borgmatic borgmatic create --verbosity 1. " +
+		"docker compose -p PROJECT_NAME -f compose.yml --env-file .env run --rm --no-deps -T borgmatic borgmatic create --verbosity 1. " +
 		"The version-only container exits, so exec cannot run the job. Prove recovery with a separately approved isolated restore.")
 	return nil
 }

@@ -3,7 +3,7 @@
 ## Pitfalls
 
 - File ownership, metadata matching, and database plus media backup must be planned together.
-- The shared Host media folder is mounted at `/media`; `/config` and `/metadata` retain their existing App-local mounts. Create missing audiobook/podcast subfolders as the Host user, then select them in Settings > Libraries. Mounting the prepared parent avoids Docker creating missing Host subfolders as root. Review existing libraries first: Setup neither creates libraries nor replaces their folders/settings, scans or imports media.
+- The Host media folder is mounted at `/data/media` in shared Projects and `/media` in legacy Projects; `/config` and `/metadata` retain their existing App-local mounts. Create missing audiobook/podcast subfolders as the Host user, then select them in Settings > Libraries. Mounting the prepared parent avoids Docker creating missing Host subfolders as root. Review existing libraries first: Setup neither creates libraries nor replaces their folders/settings, scans or imports media.
 - The mounts make media persistent, not backed up: Project Backups exclude media libraries. Plan a separate backup and check write access before enabling podcast downloads or metadata writes.
 - The [official Compose example](https://github.com/advplyr/audiobookshelf/blob/master/docker-compose.yml) separates media from configuration and metadata; this App exposes the shared media parent so existing libraries can choose their actual subfolders.
 
