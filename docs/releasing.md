@@ -48,16 +48,18 @@ replaces the key, and the binary sends nothing. Check with `grep -c phc_ dist/se
 
 ## Release from CI
 
-Releases are cut locally (next section), because every channel publishes from
-the `dist/` that built the release, and a CI build would not match it byte for
-byte. When the tag of a release published that way arrives, `release.yml` does
+Releases are cut locally (next section), building the archives once. Channels
+repackage those same bytes, never rebuild Go. When the tag of a release
+published that way arrives, `release.yml` does
 not rebuild: it downloads the published assets, checks them against
 `checksums.txt`, checks that every binary embeds the Telemetry key, and smoke-tests
 the Linux binary. To check a release again, run the workflow from the Actions
-tab with its tag.
+tab with its tag. Its Docker job downloads the verified Linux archives and
+publishes the image; normal releases need no local Docker daemon or OrbStack.
 
 The rest of this section describes a tag pushed with no release yet, which the
-workflow publishes itself; the channels then still need a `dist/` that matches it.
+workflow publishes itself. Docker uses its published archives; manual channels
+still need the matching `dist/` artifacts.
 
 For release-note images, follow
 [the release-visual skill](../.claude/skills/release-visual/SKILL.md).
@@ -108,25 +110,31 @@ the `dist/` was built from, never `main`, which may have moved on.
 
 ## Publish the channels
 
-Every channel repackages the release archives from the same `dist/` (never a
-rebuild), so each installs the release binary byte for byte. Once the `vX.Y.Z`
-release is published, from the checkout that built it:
+Every channel repackages the release archives (never a Go rebuild), so each
+installs the release binary byte for byte. Once `vX.Y.Z` is published:
+
+1. Wait for the `docker` job in `release.yml` to succeed; inspect that job if
+   publication fails. It needs no local Docker daemon.
+2. Prepare the Homebrew cask update through a feature-branch PR in the tap
+   (see below).
+3. Publish the site from the release checkout:
 
 ```bash
-scripts/publish-channels.sh X.Y.Z
+scripts/publish-site.sh X.Y.Z
 ```
 
-It runs, in order, `publish-docker.sh`,
-`publish-homebrew.sh` and `publish-site.sh`, stops at the first failure, and each script refuses a
-draft release or a `dist/checksums.txt` that differs from the published one, so
-a rerun is safe. Each
-script also runs alone, with `--dry-run` for Docker.
+`scripts/publish-channels.sh X.Y.Z` remains an operator-only manual fallback:
+it runs Docker, Homebrew and site publication in order and stops at the first
+failure. It requires a local Docker daemon and registry login, and its Homebrew
+step pushes directly to the tap's default branch; agents must not run it.
+Docker and Homebrew refuse draft releases or a `dist/checksums.txt` that differs
+from the published one. Each component script also runs alone.
 
-| Channel  | Needs once                                                                                                | Works while the repo is private                                                                |
-| -------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Docker   | `docker login ghcr.io -u ajnart` with `write:packages`; make the GHCR package public after the first push | yes                                                                                            |
-| Homebrew | the public `ajnart/homebrew-tap` repo                                                                     | no, the cask downloads release assets ([#295](https://github.com/ajnart/self-host/issues/295)) |
-| AUR      | an AUR account (registration is closed for now)                                                           | no                                                                                             |
+| Channel  | Needs once                                                                                       | Works while the repo is private                                                                |
+| -------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Docker   | CI uses `GITHUB_TOKEN` with `packages: write`; make the GHCR package public after the first push | yes                                                                                            |
+| Homebrew | the public `ajnart/homebrew-tap` repo                                                            | no, the cask downloads release assets ([#295](https://github.com/ajnart/self-host/issues/295)) |
+| AUR      | an AUR account (registration is closed for now)                                                  | no                                                                                             |
 
 ### npm
 
@@ -139,10 +147,20 @@ archives.
 
 ### Docker image
 
-`scripts/publish-docker.sh X.Y.Z [--dry-run]` builds `ghcr.io/ajnart/self-host`
-for linux/amd64 and linux/arm64 from the archives (alpine + Docker CLI + Compose
-plugin, about 130 MB) and pushes `:X.Y.Z` and `:latest`. `--dry-run` builds the
-host architecture locally and pushes nothing.
+The `docker` job in `release.yml` runs after release verification/publication,
+downloads the published linux/amd64 and linux/arm64 archives and checksums, and
+calls `scripts/publish-docker.sh X.Y.Z`. The script rechecks published checksums
+and builds `ghcr.io/ajnart/self-host` (alpine + Docker CLI + Compose plugin,
+about 130 MB), pushing `:X.Y.Z` and `:latest` without rebuilding Go or running
+Apps. Publication is serialized across tags; inside that job, a GitHub Latest
+release lookup skips older verification runs and fails on API/authentication
+errors, so they cannot downgrade `:latest`.
+
+The pinned QEMU, Buildx and GHCR login actions follow
+[Docker's GitHub Actions guidance](https://github.com/docker/docs/blob/main/content/manuals/build/ci/github-actions/push-multi-registries.md).
+QEMU precedes Buildx for arm64 `RUN` steps; only `GITHUB_TOKEN` authenticates to
+GHCR. Manual fallback `scripts/publish-docker.sh X.Y.Z [--dry-run]` requires
+local Docker; `--dry-run` builds the host architecture and pushes nothing.
 
 ### AUR package
 
@@ -186,14 +204,12 @@ cask rather than a formula because goreleaser deprecates `brews` in favour of
 `homebrew_casks`; the generated cask covers macOS (amd64/arm64; Homebrew casks do not support Linux) with the
 same archives. The binary is unsigned, so the cask's post-install hook strips
 `com.apple.quarantine` on macOS (without it Gatekeeper reports the binary as
-damaged). Once the `vX.Y.Z` release is published:
-
-```bash
-scripts/publish-homebrew.sh X.Y.Z
-```
-
-Same guards as the other channels (not a draft, `dist/checksums.txt` matches the
-published one); it commits `Casks/self-host.rb` to `ajnart/homebrew-tap` and pushes.
+damaged). Once `vX.Y.Z` is published, confirm it is not a draft and that
+`dist/checksums.txt` matches the published file, then copy the generated cask
+to `Casks/self-host.rb` on a feature branch in `ajnart/homebrew-tap` and open a
+PR. Do not push directly to the tap's default branch. The existing
+`scripts/publish-homebrew.sh X.Y.Z` checks those same guards but commits and
+pushes directly; it is an operator-only fallback, not an agent-safe PR workflow.
 The cask needs anonymously downloadable release assets
 ([#295](https://github.com/ajnart/self-host/issues/295)).
 
@@ -209,8 +225,8 @@ scripts/verify-install.sh                                              # public 
 It runs the documented `curl | bash` install in a throwaway `HOME` and checks
 `--version`, `self-host skill` and a pinned-old-version `self-update`.
 
-`scripts/publish-channels.sh` already ends with `publish-site.sh`, so self-host.fyi
-shows the new version once it succeeds; redeploy by hand only if you skipped it.
+Run `scripts/publish-site.sh X.Y.Z` after publication so self-host.fyi shows the
+new version; the Docker job does not deploy the site.
 
 ## Tag triggers
 
@@ -251,8 +267,8 @@ not involved. Its build settings:
 | `GITHUB_TOKEN` secret  | optional; without it the build reads the newest `vX.Y.Z` tag of the Go CLI from the checkout, since the releases API is private while the repo is                          |
 
 A release does not push to `main`, so the site would keep showing the old
-version: `scripts/publish-channels.sh` ends with `scripts/publish-site.sh X.Y.Z`,
-which builds the site, checks it shows the new version and deploys it to the
+version: run `scripts/publish-site.sh X.Y.Z` manually, which builds the site,
+checks it shows the new version and deploys it to the
 same project with Wrangler. The apex is the project's only custom domain;
 `www` is a zone redirect rule to the apex.
 

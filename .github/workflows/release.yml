@@ -143,3 +143,67 @@ jobs:
           done
           (cd "$RUNNER_TEMP/release-download" && sha256sum --check checksums.txt)
           gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  docker:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: release-docker
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check current Latest release
+        id: latest
+        shell: bash
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          test -n "$latest"
+          test "$latest" != null
+          if [[ "$latest" == "$RELEASE_TAG" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping Docker publication: $RELEASE_TAG is not the current Latest release ($latest)."
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        if: steps.latest.outputs.publish == 'true'
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+      - name: Download and verify published Linux archives
+        if: steps.latest.outputs.publish == 'true'
+        shell: bash
+        run: |
+          version=${RELEASE_TAG#v}
+          mkdir dist
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir dist \
+            --pattern "self-host_${version}_linux_amd64.tar.gz" \
+            --pattern "self-host_${version}_linux_arm64.tar.gz" --pattern checksums.txt
+          for asset in "self-host_${version}_linux_amd64.tar.gz" "self-host_${version}_linux_arm64.tar.gz" checksums.txt; do
+            test -f "dist/$asset"
+          done
+          for arch in amd64 arm64; do
+            (cd dist && grep -E " self-host_${version}_linux_${arch}\.tar\.gz\$" checksums.txt | sha256sum --check -)
+          done
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        if: steps.latest.outputs.publish == 'true'
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+        if: steps.latest.outputs.publish == 'true'
+        with:
+          name: self-host
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
+        if: steps.latest.outputs.publish == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+      - name: Publish Docker image from release archives
+        if: steps.latest.outputs.publish == 'true'
+        shell: bash
+        run: scripts/publish-docker.sh "${RELEASE_TAG#v}"
