@@ -56,6 +56,11 @@ func TestDownloadPathsVerifySharedAndExistingLegacyMappings(t *testing.T) {
 			if err := p.verifyDownloadPath(context.Background(), from, to, remote); err != nil {
 				t.Fatal(err)
 			}
+			exec.paths["sonarr:"+library] = library + "\n1:42\n"
+			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("aliased library directory accepted", err)
+			}
+			exec.paths["sonarr:"+library] = library + "\n1:99\n"
 			exec.paths["sonarr:"+local] = local + "\n1:77\n"
 			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("separate App-local storage accepted", err)

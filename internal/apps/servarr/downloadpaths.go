@@ -11,7 +11,10 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-const downloadDirectoryProbe = `test -d "$1" && test -r "$1" && test -w "$1" && test -x "$1"
+const downloadDirectoryProbe = `test -d "$1"
+test -r "$1"
+test -w "$1"
+test -x "$1"
 readlink -f -- "$1"
 stat -L -c '%d:%i' -- "$1"`
 
@@ -131,11 +134,11 @@ func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.
 			return p.pathManual(from, "the configured library roots are invalid or ambiguous")
 		}
 		ids[root.ID] = true
-		library, _, err := downloadDirectoryIdentity(ctx, from, root.Path)
+		library, libraryIdentity, err := downloadDirectoryIdentity(ctx, from, root.Path)
 		if err != nil {
 			return p.pathManual(from, "a selected library root is not accessible as the consuming App user")
 		}
-		if pathWithin(canonical, library) || pathWithin(library, canonical) || pathWithin(local, root.Path) || pathWithin(root.Path, local) {
+		if libraryIdentity == localIdentity || pathWithin(canonical, library) || pathWithin(library, canonical) || pathWithin(local, root.Path) || pathWithin(root.Path, local) {
 			return p.pathManual(from, "completed downloads and configured library roots overlap")
 		}
 	}
