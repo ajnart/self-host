@@ -1,0 +1,90 @@
+.github/workflows/ci.yml
+  h_d6e478ca18e517 25,61-64,110
+.github/workflows/e2e.yml
+  h_d6e478ca18e517 26,51
+.github/workflows/release.yml
+  h_d6e478ca18e517 35,68-71
+.github/workflows/stars.yml
+  h_d6e478ca18e517 24
+README.md
+  h_d6e478ca18e517 391
+bun.lock
+  h_d6e478ca18e517 82-93,444-445
+cmd/self-host-testkit/main.go
+  h_d6e478ca18e517 38,251,263-267
+docs/releasing.md
+  h_d6e478ca18e517 20-22,85,88-92,98-107,158-179
+internal/project/fixture.go
+  h_d6e478ca18e517 89-91,170
+internal/project/fixture_test.go
+  h_d6e478ca18e517 59
+package.json
+  h_d6e478ca18e517 5
+testkit/README.md
+  h_d6e478ca18e517 1-86
+testkit/action.yml
+  h_d6e478ca18e517 26
+testkit/docker.go
+  h_d6e478ca18e517 41,49-52,69,82,93,102,124
+testkit/errors.go
+  h_d6e478ca18e517 1-14
+testkit/node/LICENSE
+  h_d6e478ca18e517 1-202
+testkit/node/README.md
+  h_d6e478ca18e517 3-6,8,10-14,16-74,78-80,84-85,91,95,102,104-105,114-116,118-156,158-229,232,236-238,240-247,250-254,256,258-266,269-280
+testkit/node/binary.d.mts
+  h_d6e478ca18e517 1-4
+testkit/node/binary.mjs
+  h_d6e478ca18e517 1-40
+testkit/node/biome.json
+  h_d6e478ca18e517 1-16
+testkit/node/examples/sonarr.mjs
+  h_d6e478ca18e517 1-20
+testkit/node/index.d.mts
+  h_d6e478ca18e517 2-5,8-12,15-22,25-26,29-38
+testkit/node/index.mjs
+  h_d6e478ca18e517 7,11-22,24-61,64,67,70-83,86-103,106-259,262-311,314-435,438-440
+testkit/node/pack.mjs
+  h_d6e478ca18e517 32-35,38
+testkit/node/package.json
+  h_d6e478ca18e517 3-4,7,10,14-46
+testkit/node/setup.d.mts
+  h_d6e478ca18e517 1-2
+testkit/node/setup.mjs
+  h_d6e478ca18e517 1-85
+testkit/node/src/binary.mts
+  h_d6e478ca18e517 1-59
+testkit/node/src/index.mts
+  h_d6e478ca18e517 1-574
+testkit/node/src/setup.mts
+  h_d6e478ca18e517 1-117
+testkit/node/tests/fake-helper.mjs
+  h_d6e478ca18e517 53
+testkit/node/tests/transport.test.ts
+  h_d6e478ca18e517 12,107-109,144
+testkit/node/tsconfig.json
+  h_d6e478ca18e517 1-18
+testkit/ports.go
+  h_d6e478ca18e517 25,36,39,50,62
+testkit/recovery.go
+  h_d6e478ca18e517 89-94,97-121
+testkit/runtime.go
+  h_d6e478ca18e517 23,29,39,81,86,90,99,103,125,129,137,142,149,154
+testkit/testkit.go
+  h_d6e478ca18e517 72,75,82,92,96-99,103,107,111,117,157-159,166-169,171-174,215-219,225,335-337
+testkit/testkit_test.go
+  h_d6e478ca18e517 239-240,273-274,297-318,332-333
+turbo.json
+  h_d6e478ca18e517 4-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6f1863eb233f016e6e055c5bb3482e009e3e8a5c",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
