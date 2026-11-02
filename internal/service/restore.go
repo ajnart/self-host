@@ -527,6 +527,11 @@ func (rs *restoration) planEnvironment(p *project.Project, replacements map[stri
 		if err != nil {
 			return err
 		}
+		for key := range oldSecrets {
+			if key != "ADMIN_USER" && key != "ADMIN_PASSWORD" && strings.HasPrefix(key, SecretKey(id, "")) {
+				keys[key] = true
+			}
+		}
 		keys, err = archived.ExpandEnvironmentReferences(keys)
 		if err != nil {
 			return err
@@ -555,7 +560,11 @@ func (rs *restoration) planEnvironment(p *project.Project, replacements map[stri
 			rs.restoreEnv[key] = value
 		}
 	}
-	return nil
+	keys := make([]string, 0, len(rs.restoreEnv))
+	for key := range rs.restoreEnv {
+		keys = append(keys, key)
+	}
+	return p.ValidateEnvironmentAssignments(archived, keys)
 }
 
 // A saved Arr database records its container paths. Reusing it with another
