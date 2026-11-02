@@ -173,3 +173,36 @@ their example address is fixture data, not a private host observation.
 | Before | After |
 | --- | --- |
 | ![Access before](compose-hardlinks-proof/access-before.png) | ![Access after](compose-hardlinks-proof/access-after.png) |
+
+## PR review fixes
+
+A further complete-diff review found five defects. Media HTTP fixtures used
+fixed `1000:1000` owners for real temporary storage and failed on CI runners
+with different IDs; they now use the executing test user's IDs, including
+Seerr's ownership expectation. Legacy environment consolidation now retains raw
+interpolation and declaration order, including synchronization for recovery.
+Scoped Restore keeps selected assignments in archive order, preserving repeated
+assignments and multiline values. Migration also retains CDI device selectors
+instead of rebasing them as host device paths.
+
+NZBGet also retained download paths invisible to the new importer layout. Its
+shared layout now adds the Usenet mount and configures DestDir, InterDir and
+the file-creation mask through the upstream
+[configuration API](https://github.com/nzbgetcom/nzbget/blob/develop/docs/api/SAVECONFIG.md).
+The previous `/downloads` mount, queue location and unrelated saved options
+remain intact. Host and App-user Usenet probes now include NZBGet. RPC fixtures
+verify both permission modes, idempotency and failed-restart recovery; this
+focused review did not run a real NZBGet container or a Usenet download.
+
+The new regression cases failed before the fixes and passed afterward. The
+affected media App packages and the full Project, service and CLI suites passed;
+focused vet, formatting and diff checks passed. No Docker runtime, browser or
+installer was run for these focused fixes. An additional different-UID user
+namespace probe was unavailable because this host refused its UID map; CI
+provides the different-user check. The preceding PR revision passed all four
+native platform jobs; its general Go job exposed the media fixture issue above.
+The four initial fixes subsequently passed every job in
+[CI run 41347941307](https://github.com/ajnart/self-host/actions/runs/41347941307),
+including native Linux/macOS amd64/arm64. After the NZBGet follow-up, the full Go
+suite, build/vet, e2e vet, generated-data check and web build/tests/lint/typecheck
+passed locally; its focused storage cases also passed with the race detector.

@@ -40,9 +40,18 @@ type Env struct {
 
 // New returns an Env for cat. Servers are added with Serve.
 func New(t *testing.T, cat *catalog.Catalog) *Env {
+	deps := systemtest.NewDeps(t)
+	owner, err := deps.CurrentUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Media preparation writes real temporary directories even though Docker
+	// and the account database are fake. Use the test process's file owners.
+	owner.UID, owner.GID = os.Geteuid(), os.Getegid()
+	deps.WithAccounts(systemtest.NewAccounts(owner))
 	e := &Env{
 		T:           t,
-		Deps:        systemtest.NewDeps(t),
+		Deps:        deps,
 		Catalog:     cat,
 		QBittorrent: NewQBittorrent(),
 		Sonarr:      NewArr("sonarr"),
@@ -52,12 +61,6 @@ func New(t *testing.T, cat *catalog.Catalog) *Env {
 		Seerr:       NewSeerr(),
 		servers:     map[string]*httptest.Server{},
 	}
-	owner, err := e.Deps.CurrentUser()
-	if err != nil {
-		t.Fatal(err)
-	}
-	owner.UID, owner.GID = os.Geteuid(), os.Getegid()
-	e.Deps.WithAccounts(systemtest.NewAccounts(owner))
 	e.arrs = map[string]*Arr{"sonarr": e.Sonarr, "radarr": e.Radarr, "prowlarr": e.Prowlarr}
 	e.Serve("qbittorrent", e.QBittorrent.Handler())
 	for id, arr := range e.arrs {

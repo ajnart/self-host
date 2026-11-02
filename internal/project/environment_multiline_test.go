@@ -74,7 +74,7 @@ func TestRestoreEnvironmentAssignmentsReplacesMultilineBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := current.ReadHomeFile(".env")
-	if string(data) != archived+unrelated {
+	if string(data) != unrelated+archived {
 		t.Fatal("multiline restoration lost the archived block or unrelated assignment")
 	}
 }

@@ -31,7 +31,7 @@ func (a App) checkHardlinks(ctx context.Context, h *helpers.H) error {
 	}
 	category := strings.TrimPrefix(a.rootFolder, "/media/")
 	sources := []string{"/data/torrents", "/data/torrents/" + category}
-	if h.Peer("sabnzbd") != nil {
+	if h.Peer("sabnzbd") != nil || h.Peer("nzbget") != nil {
 		sources = append(sources, "/data/usenet/complete", "/data/usenet/complete/"+category)
 	}
 	for _, source := range sources {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/apps/nzbget"
 	"github.com/ajnart/self-host/internal/compose"
 	"github.com/ajnart/self-host/internal/events"
@@ -36,7 +37,10 @@ func handler(settings ...*sync.Map) http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		var request struct{ ID, Method string }
+		var request struct {
+			ID, Method string
+			Params     []json.RawMessage
+		}
 		json.NewDecoder(r.Body).Decode(&request)
 		var result any
 		switch request.Method {
@@ -48,6 +52,10 @@ func handler(settings ...*sync.Map) http.Handler {
 				return
 			}
 			result = []map[string]string{
+				{"Name": "DestDir", "Value": "/downloads/completed"},
+				{"Name": "InterDir", "Value": "/downloads/intermediate"},
+				{"Name": "QueueDir", "Value": "/downloads/queue"},
+				{"Name": "UMask", "Value": "1000"},
 				{"Name": "RestrictedUsername", "Value": "self-host-homarr"},
 				{"Name": "RestrictedPassword", "Value": "restricted-password"},
 				{"Name": "Server1.Host", "Value": "my.newsserver.com"},
@@ -57,6 +65,18 @@ func handler(settings ...*sync.Map) http.Handler {
 				{"Name": "Server2.Port", "Value": "563"},
 				{"Name": "Server2.Connections", "Value": "2"},
 			}
+		case "saveconfig":
+			if user != "admin" || len(settings) == 0 || len(request.Params) != 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			var entries []map[string]string
+			if err := json.Unmarshal(request.Params[0], &entries); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			settings[0].Store("loadconfig", entries)
+			result = true
 		case "status":
 			result = map[string]any{"DownloadPaused": false, "DownloadRate": 0}
 		case "listgroups", "history":
@@ -336,6 +356,74 @@ func TestRerunSkipsEveryStep(t *testing.T) {
 	if err := a.Setup(ctx, h); err != nil || restarts != 2 || h.Secret("NZBGET_HOMARR_PASSWORD") != "restricted-password" {
 		t.Fatal("retry after failed restart must apply the same saved restricted login")
 	}
+	t.Run("shared download paths", func(t *testing.T) {
+		for _, tc := range []struct{ separate, mask string }{{"off", "022"}, {"on", "002"}} {
+			t.Run(tc.separate, func(t *testing.T) {
+				settings := &sync.Map{}
+				srv := httptest.NewServer(handler(settings))
+				defer srv.Close()
+				var results []helpers.StepResult
+				h := newH(t, srv, &results)
+				h.Settings = map[string]string{"MEDIA_LAYOUT": "shared", "UMASK": "022", "MEDIA_SEPARATE_USERS": tc.separate}
+				h.Peer = func(string) *helpers.H { return nil }
+				deps := systemtest.NewDeps(t)
+				runner := deps.Runner.(*systemtest.Runner)
+				h.Config.Exec = compose.New(deps, h.Log, t.TempDir(), "owned-fixture")
+				restarts := 0
+				failRestart := true
+				runner.OnFunc("docker compose --project-directory", func(cmd system.Cmd) system.Result {
+					if !strings.HasSuffix(systemtest.Line(cmd), " restart nzbget") {
+						t.Fatal("shared folders may restart only NZBGet")
+					}
+					restarts++
+					if failRestart {
+						return system.Result{ExitCode: 1}
+					}
+					saved, _ := settings.Load("loadconfig")
+					var active []map[string]string
+					for _, entry := range saved.([]map[string]string) {
+						value := entry["Value"]
+						if entry["Name"] == "DestDir" || entry["Name"] == "InterDir" {
+							value += "/"
+						}
+						active = append(active, map[string]string{"Name": entry["Name"], "Value": value})
+					}
+					settings.Store("config", active)
+					return system.Result{}
+				})
+				if err := a.Check(t.Context(), h); err == nil {
+					t.Fatal("Check accepted download paths outside the shared mount")
+				}
+				if err := a.Setup(t.Context(), h); err == nil || !strings.Contains(err.Error(), "shared folders are saved, but its scoped restart failed") {
+					t.Fatal("a failed restart must retain the saved folder settings for retry")
+				}
+				failRestart = false
+				for range 2 {
+					if err := a.Setup(t.Context(), h); err != nil {
+						t.Fatal(err)
+					}
+					if err := a.Check(t.Context(), h); err != nil {
+						t.Fatal(err)
+					}
+				}
+				saved, _ := settings.Load("loadconfig")
+				values := map[string]string{}
+				if entries, ok := saved.([]map[string]string); ok {
+					for _, entry := range entries {
+						values[entry["Name"]] = entry["Value"]
+					}
+				}
+				if restarts != 2 || values["DestDir"] != "/data/usenet/complete" || values["InterDir"] != "/data/usenet/incomplete" || values["UMask"] != tc.mask || values["QueueDir"] != "/downloads/queue" || values["RestrictedPassword"] != "restricted-password" {
+					t.Fatal("shared folders must align downloads while retaining queue and unrelated configuration")
+				}
+				legacy := a.Compose(app.RenderContext{Port: 6789})
+				shared := a.Compose(app.RenderContext{Port: 6789, Settings: h.Settings})
+				if strings.Contains(legacy, "/data/usenet") || !strings.Contains(shared, "${DATA_ROOT}/usenet:/data/usenet") || !strings.Contains(shared, "${DOWNLOADS_ROOT}:/downloads") {
+					t.Fatal("shared storage must retain access to existing download and queue data")
+				}
+			})
+		}
+	})
 }
 
 func TestWrongPasswordFailsWithHint(t *testing.T) {

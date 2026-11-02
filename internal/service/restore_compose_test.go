@@ -317,4 +317,35 @@ func TestRestoreManualServiceRestoresOnlyItsReferencedEnvironment(t *testing.T) 
 			}
 		})
 	}
+	t.Run("dependency declaration order", func(t *testing.T) {
+		h := newHarness(t, &testApp{id: "one", done: map[string]bool{}})
+		if err := h.install("one"); err != nil {
+			t.Fatal(err)
+		}
+		p, _ := h.svc.Project()
+		root, _ := p.ReadCompose()
+		manual := "  manual:\n    image: example/manual\n    environment: {TOKEN: '${A_TOKEN}'}\n"
+		if err := p.WriteCompose([]byte(strings.Replace(string(root), "services:\n", "services:\n"+manual, 1))); err != nil {
+			t.Fatal(err)
+		}
+		env, _ := p.ReadHomeFile(".env")
+		archived := "Z_BASE=fixture-base\nA_TOKEN=${Z_BASE}/token\n"
+		if err := p.WriteHomeFile(".env", append(env, []byte(archived)...), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		file, err := h.svc.Backup(context.Background(), []string{"manual"}, filepath.Join(t.TempDir(), "manual.tar.zst"), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.WriteHomeFile(".env", env, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.svc.Restore(context.Background(), file, []string{"manual"}, ""); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := p.ReadHomeFile(".env")
+		if !strings.HasSuffix(string(data), archived) {
+			t.Fatal("scoped Restore changed Compose interpolation by reordering dependencies")
+		}
+	})
 }
