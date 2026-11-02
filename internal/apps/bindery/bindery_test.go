@@ -47,6 +47,8 @@ type fakeBindery struct {
 	withCookie      bool
 	releaseBody     string
 	rootsBody       string
+	missingBody     string
+	queueBody       string
 	unsignedStatus  int
 	logins          int
 	forbidden       int
@@ -64,6 +66,8 @@ func newFake() *fakeBindery {
 		withCookie:     true,
 		releaseBody:    `{"version":"v1.46.1","commit":"ca24961c4c04f58a1cd96c2b8382b87f7eda215f"}`,
 		rootsBody:      `[]`,
+		missingBody:    `[]`,
+		queueBody:      `{"items":[]}`,
 		unsignedStatus: http.StatusUnauthorized,
 		apiStatus:      http.StatusOK,
 	}
@@ -126,6 +130,16 @@ func (f *fakeBindery) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.rootReads++
 		w.Write([]byte(f.rootsBody))
+	case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/wanted/missing" || r.URL.Path == "/api/v1/queue"):
+		if r.Header.Get("X-Api-Key") != apiKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path == "/api/v1/wanted/missing" {
+			w.Write([]byte(f.missingBody))
+			return
+		}
+		w.Write([]byte(f.queueBody))
 	default:
 		f.forbidden++
 		w.WriteHeader(http.StatusNotFound)
@@ -366,5 +380,56 @@ func TestNewerReleaseDoesNotNeedAnAllowlist(t *testing.T) {
 	h, _, _ := fixture(t, f)
 	if err := (bindery.App{}).Check(t.Context(), h); err != nil {
 		t.Fatalf("newer well-formed release: %v", err)
+	}
+}
+
+func TestBinderyMediaReadSemantics(t *testing.T) {
+	for _, scenario := range []struct {
+		name    string
+		missing string
+		queue   string
+		valid   bool
+	}{
+		{name: "empty", missing: `[]`, queue: `{"items":[]}`, valid: true},
+		{name: "legacy bare queue", missing: `[]`, queue: `[]`, valid: true},
+		{name: "real book and historical import", missing: `[{"id":17,"title":"Existing book","releaseDate":null,"imageUrl":"/api/v1/images?url=https%3A%2F%2Fexample.org%2Fcover","author":{"authorName":"Existing author"}}]`, queue: `{"items":[{"id":91,"title":"Existing download","status":"imported","percentage":"100.0","book":{"id":17,"title":"Existing book","authorName":"Existing author"}}],"partial":false,"staleClients":[]}`, valid: true},
+		{name: "blocked completed import", missing: `[]`, queue: `{"items":[{"id":91,"title":"Existing download","status":"importBlocked","percentage":"100.0","timeLeft":"721h 20m"}]}`, valid: true},
+		{name: "failed queue is useful data", missing: `[]`, queue: `{"items":[{"id":91,"title":"Existing download","status":"failed"}]}`, valid: true},
+		{name: "partial queue", missing: `[]`, queue: `{"items":[],"partial":true}`},
+		{name: "malformed partial", missing: `[]`, queue: `{"items":[],"partial":"false"}`},
+		{name: "null partial", missing: `[]`, queue: `{"items":[],"partial":null}`},
+		{name: "stale queue", missing: `[]`, queue: `{"items":[],"stale":true}`},
+		{name: "stale client", missing: `[]`, queue: `{"items":[],"staleClients":[{"clientId":1}]}`},
+		{name: "null stale clients", missing: `[]`, queue: `{"items":[],"staleClients":null}`},
+		{name: "queue body error", missing: `[]`, queue: `{"items":[],"error":"controlled-private-response"}`},
+		{name: "missing queue array", missing: `[]`, queue: `{}`},
+		{name: "null missing list", missing: `null`, queue: `{"items":[]}`},
+		{name: "wrong missing envelope", missing: `{"items":[]}`, queue: `{"items":[]}`},
+		{name: "invalid book ID", missing: `[{"id":0,"title":"Book"}]`, queue: `{"items":[]}`},
+		{name: "duplicate book ID", missing: `[{"id":1,"title":"Book"},{"id":1,"title":"Another"}]`, queue: `{"items":[]}`},
+		{name: "missing book title", missing: `[{"id":1}]`, queue: `{"items":[]}`},
+		{name: "invalid book date", missing: `[{"id":1,"title":"Book","releaseDate":"unknown"}]`, queue: `{"items":[]}`},
+		{name: "null author", missing: `[{"id":1,"title":"Book","author":null}]`, queue: `{"items":[]}`},
+		{name: "credential cover", missing: `[{"id":1,"title":"Book","imageUrl":"https://private:key@example.org/cover"}]`, queue: `{"items":[]}`},
+		{name: "unknown queue status", missing: `[]`, queue: `{"items":[{"id":1,"title":"Book","status":"unknown"}]}`},
+		{name: "NaN progress", missing: `[]`, queue: `{"items":[{"id":1,"title":"Book","status":"downloading","percentage":"NaN"}]}`},
+		{name: "excess progress", missing: `[]`, queue: `{"items":[{"id":1,"title":"Book","status":"downloading","percentage":"101.0"}]}`},
+		{name: "null progress", missing: `[]`, queue: `{"items":[{"id":1,"title":"Book","status":"downloading","percentage":null}]}`},
+		{name: "duplicate queue ID", missing: `[]`, queue: `{"items":[{"id":1,"title":"Book","status":"grabbed"},{"id":1,"title":"Other","status":"grabbed"}]}`},
+		{name: "null queue book", missing: `[]`, queue: `{"items":[{"id":1,"title":"Book","status":"grabbed","book":null}]}`},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			f := newFake()
+			f.missingBody, f.queueBody = scenario.missing, scenario.queue
+			h, store, _ := fixture(t, f)
+			key := bindery.APIKey(h)
+			err := (bindery.App{}).Check(t.Context(), h)
+			if (err == nil) != scenario.valid {
+				t.Fatalf("media validity=%v error=%v", scenario.valid, err)
+			}
+			if bindery.APIKey(h) != key || store.writes != 0 || err != nil && strings.Contains(err.Error(), "controlled-private-response") {
+				t.Fatal("media verification changed credentials or exposed a provider body")
+			}
+		})
 	}
 }

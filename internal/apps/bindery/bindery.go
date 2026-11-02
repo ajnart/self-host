@@ -92,7 +92,7 @@ func (a App) Setup(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	var checkErr error
-	return h.Step(ctx, "configuration", "verify the existing Bindery administrator, API key and library roots", helpers.StepSpec{
+	return h.Step(ctx, "configuration", "verify the existing Bindery administrator, API key and library data", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			checkErr = a.Check(ctx, h)
 			return checkErr == nil, checkErr
@@ -112,8 +112,13 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	if err := verifyAPIKey(ctx, h); err != nil {
 		return err
 	}
-	return verifyRoots(ctx, h)
+	if err := verifyRoots(ctx, h); err != nil {
+		return err
+	}
+	return verifyMedia(ctx, h)
 }
+
+func APIKey(h *helpers.H) string { return h.Secret(h.Key("api_key")) }
 
 type authStatus struct {
 	Authenticated    *bool  `json:"authenticated"`
@@ -189,12 +194,12 @@ func verifyAdmin(ctx context.Context, h *helpers.H) error {
 func keyRequest(h *helpers.H, endpoint string) helpers.Request {
 	return helpers.Request{
 		Path: endpoint, NoRedirect: true,
-		Header: (helpers.KeyScheme{Header: "X-Api-Key"}).Headers(h.Secret(h.Key("api_key"))),
+		Header: (helpers.KeyScheme{Header: "X-Api-Key"}).Headers(APIKey(h)),
 	}
 }
 
 func verifyAPIKey(ctx context.Context, h *helpers.H) error {
-	if strings.TrimSpace(h.Secret(h.Key("api_key"))) == "" {
+	if strings.TrimSpace(APIKey(h)) == "" {
 		return &helpers.ManualError{Hint: keyHint}
 	}
 	unsigned, err := h.HTTP(ctx, helpers.Request{Path: "/api/v1/system/status", NoRedirect: true})
