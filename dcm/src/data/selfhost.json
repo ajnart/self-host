@@ -2876,7 +2876,7 @@
    "port": 8085,
    "docs": "https://github.com/oxynote/oxynote/blob/main/docker/prod/README.md",
    "links": [],
-   "compose": "services:\n  oxynote-init:\n    image: ghcr.io/oxynote/oxynote:latest\n    container_name: ${CONTAINER_PREFIX}oxynote-init\n    user: \"0:0\"\n    network_mode: none\n    read_only: true\n    entrypoint: [\"chown\", \"-R\", \"65532:65532\", \"/owned/data\"]\n    volumes:\n      - ${CONFIG_PATH}/oxynote/data:/owned/data\n\n  oxynote:\n    image: ghcr.io/oxynote/oxynote:latest\n    container_name: ${CONTAINER_PREFIX}oxynote\n    restart: ${RESTART_POLICY}\n    depends_on:\n      oxynote-init:\n        condition: service_completed_successfully\n    environment:\n      OXYNOTE_PUBLIC_URL: http://${LAN_IP}:8085\n    volumes:\n      - ${CONFIG_PATH}/oxynote/data:/oxynote/data\n    ports:\n      - 8085:8080\n    stop_grace_period: 60s\n",
+   "compose": "services:\n  oxynote-init:\n    image: ghcr.io/oxynote/oxynote:latest\n    container_name: ${CONTAINER_PREFIX}oxynote-init\n    user: \"0:0\"\n    network_mode: none\n    read_only: true\n    entrypoint: [\"chown\", \"-R\", \"65532:65532\", \"/owned/data\"]\n    volumes:\n      - ${CONFIG_PATH}/oxynote/data:/owned/data\n\n  oxynote:\n    image: ghcr.io/oxynote/oxynote:latest\n    container_name: ${CONTAINER_PREFIX}oxynote\n    restart: ${RESTART_POLICY}\n    depends_on:\n      oxynote-init:\n        condition: service_completed_successfully\n    environment:\n      OXYNOTE_PUBLIC_URL: http://${LAN_IP}:8085\n    volumes:\n      - ${CONFIG_PATH}/oxynote/data:/oxynote/data\n    ports:\n      - 8085:8080\n    stop_grace_period: 60s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2904,7 +2904,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, sign in as admin@example.com with the password oxynote-admin-1234 and change it in the account settings."
+   "notes": "Open the exact Address configured in OXYNOTE_PUBLIC_URL. All browser API calls, WebSockets and sign-in cookies use this one origin; alternate Addresses do not work. To use a proxy, change OXYNOTE_PUBLIC_URL to its public origin and restart first. After the first start, sign in as admin@example.com with the password oxynote-admin-1234 and change it in the account settings before allowing anyone else to connect."
   },
   {
    "id": "pangolin",

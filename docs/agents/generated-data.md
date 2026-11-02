@@ -42,9 +42,9 @@ Four kinds of number are kept by hand, and they differ on purpose. Before readin
 
 | Where                                                                            | Counts                                                                     | Today | Caught by                                                  |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----- | ---------------------------------------------------------- |
-| `README.md`: the badge, the Catalog paragraph and the table row                  | visible Apps (`Apps()`)                                                    | 93    | nothing                                                    |
-| `e2e/acceptance.md`, first paragraph                                             | all Apps, the hidden ones included (`AllApps()`)                           | 94    | nothing                                                    |
-| `e2e/acceptance_fixture_test.go` (`len(got)`) and `e2e/testdata/inventory.json`  | all Apps, the visible Recipes and the hidden `homarr-control-plane` Recipe | 102   | `go test ./e2e/`, which has no build tag                   |
+| `README.md`: the badge, the Catalog paragraph and the table row                  | visible Apps (`Apps()`)                                                    | 94    | nothing                                                    |
+| `e2e/acceptance.md`, first paragraph                                             | all Apps, the hidden ones included (`AllApps()`)                           | 95    | nothing                                                    |
+| `e2e/acceptance_fixture_test.go` (`len(got)`) and `e2e/testdata/inventory.json`  | all Apps, the visible Recipes and the hidden `homarr-control-plane` Recipe | 103   | `go test ./e2e/`, which has no build tag                   |
 | `internal/tui/testdata/onboarding-what-default-focus*.golden`, the `N more` line | visible Apps and Recipes that do not fit on screen                         |       | `go test ./internal/tui`; `-update` accepts the new number |
 
 `site/` pages compute their numbers from `catalog.json`, so they need no edit. `docs/handoff.md`, `docs/runtime-matrix.*`, `docs/homarr-*` and `video/reel/` hold dated snapshots; leave them.
