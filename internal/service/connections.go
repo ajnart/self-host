@@ -130,6 +130,48 @@ func (s *Service) registerExternalConnection(c externalConnectionRecord) {
 	}
 }
 
+func (s *Service) registerExternalConnectionFields(raw string) {
+	d := json.NewDecoder(strings.NewReader(raw))
+	var visit func(int, bool, string) bool
+	visit = func(depth int, private bool, field string) bool {
+		if depth > 12 {
+			return false
+		}
+		token, err := d.Token()
+		if err != nil {
+			return false
+		}
+		if value, ok := token.(string); ok {
+			if field == "endpoint" {
+				s.registerExternalConnection(externalConnectionRecord{externalConnectionInput: externalConnectionInput{Endpoint: value}})
+			} else if private || field == "value" {
+				s.Log.Secret(value)
+			}
+			return true
+		}
+		delim, container := token.(json.Delim)
+		if !container {
+			return true
+		}
+		for d.More() {
+			name := field
+			if delim == '{' {
+				key, err := d.Token()
+				if err != nil {
+					return false
+				}
+				name, _ = key.(string)
+			}
+			if !visit(depth+1, private || name == "selection", name) {
+				return false
+			}
+		}
+		_, err = d.Token()
+		return err == nil
+	}
+	visit(0, false, "")
+}
+
 func (ss *session) externalConnectionRecords() (externalConnectionRecords, error) {
 	records := externalConnectionRecords{Version: 1, Connections: []externalConnectionRecord{}}
 	raw := ss.secrets.Get(externalConnectionsKey)
@@ -202,6 +244,7 @@ func (s *Service) readExternalConnection(opts ConnectionOptions) (externalConnec
 		}
 	}
 	s.Log.Secret(raw)
+	s.registerExternalConnectionFields(raw)
 	if len(raw) > maxPrivateInputBytes || strings.ContainsRune(raw, 0) {
 		return input, errors.New("invalid private connection input; maximum 64 KiB and no NUL bytes")
 	}
@@ -438,7 +481,9 @@ func (ss *session) finishExternalConnectionRemovals(ids []string) error {
 func (ss *session) connectionStatuses(id string) ([]ConnectionStatus, error) {
 	records, err := ss.externalConnectionRecords()
 	if err != nil {
-		return nil, err
+		return []ConnectionStatus{{Setup: stepstatus.SetupManual, Hint: externalConnectionsRecovery,
+			Steps: []StepStatus{{ID: "link-external-connections", Status: stepstatus.StepManual, Msg: "review external connection ownership", Hint: externalConnectionsRecovery}},
+		}}, nil
 	}
 	statuses := []ConnectionStatus{}
 	for _, c := range records.Connections {

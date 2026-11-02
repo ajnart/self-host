@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/project"
 	"github.com/ajnart/self-host/internal/service"
 	"github.com/ajnart/self-host/internal/systemtest"
 )
@@ -84,5 +85,40 @@ func TestExternalConnectionCLIDoesNotAcceptRawPrivateArguments(t *testing.T) {
 	info, err := os.Stat(projectRoot(t, deps) + "/.env")
 	if err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatal("private Project boundary changed")
+	}
+}
+
+func TestExternalConnectionCLIMalformedConfigurationIsolatedAndPrivate(t *testing.T) {
+	deps, cat := installed(t, "one")
+	owner, _ := deps.CurrentUser()
+	p := project.Open(owner)
+	secrets, _ := p.LoadSecrets()
+	raw := `{"version":9,"connections":[{"endpoint":"https://private-cli-malformed.example","credentials":[{"value":"private-cli-malformed-key"}],"selection":{"node":"private-cli-malformed-node"}}]}`
+	secrets["HOMARR_EXTERNAL_CONNECTIONS"] = raw
+	if err := p.SaveSecrets(secrets); err != nil {
+		t.Fatal(err)
+	}
+	var outputs strings.Builder
+	for _, args := range [][]string{{"status", "--json"}, {"connections", "status", "--json"}, {"setup", "one", "--json"}} {
+		code, out := runWith(t, deps, cat, args...)
+		if code != 0 {
+			t.Fatal("malformed external configuration blocked ordinary CLI operations")
+		}
+		outputs.WriteString(out)
+		if len(args) > 1 && args[0] == "connections" {
+			var connections []service.ConnectionStatus
+			if json.Unmarshal([]byte(out), &connections) != nil || len(connections) != 1 || connections[0].Setup != "manual" || len(connections[0].Steps) != 1 || connections[0].Steps[0].ID != "link-external-connections" {
+				t.Fatal("connection CLI did not expose fixed Manual evidence")
+			}
+		}
+	}
+	for _, private := range []string{"private-cli-malformed.example", "private-cli-malformed-key", "private-cli-malformed-node"} {
+		if strings.Contains(outputs.String(), private) {
+			t.Fatal("malformed external configuration exposed private payload")
+		}
+	}
+	stored, _ := p.LoadSecrets()
+	if stored["HOMARR_EXTERNAL_CONNECTIONS"] != raw {
+		t.Fatal("ordinary CLI operations rewrote unknown external configuration")
 	}
 }

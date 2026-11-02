@@ -10,6 +10,33 @@ import (
 const externalConnectionRecovery = "Review this connection's owner-only private input with self-host connections update <id> --file PATH --yes, then run self-host setup homarr. Keep its kind and endpoint unchanged; reconnect by removing and adding a new connection. Never bypass TLS or replace credentials automatically."
 const externalConnectionRemovalRecovery = "External removal is pending. Restore only Homarr's API and its recorded ownership, then retry self-host setup homarr. No external target credentials, reachability, Setup or lifecycle changes are required. Preserve matching user integrations and widgets; never clear ownership to bypass recovery."
 
+func (t target) externalIntegrationAppID(ctx context.Context, h *helpers.H, id string) (any, error) {
+	manual := &helpers.ManualError{Hint: "Homarr's current external integration App association could not be verified. Preserve its App and integration, restore authoritative integration readback, then retry self-host setup homarr. Never clear a person-added App association to refresh credentials."}
+	value, err := apiKeyProcedure(ctx, h, "integration.byId", map[string]any{"id": id})
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, manual
+	}
+	detail, ok := value.(map[string]any)
+	if !ok || stringField(detail, "id") != id || stringField(detail, "kind") != t.kind {
+		return nil, manual
+	}
+	linked, present := detail["app"]
+	if !present {
+		return nil, manual
+	}
+	if linked == nil {
+		return nil, nil
+	}
+	association, ok := linked.(map[string]any)
+	if !ok || stringField(association, "id") == "" {
+		return nil, manual
+	}
+	return stringField(association, "id"), nil
+}
+
 func externalConnectionDescriptor(c helpers.ExternalConnection) (target, error) {
 	t, err := externalTarget(c)
 	if err != nil {

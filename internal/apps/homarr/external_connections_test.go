@@ -23,6 +23,9 @@ type externalConnectionFixture struct {
 	updated      int
 	deleted      int
 	requests     int
+	clearedApps  int
+	detail       map[string]any
+	detailStatus int
 }
 
 func externalConnectionReply(w http.ResponseWriter, value any) {
@@ -49,6 +52,12 @@ func (f *externalConnectionFixture) ServeHTTP(w http.ResponseWriter, r *http.Req
 		externalConnectionReply(w, []any{map[string]any{"kind": "testPeer", "requiredSecrets": [][]string{{"apiKey"}}}})
 	case "/api/trpc/integration.all":
 		externalConnectionReply(w, f.integrations)
+	case "/api/trpc/integration.byId":
+		if f.detailStatus != 0 {
+			w.WriteHeader(f.detailStatus)
+			return
+		}
+		externalConnectionReply(w, f.detail)
 	case "/api/trpc/integration.create":
 		if _, found := input.JSON["app"]; found {
 			f.t.Error("external connection fabricated a linked Homarr App")
@@ -58,8 +67,13 @@ func (f *externalConnectionFixture) ServeHTTP(w http.ResponseWriter, r *http.Req
 		f.integrations = append(f.integrations, record)
 		externalConnectionReply(w, map[string]any{"integration": record})
 	case "/api/trpc/integration.update":
-		if input.JSON["appId"] != nil {
-			f.t.Error("external update fabricated a Homarr App association")
+		if input.JSON["appId"] == nil && f.detail["app"] != nil {
+			f.clearedApps++
+		}
+		if id, ok := input.JSON["appId"].(string); ok {
+			f.detail["app"] = map[string]any{"id": id}
+		} else {
+			f.detail["app"] = nil
 		}
 		f.updated++
 		externalConnectionReply(w, nil)
@@ -203,5 +217,122 @@ func TestExternalConnectionDTOCannotSerializePrivateFields(t *testing.T) {
 	raw, err := json.Marshal(c)
 	if err != nil || string(raw) != `{"id":"opaque","kind":"testPeer"}` {
 		t.Fatal("external connection DTO exposed private fields")
+	}
+}
+
+func TestExternalConnectionRefreshPreservesUserAppAssociation(t *testing.T) {
+	f := &externalConnectionFixture{}
+	h := f.helpers(t)
+	target := externalConnectionTestTarget(nil)
+	f.integrations = append(f.integrations, map[string]any{"id": "owned", "kind": target.kind, "url": target.internal(nil)})
+	f.detail = map[string]any{"id": "owned", "kind": target.kind, "app": map[string]any{"id": "person-added-app"}}
+	if err := h.SetSecret(h.Key("linked_"+target.id), "owned"); err != nil {
+		t.Fatal(err)
+	}
+	if id, err := ensureIntegration(t.Context(), h, nil, target, ""); err != nil || id != "owned" {
+		t.Fatalf("refresh: %v", err)
+	}
+	if f.updated != 1 || f.clearedApps != 0 || stringField(f.detail["app"].(map[string]any), "id") != "person-added-app" {
+		t.Fatal("credential refresh cleared a person-added App association")
+	}
+	if h.Secret(h.Key("app_ids")) != "" {
+		t.Fatal("preserving an association claimed ownership of the person's App")
+	}
+}
+
+func TestExternalConnectionAmbiguousAppAssociationStopsBeforeRefresh(t *testing.T) {
+	for _, scenario := range []string{"unavailable", "missing", "invalid", "wrong-id", "wrong-kind"} {
+		t.Run(scenario, func(t *testing.T) {
+			f := &externalConnectionFixture{}
+			h := f.helpers(t)
+			target := externalConnectionTestTarget(nil)
+			f.integrations = append(f.integrations, map[string]any{"id": "owned", "kind": target.kind})
+			f.detail = map[string]any{"id": "owned", "kind": target.kind, "app": map[string]any{"id": "person-added-app"}}
+			switch scenario {
+			case "unavailable":
+				f.detailStatus = http.StatusServiceUnavailable
+			case "missing":
+				delete(f.detail, "app")
+			case "invalid":
+				f.detail["app"] = map[string]any{}
+			case "wrong-id":
+				f.detail["id"] = "different"
+			case "wrong-kind":
+				f.detail["kind"] = "different"
+			}
+			if err := h.SetSecret(h.Key("linked_"+target.id), "owned"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ensureIntegration(t.Context(), h, nil, target, ""); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("ambiguous association did not require Manual recovery")
+			}
+			if f.updated != 0 || f.clearedApps != 0 || h.Secret(integrationFingerprintKey(h, "owned")) != "" {
+				t.Fatal("ambiguous association allowed credential or ownership mutation")
+			}
+		})
+	}
+}
+
+func TestExternalConnectionSharedWidgetsRemainOwnedAcrossCatalogReconciliation(t *testing.T) {
+	for _, kind := range []string{"stats", "calendar"} {
+		t.Run(kind, func(t *testing.T) {
+			f := &externalConnectionFixture{}
+			h := f.helpers(t)
+			c := helpers.ExternalConnection{ID: "0123456789abcdef0123456789abcdef", Kind: "unknown"}
+			h.ExternalConnections = func() ([]helpers.ExternalConnection, error) { return []helpers.ExternalConnection{c}, nil }
+			for key, value := range map[string]string{
+				"linked_external-" + c.ID: "external", "widgets_external": `{"shared":true}`,
+				"linked_sonarr": "catalog", "widgets_catalog": `{}`,
+			} {
+				if err := h.SetSecret(h.Key(key), value); err != nil {
+					t.Fatal(err)
+				}
+			}
+			w := plain(kind)
+			if kind == "stats" {
+				w = statWidget("requests")
+			}
+			f.items = append(f.items, map[string]any{"id": "shared", "kind": kind, "integrationIds": []any{"external"}, "options": widgetOptions(w, "external"), "size": map[string]any{"width": 2, "height": 1}})
+			current := map[string]any{"items": []any{f.items[0], f.items[1]}}
+			if ready, err := sharedWidgetCurrent(h, current, w, "external"); err != nil || ready {
+				t.Fatal("external shared widget bypassed owned reconciliation as an unowned fallback")
+			}
+			owned := map[string]bool{}
+			if err := ensureSharedWidget(t.Context(), h, w, "catalog", owned); err != nil {
+				t.Fatal(err)
+			}
+			if len(f.items) != 2 || f.items[1]["id"] != "shared" || !wiredTo(f.items[1], kind, "external") || !wiredTo(f.items[1], kind, "catalog") {
+				t.Fatal("Catalog reconciliation duplicated or lost the external shared widget")
+			}
+			current = map[string]any{"items": []any{f.items[0], f.items[1]}}
+			if ready, err := sharedWidgetCurrent(h, current, w, "external"); err != nil || !ready {
+				t.Fatal("external shared widget fell back to unowned detection")
+			}
+			if err := removeWidgets(t.Context(), h, "external", nil); err != nil {
+				t.Fatal(err)
+			}
+			if len(f.items) != 2 || !wiredTo(f.items[1], kind, "catalog") || wiredTo(f.items[1], kind, "external") || f.items[0]["id"] != "unrelated-widget" {
+				t.Fatal("external removal damaged the Catalog or unrelated survivor")
+			}
+		})
+	}
+}
+
+func TestExternalConnectionInvalidInventoryPreservesSharedWidgets(t *testing.T) {
+	f := &externalConnectionFixture{}
+	h := f.helpers(t)
+	h.ExternalConnections = func() ([]helpers.ExternalConnection, error) {
+		return nil, &helpers.ManualError{Hint: "Repair the private external record without discarding ownership."}
+	}
+	before, _ := json.Marshal(f.items)
+	if err := validateOwnership(h); err != nil {
+		t.Fatal("external inventory blocked Homarr's own ownership step")
+	}
+	if err := ensureSharedWidget(t.Context(), h, plain("calendar"), "catalog", map[string]bool{}); !errors.Is(err, helpers.ErrManual) {
+		t.Fatal("unknown external inventory became an empty ownership set")
+	}
+	after, _ := json.Marshal(f.items)
+	if !reflect.DeepEqual(before, after) || f.created != 0 || f.updated != 0 || f.deleted != 0 {
+		t.Fatal("invalid external inventory mutated existing resources")
 	}
 }

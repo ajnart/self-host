@@ -40,6 +40,30 @@ func managedAppIDs(h *helpers.H) (map[string]string, error) {
 	return readOwnership[string](h, h.Key("app_ids"), "App ownership")
 }
 
+func ownedIntegrationIDs(h *helpers.H) ([]string, error) {
+	ids := []string{}
+	seen := map[string]bool{}
+	add := func(key string) {
+		if id := h.Secret(h.Key(key)); id != "" && !seen[id] {
+			ids = append(ids, id)
+			seen[id] = true
+		}
+	}
+	for _, t := range targets() {
+		add("linked_" + t.id)
+	}
+	if h.ExternalConnections != nil {
+		connections, err := h.ExternalConnections()
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range connections {
+			add("linked_external-" + c.ID)
+		}
+	}
+	return ids, nil
+}
+
 func validateOwnership(h *helpers.H) error {
 	if _, err := managedAppIDs(h); err != nil {
 		return err
@@ -55,19 +79,6 @@ func validateOwnership(h *helpers.H) error {
 		if t.id == "beszel" {
 			if _, err := beszelBindings(h, id); err != nil {
 				return err
-			}
-		}
-	}
-	if h.ExternalConnections != nil {
-		connections, err := h.ExternalConnections()
-		if err != nil {
-			return err
-		}
-		for _, c := range connections {
-			if id := h.Secret(h.Key("linked_external-" + c.ID)); id != "" {
-				if _, err := ownedWidgets(h, id); err != nil {
-					return err
-				}
 			}
 		}
 	}

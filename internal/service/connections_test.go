@@ -330,3 +330,54 @@ func TestExternalConnectionRegistersPrivateFieldsOnLaterRead(t *testing.T) {
 		}
 	}
 }
+
+func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *testing.T) {
+	for _, scenario := range []string{"unknown-version", "duplicate", "truncated"} {
+		t.Run(scenario, func(t *testing.T) {
+			h, _ := externalConnectionHarness(t, false)
+			p, _ := h.svc.Project()
+			secrets, _ := p.LoadSecrets()
+			raw := `{"version":2,"connections":[{"id":"0123456789abcdef0123456789abcdef","kind":"testPeer","endpoint":"https://private-malformed.example:8006","credentials":[{"kind":"apiKey","value":"private-malformed-key"}],"selection":{"node":"private-malformed-node"}}]}`
+			if scenario == "duplicate" {
+				raw = strings.Replace(raw, `"version":2`, `"version":1,"version":1`, 1)
+			}
+			if scenario == "truncated" {
+				raw = strings.TrimSuffix(raw, "]}")
+			}
+			secrets[externalConnectionsKey] = raw
+			secrets[SecretKey("homarr", "linked_external-0123456789abcdef0123456789abcdef")] = "owned-preserved"
+			if err := p.SaveSecrets(secrets); err != nil {
+				t.Fatal(err)
+			}
+			later := New(h.deps, events.Discard(), h.svc.Catalog)
+			status, err := later.Status(t.Context())
+			if err != nil {
+				t.Fatal("malformed external record blocked ordinary status")
+			}
+			if err := later.Setup(t.Context(), []string{"peer"}); err != nil {
+				t.Fatal("malformed external record blocked unrelated App Setup")
+			}
+			for _, id := range []string{"", "0123456789abcdef0123456789abcdef"} {
+				connections, err := later.Connections(t.Context(), id)
+				if err != nil || len(connections) != 1 || connections[0].Setup != stepstatus.SetupManual || len(connections[0].Steps) != 1 || connections[0].Steps[0].ID != "link-external-connections" || connections[0].Hint != externalConnectionsRecovery {
+					t.Fatal("malformed record status omitted fixed Manual recovery")
+				}
+			}
+			if len(status.Connections) != 1 || status.Connections[0].Setup != stepstatus.SetupManual {
+				t.Fatal("ordinary status omitted the isolated connection recovery")
+			}
+			for _, value := range []string{"https://private-malformed.example:8006", "private-malformed.example", "private-malformed-key", "private-malformed-node"} {
+				if strings.Contains(later.Log.Redact(value), value) {
+					t.Fatal("malformed record skipped early private-field masking")
+				}
+			}
+			if err := later.RemoveConnection(t.Context(), "0123456789abcdef0123456789abcdef", true); !errors.Is(err, ErrManual) {
+				t.Fatal("malformed record authorized removal")
+			}
+			stored, _ := p.LoadSecrets()
+			if stored[externalConnectionsKey] != raw || stored[SecretKey("homarr", "linked_external-0123456789abcdef0123456789abcdef")] != "owned-preserved" {
+				t.Fatal("unknown configuration discarded private records or ownership")
+			}
+		})
+	}
+}

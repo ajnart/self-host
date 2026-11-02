@@ -607,7 +607,11 @@ func ensureIntegration(ctx context.Context, from, to *helpers.H, t target, appID
 				"id": id, "name": t.name, "url": internal, "secrets": t.credentials(from, to), "appId": appID,
 			}
 			if t.integrationOnly {
-				body["appId"] = nil
+				association, err := t.externalIntegrationAppID(ctx, from, id)
+				if err != nil {
+					return "", err
+				}
+				body["appId"] = association
 			}
 			value, err := apiKeyWrite(ctx, from, "integration.update", body)
 			if err != nil {

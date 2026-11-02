@@ -240,6 +240,7 @@ func (s *Service) open(ctx context.Context) (*session, error) {
 		return nil, err
 	}
 	registerSecrets(s.Log, secrets)
+	s.registerExternalConnectionFields(secrets[externalConnectionsKey])
 	state, err := p.LoadState()
 	if err != nil {
 		return nil, err
@@ -255,11 +256,7 @@ func (s *Service) open(ctx context.Context) (*session, error) {
 			}
 		}
 	}
-	ss := &session{s: s, p: p, settings: settings, secrets: &secretStore{p: p, values: secrets}, state: state, compose: s.compose(p)}
-	if _, err := ss.externalConnectionRecords(); err != nil {
-		return nil, err
-	}
-	return ss, nil
+	return &session{s: s, p: p, settings: settings, secrets: &secretStore{p: p, values: secrets}, state: state, compose: s.compose(p)}, nil
 }
 
 func (s *Service) renderContext(ctx context.Context, a app.App, port int, inputs, settings map[string]string) (app.RenderContext, error) {

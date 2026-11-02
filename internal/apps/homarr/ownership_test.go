@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -147,6 +148,65 @@ func TestOwnershipManualHintsSurviveLaterProjectReads(t *testing.T) {
 				if secret != "" && strings.Contains(string(serialized), secret) {
 					t.Fatal("persisted ownership recovery exposed a secret")
 				}
+			}
+		})
+	}
+}
+
+func TestExternalConnectionMalformedConfigurationKeepsHomarrOwnSetupReady(t *testing.T) {
+	for _, scenario := range []string{"malformed-json", "external-widget-ownership"} {
+		t.Run(scenario, func(t *testing.T) {
+			fake := newFake()
+			fake.version = "2.10.1"
+			srv := httptest.NewServer(fake.handler())
+			t.Cleanup(srv.Close)
+			deps := systemtest.NewDeps(t)
+			cat := catalog.New([]app.App{homarr.App{}}, nil)
+			svc := service.New(deps, events.Discard(), cat)
+			if err := svc.Install(t.Context(), service.InstallOptions{Targets: []string{"homarr"}, Sets: []string{"homarr.port=" + clitest.Port(srv)}}); err != nil {
+				t.Fatal(err)
+			}
+			p, _ := svc.Project()
+			secrets, _ := p.LoadSecrets()
+			raw := `{"version":1,"connections":`
+			stepID := "link-external-connections"
+			if scenario == "external-widget-ownership" {
+				raw = `{"version":1,"connections":[{"id":"0123456789abcdef0123456789abcdef","kind":"unknown"}]}`
+				stepID = "link-external-0123456789abcdef0123456789abcdef"
+			}
+			secrets["HOMARR_EXTERNAL_CONNECTIONS"] = raw
+			secrets["HOMARR_LINKED_EXTERNAL_0123456789ABCDEF0123456789ABCDEF"] = "external-preserved"
+			secrets["HOMARR_WIDGETS_EXTERNAL_PRESERVED"] = "null"
+			if err := p.SaveSecrets(secrets); err != nil {
+				t.Fatal(err)
+			}
+			fake.mu.Lock()
+			before, _ := json.Marshal([]any{fake.apps, fake.items, fake.integrations})
+			fake.mu.Unlock()
+			later := service.New(deps, events.Discard(), cat)
+			if err := later.Setup(t.Context(), []string{"homarr"}); !errors.Is(err, service.ErrManual) {
+				t.Fatal("external recovery did not remain Manual")
+			}
+			state, _ := p.LoadState()
+			st := state.Apps["homarr"]
+			if st.Steps[stepID].Status != stepstatus.StepManual || st.Steps["check"].Status != stepstatus.StepOK {
+				t.Fatal("external recovery blocked Homarr's own Check or disappeared")
+			}
+			for id, step := range st.Steps {
+				if !strings.HasPrefix(id, "link-") && step.Status.NeedsAttention() {
+					t.Fatal("external configuration made Homarr's own Setup unready")
+				}
+			}
+			status, err := later.Status(t.Context())
+			if err != nil || len(status.Apps) != 1 {
+				t.Fatal("external recovery blocked ordinary status")
+			}
+			fake.mu.Lock()
+			after, _ := json.Marshal([]any{fake.apps, fake.items, fake.integrations})
+			fake.mu.Unlock()
+			stored, _ := p.LoadSecrets()
+			if string(before) != string(after) || stored["HOMARR_EXTERNAL_CONNECTIONS"] != raw || stored["HOMARR_WIDGETS_EXTERNAL_PRESERVED"] != "null" {
+				t.Fatal("unknown external configuration authorized resource or ownership changes")
 			}
 		})
 	}
