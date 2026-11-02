@@ -86,7 +86,7 @@ func TestSonarrLeafUsesNativeAndSingleAdvancingStatsPipeline(t *testing.T) {
 						if scenario.destination != "" {
 							link = scenario.destination
 						}
-						queued = append(queued, map[string]any{"id": float64(-123), "title": "Synthetic episode", "type": scenario.itemType, "link": link, "status": "downloading", "percentComplete": 25, "timeLeft": nil})
+						queued = append(queued, map[string]any{"id": float64(-123), "title": "Synthetic episode", "type": scenario.itemType, "link": link, "status": "downloading", "percentComplete": 25, "timeLeft": nil, "imageUrl": nil})
 					}
 					json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": []any{map[string]any{"integrationId": id, "missing": []any{}, "missingCount": 0, "queued": queued, "queuedCount": len(queued)}}}}})
 				default:
@@ -125,8 +125,80 @@ func TestSonarrCountSemanticsAndDestinations(t *testing.T) {
 		}
 	}
 	for _, link := range []string{"http://user:secret@sonarr.test/series/show", "http://another.test/series/show", "http://sonarr.test/series/", "http://sonarr.test/book/1", "http://sonarr.test/series/../settings", "http://sonarr.test/series/%2fsettings"} {
-		if sonarrMediaItem(map[string]any{"id": float64(1), "title": "episode", "type": "episode", "link": link}, "http://sonarr.test", "/wanted/missing") {
+		if sonarrMediaItem(map[string]any{"id": float64(1), "title": "episode", "type": "episode", "link": link, "imageUrl": nil}, "http://sonarr.test", "/wanted/missing") {
 			t.Fatal("invalid destination accepted")
+		}
+	}
+}
+
+func TestSonarrNativeEpisodeAndNullableImageContract(t *testing.T) {
+	for _, queued := range []bool{false, true} {
+		for _, scenario := range []struct {
+			name            string
+			change          func(map[string]any)
+			invalid         bool
+			omitCoordinates bool
+		}{
+			{name: "zero coordinates and null image"},
+			{name: "positive coordinates and external image", change: func(item map[string]any) {
+				item["seasonNumber"] = 1
+				item["episodeNumber"] = 2
+				item["imageUrl"] = "https://images.example.test/poster.jpg"
+			}},
+			{name: "omitted optional coordinates", omitCoordinates: true, change: func(item map[string]any) { delete(item, "seasonNumber"); delete(item, "episodeNumber") }},
+			{name: "missing one coordinate", invalid: true, change: func(item map[string]any) { delete(item, "seasonNumber") }},
+			{name: "null coordinate", invalid: true, change: func(item map[string]any) { item["seasonNumber"] = nil }},
+			{name: "string coordinate", invalid: true, change: func(item map[string]any) { item["episodeNumber"] = "0" }},
+			{name: "fractional coordinate", invalid: true, change: func(item map[string]any) { item["episodeNumber"] = 0.5 }},
+			{name: "negative coordinate", invalid: true, change: func(item map[string]any) { item["seasonNumber"] = -1 }},
+			{name: "object image", invalid: true, change: func(item map[string]any) {
+				item["imageUrl"] = map[string]any{"url": "https://images.example.test/poster.jpg"}
+			}},
+			{name: "missing image", invalid: true, change: func(item map[string]any) { delete(item, "imageUrl") }},
+			{name: "empty image", invalid: true, change: func(item map[string]any) { item["imageUrl"] = "" }},
+			{name: "relative image", invalid: true, change: func(item map[string]any) { item["imageUrl"] = "/poster.jpg" }},
+			{name: "unsupported image scheme", invalid: true, change: func(item map[string]any) { item["imageUrl"] = "javascript:alert(1)" }},
+			{name: "invalid optional series title", invalid: true, change: func(item map[string]any) { item["seriesTitle"] = nil }},
+			{name: "invalid optional year", invalid: true, change: func(item map[string]any) { item["year"] = "2026" }},
+		} {
+			name := "missing/" + scenario.name
+			if queued {
+				name = "queue/" + scenario.name
+			}
+			t.Run(name, func(t *testing.T) {
+				var server *httptest.Server
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == "/api/v3/system/status" {
+						json.NewEncoder(w).Encode(map[string]any{"appName": "Sonarr", "version": "4.0.0"})
+						return
+					}
+					item := map[string]any{"id": float64(1), "title": "Synthetic episode", "type": "episode", "link": server.URL + "/series/example", "seasonNumber": 0, "episodeNumber": 0, "imageUrl": nil}
+					if queued {
+						item["status"] = "downloading"
+						item["percentComplete"] = 0
+						item["timeLeft"] = nil
+					}
+					if scenario.change != nil {
+						scenario.change(item)
+					}
+					result := map[string]any{"integrationId": "owned-sonarr", "missing": []any{item}, "missingCount": 1, "queued": []any{}, "queuedCount": 0}
+					if queued {
+						result["missing"] = []any{}
+						result["missingCount"] = 0
+						result["queued"] = []any{item}
+						result["queuedCount"] = 1
+					}
+					json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": []any{result}}}})
+				}))
+				defer server.Close()
+				from := helpers.New(helpers.Config{App: "homarr", BaseURL: server.URL, URL: server.URL, HTTP: server.Client(), Log: events.Discard(), Secrets: statsSecrets{"HOMARR_API_KEY": "fixture-key"}})
+				to := helpers.New(helpers.Config{App: "sonarr", BaseURL: server.URL, URL: server.URL, HTTP: server.Client(), Log: events.Discard(), Secrets: statsSecrets{"SONARR_API_KEY": "sonarr-key"}})
+				err := verifySonarrNative(t.Context(), from, to, "owned-sonarr")
+				wantError := scenario.invalid || scenario.omitCoordinates && !queued
+				if (err != nil) != wantError {
+					t.Fatalf("error=%v wantError=%v", err, wantError)
+				}
+			})
 		}
 	}
 }

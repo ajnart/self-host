@@ -45,13 +45,13 @@ func verifySonarrNative(ctx context.Context, from, to *helpers.H, integrationID 
 	}
 	for _, raw := range sample.missing {
 		item, ok := raw.(map[string]any)
-		if !ok || !sonarrMediaItem(item, browser, "/wanted/missing") {
+		if !ok || !sonarrMediaItem(item, browser, "/wanted/missing") || !sonarrEpisodeCoordinates(item, true) {
 			return errors.New(failure)
 		}
 	}
 	for _, raw := range sample.queued {
 		item, ok := raw.(map[string]any)
-		if !ok || !sonarrMediaItem(item, browser, "/activity/queue") || strings.TrimSpace(stringField(item, "status")) == "" {
+		if !ok || !sonarrMediaItem(item, browser, "/activity/queue") || !sonarrEpisodeCoordinates(item, false) || strings.TrimSpace(stringField(item, "status")) == "" {
 			return errors.New(failure)
 		}
 		progress, ok := item["percentComplete"].(float64)
@@ -72,6 +72,20 @@ func sonarrMediaItem(item map[string]any, browser, fallback string) bool {
 	if !ok || math.IsNaN(id) || math.IsInf(id, 0) || math.Trunc(id) != id || stringField(item, "type") != "episode" || strings.TrimSpace(stringField(item, "title")) == "" {
 		return false
 	}
+	image, present := item["imageUrl"]
+	if !present || !sonarrImageURL(image) {
+		return false
+	}
+	if title, present := item["seriesTitle"]; present {
+		if _, ok := title.(string); !ok {
+			return false
+		}
+	}
+	if year, present := item["year"]; present {
+		if _, ok := countValue(year); !ok {
+			return false
+		}
+	}
 	base, err := url.Parse(browser)
 	if err != nil || base.Host == "" || base.Scheme != "http" && base.Scheme != "https" {
 		return false
@@ -91,6 +105,29 @@ func sonarrMediaItem(item map[string]any, browser, fallback string) bool {
 	}
 	slug, err := url.PathUnescape(strings.TrimPrefix(link, prefix))
 	return err == nil && slug != "" && slug != "." && slug != ".." && !strings.ContainsAny(slug, "/?#")
+}
+
+func sonarrEpisodeCoordinates(item map[string]any, required bool) bool {
+	season, hasSeason := item["seasonNumber"]
+	episode, hasEpisode := item["episodeNumber"]
+	if !required && !hasSeason && !hasEpisode {
+		return true
+	}
+	_, validSeason := countValue(season)
+	_, validEpisode := countValue(episode)
+	return hasSeason && hasEpisode && validSeason && validEpisode
+}
+
+func sonarrImageURL(value any) bool {
+	if value == nil {
+		return true
+	}
+	text, ok := value.(string)
+	if !ok {
+		return false
+	}
+	address, err := url.Parse(text)
+	return err == nil && address.Host != "" && address.User == nil && (address.Scheme == "http" || address.Scheme == "https")
 }
 
 func verifySonarrStats(sample statsSample) error {
