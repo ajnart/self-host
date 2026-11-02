@@ -1,0 +1,20 @@
+docs/catalog/traps/stash.md
+  h_d6e478ca18e517 1-107
+internal/apps/stash/api.go
+  h_d6e478ca18e517 1-104
+internal/apps/stash/stash.go
+  h_d6e478ca18e517 1-81
+internal/apps/stash/stash_test.go
+  h_d6e478ca18e517 1-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9baf61833bda2ef60d924e7defc574fa8c38159",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
