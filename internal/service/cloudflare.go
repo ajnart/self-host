@@ -189,6 +189,9 @@ func loadCloudflareRecord(p *project.Project) (cloudflareRecord, bool, error) {
 
 // cloudflareAddresses are the web addresses an App has through Cloudflare.
 func (ss *session) cloudflareAddresses(id string, rec cloudflareRecord, byService map[string]compose.Container) []string {
+	if a, found := ss.s.Catalog.App(id); found && a.Info().HomeAddressOnly {
+		return nil
+	}
 	if rec.Suspended || ss.state.Apps[cloudflareConnector] == nil || byService[cloudflareConnector].State != "running" {
 		return nil
 	}
@@ -288,6 +291,10 @@ func (s *Service) CloudflarePlan(ctx context.Context, opts CloudflareOptions) (C
 		info := a.Info()
 		if info.NoWebUI || info.ContainerPort <= 0 {
 			plan.Refused = append(plan.Refused, CloudflareRefusal{App: id, Reason: info.Name + " has no web page, so it cannot be published"})
+			continue
+		}
+		if info.HomeAddressOnly {
+			plan.Refused = append(plan.Refused, CloudflareRefusal{App: id, Reason: homeAddressRestriction(info)})
 			continue
 		}
 		warning := ""

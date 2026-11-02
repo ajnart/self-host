@@ -67,7 +67,7 @@ func (ss *session) webTargets() []app.WebTarget {
 			continue
 		}
 		info := a.Info()
-		if info.NoWebUI || st.Port <= 0 || info.ContainerPort <= 0 {
+		if info.NoWebUI || info.HomeAddressOnly || st.Port <= 0 || info.ContainerPort <= 0 {
 			continue
 		}
 		targets = append(targets, app.WebTarget{ID: id, Service: info.Service, ContainerPort: info.ContainerPortFor(st.Port), Path: info.Path})
@@ -203,6 +203,9 @@ func (ss *session) accessAddresses(nodes map[string]nodeRead) map[string][]strin
 		}
 		path := ""
 		if a, found := ss.s.Catalog.App(id); found {
+			if a.Info().HomeAddressOnly {
+				continue
+			}
 			path = a.Info().Path
 		}
 		if address := node.node.Address(path); address != "" {

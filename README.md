@@ -14,7 +14,7 @@
   <a href="https://github.com/ajnart/self-host/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ajnart/self-host?style=flat-square&label=release&color=7a57d3&labelColor=14121e"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-7a57d3?style=flat-square&labelColor=14121e"></a>
   <img alt="Platforms: Linux, macOS, WSL2" src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20WSL2-7a57d3?style=flat-square&labelColor=14121e">
-  <a href="https://self-host.fyi/apps"><img alt="93 Apps in the Catalog" src="https://img.shields.io/badge/Apps-93-00d787?style=flat-square&labelColor=14121e"></a>
+  <a href="https://self-host.fyi/apps"><img alt="94 Apps in the Catalog" src="https://img.shields.io/badge/Apps-94-00d787?style=flat-square&labelColor=14121e"></a>
 </p>
 
 <p align="center">
@@ -25,10 +25,10 @@
 
 Self-hosted Apps for you and your AI agent. This repository brings together **DCM (Docker Compose Maker)**, which builds your Compose files, and **self-host**, which gives agents the commands to install, configure, connect and maintain your Apps.
 
-| Tool | Start here | What you get |
-| --- | --- | --- |
-| **DCM** | [Build a Compose file](https://self-host.fyi/compose) | A `docker-compose.yaml` and `.env` to run with Docker Compose. |
-| **self-host** | [Start with an agent](#with-an-agent) | One binary with App Setup, Links, backups, diagnostics and `--json` commands. |
+| Tool          | Start here                                            | What you get                                                                  |
+| ------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **DCM**       | [Build a Compose file](https://self-host.fyi/compose) | A `docker-compose.yaml` and `.env` to run with Docker Compose.                |
+| **self-host** | [Start with an agent](#with-an-agent)                 | One binary with App Setup, Links, backups, diagnostics and `--json` commands. |
 
 ## DCM: Docker Compose Maker
 
@@ -36,10 +36,10 @@ DCM is the project originally known as [`ajnart/dcm`](https://github.com/ajnart/
 
 Pick Containers or start from a Template, adjust paths and settings, then copy or download the Compose and `.env` files. Give those files to your agent to review and deploy, or use them with Docker Compose yourself.
 
-| Page | What it includes |
-| --- | --- |
-| [docker compose mode](https://self-host.fyi/compose) | The self-host Catalog plus Containers defined only in DCM, settings and the Template gallery. |
-| [self-host mode](https://self-host.fyi/apps) | The Apps from the self-host Catalog, with a matching `self-host install` command for your selection. |
+| Page                                                 | What it includes                                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [docker compose mode](https://self-host.fyi/compose) | The self-host Catalog plus Containers defined only in DCM, settings and the Template gallery.        |
+| [self-host mode](https://self-host.fyi/apps)         | The Apps from the self-host Catalog, with a matching `self-host install` command for your selection. |
 
 Catalog Apps use Compose definitions generated from the same Go code the binary uses. Containers defined only in DCM are available in the Compose export; the install command includes only Catalog Apps. Exporting YAML does not run the CLI's App Setup or Links.
 
@@ -148,7 +148,7 @@ To read the install script first: `curl -fsSL https://self-host.fyi/install -o i
 
 <p align="center"><img src="docs/assets/readme/replaces-meet.svg" width="600" alt="What it replaces: Netflix to Jellyfin, Spotify to Navidrome, Drive to Nextcloud, Dropbox to Syncthing, Photos to Immich, 1Password to Vaultwarden, Notion to Docmost, ChatGPT to Open WebUI. Every App is in the Catalog, with 82 more."></p>
 
-Choose Jellyfin for your media library, Immich for photos, Nextcloud for files or Vaultwarden for passwords, for example `self-host install immich`. Browse all 93 self-hosted Apps in the [Catalog](https://self-host.fyi/apps); see [Platforms and support](#platforms-and-support) for what has been verified.
+Choose Jellyfin for your media library, Immich for photos, Nextcloud for files or Vaultwarden for passwords, for example `self-host install immich`. Browse all 94 self-hosted Apps in the [Catalog](https://self-host.fyi/apps); see [Platforms and support](#platforms-and-support) for what has been verified.
 
 <p align="center"><img src="docs/assets/readme/hero-command.svg" width="880" alt="The install command, curl -fsSL self-host.fyi/install | bash, wired to nine Apps with data pulses travelling the wires: Jellyfin, Sonarr, Radarr, Immich, Nextcloud, Homarr, Vaultwarden, Navidrome and Home Assistant."></p>
 
@@ -165,8 +165,8 @@ Choose Jellyfin for your media library, Immich for photos, Nextcloud for files o
 
 | ✅ Does                                                                         | ❌ Doesn't                                                                      |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Ships the Catalog inside the binary: 93 Apps and 7 Recipes.                     | Install Docker for you. `self-host doctor` checks it.                           |
-| Sets up accounts, API keys and settings where supported.                      | Touch anything outside its one Compose Project in `~/.self-host`.               |
+| Ships the Catalog inside the binary: 94 Apps and 7 Recipes.                     | Install Docker for you. `self-host doctor` checks it.                           |
+| Sets up accounts, API keys and settings where supported.                        | Touch anything outside its one Compose Project in `~/.self-host`.               |
 | Wires Apps together with Links, and gives Homarr native tiles.                  | Back up media libraries or data outside App folders.                            |
 | Shows a five-tab Dashboard (Overview, Apps, Activity, Catalog, Settings).       | Run on native Windows. Use WSL2.                                                |
 | Offers Access from the Home network to Tailscale, Cloudflare or your own proxy. | Ship indexers, trackers or content sources.                                     |
@@ -370,14 +370,14 @@ To turn it off, set `SELF_HOST_NO_TELEMETRY=1` or `DO_NOT_TRACK=1` (or `true`). 
 
 ## Repository layout
 
-| Path | What it is |
-| --- | --- |
-| `cmd/`, `internal/` | The Go binary: CLI, Dashboard, the Catalog and every App. |
-| `site/` | The Astro site at self-host.fyi. |
-| `dcm/` | Docker Compose Maker, served at self-host.fyi/compose. |
+| Path                                   | What it is                                                   |
+| -------------------------------------- | ------------------------------------------------------------ |
+| `cmd/`, `internal/`                    | The Go binary: CLI, Dashboard, the Catalog and every App.    |
+| `site/`                                | The Astro site at self-host.fyi.                             |
+| `dcm/`                                 | Docker Compose Maker, served at self-host.fyi/compose.       |
 | `skills/self-host/`, `internal/skill/` | The discoverable skill and the guide embedded in the binary. |
-| `tools/sitegen` | Writes the site's and DCM's data from the Catalog. |
-| `docs/` | Decisions, agent briefs, release notes and proofs. |
+| `tools/sitegen`                        | Writes the site's and DCM's data from the Catalog.           |
+| `docs/`                                | Decisions, agent briefs, release notes and proofs.           |
 
 `site/` and `dcm/` are one bun workspace: run `bun install` at the root. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 

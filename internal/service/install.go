@@ -382,6 +382,9 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			}
 			for _, a := range apps {
 				info := a.Info()
+				if info.HomeAddressOnly {
+					s.Log.Emit(events.Event{Event: events.StepWarn, App: info.ID, Step: "access", Msg: homeAddressRestriction(info)})
+				}
 				st := ss.state.Apps[info.ID]
 				if st == nil {
 					st = &project.AppState{Setup: stepstatus.SetupPending, Recipe: recipes[info.ID]}
