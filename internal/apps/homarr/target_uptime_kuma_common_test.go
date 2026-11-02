@@ -43,6 +43,7 @@ func TestUptimeKumaCapabilityOnlyFallsBackOnExactNumericAbsence(t *testing.T) {
 		{"rate limit", 429, uptimeKumaMissingProcedure(proc), "", 0, 1},
 		{"redirect", 302, nil, "private upstream details", 0, 1},
 		{"unknown not found", 404, nil, `{"error":{"json":{"code":-32004,"message":"private upstream details"}}}`, 0, 1},
+		{"different procedure", 404, uptimeKumaMissingProcedure("different.procedure"), "", 0, 1},
 		{"string code", 404, nil, `{"error":{"json":{"code":"NOT_FOUND"}}}`, 0, 1},
 		{"malformed", 404, nil, "private upstream details", 0, 1},
 		{"null result", 200, nil, `{"result":{"data":{"json":null}}}`, 0, 1},

@@ -791,7 +791,9 @@ func (t target) addWidgets(ctx context.Context, h, to *helpers.H, boardID, integ
 			}
 			continue
 		}
-		if hasWidget(items, w.kind, integrationID) {
+		if hasWidget(items, w.kind, integrationID) && (len(w.managedOptions) == 0 || slices.ContainsFunc(items, func(item map[string]any) bool {
+			return owned[stringField(item, "id")] && wiredTo(item, w.kind, integrationID)
+		})) {
 			continue
 		}
 		options := widgetOptions(w, integrationID)
@@ -948,11 +950,17 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 	if rawOwnership == "" {
 		return false, nil
 	}
-	if _, err := ownedWidgets(from, integrationID); err != nil {
+	owned, err := ownedWidgets(from, integrationID)
+	if err != nil {
 		return false, err
 	}
 	items := itemsOf(current)
 	for _, w := range t.widgets {
+		if len(w.managedOptions) > 0 && !slices.ContainsFunc(items, func(item map[string]any) bool {
+			return owned[stringField(item, "id")] && wiredTo(item, w.kind, integrationID)
+		}) {
+			return false, nil
+		}
 		if sharedWidget(w.kind) {
 			ready, err := sharedWidgetCurrent(from, current, w, integrationID)
 			if err != nil || !ready {
