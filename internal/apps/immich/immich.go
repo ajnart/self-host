@@ -195,7 +195,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	return h.Step(ctx, "homarr-key", "prepare read-only Immich statistics", helpers.StepSpec{
 		Check:      func(ctx context.Context) (bool, error) { return homarrKeyWorks(ctx, h) },
 		Do:         func(ctx context.Context) error { return createHomarrKey(ctx, h) },
-		Hint:       "Run self-host setup immich to verify or recover its Homarr credential. Retain IMMICH_HOMARR_API_KEY_PENDING and any saved key/ID; do not clear evidence to reissue a key. Review Immich user settings > API Keys and restore only independently verified matching credentials through the Project secret boundary, then retry. Never delete or adopt a key solely by its name.",
+		Hint:       homarrKeyRecovery(h),
 		Credential: "admin",
 	})
 }

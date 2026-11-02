@@ -26,6 +26,7 @@ type apiKey struct {
 type homarrKeyEvidence struct {
 	Secret   string `json:"secret"`
 	Response string `json:"response,omitempty"`
+	Status   int    `json:"status"`
 }
 
 func issuedHomarrSecret(body []byte) string {
@@ -65,8 +66,12 @@ func validateHomarrKey(key apiKey) error {
 	return nil
 }
 
+func homarrKeyRecovery(h *helpers.H) string {
+	return "Open " + h.URL + " and review user settings > API Keys. Preserve pending evidence and saved credentials in a private recovery copy. Reconcile the remote issuance and independently verify the Project administrator, key ID and exact user.read/server.statistics permissions. Restore the confirmed matching IMMICH_HOMARR_API_KEY and IMMICH_HOMARR_API_KEY_ID through the Project secret boundary. Only after explicitly approving that reconciliation, remove IMMICH_HOMARR_API_KEY_PENDING in the same private edit, retaining the original evidence privately, then run self-host setup immich. Never clear a hold without confirmed credentials to trigger issuance, or delete/adopt a key solely by its name."
+}
+
 func manualHomarrKey(h *helpers.H, reason string) error {
-	h.Info(reason + " Open " + h.URL + " and review user settings > API Keys. Retain IMMICH_HOMARR_API_KEY_PENDING and the saved key/ID as recovery evidence; do not clear them to issue another key. Restore only an independently verified matching IMMICH_HOMARR_API_KEY and IMMICH_HOMARR_API_KEY_ID through the Project secret boundary, then run self-host setup immich. Delete a key only after confirming it belongs to this Project, never solely by its name.")
+	h.Info(reason + " " + homarrKeyRecovery(h))
 	return helpers.ErrManual
 }
 
@@ -98,6 +103,9 @@ func recoverPendingHomarrKey(ctx context.Context, h *helpers.H, pending string) 
 		return false, manualHomarrKey(h, "Immich key issuance has unresolved pending evidence; no replacement was issued.")
 	}
 	h.Log.Secret(evidence.Secret)
+	if evidence.Status != http.StatusCreated {
+		return false, manualHomarrKey(h, "Immich did not confirm successful issuance; its returned secret and response were preserved for review.")
+	}
 	if active := h.Secret(h.Key("homarr_api_key")); active != "" && active != evidence.Secret {
 		return false, manualHomarrKey(h, "A pending Immich key differs from the saved credential; both records were preserved.")
 	}
@@ -278,10 +286,7 @@ func createHomarrKey(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
-	if resp.Status != http.StatusCreated {
-		return fmt.Errorf("Immich API-key creation returned HTTP %d", resp.Status)
-	}
-	evidence := homarrKeyEvidence{Secret: issuedHomarrSecret(resp.Body), Response: string(resp.Body)}
+	evidence := homarrKeyEvidence{Secret: issuedHomarrSecret(resp.Body), Response: string(resp.Body), Status: resp.Status}
 	h.Log.Secret(evidence.Secret, evidence.Response)
 	pending, err := json.Marshal(evidence)
 	if err != nil {
