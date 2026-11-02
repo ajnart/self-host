@@ -22,6 +22,17 @@ var ErrStepFailed = errors.New("setup step failed")
 // ErrManual marks a step that needs a person to finish or verify it.
 var ErrManual = errors.New("manual step")
 
+type ManualError struct{ Hint string }
+
+func (e *ManualError) Error() string {
+	if e.Hint == "" {
+		return ErrManual.Error()
+	}
+	return e.Hint + ": " + ErrManual.Error()
+}
+
+func (*ManualError) Unwrap() error { return ErrManual }
+
 type Secrets interface {
 	Get(key string) string
 	Set(key, value string) error
@@ -172,6 +183,10 @@ func (h *H) Step(ctx context.Context, id, msg string, spec StepSpec) error {
 
 func (h *H) fail(id, msg string, spec StepSpec, err error) error {
 	if errors.Is(err, ErrManual) {
+		var manual *ManualError
+		if errors.As(err, &manual) && manual.Hint != "" {
+			spec.Hint = manual.Hint
+		}
 		h.Log.Emit(events.Event{Event: events.StepManual, App: h.App, Step: id, Msg: msg,
 			URL: h.URL, Credential: spec.Credential, Hint: spec.Hint})
 		h.Record(StepResult{ID: id, Status: status.StepManual, Msg: msg, Hint: spec.Hint})

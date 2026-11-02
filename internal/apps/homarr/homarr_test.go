@@ -2158,7 +2158,7 @@ func TestInvalidWidgetOwnershipFailsWithoutDeletingUserWidgets(t *testing.T) {
 		if event.Event == events.StepManual && event.Step == "unlink-sonarr" {
 			manual = true
 		}
-		if event.Event == events.Info && strings.Contains(event.Msg, key) && strings.Contains(event.Msg, "{} to preserve all existing widgets") {
+		if event.Event == events.Info && strings.Contains(event.Msg, key) && strings.Contains(event.Msg, "empty JSON object to preserve all existing widgets") {
 			actionable = true
 		}
 	}

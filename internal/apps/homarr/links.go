@@ -516,9 +516,9 @@ func widgetOwnership(h *helpers.H, integrationID string, widgets []widget, items
 		owned[stringField(item, "id")] = true
 	}
 	if matching && (!complete || !stats) {
-		hint := fmt.Sprintf("legacy Homarr widget ownership is ambiguous; review Home widgets and save confirmed owned widget IDs as a JSON object in %s (use {} to preserve all existing widgets), then run self-host setup homarr", key)
+		hint := fmt.Sprintf("legacy Homarr widget ownership is ambiguous; review Home widgets and save confirmed owned widget IDs as a JSON object in %s (use an empty JSON object to preserve all existing widgets), then run self-host setup homarr", key)
 		h.Info(hint)
-		return nil, fmt.Errorf("%s: %w", hint, helpers.ErrManual)
+		return nil, &helpers.ManualError{Hint: hint}
 	}
 	raw, _ := json.Marshal(owned)
 	if err := h.SetSecret(key, string(raw)); err != nil {

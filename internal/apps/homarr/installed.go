@@ -130,7 +130,7 @@ func installedTiles(ctx context.Context, h *helpers.H, apply bool) (bool, error)
 					}
 					hint := fmt.Sprintf("Homarr has ambiguous %s App ownership; preserve existing Apps and tiles. Review %s through the Project secret boundary and record only explicitly confirmed owned App IDs, or create a separate App with description %q to preserve all existing Apps, then run self-host setup homarr", t.name, h.Key("app_ids"), installedTileMarker+t.id)
 					h.Info(hint)
-					return false, fmt.Errorf("%s: %w", hint, helpers.ErrManual)
+					return false, &helpers.ManualError{Hint: hint}
 				}
 				marker = installedTileMarker + t.id
 				adopt = true
