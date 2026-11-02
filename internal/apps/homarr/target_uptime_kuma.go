@@ -33,16 +33,17 @@ func uptimeKumaTargetForFamily(family uptimeKumaNativeFamily) target {
 			"showHeartbeatBar": true, "showUptime": true, "showResponseTime": true, "showCertificateExpiry": true,
 		}
 	}
+	defaults := make([]string, 0, len(options))
+	for key := range options {
+		defaults = append(defaults, key)
+	}
+	slices.Sort(defaults)
 	descriptor := target{
 		id: "uptime-kuma", name: "Uptime Kuma", kind: "uptimeKuma", internal: fixed("http://uptime-kuma:3001"),
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "slug", Value: uptimekuma.HomarrSlug(to)}}
 		},
-		widgets: []widget{{kind: "uptimeKuma", options: options, managedOptions: []string{
-			"showAverageUptime", "showUptimeRing", "showTotalMonitors", "showUpCount", "showDownCount", "showPausedCount",
-			"statusPageSlug", "summaryOnly", "showSummary", "showIncidents", "groupByStatusPageGroup", "showOnlyProblems",
-			"sortBy", "showHeartbeatBar", "showUptime", "showResponseTime", "showCertificateExpiry",
-		}}, statWidget("totalMonitors", "upCount", "downCount", "averageUptimePercent")},
+		widgets: []widget{{kind: "uptimeKuma", options: options, managedOptions: []string{"statusPageSlug"}, defaultOptions: defaults}, statWidget("totalMonitors", "upCount", "downCount", "averageUptimePercent")},
 		verify: func(ctx context.Context, from, to *helpers.H, integrationID string) error {
 			return verifyUptimeKuma(ctx, from, to, integrationID, family)
 		},
@@ -55,10 +56,38 @@ func uptimeKumaTargetForFamily(family uptimeKumaNativeFamily) target {
 	return descriptor
 }
 
+func admitUptimeKumaSetup(ctx context.Context, from *helpers.H) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if from.InstalledApps != nil {
+		installed, err := from.InstalledApps(ctx)
+		if err != nil {
+			return uptimeKumaCapabilityManual()
+		}
+		if !slices.ContainsFunc(installed, func(peer helpers.InstalledApp) bool { return peer.ID == "uptime-kuma" }) {
+			return nil
+		}
+	}
+	to := from.Peer("uptime-kuma")
+	if to == nil && from.InstalledApps == nil {
+		return nil
+	}
+	return from.Step(ctx, "uptime-kuma-admission", "verify Uptime Kuma before changing Homarr", helpers.StepSpec{
+		Do: func(ctx context.Context) error {
+			if to == nil {
+				return uptimeKumaCapabilityManual()
+			}
+			_, err := prepareUptimeKuma(ctx, from, to)
+			return err
+		},
+		Hint: "Preserve Uptime Kuma's selected page and existing Homarr resources. Review the recorded owned native contract before retrying self-host setup homarr; first install and reinstall remain Manual without a safe read-only admission proof.",
+	})
+}
+
 func prepareUptimeKuma(ctx context.Context, from, to *helpers.H) (target, error) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	if _, err := uptimekuma.HomarrMonitors(ctx, to); err != nil {
+	if _, err := uptimekuma.HomarrStatusPage(ctx, to); err != nil {
 		return target{}, &helpers.ManualError{Hint: "Run self-host setup uptime-kuma to verify its explicitly selected existing public status page, then retry self-host setup homarr. Preserve the page, monitors and Access; do not publish monitors or add a metrics key."}
 	}
 	if err := validateOwnership(from); err != nil {
@@ -102,14 +131,52 @@ func prepareUptimeKuma(ctx context.Context, from, to *helpers.H) (target, error)
 	if err != nil {
 		return target{}, uptimeKumaCapabilityManual()
 	}
+	owned, err := ownedWidgets(from, id)
+	if err != nil {
+		return target{}, err
+	}
+	for _, item := range itemsOf(current) {
+		if !owned[stringField(item, "id")] || !wiredTo(item, "uptimeKuma", id) {
+			continue
+		}
+		options, ok := item["options"].(map[string]any)
+		if !ok || !uptimeKumaValidDisplayOptions(options, descriptor.widgets[0].defaultOptions) {
+			return target{}, &helpers.ManualError{Hint: "Preserve the edited owned Uptime Kuma widget and review its invalid display options before retrying self-host setup homarr. Valid manual display choices are not reset automatically."}
+		}
+	}
 	if _, err := descriptor.reconcileOwnedOptions(ctx, from, current, id, false); err != nil {
 		return target{}, err
 	}
 	return descriptor, nil
 }
 
+func uptimeKumaValidDisplayOptions(options map[string]any, keys []string) bool {
+	for _, key := range keys {
+		value, present := options[key]
+		if !present {
+			continue
+		}
+		if key == "sortBy" {
+			order, ok := value.(string)
+			if !ok || !slices.Contains([]string{"status", "statusPage", "name", "uptime"}, order) {
+				return false
+			}
+		} else if _, ok := value.(bool); !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func verifyUptimeKuma(ctx context.Context, from, to *helpers.H, integrationID string, family uptimeKumaNativeFamily) error {
-	monitors, err := uptimekuma.HomarrMonitors(ctx, to)
+	var monitors []uptimekuma.HomarrMonitor
+	var page *uptimekuma.HomarrPage
+	var err error
+	if family == uptimeKumaStatusPages {
+		page, err = uptimekuma.HomarrStatusPage(ctx, to)
+	} else {
+		monitors, err = uptimekuma.HomarrMonitors(ctx, to)
+	}
 	if err != nil {
 		return &helpers.ManualError{Hint: "Run self-host setup uptime-kuma to verify the explicitly selected existing public status page, then retry self-host setup homarr. Preserve its monitors and Access; do not publish a page or add a metrics key."}
 	}
@@ -122,7 +189,7 @@ func verifyUptimeKuma(ctx context.Context, from, to *helpers.H, integrationID st
 		return errors.New("Homarr could not verify the selected Uptime Kuma native data; review its authentication and resolved API contract, then retry Setup")
 	}
 	if family == uptimeKumaStatusPages {
-		return verifyUptimeKumaStatusPage(from, to, integrationID, value, monitors)
+		return verifyUptimeKumaStatusPage(from, to, integrationID, value, page)
 	}
 	return verifyUptimeKumaDashboard(from, integrationID, value, monitors)
 }
@@ -225,11 +292,12 @@ type uptimeKumaNativeMonitor struct {
 	Heartbeats  *[]uptimeKumaNativeHeartbeat  `json:"heartbeats"`
 }
 
-func verifyUptimeKumaStatusPage(from, to *helpers.H, integrationID string, value any, expected []uptimekuma.HomarrMonitor) error {
+func verifyUptimeKumaStatusPage(from, to *helpers.H, integrationID string, value any, expected *uptimekuma.HomarrPage) error {
 	var results []struct {
-		IntegrationID  string `json:"integrationId"`
-		IntegrationURL string `json:"integrationUrl"`
-		Error          any    `json:"error"`
+		IntegrationID  string  `json:"integrationId"`
+		IntegrationURL string  `json:"integrationUrl"`
+		Error          any     `json:"error"`
+		UpdatedAt      *string `json:"updatedAt"`
 		StatusPage     *struct {
 			Title  *string `json:"title"`
 			URL    *string `json:"url"`
@@ -248,21 +316,25 @@ func verifyUptimeKumaStatusPage(from, to *helpers.H, integrationID string, value
 		return invalid
 	}
 	page := results[0].StatusPage
-	if page == nil || page.Title == nil || strings.TrimSpace(*page.Title) == "" || page.URL == nil || page.Groups == nil || page.Incidents == nil || page.Maintenances == nil {
+	if expected == nil || expected.Slug != uptimekuma.HomarrSlug(to) || page == nil || page.Title == nil || strings.TrimSpace(*page.Title) == "" || page.URL == nil || page.Groups == nil || page.Incidents == nil || page.Maintenances == nil || results[0].UpdatedAt == nil {
+		return invalid
+	}
+	sampledAt, err := time.Parse(time.RFC3339Nano, *results[0].UpdatedAt)
+	if err != nil || sampledAt.UnixMilli() <= 0 {
 		return invalid
 	}
 	address, err := url.Parse(*page.URL)
 	if err != nil || address.Host == "" || address.User != nil || !slices.Contains([]string{"http", "https"}, address.Scheme) || address.EscapedPath() != "/status/"+url.PathEscape(uptimekuma.HomarrSlug(to)) || address.RawQuery != "" || address.Fragment != "" {
 		return invalid
 	}
-	remaining := map[int64]int{}
-	names := map[int64]string{}
-	for _, monitor := range expected {
-		if name, found := names[monitor.ID]; found && name != monitor.Name {
-			return invalid
-		}
-		names[monitor.ID] = monitor.Name
-		remaining[monitor.ID]++
+	expectedGroups := map[int64]uptimekuma.HomarrGroup{}
+	total := 0
+	for _, group := range expected.Groups {
+		expectedGroups[group.ID] = group
+		total += len(group.Monitors)
+	}
+	if len(*page.Groups) != len(expectedGroups) {
+		return invalid
 	}
 	seen := map[int64]uptimeKumaNativeMonitor{}
 	groups := map[int64]bool{}
@@ -271,8 +343,18 @@ func verifyUptimeKumaStatusPage(from, to *helpers.H, integrationID string, value
 			return invalid
 		}
 		groups[*group.ID] = true
+		source, found := expectedGroups[*group.ID]
+		if !found || source.Name != *group.Name || len(source.Monitors) != len(*group.Monitors) {
+			return invalid
+		}
+		remaining := map[int64]int{}
+		names := map[int64]string{}
+		for _, monitor := range source.Monitors {
+			names[monitor.ID] = monitor.Name
+			remaining[monitor.ID]++
+		}
 		for _, monitor := range *group.Monitors {
-			if monitor.ID == nil || monitor.Name == nil || remaining[*monitor.ID] == 0 || names[*monitor.ID] != *monitor.Name || !uptimeKumaValidMonitor(monitor) {
+			if monitor.ID == nil || monitor.Name == nil || remaining[*monitor.ID] == 0 || names[*monitor.ID] != *monitor.Name || !uptimeKumaValidMonitor(monitor, sampledAt.UnixMilli()) {
 				return invalid
 			}
 			if previous, found := seen[*monitor.ID]; found && !reflect.DeepEqual(previous, monitor) {
@@ -281,19 +363,19 @@ func verifyUptimeKumaStatusPage(from, to *helpers.H, integrationID string, value
 			seen[*monitor.ID] = monitor
 			remaining[*monitor.ID]--
 		}
-	}
-	for _, count := range remaining {
-		if count != 0 {
-			return invalid
+		for _, count := range remaining {
+			if count != 0 {
+				return invalid
+			}
 		}
 	}
-	if len(expected) == 0 {
+	if total == 0 {
 		from.Info("The selected Uptime Kuma status page is valid but empty; no monitor health or rendered widget result has been verified.")
 	}
 	return nil
 }
 
-func uptimeKumaValidMonitor(monitor uptimeKumaNativeMonitor) bool {
+func uptimeKumaValidMonitor(monitor uptimeKumaNativeMonitor, sampledAt int64) bool {
 	if monitor.Status == nil || !slices.Contains([]string{"up", "down", "pending", "maintenance", "stale", "unknown"}, *monitor.Status) || monitor.Tags == nil || monitor.Heartbeats == nil || len(*monitor.Heartbeats) > 50 {
 		return false
 	}
@@ -303,6 +385,9 @@ func uptimeKumaValidMonitor(monitor uptimeKumaNativeMonitor) bool {
 	}
 	lastCheck, hasCheck, valid := uptimeKumaNullableNumber(monitor.LastCheck)
 	if !valid || hasCheck && (lastCheck <= 0 || math.Trunc(lastCheck) != lastCheck) || hasUptime && !hasCheck {
+		return false
+	}
+	if hasUptime && float64(sampledAt)-lastCheck > float64((24*time.Hour)/time.Millisecond) {
 		return false
 	}
 	since, hasSince, valid := uptimeKumaNullableNumber(monitor.StatusSince)

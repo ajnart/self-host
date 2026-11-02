@@ -19,6 +19,8 @@ type uptimeKumaContractFixture struct {
 	family       uptimeKumaNativeFamily
 	results      []any
 	pageMonitors []any
+	pageGroups   []any
+	heartbeat    map[string]any
 	stats        *statsFixture
 	items        []any
 	apps         []any
@@ -57,6 +59,7 @@ func uptimeKumaNewContractFixture(t *testing.T, family uptimeKumaNativeFamily) (
 		family: family, stats: uptimeKumaStatsFixture(),
 		pageMonitors: []any{map[string]any{"id": 1, "name": "Chosen first"}, map[string]any{"id": 2, "name": "Chosen second"}},
 		integrations: []any{map[string]any{"id": "kuma-owned", "kind": "uptimeKuma", "url": "http://uptime-kuma:3001"}},
+		heartbeat:    map[string]any{"heartbeatList": map[string]any{"1": []any{map[string]any{"status": 1, "time": "2026-10-13 12:00:00"}}, "2": []any{}}, "uptimeList": map[string]any{"1_24": 0.99}},
 	}
 	f.stats.keepValues = true
 	result := map[string]any{"integrationId": "kuma-owned", "integrationUrl": "http://uptime-kuma:3001", "error": nil, "updatedAt": "2026-11-02T12:00:00.000Z"}
@@ -77,9 +80,13 @@ func uptimeKumaNewContractFixture(t *testing.T, family uptimeKumaNativeFamily) (
 		}
 		switch r.URL.Path {
 		case "/api/status-page/chosen-page":
-			json.NewEncoder(w).Encode(map[string]any{"config": map[string]any{"slug": "chosen-page"}, "publicGroupList": []any{map[string]any{"id": 7, "name": "Chosen group", "monitorList": f.pageMonitors}}})
+			groups := f.pageGroups
+			if groups == nil {
+				groups = []any{map[string]any{"id": 7, "name": "Chosen group", "monitorList": f.pageMonitors}}
+			}
+			json.NewEncoder(w).Encode(map[string]any{"config": map[string]any{"slug": "chosen-page"}, "publicGroupList": groups})
 		case "/api/status-page/heartbeat/chosen-page":
-			w.Write([]byte(`{"heartbeatList":{"1":[{"status":1,"time":"2026-10-13 12:00:00"}],"2":[]},"uptimeList":{"1_24":0.99}}`))
+			json.NewEncoder(w).Encode(f.heartbeat)
 		default:
 			t.Errorf("unselected peer path %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -310,7 +317,11 @@ func TestUptimeKumaModernNativeSemantics(t *testing.T) {
 			p["groups"].([]any)[0].(map[string]any)["monitors"] = append(uptimeKumaModernMonitors(p), duplicate)
 			f.pageMonitors = append(f.pageMonitors, f.pageMonitors[0])
 		}, false},
-		{"empty selected page", func(p map[string]any, f *uptimeKumaContractFixture) { p["groups"] = []any{}; f.pageMonitors = []any{} }, true},
+		{"empty selected page", func(p map[string]any, f *uptimeKumaContractFixture) {
+			p["groups"] = []any{}
+			f.pageMonitors = []any{}
+			f.pageGroups = []any{}
+		}, true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			f, from, to := uptimeKumaNewContractFixture(t, uptimeKumaStatusPages)
@@ -417,6 +428,7 @@ func TestUptimeKumaModernStatsEmptyAndIndependentSamples(t *testing.T) {
 			f, from, to := uptimeKumaNewContractFixture(t, uptimeKumaStatusPages)
 			if scenario.empty {
 				f.pageMonitors = []any{}
+				f.pageGroups = []any{}
 				f.results[0].(map[string]any)["statusPage"].(map[string]any)["groups"] = []any{}
 				f.stats.values = map[string]any{"totalMonitors": float64(0), "upCount": float64(0), "downCount": float64(0)}
 			} else {

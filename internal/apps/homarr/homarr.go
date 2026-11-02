@@ -415,6 +415,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := validateOwnership(h); err != nil {
 		return ownershipRecovery(err)
 	}
+	if err := admitUptimeKumaSetup(ctx, h); err != nil {
+		return err
+	}
 	if err := h.Ready(ctx, "/api/health/live", helpers.Timeout(2*time.Minute)); err != nil {
 		return err
 	}

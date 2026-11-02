@@ -35,6 +35,7 @@ type widget struct {
 	metrics        []string
 	bind           func(ctx context.Context, to *helpers.H, integrationID string) (map[string]any, error)
 	managedOptions []string
+	defaultOptions []string
 }
 
 func plain(kind string) widget { return widget{kind: kind, options: map[string]any{}} }
@@ -420,6 +421,11 @@ func widgetCurrent(item map[string]any, w widget, integrationID string) bool {
 				return false
 			}
 		}
+		for _, key := range w.defaultOptions {
+			if _, present := options[key]; !present {
+				return false
+			}
+		}
 		return true
 	}
 	options, _ := item["options"].(map[string]any)
@@ -472,6 +478,11 @@ func (t target) reconcileOwnedOptions(ctx context.Context, h *helpers.H, current
 				delete(updated, key)
 				if value, present := w.options[key]; present {
 					updated[key] = value
+				}
+			}
+			for _, key := range w.defaultOptions {
+				if _, present := updated[key]; !present {
+					updated[key] = w.options[key]
 				}
 			}
 			replacement := maps.Clone(item)
