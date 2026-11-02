@@ -61,12 +61,6 @@ func New(t *testing.T, cat *catalog.Catalog) *Env {
 		Seerr:       NewSeerr(),
 		servers:     map[string]*httptest.Server{},
 	}
-	owner, err := e.Deps.CurrentUser()
-	if err != nil {
-		t.Fatal(err)
-	}
-	owner.UID, owner.GID = os.Geteuid(), os.Getegid()
-	e.Deps.WithAccounts(systemtest.NewAccounts(owner))
 	e.arrs = map[string]*Arr{"sonarr": e.Sonarr, "radarr": e.Radarr, "prowlarr": e.Prowlarr}
 	e.Serve("qbittorrent", e.QBittorrent.Handler())
 	for id, arr := range e.arrs {
