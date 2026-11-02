@@ -1,0 +1,26 @@
+docs/catalog/traps/miniflux.md
+  h_d6e478ca18e517 3,5-8,76,84-87,89-135,156-158
+internal/apps/homarr/target_miniflux.go
+  h_d6e478ca18e517 1-64
+internal/apps/homarr/target_miniflux_test.go
+  h_d6e478ca18e517 1-201
+internal/apps/miniflux/homarr.go
+  h_d6e478ca18e517 1-339
+internal/apps/miniflux/homarr_test.go
+  h_d6e478ca18e517 1-421
+internal/apps/miniflux/miniflux.go
+  h_d6e478ca18e517 17-22,38,42-48,99,116-130,141-143,162-164,190-197,200-205,207-210,213,216
+internal/apps/miniflux/miniflux_test.go
+  h_d6e478ca18e517 120,123-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79ecbc00fb347e47a6b7ba7655dffbb93ac24f7a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
