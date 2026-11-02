@@ -1,0 +1,20 @@
+docs/catalog/traps/karakeep.md
+  h_d6e478ca18e517 1-111
+internal/apps/karakeep/karakeep.go
+  h_d6e478ca18e517 1-124
+internal/apps/karakeep/karakeep_test.go
+  h_d6e478ca18e517 1-430
+internal/apps/karakeep/owner.go
+  h_d6e478ca18e517 1-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4fc48b4f52c5aa29c49c0f37fa44c50c348f7bf7",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
