@@ -53,7 +53,12 @@ Setup waits for the backend, then signs in using the shared Admin login through
 `POST /_allauth/app/v1/auth/login`. It requires a positive authenticated envelope,
 the expected username, a real account ID and a session token. The temporary token
 is registered for redaction and used only in `X-Session-Token` headers, never as a
-Homarr API key or persisted credential.
+Homarr API key or persisted credential. A successful temporary session is reused
+only within the existing helpers operation using `h.Remember`; failed sign-ins
+are not remembered. Setup and Check still reread identity and Space metadata on
+every verification. A new operation authenticates afresh. This avoids exhausting
+the pinned allauth login quota of three attempts per minute per address, including
+successful logins. HTTP 429 requests a wait and Setup retry, not account repair.
 
 Read-only `GET /api/user-space/all_personal/` verifies that every returned
 membership belongs to that authenticated, active superuser and that exactly one

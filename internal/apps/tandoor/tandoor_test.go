@@ -139,7 +139,7 @@ func TestTandoorExistingOwnerAndSpacesAreVerifiedWithoutMutation(t *testing.T) {
 	if secrets.writes != 0 || !reflect.DeepEqual(before, secrets.values) {
 		t.Fatal("verification changed persisted credentials")
 	}
-	if len(fixture.requests) != 14 {
+	if len(fixture.requests) != 11 || tandoorLogins(fixture) != 1 {
 		t.Fatalf("unexpected verification request count: %d", len(fixture.requests))
 	}
 	if (*results)[len(*results)-1].Status != status.StepSkip {
@@ -149,6 +149,71 @@ func TestTandoorExistingOwnerAndSpacesAreVerifiedWithoutMutation(t *testing.T) {
 		if strings.Contains(output.String(), private) {
 			t.Fatal("verification exposed private material")
 		}
+	}
+}
+
+func tandoorLogins(fixture *tandoorFixture) int {
+	count := 0
+	for _, request := range fixture.requests {
+		if request == "POST /_allauth/app/v1/auth/login" {
+			count++
+		}
+	}
+	return count
+}
+
+func TestTandoorSessionReuseKeepsMetadataFreshAndIsOperationLocal(t *testing.T) {
+	fixture := newTandoorFixture()
+	h, _, _, _ := tandoorHarness(t, fixture)
+	if err := (tandoor.App{}).Setup(t.Context(), h); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := (tandoor.App{}).Check(t.Context(), h); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tandoorLogins(fixture) != 1 {
+		t.Fatal("unchanged verification created another session")
+	}
+	fixture.space = strings.ReplaceAll(fixture.space, `"id":31`, `"id":44`)
+	if err := (tandoor.App{}).Check(t.Context(), h); !errors.Is(err, helpers.ErrManual) || tandoorLogins(fixture) != 1 {
+		t.Fatalf("cached session hid changed Space metadata: %v", err)
+	}
+	fresh := helpers.New(h.Config)
+	if err := (tandoor.App{}).Check(t.Context(), fresh); !errors.Is(err, helpers.ErrManual) || tandoorLogins(fixture) != 2 {
+		t.Fatalf("new operation did not authenticate and read current metadata: %v", err)
+	}
+}
+
+func TestTandoorFailedLoginIsNotRemembered(t *testing.T) {
+	fixture := newTandoorFixture()
+	fixture.statuses["/_allauth/app/v1/auth/login"] = 401
+	h, _, _, _ := tandoorHarness(t, fixture)
+	if err := (tandoor.App{}).Check(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+		t.Fatal(err)
+	}
+	delete(fixture.statuses, "/_allauth/app/v1/auth/login")
+	if err := (tandoor.App{}).Check(t.Context(), h); err != nil || tandoorLogins(fixture) != 2 {
+		t.Fatalf("failed login was remembered: %v", err)
+	}
+}
+
+func TestTandoorThrottleHasRetryHintInsteadOfAccountRepair(t *testing.T) {
+	for _, path := range []string{"/_allauth/app/v1/auth/login", "/api/user-space/all_personal/", "/api/space/current/"} {
+		t.Run(path, func(t *testing.T) {
+			fixture := newTandoorFixture()
+			fixture.statuses[path] = http.StatusTooManyRequests
+			h, _, _, results := tandoorHarness(t, fixture)
+			err := (tandoor.App{}).Setup(t.Context(), h)
+			var manual *helpers.ManualError
+			if !errors.As(err, &manual) || !strings.Contains(manual.Hint, "HTTP 429") || !strings.Contains(manual.Hint, "Wait at least one minute") || strings.Contains(manual.Hint, "recover the existing account") {
+				t.Fatalf("incorrect throttle recovery: %v", err)
+			}
+			if len(*results) != 2 || (*results)[1].Hint != manual.Hint {
+				t.Fatal("recorded throttle lost its retry hint")
+			}
+		})
 	}
 }
 

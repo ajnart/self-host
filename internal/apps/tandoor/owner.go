@@ -12,6 +12,8 @@ import (
 
 const ownerRecoveryHint = "Open Tandoor and verify the intended administrator using the Admin login shown privately by self-host credentials. For a known new installation, create the first administrator in Tandoor's setup page yourself; otherwise recover the existing account explicitly. Finish any email verification or MFA without disabling it. Select an existing Space owned by that administrator, then run self-host setup tandoor. Setup never creates accounts or Spaces, resets passwords, switches Spaces or issues API tokens."
 
+const throttleHint = "Tandoor rate-limited verification (HTTP 429). Wait at least one minute for its quota to reset, then retry self-host setup tandoor. Keep existing accounts, Spaces and credentials unchanged."
+
 type account struct {
 	ID          int64  `json:"id"`
 	Username    string `json:"username"`
@@ -24,6 +26,31 @@ func (a account) matches(id int64, username string) bool {
 }
 
 func ownerSession(ctx context.Context, h *helpers.H) (string, int64, error) {
+	value, err := h.Remember("tandoor-owner-session", func() (string, error) {
+		token, id, err := loginOwner(ctx, h)
+		if err != nil {
+			return "", err
+		}
+		body, err := json.Marshal(struct {
+			Token string
+			ID    int64
+		}{Token: token, ID: id})
+		return string(body), err
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	var session struct {
+		Token string
+		ID    int64
+	}
+	if json.Unmarshal([]byte(value), &session) != nil {
+		return "", 0, errors.New("Tandoor temporary session could not be read")
+	}
+	return session.Token, session.ID, nil
+}
+
+func loginOwner(ctx context.Context, h *helpers.H) (string, int64, error) {
 	if h.AdminUser() == "" || h.AdminPassword() == "" {
 		return "", 0, &helpers.ManualError{Hint: ownerRecoveryHint}
 	}
@@ -34,6 +61,9 @@ func ownerSession(ctx context.Context, h *helpers.H) (string, int64, error) {
 	})
 	if err != nil {
 		return "", 0, errors.New("Tandoor administrator sign-in request failed")
+	}
+	if resp.Status == http.StatusTooManyRequests {
+		return "", 0, &helpers.ManualError{Hint: throttleHint}
 	}
 	if resp.Status >= 300 && resp.Status < 500 {
 		return "", 0, &helpers.ManualError{Hint: ownerRecoveryHint}
@@ -72,6 +102,9 @@ func ownerRead(ctx context.Context, h *helpers.H, token, path string, value any)
 		return errors.New("Tandoor administrator and Space verification request failed")
 	}
 	if resp.Status != http.StatusOK {
+		if resp.Status == http.StatusTooManyRequests {
+			return &helpers.ManualError{Hint: throttleHint}
+		}
 		if resp.Status >= 300 && resp.Status < 500 {
 			return &helpers.ManualError{Hint: ownerRecoveryHint}
 		}
