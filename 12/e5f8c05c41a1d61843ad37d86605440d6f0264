@@ -1,0 +1,28 @@
+docs/catalog/traps/tandoor.md
+  h_d6e478ca18e517 5-10,77-80,88,92-97,99-120,125-138
+internal/apps/homarr/target_tandoor.go
+  h_d6e478ca18e517 1-78
+internal/apps/homarr/target_tandoor_test.go
+  h_d6e478ca18e517 1-202
+internal/apps/tandoor/homarr.go
+  h_d6e478ca18e517 1-290
+internal/apps/tandoor/homarr_test.go
+  h_d6e478ca18e517 1-281
+internal/apps/tandoor/owner.go
+  h_d6e478ca18e517 13,98-101,103,113,128-139,149-150,156,163,172,177,183-184,187,189
+internal/apps/tandoor/tandoor.go
+  h_d6e478ca18e517 127,134,141-150,154-159
+internal/apps/tandoor/tandoor_test.go
+  h_d6e478ca18e517 5-6,16,29-30,36-38,40,45-58,72-73,81,99-100,109-145,168-170,174,201,207,416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "12e5f8c05c41a1d61843ad37d86605440d6f0264",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
