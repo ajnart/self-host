@@ -160,6 +160,7 @@ func createHomarrToken(ctx context.Context, h *helpers.H) error {
 		JSON:       map[string]any{"label": "homarr", "expires": 0},
 	})
 	if err != nil {
+		h.Info("ntfy Homarr token issuance failed: " + err.Error())
 		return pendingHomarrToken(h)
 	}
 	var issued issuedToken
