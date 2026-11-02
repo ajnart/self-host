@@ -1,10 +1,11 @@
 # Miniflux traps
 
-## Source-only App slice
+## Source-only App and connector
 
-This initial #166 slice supplies the real App and PostgreSQL definition plus
-read-only verification of an existing reader. It does not implement automatic
-bootstrap, Homarr token issuance, a native Homarr Link or runtime acceptance.
+This #166 slice supplies the real App and PostgreSQL definition, read-only
+verification of an existing reader, App-owned Homarr credential issuance and a
+native Homarr leaf. Automatic account bootstrap remains explicitly Manual.
+It does not establish runtime acceptance.
 Catalog registration, generated site/DCM data and shared metadata remain with
 the coordinating integration lane.
 
@@ -72,7 +73,7 @@ the coordinating integration lane.
   or entry read/unread status. Redirects are refused for authenticated requests.
   Raw response bodies and credentials are not included in diagnostics.
 
-## Pending Homarr connector
+## Homarr credential and native data contract
 
 - Homarr's exact `miniflux` kind requires `apiKey` and supports Stats only:
   `read` and `unread`, both unit `count`. These are stored read/unread entries
@@ -80,15 +81,58 @@ the coordinating integration lane.
 - Miniflux tokens use `X-Auth-Token` and inherit their account's full privileges;
   upstream has no read-only token scope. An explicitly intended non-admin reader
   can supply Stats, but creating a different empty account changes the data's
-  meaning and is not a least-privilege substitute for the intended reader.
+  meaning and is not a least-privilege substitute for the intended reader. This
+  implementation deliberately selects the same recorded administrator reader;
+  it requires that exact ID, username and explicit administrator authorization
+  through both the App token and Homarr's saved integration.
 - The supported API can list/create application keys since Miniflux 2.2.9,
-  but this slice does not issue, adopt, list or rotate them. Connector work waits
-  for #150's accepted non-idempotent issuance journal and #147's count/envelope
-  helpers. Do not add local copies, pending flags or SQL/key scraping.
-- Native identity through Homarr's saved integration, one genuinely advancing
-  Stats sample, units/count semantics, both installation orders, rendered values
-  and ownership-preserving lifecycle are still unimplemented/unproved. Neither
-  this App's healthcheck nor an empty feed list establishes native acceptance.
+  using Basic authentication for the selected owner. When Homarr is installed,
+  Setup inspects that reader's complete official API-key inventory before the
+  only issuance POST. A case-insensitive `self-host Homarr statistics` description
+  collision, invalid inventory, saved secret/ownership or any pending uncertainty
+  prevents new issuance; a name match never grants adoption or deletion rights.
+- Miniflux uses the shared `helpers.CredentialIssuance` four operations. `Begin`
+  acknowledges an intent before the POST; `Capture` checkpoints an extractable
+  returned token and selected status/ID/owner/description/creation evidence
+  **before** semantic acceptance. This includes recoverable tokens in malformed
+  or unsuccessful responses. No whole inventory or other user's keys are saved.
+  `Pending` reads only, and `Commit` publishes exactly the verified ownership
+  and token before clearing the original journal. No second journal or reset
+  mechanism is added by the App.
+- The private tuple is `MINIFLUX_HOMARR_API_KEY`,
+  `MINIFLUX_HOMARR_TOKEN_OWNERSHIP` and `MINIFLUX_HOMARR_TOKEN_PENDING`.
+  Ownership binds key ID, reader ID/username/administrator authorization,
+  description, creation timestamp and the token fingerprint. Normal verification
+  requires no pending journal, exact token identity and exact official inventory
+  membership. Valid credentials are reused without writes. Rejected/lost keys,
+  changed ownership, unknown status, intent-only interruption and incomplete
+  evidence stay Manual; even an empty subsequent inventory cannot authorize
+  reissuance. Captured recovery repeats the same write barrier and verifies the
+  same credential before committing; it never posts again.
+- Private recovery inputs `miniflux.homarr_api_key`,
+  `miniflux.homarr_token_ownership` and `miniflux.homarr_token_pending` restore
+  only an independently reconciled original tuple. Keep all evidence; do not
+  clear a journal, rotate credentials, guess ownership by name or substitute a
+  different reader. Empty input values preserve stored records. The same
+  explicit Compose-replacement review/approval boundary described above applies.
+- The leaf uses the shared compatibility, ownership, Stats catalog and refresh
+  mechanisms. Before any Homarr mutation its read-only preflight verifies the
+  App-owned tuple. Native verification checks `integration.request` GET `/v1/me`
+  through the **saved** integration, including `ok`, upstream status, exact
+  integration ID/kind, positive reader ID, username and `is_admin:true`.
+  IDs outside exact JavaScript integer range remain Manual. Equal empty counters
+  from another account cannot pass this identity boundary.
+- Exactly one central advancing Stats sample per verification supplies `read`
+  and `unread`. The accepted shared count helper checks finite, nonnegative
+  integral numbers with `count` units; missing/null values and no-op refreshes
+  fail while explicit zeros remain valid. No feed poll or independently cached
+  volatile counter equality is used as proof. Only recorded owned resources and
+  bindings are eligible for the existing Homarr lifecycle operations; no
+  Miniflux account, feed or key deletion is implemented.
+- Catalog/target assembly, both installation orders, actual resolved image/API,
+  rendered values, Backup/Restore and ownership-preserving runtime lifecycle
+  remain central/not run. Neither the source leaf, an App healthcheck nor an
+  empty feed list establishes native runtime acceptance.
 
 ## Primary sources
 
@@ -109,4 +153,7 @@ not resolved runtime image/API evidence.
 - [API authentication and timestamp updates](https://github.com/miniflux/v2/blob/faecfa2fac61a91f4f69550bb1afd506c4b51749/internal/api/middleware.go)
 - [PostgreSQL image persistence](https://github.com/docker-library/docs/blob/master/postgres/content.md#pgdata)
 - [Token fields and absence of scopes](https://github.com/miniflux/v2/blob/faecfa2fac61a91f4f69550bb1afd506c4b51749/internal/model/api_key.go)
+- [Supported user-scoped key API](https://github.com/miniflux/v2/blob/faecfa2fac61a91f4f69550bb1afd506c4b51749/internal/api/api_key_handlers.go)
+- [Key inventory, token generation and creation metadata](https://github.com/miniflux/v2/blob/faecfa2fac61a91f4f69550bb1afd506c4b51749/internal/storage/api_key.go)
+- [Homarr saved-integration request envelope](https://github.com/homarr-labs/homarr/blob/0f0987d2ed013c93ce30c1c00786983d29f4b956/packages/api/src/router/integration/integration-request.ts)
 - [Homarr Miniflux Stats provider](https://github.com/homarr-labs/homarr/blob/0f0987d2ed013c93ce30c1c00786983d29f4b956/packages/integrations/src/stats/providers/miniflux.ts)

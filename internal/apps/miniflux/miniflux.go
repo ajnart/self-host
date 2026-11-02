@@ -14,6 +14,12 @@ import (
 
 type App struct{}
 
+type readerIdentity struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	IsAdmin  *bool  `json:"is_admin"`
+}
+
 const readerRecoveryHint = "Miniflux Setup never creates or replaces accounts. Inspect the existing instance and preserve its feeds and read/unread state. Only after independently confirming that no account exists, use the documented interactive administrator creation in a real terminal: docker compose exec miniflux /usr/bin/miniflux -create-admin, from the Project directory. Use the Admin login shown by self-host credentials. If an account already exists, restore its matching credentials instead of creating another account or resetting its password. Then run self-host setup miniflux."
 
 func (App) Info() app.Info {
@@ -29,10 +35,17 @@ func (App) Info() app.Info {
 }
 
 func (App) Inputs() []app.Input {
-	return []app.Input{{
+	inputs := []app.Input{{
 		Key: "reader_id", Prompt: "Confirmed original Miniflux reader ID", Private: true, RecoveryOnly: true,
 		Help: "Restore only the independently confirmed original reader ID, never another account's ID. Empty private inputs preserve the saved value. Review and preserve existing Compose settings and separately approve replacement before using install --set-file.",
 	}}
+	for _, name := range []string{"homarr_api_key", "homarr_token_ownership", "homarr_token_pending"} {
+		inputs = append(inputs, app.Input{
+			Key: name, Prompt: "Confirmed original Miniflux " + name, Private: true, RecoveryOnly: true,
+			Help: "Restore only the original matching credential and ownership or issuance evidence after independent reconciliation. Never clear pending evidence or adopt a key by name. Empty private inputs preserve saved values. Review and preserve existing Compose settings and separately approve replacement before using install --set-file.",
+		})
+	}
+	return inputs
 }
 
 func (App) Secrets() []app.SecretSpec {
@@ -83,7 +96,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := h.Ready(ctx, "/healthcheck", helpers.WantStatus(http.StatusOK)); err != nil {
 		return err
 	}
-	return h.Step(ctx, "reader", "verify the existing Miniflux reader", helpers.StepSpec{
+	if err := h.Step(ctx, "reader", "verify the existing Miniflux reader", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			_, err := verifyReader(ctx, h)
 			return err == nil && h.Secret(h.Key("reader_id")) != "", err
@@ -100,6 +113,21 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		},
 		Hint:       readerRecoveryHint,
 		Credential: "admin",
+	}); err != nil {
+		return err
+	}
+	if h.Peer("homarr") == nil {
+		h.Skip("homarr-token", "Homarr is not installed; no Miniflux token is needed")
+		return nil
+	}
+	return h.Step(ctx, "homarr-token", "verify Miniflux access for Homarr", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) {
+			err := VerifyHomarr(ctx, h)
+			return err == nil, err
+		},
+		Do:         func(ctx context.Context) error { return prepareHomarr(ctx, h) },
+		Hint:       HomarrRecoveryHint,
+		Credential: "admin",
 	})
 }
 
@@ -109,6 +137,9 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	if h.Secret(h.Key("reader_id")) == "" {
 		return &helpers.ManualError{Hint: "The Miniflux reader has not been recorded; run self-host setup miniflux to verify its existing identity without changing accounts or feeds."}
+	}
+	if h.Peer("homarr") != nil {
+		return VerifyHomarr(ctx, h)
 	}
 	return nil
 }
@@ -128,13 +159,9 @@ func verifyReader(ctx context.Context, h *helpers.H) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	var reader struct {
-		ID       int64  `json:"id"`
-		Username string `json:"username"`
-		IsAdmin  *bool  `json:"is_admin"`
-	}
-	if json.Unmarshal(resp.Body, &reader) != nil || reader.ID <= 0 || reader.IsAdmin == nil {
-		return 0, errors.New("Miniflux returned incomplete reader identity; retry self-host setup miniflux")
+	reader, err := decodeReader(resp)
+	if err != nil {
+		return 0, err
 	}
 	if reader.Username != h.AdminUser() || !*reader.IsAdmin || saved != "" && saved != strconv.FormatInt(reader.ID, 10) {
 		return 0, &helpers.ManualError{Hint: "Miniflux did not return the intended existing administrator reader. Preserve the saved identity, accounts and feeds; restore the original matching Admin login rather than changing users or privileges. Then run self-host setup miniflux."}
@@ -160,19 +187,33 @@ func verifyReader(ctx context.Context, h *helpers.H) (int64, error) {
 	return reader.ID, nil
 }
 
+func decodeReader(response helpers.Response) (readerIdentity, error) {
+	var reader readerIdentity
+	if json.Unmarshal(response.Body, &reader) != nil || reader.ID <= 0 || reader.IsAdmin == nil {
+		return readerIdentity{}, errors.New("Miniflux returned incomplete reader identity; retry self-host setup miniflux")
+	}
+	return reader, nil
+}
+
 func readerRequest(ctx context.Context, h *helpers.H, path string) (helpers.Response, error) {
 	h.Log.Secret(h.AdminPassword())
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Path: path, User: h.AdminUser(), Password: h.AdminPassword(), NoRedirect: true,
-	})
+	return authenticatedRequest(ctx, h, helpers.Request{Path: path, User: h.AdminUser(), Password: h.AdminPassword()}, readerRecoveryHint)
+}
+
+func authenticatedRequest(ctx context.Context, h *helpers.H, request helpers.Request, hint string) (helpers.Response, error) {
+	request.NoRedirect = true
+	resp, err := h.HTTP(ctx, request)
 	if err != nil {
-		return resp, h.Log.RedactError(fmt.Errorf("Miniflux reader request %s failed: %w", path, err))
+		if ctx.Err() != nil {
+			return resp, ctx.Err()
+		}
+		return resp, fmt.Errorf("Miniflux authenticated request %s could not be completed; retry self-host setup miniflux", request.Path)
 	}
 	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden {
-		return resp, &helpers.ManualError{Hint: readerRecoveryHint}
+		return resp, &helpers.ManualError{Hint: hint}
 	}
 	if resp.Status != http.StatusOK {
-		return resp, fmt.Errorf("Miniflux reader request %s returned HTTP %d; preserve existing configuration and retry self-host setup miniflux", path, resp.Status)
+		return resp, fmt.Errorf("Miniflux authenticated request %s returned HTTP %d; preserve existing configuration and retry self-host setup miniflux", request.Path, resp.Status)
 	}
 	return resp, nil
 }

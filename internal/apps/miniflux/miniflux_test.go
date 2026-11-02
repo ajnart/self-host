@@ -117,8 +117,13 @@ func TestOfficialComposeAndAppContract(t *testing.T) {
 		t.Fatalf("unexpected App metadata: %+v", info)
 	}
 	inputs := a.Inputs()
-	if len(inputs) != 1 || inputs[0].Key != "reader_id" || !inputs[0].Private || !inputs[0].RecoveryOnly || inputs[0].Required || a.Links() != nil || !reflect.DeepEqual(a.Secrets(), []app.SecretSpec{{Name: "db_password", Length: 48}}) {
+	if len(inputs) != 4 || inputs[0].Key != "reader_id" || a.Links() != nil || !reflect.DeepEqual(a.Secrets(), []app.SecretSpec{{Name: "db_password", Length: 48}}) {
 		t.Fatal("App-only slice introduced non-recovery inputs, Links or unexpected generated credentials")
+	}
+	for _, input := range inputs {
+		if !input.Private || !input.RecoveryOnly || input.Required {
+			t.Fatal("private identity or credential recovery became a required public input")
+		}
 	}
 	type healthcheck struct {
 		Test        []string
