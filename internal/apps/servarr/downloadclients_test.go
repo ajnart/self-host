@@ -49,8 +49,18 @@ func newServarrContract(t *testing.T, api string) *servarrContractFixture {
 	}
 	f.p.verify = func(context.Context, *helpers.H, *helpers.H, provider) error { f.guards++; return f.guardErr }
 	mux := http.NewServeMux()
-	mux.HandleFunc(api+"/downloadclient/schema", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode([]provider{f.template}) })
+	mux.HandleFunc(api+"/downloadclient/schema", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "consumer-key" {
+			w.WriteHeader(401)
+			return
+		}
+		json.NewEncoder(w).Encode([]provider{f.template})
+	})
 	mux.HandleFunc(api+"/downloadclient/test", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "consumer-key" {
+			w.WriteHeader(401)
+			return
+		}
 		if f.guards == 0 {
 			t.Error("native test ran before provider guard")
 		}
@@ -237,6 +247,37 @@ func TestDownloadProviderUnownedRemovalAndUnsupportedSchema(t *testing.T) {
 	}
 	if g.creates != 0 || g.tests != 0 {
 		t.Fatal("unsupported schema was submitted")
+	}
+}
+
+func TestDownloadProviderNativeSuccessShapesAndFailedRerun(t *testing.T) {
+	for _, result := range []struct {
+		status int
+		body   string
+	}{{200, `{}`}, {200, `"{}"`}, {204, ``}} {
+		f := newServarrContract(t, V3)
+		f.nativeStatus, f.nativeBody = result.status, result.body
+		if err := f.link().Apply(context.Background(), f.from, f.to); err != nil {
+			t.Fatal(err)
+		}
+		record := f.secrets[f.p.ownershipKey(f.from)]
+		f.nativeStatus, f.nativeBody = 400, `[{"propertyName":"APIKey","errorMessage":"private-provider-data"}]`
+		if err := f.link().Apply(context.Background(), f.from, f.to); err == nil || strings.Contains(err.Error(), "private-provider-data") {
+			t.Fatal("rejected native credentials passed or disclosed their response", err)
+		}
+		if f.creates != 1 || f.updates != 0 || f.secrets[f.p.ownershipKey(f.from)] != record {
+			t.Fatal("failed native rerun replaced a recorded connection")
+		}
+	}
+	for _, field := range []string{"port", "tvCategory"} {
+		f := newServarrContract(t, V3)
+		f.template.setField(field, true)
+		if err := f.link().Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
+			t.Fatal("mistyped schema was accepted", err)
+		}
+		if f.tests != 0 || f.creates != 0 {
+			t.Fatal("mistyped schema reached a native test or creation")
+		}
 	}
 }
 

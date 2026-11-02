@@ -12,7 +12,7 @@ import (
 )
 
 func DownloadClientLinks(api, categoryField, category string) []app.Link {
-	return []app.Link{QBittorrentLink(api, categoryField, category)}
+	return []app.Link{QBittorrentLink(api, categoryField, category), SABnzbdLink(api, categoryField, category)}
 }
 
 func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provider, error) {
@@ -76,6 +76,14 @@ func (p providerLink) verifyDownload(ctx context.Context, from, to *helpers.H, i
 	category, ok := item.field(p.categoryField).(string)
 	if !ok || strings.TrimSpace(category) == "" || strings.TrimSpace(category) != category || strings.ContainsAny(category, "\r\n\x00") {
 		return p.manual(from, "choose an explicit isolated download category before retrying Setup")
+	}
+	if value := template.field(p.categoryField); value != nil {
+		if _, ok := value.(string); !ok {
+			return p.manual(from, "the download-client category schema has an unsupported type")
+		}
+	}
+	if err := template.setField(p.categoryField, category); err != nil {
+		return p.manual(from, "the download-client category schema is unavailable")
 	}
 	if p.verify == nil {
 		return fmt.Errorf("the %s download-client verifier is unavailable", p.name)
