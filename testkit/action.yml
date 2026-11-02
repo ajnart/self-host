@@ -1,0 +1,32 @@
+name: self-host integration testkit
+description: Build the matching private helper and expose the dependency-free Node SDK
+outputs:
+  binary-path:
+    description: Absolute path to the matching self-host-testkit helper
+    value: ${{ steps.build.outputs.binary-path }}
+  sdk-path:
+    description: Absolute path to the matching Node SDK directory
+    value: ${{ steps.build.outputs.sdk-path }}
+  manifest-path:
+    description: Private job-local recovery manifest for the mandatory always-run cleanup step
+    value: ${{ steps.build.outputs.manifest-path }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version: "1.27.2"
+        cache-dependency-path: ${{ github.action_path }}/../go.sum
+    - id: build
+      shell: bash
+      env:
+        TESTKIT_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        umask 077
+        private="$(mktemp -d "$RUNNER_TEMP/self-host-testkit.XXXXXXXX")"
+        root="$(cd "$TESTKIT_ACTION_PATH/.." && pwd)"
+        cd "$root"
+        CGO_ENABLED=0 go build -trimpath -o "$private/self-host-testkit" ./cmd/self-host-testkit
+        printf 'binary-path=%s\nsdk-path=%s\nmanifest-path=%s\n' "$private/self-host-testkit" "$root/testkit/node" "$private/manifest.jsonl" >> "$GITHUB_OUTPUT"
+        printf 'SELF_HOST_TESTKIT_BINARY=%s\nSELF_HOST_TESTKIT_SDK=%s\nSELF_HOST_TESTKIT_MANIFEST=%s\n' "$private/self-host-testkit" "$root/testkit/node" "$private/manifest.jsonl" >> "$GITHUB_ENV"

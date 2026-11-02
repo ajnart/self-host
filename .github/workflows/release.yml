@@ -63,13 +63,13 @@ jobs:
           mkdir -p "$dir"
           gh release download "$RELEASE_TAG" --dir "$dir"
           cd "$dir"
-          for asset in self-host_${version}_{linux,darwin}_{amd64,arm64}.tar.gz self-host_${version}_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} PKGBUILD checksums.txt; do
+          for asset in self-host_${version}_{linux,darwin}_{amd64,arm64}.tar.gz self-host_${version}_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} "self-host-testkit-${version}.tgz" PKGBUILD checksums.txt; do
             test -f "$asset" || { echo "the release lacks $asset" >&2; exit 1; }
           done
           sha256sum --check checksums.txt
           for archive in self-host_${version}_*.tar.gz; do
             mkdir -p "${archive%.tar.gz}"
-            tar -xzf "$archive" -C "${archive%.tar.gz}" self-host
+            tar -xzf "$archive" -C "${archive%.tar.gz}" self-host self-host-testkit
             test "$(grep -c phc_ "${archive%.tar.gz}/self-host")" -gt 0 || { echo "$archive has no PostHog key" >&2; exit 1; }
           done
           bin="self-host_${version}_linux_amd64/self-host"
@@ -86,6 +86,9 @@ jobs:
           distribution: goreleaser
           version: v2.18.3
           args: release --snapshot --clean
+      - name: Package the matching Node testkit
+        if: steps.release.outputs.published != 'true'
+        run: node testkit/node/pack.mjs
       - name: Verify every binary embeds the PostHog key
         if: steps.release.outputs.published != 'true'
         run: |
@@ -102,6 +105,9 @@ jobs:
           actual=$(find dist -maxdepth 1 -name 'self-host_*.tar.gz' -printf '%f\n' | sort)
           test "$expected" = "$actual"
           (cd dist && sha256sum --check checksums.txt)
+          for archive in dist/self-host_${version}_*.tar.gz; do
+            tar -tzf "$archive" | grep -qx self-host-testkit
+          done
           mkdir -p "$RUNNER_TEMP/release-check"
           tar -xzf "dist/self-host_${version}_linux_amd64.tar.gz" -C "$RUNNER_TEMP/release-check" self-host
           test "$("$RUNNER_TEMP/release-check/self-host" --version)" = "$version"
@@ -117,6 +123,7 @@ jobs:
             dist/self-host_*.rpm
             dist/self-host_*.apk
             dist/self-host_*.pkg.tar.zst
+            dist/self-host-testkit-*.tgz
             dist/aur/self-host-bin.pkgbuild
             dist/checksums.txt
           if-no-files-found: error
@@ -125,7 +132,7 @@ jobs:
         run: |
           version=$SELF_HOST_RELEASE_VERSION
           cp dist/aur/self-host-bin.pkgbuild dist/PKGBUILD
-          assets=("dist/self-host_${version}_linux_amd64.tar.gz" "dist/self-host_${version}_linux_arm64.tar.gz" "dist/self-host_${version}_darwin_amd64.tar.gz" "dist/self-host_${version}_darwin_arm64.tar.gz" dist/self-host_${version}_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} dist/PKGBUILD dist/checksums.txt)
+          assets=("dist/self-host_${version}_linux_amd64.tar.gz" "dist/self-host_${version}_linux_arm64.tar.gz" "dist/self-host_${version}_darwin_amd64.tar.gz" "dist/self-host_${version}_darwin_arm64.tar.gz" dist/self-host_${version}_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} "dist/self-host-testkit-${version}.tgz" dist/PKGBUILD dist/checksums.txt)
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --draft --title "self-host $version" --notes "Linux and macOS amd64/arm64 CLI. WSL2 uses Linux binaries. Native Windows is unsupported."
           fi
