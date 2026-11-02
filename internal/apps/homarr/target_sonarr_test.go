@@ -202,3 +202,39 @@ func TestSonarrNativeEpisodeAndNullableImageContract(t *testing.T) {
 		}
 	}
 }
+
+func TestSonarrNativeSuperJSONOptionalWire(t *testing.T) {
+	for _, scenario := range []struct {
+		name    string
+		wire    string
+		invalid bool
+	}{
+		{name: "missing series and queue episode undefined", wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[{"id":1,"title":"Synthetic episode","type":"episode","seasonNumber":0,"episodeNumber":0,"seriesTitle":null,"year":null,"imageUrl":null,"link":"http://sonarr.test/wanted/missing"}],"missingCount":1,"queued":[{"id":-123,"title":"Synthetic release","type":"episode","status":"downloading","timeLeft":null,"percentComplete":0,"seasonNumber":null,"episodeNumber":null,"seriesTitle":null,"imageUrl":null,"link":"http://sonarr.test/activity/queue"}],"queuedCount":1}],"meta":{"values":{"0.missing.0.seriesTitle":["undefined"],"0.missing.0.year":["undefined"],"0.queued.0.seasonNumber":["undefined"],"0.queued.0.episodeNumber":["undefined"],"0.queued.0.seriesTitle":["undefined"]},"v":1}}}}`},
+		{name: "genuine null series title", invalid: true, wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[{"id":1,"title":"Synthetic episode","type":"episode","seasonNumber":0,"episodeNumber":0,"seriesTitle":null,"year":null,"imageUrl":null,"link":"http://sonarr.test/wanted/missing"}],"missingCount":1,"queued":[],"queuedCount":0}],"meta":{"values":{"0.missing.0.year":["undefined"]},"v":1}}}}`},
+		{name: "genuine null year", invalid: true, wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[{"id":1,"title":"Synthetic episode","type":"episode","seasonNumber":0,"episodeNumber":0,"seriesTitle":null,"year":null,"imageUrl":null,"link":"http://sonarr.test/wanted/missing"}],"missingCount":1,"queued":[],"queuedCount":0}],"meta":{"values":{"0.missing.0.seriesTitle":["undefined"]},"v":1}}}}`},
+		{name: "required missing coordinate undefined", invalid: true, wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[{"id":1,"title":"Synthetic episode","type":"episode","seasonNumber":null,"episodeNumber":0,"seriesTitle":null,"year":null,"imageUrl":null,"link":"http://sonarr.test/wanted/missing"}],"missingCount":1,"queued":[],"queuedCount":0}],"meta":{"values":{"0.missing.0.seasonNumber":["undefined"],"0.missing.0.seriesTitle":["undefined"],"0.missing.0.year":["undefined"]},"v":1}}}}`},
+		{name: "required nullable image undefined", invalid: true, wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[{"id":1,"title":"Synthetic episode","type":"episode","seasonNumber":0,"episodeNumber":0,"seriesTitle":null,"year":null,"imageUrl":null,"link":"http://sonarr.test/wanted/missing"}],"missingCount":1,"queued":[],"queuedCount":0}],"meta":{"values":{"0.missing.0.seriesTitle":["undefined"],"0.missing.0.year":["undefined"],"0.missing.0.imageUrl":["undefined"]},"v":1}}}}`},
+		{name: "genuine null queue coordinates", invalid: true, wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[],"missingCount":0,"queued":[{"id":-123,"title":"Synthetic release","type":"episode","status":"downloading","timeLeft":null,"percentComplete":0,"seasonNumber":null,"episodeNumber":null,"seriesTitle":null,"imageUrl":null,"link":"http://sonarr.test/activity/queue"}],"queuedCount":1}],"meta":{"values":{"0.queued.0.seriesTitle":["undefined"]},"v":1}}}}`},
+		{name: "partial undefined queue coordinates", invalid: true, wire: `{"result":{"data":{"json":[{"integrationId":"owned-sonarr","missing":[],"missingCount":0,"queued":[{"id":-123,"title":"Synthetic release","type":"episode","status":"downloading","timeLeft":null,"percentComplete":0,"seasonNumber":null,"episodeNumber":0,"seriesTitle":null,"imageUrl":null,"link":"http://sonarr.test/activity/queue"}],"queuedCount":1}],"meta":{"values":{"0.queued.0.seasonNumber":["undefined"],"0.queued.0.seriesTitle":["undefined"]},"v":1}}}}`},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v3/system/status":
+					w.Write([]byte(`{"appName":"Sonarr","version":"4.0.0"}`))
+				case "/api/trpc/widget.mediaOrganizer.getData":
+					w.Write([]byte(scenario.wire))
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			from := helpers.New(helpers.Config{App: "homarr", BaseURL: server.URL, URL: server.URL, HTTP: server.Client(), Log: events.Discard(), Secrets: statsSecrets{"HOMARR_API_KEY": "fixture-key"}})
+			to := helpers.New(helpers.Config{App: "sonarr", BaseURL: server.URL, URL: "http://sonarr.test", HTTP: server.Client(), Log: events.Discard(), Secrets: statsSecrets{"SONARR_API_KEY": "sonarr-key"}})
+			err := verifySonarrNative(t.Context(), from, to, "owned-sonarr")
+			if (err != nil) != scenario.invalid {
+				t.Fatalf("wire validation: error=%v wantError=%v", err, scenario.invalid)
+			}
+		})
+	}
+}
