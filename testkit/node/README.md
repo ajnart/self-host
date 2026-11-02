@@ -251,9 +251,11 @@ directory does not change which source checkout supplies the helper and SDK.
 
 ## Errors and private recovery
 
-`TestkitError` has sanitized `code` and optional startup `reason` with safe hints.
+`TestkitError` has sanitized `code`, optional startup/operation `reason` with safe
+hints, and a `cleanupFailed` flag for secondary cleanup trouble.
 Codes: `BINARY`, `PROTOCOL`, `STATE`, `START`, `CREDENTIALS`, `INFO`, `CLEANUP`,
-`TIMEOUT`, `TRANSPORT`. Raw provider output and helper stderr are not forwarded.
+`TIMEOUT`, `CANCELED`, `TRANSPORT`, `OPERATION`. Raw provider output and helper stderr
+are not forwarded.
 
 - **BINARY:** explicitly prepare a matching helper or set its absolute path.
 - **START:** check Docker/Compose, resource limits and image availability. Apps
