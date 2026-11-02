@@ -341,3 +341,21 @@ func TestAutobrrComposeAndPeerFirstSetupPreserveProductChoices(t *testing.T) {
 		}
 	}
 }
+
+func TestAutobrrPreflightHoldsBeforeUnpreparedNonRootConfigStart(t *testing.T) {
+	preflight, ok := any(autobrr.App{}).(app.PreflightChecker)
+	if !ok {
+		t.Fatal("Autobrr has no pre-start configuration-directory prerequisite")
+	}
+	f := &autobrrFixture{keys: []map[string]any{}}
+	s := autobrrAdminSecrets()
+	h := autobrrH(t, f, s)
+	err := preflight.Preflight(t.Context(), h)
+	var manual *helpers.ManualError
+	if !errors.As(err, &manual) || !errors.Is(err, helpers.ErrManual) || !strings.Contains(manual.Hint, "./config") || !strings.Contains(manual.Hint, "before start") || !strings.Contains(manual.Hint, "directory preparation") {
+		t.Fatalf("unsafe non-root start was not held with an actionable prerequisite: %v", err)
+	}
+	if len(f.mutations) != 0 || f.tokenRequests != 0 || len(s) != 2 {
+		t.Fatal("the pre-start hold changed accounts, keys or private records")
+	}
+}

@@ -2,6 +2,7 @@
 
 ## Deployment and persistence
 
+- **Temporary pre-start hold:** `App.Preflight` refuses Install/Start until supported configuration-directory preparation is available. The non-root `user:` cannot safely rely on Compose creating `./config` with appropriate private ownership. No directory helper, `.keep`, root fallback or ownership mutation is implemented here. Preserve existing files and wait for the reviewed shared directory seam; this is not a deployable/accepted automatic installation yet.
 - Official image: `ghcr.io/autobrr/autobrr:latest`; service `autobrr`, container TCP port 7474. The allocated host port binds only the selected `${BIND_IP}`. Homarr uses the Compose Address `http://autobrr:7474`, independently of the browser Address.
 - Persist the whole App-local `./config:/config`: `config.toml`, SQLite `autobrr.db`, sidecars and migration backups. SQLite is the upstream default and needs no backing container. Preserve an existing PostgreSQL/backend choice, custom paths and manual Compose edits; Setup does not select or migrate a database.
 - The official image supports `user: UID:GID`, so the definition uses `${PUID}:${PGID}`, not unsupported LinuxServer identity variables. `TZ` is supported. `AUTOBRR__HOST=0.0.0.0` selects the container listener; it does not broaden the published Access. No Docker socket, media/download mount, tracker account or downloader is required for statistics.

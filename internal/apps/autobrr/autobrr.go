@@ -59,6 +59,10 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
+func (App) Preflight(context.Context, *helpers.H) error {
+	return &helpers.ManualError{Hint: "Autobrr is blocked before start: ./config must be private and writable by its configured non-root user in Docker's user namespace. Supported configuration-directory preparation is not available yet; keep Autobrr stopped and wait for that support before retrying Install or Start. Preserve existing configuration, database and ownership; do not switch to root or recursively change ownership to bypass this hold."}
+}
+
 func adminSetup() firstadmin.FirstAdmin {
 	return firstadmin.FirstAdmin{
 		Ready: firstadmin.Probe{Request: func(*helpers.H) helpers.Request {
