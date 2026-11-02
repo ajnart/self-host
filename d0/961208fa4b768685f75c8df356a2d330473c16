@@ -1,0 +1,24 @@
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 2161
+internal/apps/homarr/installed.go
+  h_d6e478ca18e517 133
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 519,521
+internal/apps/homarr/ownership_test.go
+  h_d6e478ca18e517 1-153
+internal/helpers/helpers.go
+  h_d6e478ca18e517 25-35,186-189
+internal/helpers/manual_test.go
+  h_d6e478ca18e517 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0961208fa4b768685f75c8df356a2d330473c16",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
