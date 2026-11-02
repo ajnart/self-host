@@ -18,7 +18,8 @@ loading the skill conveys intent, not approval to change a Project.
 Publish the real, self-contained skill at `skills/self-host/SKILL.md`, following
 [agent-browser's public skill](https://github.com/vercel-labs/agent-browser/blob/5868f7c05020e047c00e68e4abf9253cce864f41/skills/agent-browser/SKILL.md).
 The repository's `.skills` is an optional container alias to `skills`, not a
-second skill source. Install the product skill explicitly:
+second skill source. Install the latest repository version of the product skill
+explicitly (unpinned source; use an immutable reference for reproducible review):
 
 ```bash
 npx skills add ajnart/self-host --skill self-host

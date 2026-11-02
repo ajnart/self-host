@@ -21,7 +21,7 @@ Let the binary write the skill into `~/.agents/skills`, plus the dedicated folde
 self-host skill install
 ```
 
-Or use the skills CLI (needs Node.js; Bun alternative below):
+Or install the latest repository version with the skills CLI (unpinned source; needs Node.js; Bun alternative below):
 
 ```bash
 npx skills add ajnart/self-host --skill self-host

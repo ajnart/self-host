@@ -75,7 +75,7 @@ self-host skill install
 
 Invoke it with `$self-host` in Codex, `/self-host` in Claude Code, or ask your agent to use the self-host skill. The guide comes from `self-host skill` and matches the installed binary.
 
-Without the binary, add the discoverable router with the skills CLI (requires Node.js):
+Without the binary, install the latest repository version of the discoverable router with the skills CLI (requires Node.js; the source is not pinned):
 
 ```bash
 npx skills add ajnart/self-host --skill self-host
