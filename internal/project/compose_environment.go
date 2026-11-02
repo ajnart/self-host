@@ -1,7 +1,9 @@
 package project
 
 import (
+	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -35,6 +37,32 @@ func ComposeEnvironmentReferences(data []byte) (map[string]bool, error) {
 		}
 	}
 	walk(root)
+	if services := field(root, "services"); services != nil {
+		for i := 1; i < len(services.Content); i += 2 {
+			environment := field(services.Content[i], "environment")
+			if environment == nil {
+				continue
+			}
+			if environment.Kind == yaml.MappingNode {
+				for j := 0; j < len(environment.Content); j += 2 {
+					if environment.Content[j+1].Tag == "!!null" {
+						key := environment.Content[j].Value
+						if _, found := keys[key]; !found {
+							keys[key] = false
+						}
+					}
+				}
+			} else if environment.Kind == yaml.SequenceNode {
+				for _, entry := range environment.Content {
+					if entry.Kind == yaml.ScalarNode && entry.Value != "" && !strings.Contains(entry.Value, "=") {
+						if _, found := keys[entry.Value]; !found {
+							keys[entry.Value] = false
+						}
+					}
+				}
+			}
+		}
+	}
 	for _, kind := range []string{"configs", "secrets"} {
 		resources := field(root, kind)
 		if resources == nil {
@@ -100,8 +128,10 @@ func (p *Project) ExpandEnvironmentReferences(refs map[string]bool) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	lines := environmentAssignments(data)
-	values := parseEnv(data)
+	return expandEnvironmentReferences(environmentEntries(data), refs), nil
+}
+
+func expandEnvironmentReferences(entries []environmentEntry, refs map[string]bool) map[string]bool {
 	out := map[string]bool{}
 	var pending []string
 	for key, required := range refs {
@@ -111,19 +141,37 @@ func (p *Project) ExpandEnvironmentReferences(refs map[string]bool) (map[string]
 	for len(pending) > 0 {
 		key := pending[0]
 		pending = pending[1:]
-		_, raw, found := strings.Cut(lines[key], "=")
-		if !found || strings.HasPrefix(strings.TrimSpace(raw), "'") {
-			continue
-		}
-		for dep, required := range interpolationReferences(values[key]) {
-			previous, exists := out[dep]
-			if !exists || required && !previous {
-				out[dep] = previous || required
-				pending = append(pending, dep)
+		for _, entry := range entries {
+			_, raw, _ := strings.Cut(entry.text, "=")
+			if entry.key != key || strings.HasPrefix(strings.TrimSpace(raw), "'") {
+				continue
+			}
+			for dep, required := range interpolationReferences(entry.value) {
+				previous, exists := out[dep]
+				if !exists || required && !previous {
+					out[dep] = previous || required
+					pending = append(pending, dep)
+				}
 			}
 		}
 	}
-	return out, nil
+	return out
+}
+
+type environmentDeclaration struct {
+	key, value string
+}
+
+func environmentAssignmentContext(entries []environmentEntry, key string) []environmentDeclaration {
+	refs := expandEnvironmentReferences(entries, map[string]bool{key: true})
+	var declarations []environmentDeclaration
+	for _, entry := range entries {
+		if _, referenced := refs[entry.key]; referenced {
+			_, raw, _ := strings.Cut(entry.text, "=")
+			declarations = append(declarations, environmentDeclaration{entry.key, strings.TrimSpace(raw)})
+		}
+	}
+	return declarations
 }
 
 func environmentAssignments(data []byte) map[string]string {
@@ -149,26 +197,32 @@ func (p *Project) EnvironmentAssignmentMatches(source *Project, key string) (boo
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
-	currentLine, currentFound := environmentAssignments(current)[key]
-	archivedLine, archivedFound := environmentAssignments(archived)[key]
-	if !currentFound || !archivedFound {
-		return currentFound == archivedFound, nil
-	}
-	_, currentValue, _ := strings.Cut(currentLine, "=")
-	_, archivedValue, _ := strings.Cut(archivedLine, "=")
-	return strings.TrimSpace(currentValue) == strings.TrimSpace(archivedValue), nil
+	return slices.Equal(environmentAssignmentContext(environmentEntries(current), key), environmentAssignmentContext(environmentEntries(archived), key)), nil
 }
 
 // RestoreEnvironmentAssignments preserves quoting and interpolation semantics
 // for selected archived inputs, and keeps unrelated assignments and comments.
 func (p *Project) RestoreEnvironmentAssignments(source *Project, keys []string) error {
+	data, err := p.restoredEnvironmentAssignments(source, keys)
+	if err != nil || data == nil {
+		return err
+	}
+	return p.WriteHomeFile(".env", data, 0o600)
+}
+
+func (p *Project) ValidateEnvironmentAssignments(source *Project, keys []string) error {
+	_, err := p.restoredEnvironmentAssignments(source, keys)
+	return err
+}
+
+func (p *Project) restoredEnvironmentAssignments(source *Project, keys []string) ([]byte, error) {
 	archived, err := source.ReadHomeFile(".env")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	current, err := p.ReadHomeFile(".env")
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return nil, err
 	}
 	selected := map[string]bool{}
 	assignments := environmentAssignments(archived)
@@ -178,25 +232,68 @@ func (p *Project) RestoreEnvironmentAssignments(source *Project, keys []string) 
 		}
 	}
 	if len(selected) == 0 {
-		return nil
+		return nil, nil
 	}
-	var out strings.Builder
-	for _, entry := range environmentEntries(current) {
+	archivedEntries := environmentEntries(archived)
+	currentEntries := environmentEntries(current)
+	var incoming, existing []environmentEntry
+	for _, entry := range archivedEntries {
 		if selected[entry.key] {
+			incoming = append(incoming, entry)
+		}
+	}
+	for _, entry := range currentEntries {
+		if selected[entry.key] {
+			existing = append(existing, entry)
+		}
+	}
+	unchanged := slices.EqualFunc(existing, incoming, func(a, b environmentEntry) bool { return a.text == b.text })
+	var out strings.Builder
+	inserted := false
+	insert := func() {
+		for _, entry := range incoming {
+			out.WriteString(entry.text)
+			out.WriteByte('\n')
+		}
+		inserted = true
+	}
+	for _, entry := range currentEntries {
+		if !unchanged && selected[entry.key] {
+			if !inserted {
+				insert()
+			}
 			continue
 		}
 		out.WriteString(entry.text)
 		out.WriteByte('\n')
 	}
-	// Compose expands .env values as it reads them. Keep archived declaration
-	// order and duplicate assignments; sorting keys changes their values.
-	for _, entry := range environmentEntries(archived) {
-		if selected[entry.key] {
-			out.WriteString(entry.text)
-			out.WriteByte('\n')
+	if !unchanged && !inserted {
+		insert()
+	}
+	merged := []byte(out.String())
+	if unchanged {
+		merged = current
+	}
+	mergedEntries := environmentEntries(merged)
+	checked := map[string]bool{}
+	for _, entry := range append(currentEntries, incoming...) {
+		key := entry.key
+		if key == "" || checked[key] {
+			continue
+		}
+		checked[key] = true
+		expected := currentEntries
+		if selected[key] {
+			expected = archivedEntries
+		}
+		if !slices.Equal(environmentAssignmentContext(expected, key), environmentAssignmentContext(mergedEntries, key)) {
+			return nil, fmt.Errorf("restoring Project environment assignment %s would change its declaration order or interpolation dependencies; migrate shared assignments explicitly before Restore", key)
 		}
 	}
-	return p.WriteHomeFile(".env", []byte(out.String()), 0o600)
+	if unchanged {
+		return nil, nil
+	}
+	return merged, nil
 }
 
 // Import missing legacy assignments before comparing values for a write. Raw
