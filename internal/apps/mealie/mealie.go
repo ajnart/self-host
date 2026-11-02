@@ -38,6 +38,10 @@ func (App) Inputs() []app.Input {
 			Help: "Select the intended administrator's existing group UUID. Empty inputs preserve saved values; Setup never creates or moves a group."},
 		{Key: "household_id", Prompt: "Existing Mealie household ID", Private: true,
 			Help: "Select the intended administrator's existing household UUID. Empty inputs preserve saved values; Setup never creates or moves a household."},
+		{Key: "homarr_api_key", Prompt: "Known Mealie Homarr token", Private: true, RecoveryOnly: true,
+			Help: "Restore only the known token with its matching ownership record. Tokens inherit full account access, not read-only scopes. Preserve existing Compose edits and separately approve reinstall replacement before private-input recovery."},
+		{Key: "homarr_key_ownership", Prompt: "Known Mealie Homarr token ownership", Private: true, RecoveryOnly: true,
+			Help: "Restore the matching recorded account/group/household, token ID, creation time and fingerprint. Never clear pending issuance to request a replacement."},
 	}
 }
 
@@ -137,21 +141,22 @@ func sessionToken(ctx context.Context, h *helpers.H) (string, error) {
 }
 
 func verifyIdentity(ctx context.Context, h *helpers.H) error {
-	selected := map[string]string{}
-	for _, key := range []string{"admin_user_id", "group_id", "household_id"} {
-		value := h.Secret(h.Key(key))
-		h.Log.Secret(value)
-		if !identityID.MatchString(value) {
-			return manual(h, "The intended existing Mealie administrator, group and household must be explicitly selected with valid UUIDs.")
-		}
-		selected[key] = value
+	return verifyIdentityToken(ctx, h, "")
+}
+
+func verifyIdentityToken(ctx context.Context, h *helpers.H, token string) error {
+	selected, err := selectedIdentity(h)
+	if err != nil {
+		return err
 	}
 	if err := verifyAPI(ctx, h); err != nil {
 		return err
 	}
-	token, err := sessionToken(ctx, h)
-	if err != nil {
-		return err
+	if token == "" {
+		token, err = sessionToken(ctx, h)
+		if err != nil {
+			return err
+		}
 	}
 	header := (helpers.KeyScheme{Header: "Authorization", Prefix: "Bearer "}).Headers(token)
 	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/users/self", NoRedirect: true, Header: header})
@@ -177,7 +182,7 @@ func verifyIdentity(ctx context.Context, h *helpers.H) error {
 	if strings.EqualFold(user.Email, "changeme@example.com") {
 		return manual(h, "Mealie still has the factory administrator; its presence is not proof of a new or owned account.")
 	}
-	if !strings.EqualFold(user.ID, selected["admin_user_id"]) || !strings.EqualFold(user.GroupID, selected["group_id"]) || !strings.EqualFold(user.HouseholdID, selected["household_id"]) || !strings.EqualFold(user.Username, h.AdminUser()) && !strings.EqualFold(user.Email, h.AdminUser()) {
+	if !strings.EqualFold(user.ID, selected.UserID) || !strings.EqualFold(user.GroupID, selected.GroupID) || !strings.EqualFold(user.HouseholdID, selected.HouseholdID) || !strings.EqualFold(user.Username, h.AdminUser()) && !strings.EqualFold(user.Email, h.AdminUser()) {
 		return manual(h, "Mealie's authenticated administrator does not match the explicitly selected account, group and household.")
 	}
 	resp, err = h.HTTP(ctx, helpers.Request{Path: "/api/households/self", NoRedirect: true, Header: header})
@@ -193,7 +198,7 @@ func verifyIdentity(ctx context.Context, h *helpers.H) error {
 		Name    string `json:"name"`
 		Group   string `json:"group"`
 	}
-	if resp.Decode(&household) != nil || !strings.EqualFold(household.ID, selected["household_id"]) || !strings.EqualFold(household.GroupID, selected["group_id"]) || household.Name != user.Household || household.Group != user.Group {
+	if resp.Decode(&household) != nil || !strings.EqualFold(household.ID, selected.HouseholdID) || !strings.EqualFold(household.GroupID, selected.GroupID) || household.Name != user.Household || household.Group != user.Group {
 		return manual(h, "Mealie's household information does not match the selected administrator's existing household and group.")
 	}
 	return nil
@@ -203,7 +208,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := h.Ready(ctx, "/api/app/about", helpers.WantStatus(http.StatusOK), helpers.NoRedirect()); err != nil {
 		return err
 	}
-	return h.Step(ctx, "admin", "verify the existing Mealie administrator and household", helpers.StepSpec{
+	if err := h.Step(ctx, "admin", "verify the existing Mealie administrator and household", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			err := verifyIdentity(ctx, h)
 			return err == nil, err
@@ -211,13 +216,30 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		Do:         func(ctx context.Context) error { return verifyIdentity(ctx, h) },
 		Hint:       recoveryHint(h),
 		Credential: "admin",
+	}); err != nil {
+		return err
+	}
+	return h.Step(ctx, "homarr-key", "prepare Mealie statistics access with full account authority", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) {
+			_, err := VerifyHomarr(ctx, h)
+			return err == nil, err
+		},
+		Do:         func(ctx context.Context) error { return prepareHomarrKey(ctx, h) },
+		Hint:       HomarrRecoveryHint,
+		Credential: "admin",
 	})
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error { return verifyIdentity(ctx, h) }
+func (App) Check(ctx context.Context, h *helpers.H) error {
+	if err := verifyIdentity(ctx, h); err != nil {
+		return err
+	}
+	_, err := VerifyHomarr(ctx, h)
+	return err
+}
 
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "Mealie uses SQLite on local storage; keep the complete data folder across updates and removal. Finish the initial administrator in Mealie manually and keep authentication enabled. Initial-account conversion, API-token issuance and native Homarr configuration are not automated by this App slice."
+	return "Mealie uses SQLite on local storage; keep the complete data folder across updates and removal. Finish the initial administrator in Mealie manually and keep authentication enabled. Plain Compose does not issue a Homarr token or configure its native integration; Mealie tokens inherit full account access without read-only scopes."
 }

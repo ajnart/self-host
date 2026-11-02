@@ -2,6 +2,8 @@ package mealie_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -27,14 +29,20 @@ const (
 )
 
 type mealieSecrets struct {
-	values map[string]string
-	writes int
+	values      map[string]string
+	writes      int
+	allowWrites bool
+	failAt      int
 }
 
 func (s *mealieSecrets) Get(key string) string { return s.values[key] }
-func (s *mealieSecrets) Set(string, string) error {
+func (s *mealieSecrets) Set(key, value string) error {
 	s.writes++
-	return errors.New("unexpected credential mutation")
+	if !s.allowWrites || s.writes == s.failAt {
+		return errors.New("synthetic private storage failure: " + value)
+	}
+	s.values[key] = value
+	return nil
 }
 
 type mealieFake struct {
@@ -48,6 +56,11 @@ type mealieFake struct {
 	redirect        string
 	calls           map[string]int
 	unexpected      []string
+	issued          int
+	issueBody       string
+	issueStatus     int
+	onIssue         func()
+	rejectKey       bool
 }
 
 func newMealieFake() *mealieFake {
@@ -57,6 +70,7 @@ func newMealieFake() *mealieFake {
 		user: map[string]any{
 			"id": mealieUserID, "username": "owner", "email": "owner@example.test", "admin": true,
 			"groupId": mealieGroupID, "householdId": mealieHouseholdID, "group": "Existing group", "household": "Existing household",
+			"tokens": []any{map[string]any{"id": 7, "name": "self-host Homarr statistics", "createdAt": "2026-11-02T12:00:00Z"}},
 		},
 		household: map[string]any{"id": mealieHouseholdID, "groupId": mealieGroupID, "name": "Existing household", "group": "Existing group"},
 		calls:     map[string]int{},
@@ -83,7 +97,11 @@ func (f *mealieFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(f.login)
 	case "GET /api/users/self", "GET /api/households/self":
-		if r.Header.Get("Authorization") != "Bearer fixture-mealie-session" {
+		if f.rejectKey && r.Header.Get("Authorization") == "Bearer existing-unmodified-key" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer fixture-mealie-session" && r.Header.Get("Authorization") != "Bearer existing-unmodified-key" {
 			f.unexpected = append(f.unexpected, "wrong bearer credential")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -99,6 +117,28 @@ func (f *mealieFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(f.householdStatus)
 		}
 		json.NewEncoder(w).Encode(f.household)
+	case "POST /api/users/api-tokens":
+		var input map[string]string
+		if r.Header.Get("Authorization") != "Bearer fixture-mealie-session" || json.NewDecoder(r.Body).Decode(&input) != nil || len(input) != 2 || input["name"] != "self-host Homarr statistics" || input["integrationId"] != "homarr" {
+			f.unexpected = append(f.unexpected, "invalid issuance request")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if f.onIssue != nil {
+			f.onIssue()
+		}
+		f.issued++
+		f.user["tokens"] = []any{map[string]any{"id": 7, "name": "self-host Homarr statistics", "createdAt": "2026-11-02T12:00:00Z"}}
+		code := f.issueStatus
+		if code == 0 {
+			code = http.StatusCreated
+		}
+		w.WriteHeader(code)
+		if f.issueBody != "" {
+			w.Write([]byte(f.issueBody))
+			return
+		}
+		w.Write([]byte(`{"id":7,"name":"self-host Homarr statistics","createdAt":"2026-11-02T12:00:00Z","token":"existing-unmodified-key"}`))
 	default:
 		f.unexpected = append(f.unexpected, route)
 		w.WriteHeader(http.StatusNotFound)
@@ -119,7 +159,8 @@ func newMealieHarness(t *testing.T, fake *mealieFake) *mealieHarness {
 	box := &mealieHarness{secrets: &mealieSecrets{values: map[string]string{
 		"ADMIN_USER": "owner", "ADMIN_PASSWORD": "fixture-mealie-password",
 		"MEALIE_ADMIN_USER_ID": mealieUserID, "MEALIE_GROUP_ID": mealieGroupID, "MEALIE_HOUSEHOLD_ID": mealieHouseholdID,
-		"MEALIE_HOMARR_API_KEY": "existing-unmodified-key",
+		"MEALIE_HOMARR_API_KEY":       "existing-unmodified-key",
+		"MEALIE_HOMARR_KEY_OWNERSHIP": mealieOwnershipJSON(),
 	}}}
 	box.h = helpers.New(helpers.Config{
 		App: "mealie", Service: "mealie", ContainerPort: 9000,
@@ -128,11 +169,20 @@ func newMealieHarness(t *testing.T, fake *mealieFake) *mealieHarness {
 		Record: func(r helpers.StepResult) { box.records = append(box.records, r) },
 	})
 	t.Cleanup(func() {
-		if len(fake.unexpected) != 0 || box.secrets.writes != 0 {
+		if len(fake.unexpected) != 0 || !box.secrets.allowWrites && box.secrets.writes != 0 {
 			t.Errorf("unexpected requests=%v, credential writes=%d", fake.unexpected, box.secrets.writes)
 		}
 	})
 	return box
+}
+
+func mealieOwnershipJSON() string {
+	sum := sha256.Sum256([]byte("existing-unmodified-key"))
+	raw, _ := json.Marshal(map[string]any{
+		"intent": map[string]any{"identity": map[string]string{"userId": mealieUserID, "groupId": mealieGroupID, "householdId": mealieHouseholdID}, "name": "self-host Homarr statistics", "integrationId": "homarr", "authority": "full-account-access"},
+		"id":     7, "createdAt": "2026-11-02T12:00:00Z", "fingerprint": hex.EncodeToString(sum[:]),
+	})
+	return string(raw)
 }
 
 func TestMealieDeploymentContract(t *testing.T) {
@@ -160,8 +210,8 @@ func TestMealieDeploymentContract(t *testing.T) {
 		t.Fatal("SQLite App unexpectedly requires another service")
 	}
 	inputs := a.Inputs()
-	if len(inputs) != 3 {
-		t.Fatalf("private selections = %d, want 3", len(inputs))
+	if len(inputs) != 5 {
+		t.Fatalf("private selections/recovery inputs = %d, want 5", len(inputs))
 	}
 	for _, input := range inputs {
 		if !input.Private || input.Default != "" || input.Required {
@@ -195,7 +245,7 @@ func TestMealieSetupReusesExistingIdentityAndPreservesData(t *testing.T) {
 	if err := (mealie.App{}).Check(t.Context(), box.h); err != nil {
 		t.Fatalf("Check: %v", err)
 	}
-	if fake.calls["POST /api/auth/token"] != 1 || fake.calls["GET /api/users/self"] != 3 || fake.calls["GET /api/households/self"] != 3 {
+	if fake.calls["POST /api/auth/token"] != 1 || fake.calls["GET /api/users/self"] != 9 || fake.calls["GET /api/households/self"] != 6 {
 		t.Fatalf("expected one in-memory login and fresh identity on each verification: %v", fake.calls)
 	}
 	for _, record := range box.records {
@@ -280,7 +330,7 @@ func TestMealieRereadsIdentityWithAnExistingSession(t *testing.T) {
 	if err := (mealie.App{}).Check(t.Context(), box.h); !errors.Is(err, helpers.ErrManual) {
 		t.Fatalf("changed household passed with a remembered login: %v", err)
 	}
-	if fake.calls["POST /api/auth/token"] != 1 || fake.calls["GET /api/users/self"] != 2 {
+	if fake.calls["POST /api/auth/token"] != 1 || fake.calls["GET /api/users/self"] != 4 {
 		t.Fatal("identity was cached or login needlessly retried")
 	}
 }
