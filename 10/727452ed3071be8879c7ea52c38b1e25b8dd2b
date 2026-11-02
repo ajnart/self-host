@@ -1,0 +1,16 @@
+dcm/src/data/selfhost.json
+  h_d6e478ca18e517 2879,2907
+docs/agents/generated-data.md
+  h_d6e478ca18e517 45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "10727452ed3071be8879c7ea52c38b1e25b8dd2b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
