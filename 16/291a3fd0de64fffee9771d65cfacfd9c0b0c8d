@@ -1,0 +1,22 @@
+internal/apps/homarr/homarr.go
+  h_d6e478ca18e517 106-181
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 10,12-13,33-37,52-60,415-422,443-487,763-772,869-875,932-934,970-976
+internal/apps/homarr/shared_widgets.go
+  h_d6e478ca18e517 30
+internal/apps/homarr/stats.go
+  h_d6e478ca18e517 8,42,75-76
+internal/apps/homarr/target_uptime_kuma_common_test.go
+  h_d6e478ca18e517 1-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16291a3fd0de64fffee9771d65cfacfd9c0b0c8d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
