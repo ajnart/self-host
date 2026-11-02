@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/catalog"
@@ -569,10 +570,6 @@ func (ss *session) ensureAdmin(opts InstallOptions) error {
 
 // writeFiles writes the config files an App declares into its folder.
 func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
-	declarer, found := a.(app.FileDeclarer)
-	if !found {
-		return nil
-	}
 	id := a.Info().ID
 	secret := func(name string) string {
 		if name == "ADMIN_USER" || name == "ADMIN_PASSWORD" {
@@ -580,7 +577,14 @@ func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
 		}
 		return ss.secrets.values[SecretKey(id, name)]
 	}
-	for _, f := range declarer.Files(rc, secret) {
+	var files []app.File
+	if declarer, found := a.(app.FileDeclarer); found {
+		files = declarer.Files(rc, secret)
+	}
+	if err := ss.prepareAppDirectories(a, rc, files); err != nil {
+		return err
+	}
+	for _, f := range files {
 		clean := path.Clean(f.Path)
 		if path.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") {
 			return fmt.Errorf("%s: file %q must stay inside apps/%s", id, f.Path, id)
@@ -605,6 +609,93 @@ func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
 		}
 	}
 	return nil
+}
+
+func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files []app.File) error {
+	declarer, found := a.(app.DirectoryDeclarer)
+	if !found {
+		return nil
+	}
+	directories := declarer.Directories(rc)
+	if len(directories) == 0 {
+		return nil
+	}
+	h := ss.helpers(a)
+	return h.Step(context.Background(), "directories", "prepare declared App directories", helpers.StepSpec{
+		Do: func(ctx context.Context) error {
+			id := a.Info().ID
+			if _, compiled := ss.s.Catalog.App(id); !compiled || ss.p.IsExtra(id) {
+				return errors.New("directory preparation requires a compiled Catalog App")
+			}
+			type preparedDirectory struct {
+				spec     app.Directory
+				uid, gid int
+			}
+			var prepared []preparedDirectory
+			seen := map[string]bool{}
+			for _, dir := range directories {
+				if dir.Path == "" || dir.Path == "." || dir.Path == ".." || strings.ContainsAny(dir.Path, "/\\\x00") || seen[dir.Path] || dir.Mode&^uint32(0o777) != 0 || dir.Mode&0o700 != 0o700 {
+					return errors.New("App directory declarations need distinct relative components and explicit owner rwx permission bits")
+				}
+				seen[dir.Path] = true
+				uid, uidErr := appDirectoryID(dir.UID)
+				gid, gidErr := appDirectoryID(dir.GID)
+				if uidErr != nil || gidErr != nil {
+					return errors.New("App directory declarations need explicit numeric container UID/GID")
+				}
+				prepared = append(prepared, preparedDirectory{dir, uid, gid})
+			}
+			for _, file := range files {
+				clean := path.Clean(file.Path)
+				if path.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") {
+					return errors.New("App files must stay inside the App directory")
+				}
+				for _, dir := range directories {
+					if clean == dir.Path || strings.HasPrefix(clean, dir.Path+"/") || strings.HasPrefix(dir.Path, clean+"/") {
+						return &helpers.ManualError{Hint: "The compiled file declaration overlaps " + id + "/" + dir.Path + ". Preserve existing files and ownership; use a corrected App definition without sentinel files or recursive ownership repair, then retry self-host install " + id}
+					}
+				}
+				if strings.Contains(clean, "/") {
+					return &helpers.ManualError{Hint: "Nested compiled files cannot safely share directory preparation for " + id + " because the existing file writer follows directory aliases. Preserve existing files and ownership; use a corrected App definition with only disjoint top-level files, then retry self-host install " + id}
+				}
+			}
+			namespace, err := host.MediaUserNamespace(ctx, ss.s.Deps)
+			if err != nil {
+				return &helpers.ManualError{Hint: "Verify the local Docker runtime UID/GID mapping before preparing " + id + " directories: " + err.Error() + ". Preserve existing storage and retry self-host install " + id}
+			}
+			for i := range prepared {
+				dir := &prepared[i]
+				dir.uid, err = namespace.HostUID(dir.uid)
+				if err == nil {
+					dir.gid, err = namespace.HostGID(dir.gid)
+				}
+				if err != nil {
+					return &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.spec.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
+				}
+			}
+			for _, dir := range prepared {
+				if err := ss.p.PrepareAppDirectory(id, dir.spec.Path, os.FileMode(dir.spec.Mode), dir.uid, dir.gid); err != nil {
+					if errors.Is(err, fs.ErrPermission) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+						return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s/%s and its existing data. It needs an ordinary directory writable by runtime %s:%s (mapped host %d:%d), mode %04o or tighter: %s. Review ownership, permissions and symlinks through an explicitly approved storage recovery, then retry self-host install %s; no recursive ownership repair was attempted", id, dir.spec.Path, dir.spec.UID, dir.spec.GID, dir.uid, dir.gid, dir.spec.Mode, err, id)}
+					}
+					return err
+				}
+			}
+			return nil
+		},
+		Hint: "Preserve existing App data and review its declared directory ownership and permissions before retrying the approved install",
+	})
+}
+
+func appDirectoryID(value string) (int, error) {
+	if value == "" || strings.Trim(value, "0123456789") != "" {
+		return 0, errors.New("expected a decimal runtime identity")
+	}
+	n, err := strconv.ParseUint(value, 10, 32)
+	if err != nil || n >= 1<<32-1 || int(n) < 0 {
+		return 0, errors.New("runtime identity is outside the supported numeric range")
+	}
+	return int(n), nil
 }
 
 // ensureSecrets generates the secrets an App declares that secrets.env lacks.
