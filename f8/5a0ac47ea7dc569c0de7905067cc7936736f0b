@@ -1,0 +1,20 @@
+docs/unraid.md
+  h_d6e478ca18e517 40-44,47-48,96-97,115-117,182-184
+internal/skill/guide.md
+  h_d6e478ca18e517 563-566,571-572
+site/src/content/docs/docs/agents.md
+  h_d6e478ca18e517 68-69,125
+site/src/content/docs/docs/getting-started.md
+  h_d6e478ca18e517 55-59,265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f85a0ac47ea7dc569c0de7905067cc7936736f0b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
