@@ -292,7 +292,7 @@ func (p *Project) SaveSecrets(secrets map[string]string) error {
 	}
 	// Remove retired credentials from the combined file, preserving public
 	// settings and comments. Unknown values survive through LoadSecrets.
-	old, err := p.loadEnv(".env")
+	old, err := p.LoadSecrets()
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -310,7 +310,7 @@ func (p *Project) SaveSecrets(secrets map[string]string) error {
 	// Keep legacy records in sync while they exist, so rollback and old
 	// Backup readers remain recoverable without resurrecting deleted keys.
 	if _, err := os.Stat(p.Path("secrets.env")); err == nil {
-		return p.writeFile(p.Path("secrets.env"), formatEnv("# Private credentials; the live Compose environment is .env.\n", updates, []string{"ADMIN_USER", "ADMIN_PASSWORD"}), 0o600)
+		return p.syncLegacySecrets()
 	}
 	return nil
 }
@@ -321,6 +321,10 @@ func (p *Project) SaveSecrets(secrets map[string]string) error {
 func (p *Project) updateEnv(updates map[string]string, remove map[string]bool) error {
 	data, err := os.ReadFile(p.Path(".env"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	data, err = p.legacyEnvironment(data)
+	if err != nil {
 		return err
 	}
 	// Preserve unchanged assignments byte for byte, including user quoting,

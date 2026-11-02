@@ -105,4 +105,27 @@ func TestRestoreEnvironmentAssignmentsKeepInterpolationAndDependencies(t *testin
 			t.Fatal("restoration changed interpolation syntax or unrelated assignments")
 		}
 	}
+	for _, tc := range []struct{ name, current, archived string }{
+		{"new assignments", "", "Z_BASE=fixture-base\nA_TOKEN=${Z_BASE}/token\n"},
+		{"new dependency", "A_TOKEN=fixture-current\n", "Z_BASE=fixture-base\nA_TOKEN=${Z_BASE}/token\n"},
+		{"reversed current order", "A_TOKEN=fixture-current\nZ_BASE=fixture-current\n", "Z_BASE=fixture-base\nA_TOKEN=${Z_BASE}/token\n"},
+		{"reassigned dependency", "", "Z_BASE=fixture-first\nA_TOKEN=${Z_BASE}/token\nZ_BASE=fixture-last\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source, current := testProject(t), testProject(t)
+			if err := source.WriteHomeFile(".env", []byte(tc.archived), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := current.WriteHomeFile(".env", []byte(tc.current+"UNRELATED=keep-current\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := current.RestoreEnvironmentAssignments(source, []string{"A_TOKEN", "Z_BASE"}); err != nil {
+				t.Fatal(err)
+			}
+			data, err := current.ReadHomeFile(".env")
+			if err != nil || string(data) != "UNRELATED=keep-current\n"+tc.archived {
+				t.Fatal("restoration reordered an interpolated assignment before its dependency", err)
+			}
+		})
+	}
 }

@@ -71,7 +71,7 @@ func TestScopedRestoreKeepsMultilineEnvironmentValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := p.ReadHomeFile(".env")
-	if !strings.HasSuffix(string(data), archived+unrelated) {
+	if !strings.HasSuffix(string(data), unrelated+archived) {
 		t.Fatal("scoped Restore corrupted the selected or unrelated multiline value")
 	}
 }

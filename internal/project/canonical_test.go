@@ -55,7 +55,7 @@ func TestLegacyComposeMigrationRebasesResourcesAndPreservesProjectIdentity(t *te
 	if err := p.MkdirAll("apps", "one"); err != nil {
 		t.Fatal(err)
 	}
-	fragment := "services:\n  one:\n    image: example/one\n    volumes: [./config:/config, database:/database]\n    env_file: [./custom.env]\n    build:\n      context: ./source\n      dockerfile: Containerfile\n    configs: [app-config]\nconfigs:\n  app-config:\n    file: ./settings.conf\nvolumes:\n  database: {}\n"
+	fragment := "services:\n  one:\n    image: example/one\n    volumes: [./config:/config, database:/database]\n    devices: [vendor.example/gpu=all, ./render:/dev/render, /dev/dri:/dev/dri]\n    env_file: [./custom.env]\n    build:\n      context: ./source\n      dockerfile: Containerfile\n    configs: [app-config]\nconfigs:\n  app-config:\n    file: ./settings.conf\nvolumes:\n  database: {}\n"
 	if err := os.WriteFile(p.FragmentPath("one"), []byte(fragment), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -72,10 +72,13 @@ func TestLegacyComposeMigrationRebasesResourcesAndPreservesProjectIdentity(t *te
 		t.Fatal(err)
 	}
 	root, _ := p.ReadCompose()
-	for _, want := range []string{"name: existing-project", "./apps/one/config:/config", "database:/database", "./apps/one/custom.env", "context: ./apps/one/source", "dockerfile: Containerfile", "file: ./apps/one/settings.conf"} {
+	for _, want := range []string{"name: existing-project", "./apps/one/config:/config", "database:/database", "./apps/one/custom.env", "context: ./apps/one/source", "dockerfile: Containerfile", "file: ./apps/one/settings.conf", "vendor.example/gpu=all", "./apps/one/render:/dev/render", "/dev/dri:/dev/dri"} {
 		if !strings.Contains(string(root), want) {
 			t.Errorf("migration missing %q", want)
 		}
+	}
+	if strings.Contains(string(root), "./apps/one/vendor.example/gpu=all") {
+		t.Fatal("migration rebased a CDI selector as a host path")
 	}
 	if strings.Contains(string(root), "include:") {
 		t.Fatal("canonical file still includes fragments")
@@ -95,6 +98,39 @@ func TestLegacyComposeMigrationRebasesResourcesAndPreservesProjectIdentity(t *te
 	if info.Mode().Perm() != 0o600 {
 		t.Fatal("Compose environment is not private")
 	}
+	t.Run("legacy interpolation", func(t *testing.T) {
+		p := testProject(t)
+		if err := p.WriteCompose([]byte("include: []\n")); err != nil {
+			t.Fatal(err)
+		}
+		legacy := "Z_BASE=fixture-base\nA_TOKEN=${Z_BASE}/token\nLITERAL='${Z_BASE}'\n"
+		if err := p.WriteHomeFile("secrets.env", []byte(legacy), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		secrets, err := p.LoadSecrets()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.SaveSecrets(secrets); err != nil {
+			t.Fatal(err)
+		}
+		if err := p.WriteRoot(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := p.ReadHomeFile(".env")
+		if err != nil || !strings.Contains(string(data), legacy) {
+			t.Fatal("consolidation changed legacy assignment order or interpolation", err)
+		}
+		secrets["Z_BASE"] = "fixture-updated"
+		delete(secrets, "LITERAL")
+		if err := p.SaveSecrets(secrets); err != nil {
+			t.Fatal(err)
+		}
+		data, err = p.ReadHomeFile("secrets.env")
+		if err != nil || !strings.Contains(string(data), "Z_BASE=fixture-updated\nA_TOKEN=${Z_BASE}/token\n") || strings.Contains(string(data), "LITERAL=") {
+			t.Fatal("legacy synchronization changed interpolation or resurrected a retired assignment", err)
+		}
+	})
 }
 
 func TestUnsafeLegacyMigrationLeavesLiveFilesUnchanged(t *testing.T) {

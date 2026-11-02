@@ -2719,7 +2719,7 @@
    "port": 6789,
    "docs": "https://nzbget.com/documentation/",
    "links": [],
-   "compose": "services:\n  nzbget:\n    image: ghcr.io/nzbgetcom/nzbget:latest\n    container_name: ${CONTAINER_PREFIX}nzbget\n    restart: ${RESTART_POLICY}\n    environment:\n      NZBGET_USER: ${ADMIN_USER}\n      NZBGET_PASS: ${ADMIN_PASSWORD}\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/nzbget/config:/config\n      - ${DATA_PATH}/torrents:/downloads\n    ports:\n      - 6789:6789\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "compose": "services:\n  nzbget:\n    image: ghcr.io/nzbgetcom/nzbget:latest\n    container_name: ${CONTAINER_PREFIX}nzbget\n    restart: ${RESTART_POLICY}\n    environment:\n      NZBGET_USER: ${ADMIN_USER}\n      NZBGET_PASS: ${ADMIN_PASSWORD}\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/nzbget/config:/config\n      - ${DATA_PATH}/torrents:/downloads\n      - ${DATA_PATH}/usenet:/data/usenet\n    ports:\n      - 6789:6789\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2777,7 +2777,8 @@
      "secret": false
     }
    ],
-   "standalone": true
+   "standalone": true,
+   "notes": "Set DestDir to /data/usenet/complete and InterDir to /data/usenet/incomplete in Settings > Paths. The /downloads mount retains queue/history and existing downloads; changing defaults does not move existing jobs or files."
   },
   {
    "id": "ollama",
