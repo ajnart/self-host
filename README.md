@@ -153,6 +153,7 @@ Update with `self-host self-update` for the script and the archive. Homebrew, Do
 To read the install script first:
 
 ```bash
+bash -c '
 curl -fsSL https://self-host.fyi/install -o install.sh &&
 curl -fsSL https://self-host.fyi/install.sh.sha256 -o install.sh.sha256 &&
 if command -v sha256sum >/dev/null 2>&1; then
@@ -161,6 +162,7 @@ else
   shasum -a 256 -c install.sh.sha256
 fi &&
 less install.sh && bash install.sh
+'
 ```
 
 Checksums detect corruption or mismatched downloads, not compromise of the publisher supplying both files. The script verifies the release archive against `checksums.txt` and installs to `~/.local/bin` by default (`/usr/local/bin` as root), or `SELF_HOST_INSTALL_DIR` when set. Version, folder and fork options are in the [docs](https://self-host.fyi/docs/getting-started#install).
