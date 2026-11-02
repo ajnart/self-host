@@ -3,6 +3,7 @@ package beszel_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -491,7 +492,7 @@ func TestARenamedSystemWhoseAgentWentDownIsStartedAgainAndStillFound(t *testing.
 	}
 }
 
-func TestASystemDeletedAndEnrolledAgainIsFoundUnderItsNewID(t *testing.T) {
+func TestASystemDeletedAndEnrolledAgainNeedsIdentityReview(t *testing.T) {
 	ctx := context.Background()
 	fake := &fakeBeszel{firstRun: true, key: hubKey}
 	e := newEnv(t, fake)
@@ -508,11 +509,11 @@ func TestASystemDeletedAndEnrolledAgainIsFoundUnderItsNewID(t *testing.T) {
 	fake.systems[1].id = "id-after-deletion"
 	fake.mu.Unlock()
 
-	if err := (beszel.App{}).Setup(ctx, e.h); err != nil {
-		t.Fatalf("rerun Setup: %v", err)
+	if err := (beszel.App{}).Setup(ctx, e.h); !errors.Is(err, helpers.ErrManual) {
+		t.Fatalf("rerun Setup = %v, want Manual identity review", err)
 	}
-	if e.secrets["BESZEL_MACHINE_ID"] != "id-after-deletion" {
-		t.Errorf("stored system id = %q, want the new record's id", e.secrets["BESZEL_MACHINE_ID"])
+	if e.secrets["BESZEL_MACHINE_ID"] != "id-This-machine" {
+		t.Errorf("stored system id = %q, want the original record preserved", e.secrets["BESZEL_MACHINE_ID"])
 	}
 }
 

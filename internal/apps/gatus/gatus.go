@@ -45,7 +45,7 @@ endpoints:
 `
 
 func (App) Files(app.RenderContext, func(string) string) []app.File {
-	return []app.File{{Path: "config", Content: config}}
+	return []app.File{{Path: "config", Content: config, Keep: true}}
 }
 
 func (App) Compose(rc app.RenderContext) string {
@@ -64,6 +64,7 @@ func (App) Compose(rc app.RenderContext) string {
 var probe = firstadmin.NoAccount{Probe: firstadmin.Probe{Path: "/health"}}
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
+	h.Info("Gatus's starter configuration monitors only itself. Add reviewed App checks and alerts in apps/gatus/config; existing monitors and authentication are preserved.")
 	if err := probe.Setup(ctx, h); err != nil {
 		return err
 	}

@@ -12,6 +12,25 @@
   ambiguous ownership needs review before mutation (`{}` preserves existing items).
   Resize owned items within each responsive grid and relocate them around user
   items and containers; reruns preserve placements and larger user-selected sizes.
+- Malformed or null App/widget/Beszel-binding ownership stops as a Manual step
+  before mutation. Setup records early recovery as `ownership`; Links retain their
+  `link-<app>`/`unlink-<app>` step identities. Board-discovered invalid ownership
+  also remains Manual. Review the named record through the Project secret boundary;
+  never clear ownership just to bypass recovery. Missing legacy records and explicit
+  empty objects retain their existing conservative migration behavior. Valid early
+  ownership checks add no step; retrying Setup clears the prior recovery step.
+- New owned Beszel System Stats widgets record their managed `systemId` separately
+  from widget ownership. Re-enrollment repairs only a selection matching that prior
+  binding, preserving the widget ID, layouts, time period and every chart option.
+  Existing correct selections still work without new evidence; ambiguous changes
+  require Manual review and are never reset solely because the widget is owned.
+- Repair Immich's dedicated read-only statistics key through `self-host setup
+immich`, then retry Homarr. Restore matching secret/ID ownership when needed;
+  never delete a key solely by name or create a duplicate Homarr integration.
+- Uptime Kuma requires an explicitly selected existing status page. Follow its
+  Setup's approval-gated input recovery without publishing private monitors.
+  A changed upstream native widget/API contract needs a reviewed adapter update,
+  not another integration or a metrics API key; this change does not update it.
 - The assistant widget is optional. Its absence does not make the Notebook
   outdated. An explicit unknown-kind or kind-enum rejection may be skipped;
   authentication, other validation and server failures still fail Setup.
@@ -46,3 +65,8 @@ Sources: [Docker installation](https://homarr.dev/docs/getting-started/installat
 [Seerr integration](https://homarr.dev/docs/integrations/seerr/). Exact helper
 paths come from Homarr's current
 [`integration.ts`](https://github.com/homarr-labs/homarr/blob/dev/packages/definitions/src/integration.ts).
+
+Beszel selector and option preservation follow the inspected Homarr 2.5.2
+[`selection.ts`](https://github.com/homarr-labs/homarr/blob/7eb9a417a60d759adce5f7ac15ceb594aefad471/packages/widgets/src/beszel-system-stats/selection.ts)
+and [widget options](https://github.com/homarr-labs/homarr/blob/7eb9a417a60d759adce5f7ac15ceb594aefad471/packages/widgets/src/beszel-system-stats/index.ts).
+These source contracts do not establish native/rendered runtime acceptance.

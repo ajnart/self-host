@@ -61,7 +61,7 @@ func (f *fakeNtfy) handler() http.Handler {
 		f.nextToken++
 		token := "tk_test_" + strconv.Itoa(f.nextToken)
 		f.tokens[token] = user
-		json.NewEncoder(w).Encode(map[string]string{"token": token})
+		json.NewEncoder(w).Encode(map[string]any{"token": token, "expires": 0})
 	})
 	mux.HandleFunc("GET /{topic}/json", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()

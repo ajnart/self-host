@@ -30,6 +30,13 @@ func genericApps(ctx context.Context, h *helpers.H) (map[string]helpers.Installe
 }
 
 func installedTiles(ctx context.Context, h *helpers.H, apply bool) (bool, error) {
+	if err := validateOwnership(h); err != nil {
+		return false, err
+	}
+	recorded, err := managedAppIDs(h)
+	if err != nil {
+		return false, err
+	}
 	desired, err := genericApps(ctx, h)
 	if err != nil {
 		return false, err
@@ -67,7 +74,6 @@ func installedTiles(ctx context.Context, h *helpers.H, apply bool) (bool, error)
 		}
 	}
 	canonical := map[string]string{}
-	recorded := managedAppIDs(h)
 	for marker, item := range desired {
 		preferred := linkedApps[item.ID]
 		if preferred == "" {
@@ -87,7 +93,7 @@ func installedTiles(ctx context.Context, h *helpers.H, apply bool) (bool, error)
 		}
 	}
 	complete := true
-	for _, id := range managedAppIDs(h) {
+	for _, id := range recorded {
 		found := false
 		for _, existing := range apps {
 			if appID(existing) == id {

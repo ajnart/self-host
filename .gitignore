@@ -16,6 +16,7 @@ dist/
 # BEGIN oh-my-opencode-slim worktrees
 .slim/worktrees/
 .slim/worktrees.json
+.slim/deepwork/
 # END oh-my-opencode-slim worktrees
 
 # Showreel render output; the site serves the committed site/public/reel.mp4

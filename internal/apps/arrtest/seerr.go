@@ -21,15 +21,17 @@ type Seerr struct {
 	// host:port when apiKey is right.
 	Servarr func(kind, host string, port int, apiKey string) ([]string, bool)
 
-	mu          sync.Mutex
-	APIKey      string
-	initialized bool
-	mediaServer int
-	admin       bool
-	sessions    map[string]bool
-	libraries   []map[string]any
-	servers     map[string][]map[string]any
-	nextID      map[string]int
+	mu           sync.Mutex
+	APIKey       string
+	initialized  bool
+	mediaServer  int
+	jellyfinHost string
+	jellyfinPort int
+	admin        bool
+	sessions     map[string]bool
+	libraries    []map[string]any
+	servers      map[string][]map[string]any
+	nextID       map[string]int
 }
 
 func NewSeerr() *Seerr {
@@ -92,6 +94,11 @@ func (s *Seerr) Handler() http.Handler {
 		json.NewEncoder(w).Encode(map[string]any{"initialized": s.initialized, "mediaServerType": s.mediaServer})
 	}))
 	mux.HandleFunc("POST /api/v1/auth/jellyfin", s.locked(s.signIn))
+	mux.HandleFunc("GET /api/v1/settings/jellyfin", s.adminOnly(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"ip": s.jellyfinHost, "port": s.jellyfinPort, "useSsl": false, "urlBase": "", "serverId": "jellyfin-server",
+		})
+	}))
 	mux.HandleFunc("POST /api/v1/settings/jellyfin/library/sync", s.adminOnly(func(w http.ResponseWriter, r *http.Request) {
 		found := s.JellyfinLibraries()
 		if len(found) == 0 {
@@ -159,6 +166,7 @@ func (s *Seerr) signIn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.mediaServer, s.admin = 2, true
+		s.jellyfinHost, s.jellyfinPort = host, int(port)
 	} else if !s.Jellyfin("jellyfin", 8096, user, password) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return

@@ -162,7 +162,8 @@ authorization, never a preview flag.
    before a Project exists. Answer an App's inputs with
    `--set <app>.<key>=value` (repeatable; `--set jellyfin.port=8097` picks a port);
    private inputs use `--set-file` (see "Secrets"). Host choices for a new
-   Project: `--exposure`, `--easy-names`, `--media-root`, `--downloads-root`, `--admin-user`.
+   Project: `--exposure`, `--easy-names`, `--data-root`, `--media-root`,
+   `--downloads-root`, `--separate-media-users`, `--media-copy-fallback`, `--admin-user`.
    The Admin password comes from `SELF_HOST_ADMIN_PASSWORD` or is generated.
 4. Read the events (below). The run ends with `run.end`.
 5. Diagnose failures (see "When a step fails"), then retry the approved repair
@@ -184,7 +185,8 @@ authorization, never a preview flag.
 ### Advanced
 
 Expose every knob: specific Apps, `--set`, `--set-file`, `--exposure local`,
-`--media-root`, `--downloads-root`, `--admin-user`, `self-host config set` and
+`--data-root`, `--media-root`, `--downloads-root`, `--separate-media-users`,
+`--media-copy-fallback`, `--admin-user`, `self-host config set` and
 `self-host config review`, Unmanaged apps, `self-host logs <app> --follow`,
 `self-host update`, encrypted and partial backups, and an isolated Project with
 `SELF_HOST_HOME` plus `SELF_HOST_COMPOSE_PROJECT` (see "Project folder").
@@ -305,7 +307,8 @@ prints a sentence and `feedback` prints preview/delivery text even with `--json`
 Help is text. Parse/argument errors may be plain stderr without a final event;
 capture process exit status and stderr too.
 
-New-Project options (`--exposure`, `--easy-names`, `--media-root`, `--downloads-root`) are ignored on an existing
+New-Project options (`--exposure`, `--easy-names`, `--data-root`, `--media-root`,
+`--downloads-root`, `--separate-media-users`, `--media-copy-fallback`) are ignored on an existing
 Project; install then emits a `step.warn` (step `project`) whose hint names `self-host config set`.
 
 ## Exit codes
@@ -518,7 +521,9 @@ Read `status --json`: `addresses` lists only working Easy names ahead of
 `IP:port`, after valid private Tailscale and available verified Cloudflare
 Addresses; `url` remains the first. Homarr tiles share that browser Address.
 
-Homarr Links support Homarr 2.4.1, not an arbitrary mutable development build.
+Homarr Links require an authenticated API version of at least 2.4.1 and the
+required native capabilities; accepting a version is not native-widget proof.
+Peer-specific privacy and prerequisite holds still apply.
 Immich Setup creates a dedicated read-only statistics key. Retry its own Setup
 before retrying Homarr: `self-host setup immich`, then `self-host setup homarr`.
 A lost managed key is a Manual step with a recovery hint, never an excuse to
@@ -705,21 +710,32 @@ the CLI mutation lock does not protect an external editor.
 
 ## Shared media storage
 
-New Projects use one `DATA_ROOT` containing `torrents/`, `usenet/` and `media/`.
-Sonarr and Radarr see one parent mount so hardlinks and atomic moves can work;
-downloaders see narrower folders at matching internal paths. Setup checks
-temporary hardlink creation as the importing App's actual user. That capability
-probe does not establish that an actual import used hardlinks.
+New Projects default to one `DATA_ROOT` containing `torrents/`, `usenet/` and
+`media/`. Sonarr, Radarr and Lidarr see that parent at `/data`; cooperating
+downloaders see narrower folders at matching internal paths. Sonarr/Radarr
+Setup enables hardlink imports and probes temporary links as the App user.
+That capability probe does not establish that an actual import used hardlinks.
 
-Use `--data-root PATH` for a new Project. Hardlinks depend on the filesystem,
-mount boundaries and permissions. If the person accepts extra disk usage, use
+Use `--data-root PATH` for a new Project (`~/data` by default). Existing
+Projects without a shared layout retain their paths. Explicit `--media-root`
+or `--downloads-root` without `--data-root` selects the legacy layout for a
+new Project. Separate `/downloads` and `/media` mounts cannot provide cross-mount
+hardlinks or atomic moves; imports can occupy duplicate space while seeding.
+Check the authoritative root Compose and App paths, not recovery snapshots.
+
+Hardlinks depend on the filesystem, mount boundaries and permissions; nested
+mounts or datasets can prevent them, and Arr can fall back to copies. If the
+person accepts extra disk usage and writes after a failed capability probe, use
 `--media-copy-fallback` or `self-host config set MEDIA_COPY_FALLBACK=on`.
 
-The default media identity is shared. Separate supported media App file owners
-are optional and off by default; Onboarding and Settings expose the same choice,
-and new CLI installs accept `--separate-media-users`. This concerns Unix file
-ownership, not App login accounts. Existing media paths or ownership are not
-moved or rewritten by a settings toggle; they need an explicit migration.
+The default media identity is shared, with umask `022`. Separate supported media
+App file owners are optional and off by default; Onboarding and Settings expose
+the same choice, and new CLI installs accept `--separate-media-users`. They use
+distinct UIDs, shared PGID, media umask `002` and setgid media directories while
+App configuration stays private. Supported Docker identity mappings are required.
+This concerns Unix file ownership, not App login accounts. Existing media paths
+or ownership are not moved or rewritten by a settings toggle; they need an
+explicit migration.
 
 ## Beszel
 
@@ -727,6 +743,22 @@ Installing `beszel` also enrols this machine: a `beszel-agent` and a
 `beszel-socket-proxy` service, the only Docker socket mount any App may declare.
 Both stay out of Compose until Setup stores the Hub's key and token, so finding
 them not running before Setup finishes is expected.
+Check requires the recorded machine to be online, not merely listed in the Hub.
+A missing recorded system or ambiguous first-enrolment name stays Manual:
+follow its recovery hint, preserve the recorded identity and retry
+`self-host setup beszel`. Never clear the ID to adopt another system by name.
+
+## Media configuration
+
+Preserve existing roots, categories, quality profiles and naming choices;
+TRaSH recommendations are choices to review, not permission for bulk rewrites.
+Setup does not import quality/custom-format bundles, bulk rename libraries or
+acquire content. Review in-place music tagging before hardlinking: edits to a
+linked file can also change its seeding source.
+When Seerr finds multiple profiles, ask which existing profile to use and pass
+its ID or exact name with `--set seerr.sonarr_profile=<choice>` and/or
+`--set seerr.radarr_profile=<choice>` on install. Existing connections keep
+their profile, default-server and search choices.
 
 ## Project folder
 

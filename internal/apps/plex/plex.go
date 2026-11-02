@@ -262,15 +262,12 @@ func saveServerToken(ctx context.Context, h *helpers.H) error {
 	return h.SetSecret(h.Key("api_key"), token)
 }
 
-// ownershipVerified accepts the person's recorded machine identifier, or an
-// owner-issued claim token the first-run bootstrap exchanged for this server.
 func ownershipVerified(h *helpers.H) bool {
 	saved := h.Secret(h.Key("server_id"))
 	if saved == "" {
 		return false
 	}
-	claimed := h.Inputs["claim_token"] != "" && h.Secret(h.Key("api_key")) != ""
-	return claimed || h.Inputs["verified_server_id"] == saved
+	return h.Inputs["verified_server_id"] == saved
 }
 
 func VerifyHomarr(ctx context.Context, h *helpers.H) error {
@@ -340,5 +337,5 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "Create a claim token at https://www.plex.tv/claim (valid 4 minutes) and set PLEX_CLAIM_TOKEN before the first start, or the server stays unclaimed."
+	return "Before the first start, create a private claim-token file (mode 0600) containing a token from https://www.plex.tv/claim (valid 4 minutes). Use the App's read-only claim-token mount and the image's file-based claim option; if an export substitutes a claim environment entry, restore that private-file configuration instead of putting the token in the environment or command arguments. Keep the server private and verify it in your own Plex account. An expired or failed first-run claim needs inspection and reviewed recovery, not an automatic reclaim."
 }

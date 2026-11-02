@@ -7,7 +7,10 @@
 - A first-run wizard is not API failure: readiness uses the version API, then verifies authenticated queue/history. Explicit empty arrays and zero download rate are valid.
 - Setup saves the existing full API key as `SABNZBD_API_KEY` through the Project secret boundary. The NZB upload-only key cannot read queue/history. Retry Setup to recover a missing saved key without rotation.
 - The source-verified Homarr 2.4.1/SABnzbd 5.1.3 contract and pending runtime acceptance are recorded in [the SABnzbd Link contract](../../homarr-sabnzbd-contract.md).
-- Select completed and incomplete paths with the Arr import layout; differing paths or filesystems can prevent hardlinks or atomic moves.
+- Shared layouts mount `${DATA_ROOT}/usenet` at `/data/usenet`; Setup sets Temporary and Completed Download Folders to `/data/usenet/incomplete` and `/data/usenet/complete`. Legacy App-local `/data` and any existing `/downloads` mount keep their paths; Setup does not migrate files or pending jobs.
+- In Config > Categories, relative folders `tv`, `movies` and `music` live beneath the completed folder. Match the consuming App's category and save each category row. Review existing paths, sorting and pending jobs before changing anything; categories are recommendations, not automatic settings or downloader Links. Use the actual legacy mounted path rather than substituting shared-layout examples.
+- The default uses shared Host PUID/PGID/UMASK; optional separate media users use an App-specific PUID, shared PGID and media umask `002`. An explicit Permissions for completed downloads setting can override the process umask; Setup does not change it. Shared storage needs compatible mounts/filesystems and permissions; separate download/library mounts cannot provide cross-mount hardlinks or atomic moves. See [Media Setup](../media-setup.md).
+- Sources: [SABnzbd folders](https://sabnzbd.org/wiki/configuration/5.1/folders), [relative category folders](https://sabnzbd.org/wiki/configuration/5.1/categories), and [LinuxServer mounts and UMASK](https://docs.linuxserver.io/images/docker-sabnzbd/).
 
 ## Security
 
