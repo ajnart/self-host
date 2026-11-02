@@ -626,7 +626,7 @@ func (rs *restoration) planStartup(ctx context.Context, p *project.Project, sett
 	if !slices.Contains(rs.targets, tailscaleID) && state.Apps[tailscaleID] != nil && slices.ContainsFunc(containers, func(c compose.Container) bool { return c.Service == tailscaleID && c.State == "running" }) {
 		for _, id := range startup.Targets {
 			a, ok := rs.s.Catalog.App(id)
-			if !ok || a.Info().NoWebUI || a.Info().ContainerPort == 0 {
+			if !ok || a.Info().NoWebUI || a.Info().HomeAddressOnly || a.Info().ContainerPort == 0 {
 				continue
 			}
 			service := ts.ServiceName(id)

@@ -27,7 +27,12 @@ func (ss *session) observeNavigation(ctx context.Context, ids []string, containe
 	}
 	ss.navigationAddresses = make(map[string][]string, len(ids))
 	for _, id := range ids {
-		if _, ok := ss.webApp(id); !ok {
+		info, ok := ss.webApp(id)
+		if !ok {
+			continue
+		}
+		if info.HomeAddressOnly {
+			ss.navigationWarnings = append(ss.navigationWarnings, homeAddressRestriction(info))
 			continue
 		}
 		ss.navigationAddresses[id] = append(private[id], ss.cloudflareAddresses(id, rec, containers)...)

@@ -166,7 +166,7 @@ func planLines(t theme, p *plan, width int) []string {
 	if p.privateAccess {
 		for _, a := range p.apps {
 			info := a.Info()
-			if info.Port > 0 && !info.NoWebUI {
+			if info.Port > 0 && !info.NoWebUI && !info.HomeAddressOnly {
 				lines = append(lines, row("", "Private: "+info.Name+" (only missing nodes while Tailscale is on)"))
 			}
 		}

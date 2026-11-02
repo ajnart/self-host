@@ -25,7 +25,7 @@ type cloudflarePane struct {
 func newCloudflarePane(ctx *viewContext) *cloudflarePane {
 	p := &cloudflarePane{}
 	for _, installed := range ctx.status.Apps {
-		if a, ok := ctx.backend.Catalog().App(installed.ID); ok && installed.Managed && !a.Info().NoWebUI && a.Info().ContainerPort > 0 {
+		if a, ok := ctx.backend.Catalog().App(installed.ID); ok && installed.Managed && !a.Info().NoWebUI && !a.Info().HomeAddressOnly && a.Info().ContainerPort > 0 {
 			p.apps = append(p.apps, a.Info())
 		}
 	}
