@@ -1,0 +1,64 @@
+.skills
+  h_d6e478ca18e517 1
+README.md
+  h_d6e478ca18e517 78-85,132,153-162,229,270
+docs/research/agent-skill-audit.md
+  h_d6e478ca18e517 1-201
+install.sh
+  h_d6e478ca18e517 480-481
+internal/cli/install.go
+  h_d6e478ca18e517 27,40
+internal/cli/skill.go
+  h_d6e478ca18e517 14,16-28
+internal/release/installsh_test.go
+  h_d6e478ca18e517 322,729
+internal/skill/SKILL.md
+  h_d6e478ca18e517 9,11,13
+internal/skill/guide.md
+  h_d6e478ca18e517 9-53,111-114,145,155-158,160-162,168-171,200,230-231,236-237,246-247,251-253,282,292-301,303-306,314-317,323-324,332-334,337-340,663-667,672-673,687-688,701-704,750-756,765-766,771-778,782-789,794-799,808-812,856-857,859-861,863-868
+internal/skill/install.go
+  h_d6e478ca18e517 17-19,51,70,72-74,76,79-98,100-119,129-137,153-156,164-172,174,177,183-204,209-210,212-225,248-252
+internal/skill/install_test.go
+  h_d6e478ca18e517 39,56,67,103-107,138-143,152-162,179-184
+internal/skill/skill.go
+  h_d6e478ca18e517 7-8,19-50
+site/astro.config.mjs
+  h_d6e478ca18e517 54
+site/public/_headers
+  h_d6e478ca18e517 38-48
+site/src/content/docs/docs/agents.md
+  h_d6e478ca18e517 18,24,27,31-33,51-52,98-99,118-123,125,131,137-138,147
+site/src/content/docs/docs/apps.md
+  h_d6e478ca18e517 24
+site/src/content/docs/docs/getting-started.md
+  h_d6e478ca18e517 77,162-163,165-169,173-185,205-207,213-214,266
+site/src/content/docs/docs/troubleshooting.md
+  h_d6e478ca18e517 32,34,46-47,84
+site/src/layouts/Base.astro
+  h_d6e478ca18e517 34
+site/src/lib/recipe-md.ts
+  h_d6e478ca18e517 5-8,11-24,28-61
+site/src/lib/site.ts
+  h_d6e478ca18e517 7-8,11-28,30-36,38-60,66-70,73-77,79-83,85,93-100
+site/src/pages/docs/recipes/[id].astro
+  h_d6e478ca18e517 33
+site/src/pages/llms.txt.ts
+  h_d6e478ca18e517 10,16-22,28-29,47,49,53
+site/src/pages/skill.md.ts
+  h_d6e478ca18e517 1-7
+skills/self-host/SKILL.md
+  h_d6e478ca18e517 9,11,13
+turbo.json
+  h_d6e478ca18e517 30-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "45435c52b1c40a870e55df41a4faf38e03d27f95",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
