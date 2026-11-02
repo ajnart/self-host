@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"maps"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -85,6 +86,8 @@ func TestExistingMediaPathsAndOwnersRequireExplicitMigration(t *testing.T) {
 		{"MEDIA_LAYOUT": "shared", "DATA_ROOT": "/new/data"},
 		{"MEDIA_SEPARATE_USERS": "on"},
 		{"MEDIA_ROOT": "/new/media"},
+		{"PUID": "2201"},
+		{"PGID": "2202"},
 	} {
 		next := maps.Clone(previous)
 		maps.Copy(next, change)
@@ -108,6 +111,43 @@ func TestMediaHostOwnerUsesConfiguredRootfulIDs(t *testing.T) {
 	uid, gid, err := svc.mediaHostOwner(context.Background(), p, map[string]string{"PUID": "2201", "PGID": "2202"})
 	if err != nil || uid != 2201 || gid != 2202 {
 		t.Fatalf("configured rootful ownership was ignored: %d:%d, %v", uid, gid, err)
+	}
+}
+
+func TestConfigSetRefusesOrdinaryMediaOwnerChangesBeforeWrites(t *testing.T) {
+	for _, pair := range []string{"PUID=2201", "PGID=2202"} {
+		t.Run(pair, func(t *testing.T) {
+			h := newHarness(t, &testApp{id: "sonarr", done: map[string]bool{}})
+			if err := h.install("sonarr"); err != nil {
+				t.Fatal(err)
+			}
+			h.svc.Catalog = catalog.New([]app.App{arr.Sonarr()}, nil)
+			p, err := h.svc.Project()
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := map[string]string{}
+			for _, name := range []string{".env", "compose.yml", "state.json"} {
+				data, err := os.ReadFile(p.Path(name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				before[name] = string(data)
+			}
+			calls := len(h.runner.Calls())
+			if err := h.svc.ConfigSet(context.Background(), []string{pair}); err == nil || !strings.Contains(err.Error(), "explicit migration") {
+				t.Fatalf("ordinary media ownership changed without migration: %v", err)
+			}
+			for name, original := range before {
+				data, err := os.ReadFile(p.Path(name))
+				if err != nil || string(data) != original {
+					t.Fatalf("refused ownership change modified %s: %v", name, err)
+				}
+			}
+			if len(h.runner.Calls()) != calls {
+				t.Fatal("refused ownership change invoked Docker")
+			}
+		})
 	}
 }
 

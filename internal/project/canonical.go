@@ -944,6 +944,18 @@ func (p *Project) validateFragmentEnvironment(base string) error {
 	return err
 }
 
+func (p *Project) ValidateRoot() error {
+	root, err := p.readRoot()
+	if err != nil {
+		return err
+	}
+	if err := p.consolidateRoot(root); err != nil {
+		return err
+	}
+	_, err = encodeCompose(root)
+	return err
+}
+
 // WriteRoot upgrades the include layout once. Once services are canonical it
 // only imports genuinely new extra/ folders and never re-reads App snapshots.
 func (p *Project) WriteRoot() error {

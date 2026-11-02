@@ -154,11 +154,13 @@ func (s *Service) validateMediaChange(ctx context.Context, previous, next map[st
 				return fmt.Errorf("%s changes existing media App %s paths or file ownership; an explicit migration must preserve files, App records, ACLs and Docker identity mappings; nothing was changed", key, id)
 			}
 		}
+		ownershipKeys := []string{"PUID", "PGID"}
 		if next["MEDIA_SEPARATE_USERS"] == "on" {
-			for _, key := range []string{"PUID", "PGID", mediaUIDKey(id)} {
-				if previous[key] != next[key] {
-					return fmt.Errorf("%s changes existing media file ownership; migrate ownership explicitly before changing this setting", key)
-				}
+			ownershipKeys = append(ownershipKeys, mediaUIDKey(id))
+		}
+		for _, key := range ownershipKeys {
+			if previous[key] != next[key] {
+				return fmt.Errorf("%s changes existing media file ownership; an explicit migration is required before changing this setting", key)
 			}
 		}
 	}
