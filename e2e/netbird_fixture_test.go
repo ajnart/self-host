@@ -128,7 +128,7 @@ func TestNetBirdDockerWrapperRestrictsOwnedSelectors(t *testing.T) {
 			t.Fatal("required read-only host preflight rejected")
 		}
 	}
-	prefix := []string{"compose", "--project-directory", project, "-p", "selfhost-e2e-fixture", "--env-file", filepath.Join(project, ".env"), "--env-file", filepath.Join(project, "secrets.env")}
+	prefix := []string{"compose", "--project-directory", project, "-p", "selfhost-e2e-fixture", "--env-file", filepath.Join(project, ".env")}
 	for _, files := range [][]string{nil, {"-f", filepath.Join(project, "compose.yml")}} {
 		args := append(append(append([]string{}, prefix...), files...), "up", "-d")
 		out, err := exec.Command(wrapper, args...).Output()

@@ -27,7 +27,7 @@ func TestUnmanagedAppInExtraIsDiscoveredAndControlled(t *testing.T) {
 	if code != 0 || lastCompose(deps) != "up -d --remove-orphans whoami" {
 		t.Fatalf("start: %d %q\n%s", code, lastCompose(deps), out)
 	}
-	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "  - extra/whoami/compose.yml\n") {
+	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "whoami:") {
 		t.Fatal("root compose does not include extra/whoami/compose.yml")
 	}
 	if code, _ := runWith(t, deps, cat, "stop", "whoami"); code != 0 || lastCompose(deps) != "stop whoami" {
@@ -120,7 +120,7 @@ func TestRestoreEverythingRebuildsExtraApps(t *testing.T) {
 	if got := readFile(t, filepath.Join(root, "extra", "whoami", "data", "db.sqlite")); got != "whoami-v1" {
 		t.Fatalf("not restored: %q", got)
 	}
-	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "  - extra/whoami/compose.yml\n") {
+	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "whoami:") {
 		t.Fatal("root compose does not include the restored extra app")
 	}
 }

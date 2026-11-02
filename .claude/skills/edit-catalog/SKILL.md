@@ -28,7 +28,7 @@ Search `internal/apps/`, `internal/catalog/`, `dcm/src/tools/` and `ALIASES` in 
 
 ## 3. Write the App
 
-Add `internal/apps/<name>/<name>.go` and its test, where `<name>` is the id without hyphens, and `docs/catalog/traps/<id>.md`, which keeps the hyphens. `Info().ID` is the id itself. The description is at most 100 characters in plain words (`internal/catalog/descriptions_test.go` enforces it). Extra services are named `<id>-...`. Setup follows `internal/helpers/` and the Protected invariants in `AGENTS.md`: Secrets stay in `secrets.env`.
+Add `internal/apps/<name>/<name>.go` and its test, where `<name>` is the id without hyphens, and `docs/catalog/traps/<id>.md`, which keeps the hyphens. `Info().ID` is the id itself. The description is at most 100 characters in plain words (`internal/catalog/descriptions_test.go` enforces it). Extra services are named `<id>-...`. Setup follows `internal/helpers/` and the Protected invariants in `AGENTS.md`: credentials stay in the private Project `.env`, and public Host settings are filtered before output.
 
 **Done:** `go test ./internal/apps/<name>/` passes.
 

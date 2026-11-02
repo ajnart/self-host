@@ -263,7 +263,7 @@ func (f *passboltRuntimeFixture) probe(r *runner) result {
 		return passboltPrerequisiteFailure()
 	}
 	wrapper := filepath.Join(r.root, "passbolt-bin", "docker")
-	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env"), filepath.Join(r.project, "secrets.env")}, "passbolt", "su", "-s", "/bin/bash", "-c", passboltSMTPCommand, "www-data")
+	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env")}, "passbolt", "su", "-s", "/bin/bash", "-c", passboltSMTPCommand, "www-data")
 	cmd := exec.CommandContext(ctx, wrapper, args...)
 	cmd.Dir = r.project
 	cmd.Env = r.env
@@ -319,7 +319,7 @@ func (f *passboltRuntimeFixture) metadataDiagnostic(r *runner) event {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
 	wrapper := filepath.Join(r.root, "passbolt-bin", "docker")
-	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env"), filepath.Join(r.project, "secrets.env")}, "passbolt", "sh", "-c", passboltMetadataCommand)
+	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env")}, "passbolt", "sh", "-c", passboltMetadataCommand)
 	command := exec.CommandContext(ctx, wrapper, args...)
 	command.Dir = r.project
 	command.Env = r.env
@@ -335,7 +335,7 @@ func (f *passboltRuntimeFixture) applicationMetadataDiagnostic(r *runner) event 
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
 	wrapper := filepath.Join(r.root, "passbolt-bin", "docker")
-	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env"), filepath.Join(r.project, "secrets.env")}, "--user", "www-data", "passbolt", "php", "-d", "display_errors=0", "-d", "log_errors=0", "-r", passboltApplicationMetadataPHP)
+	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env")}, "--user", "www-data", "passbolt", "php", "-d", "display_errors=0", "-d", "log_errors=0", "-r", passboltApplicationMetadataPHP)
 	command := exec.CommandContext(ctx, wrapper, args...)
 	command.Dir = r.project
 	command.Env = r.env
@@ -352,7 +352,7 @@ func (f *passboltRuntimeFixture) effectiveMetadataDiagnostic(r *runner) event {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
 	wrapper := filepath.Join(r.root, "passbolt-bin", "docker")
-	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env"), filepath.Join(r.project, "secrets.env")}, "--user", "www-data", "passbolt", "php", "-d", "display_errors=0", "-d", "log_errors=0", "-r", passboltEffectiveMetadataPHP)
+	args := composeExec(r.project, r.name, []string{filepath.Join(r.project, ".env")}, "--user", "www-data", "passbolt", "php", "-d", "display_errors=0", "-d", "log_errors=0", "-r", passboltEffectiveMetadataPHP)
 	command := exec.CommandContext(ctx, wrapper, args...)
 	command.Dir = r.project
 	command.Env = r.env

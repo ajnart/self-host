@@ -3,6 +3,7 @@ package seerr_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/seerr"
@@ -22,7 +23,7 @@ func TestInstallUsesConfiguredConfigUserAndPreservesRerunSecrets(t *testing.T) {
 		explicit            bool
 	}{
 		{name: "rootless", options: `["name=rootless"]`, want: "0:0"},
-		{name: "rootful", options: `["name=seccomp"]`, want: "1000:1000"},
+		{name: "rootful", options: `["name=seccomp"]`, want: strconv.Itoa(os.Geteuid()) + ":" + strconv.Itoa(os.Getegid())},
 		{name: "saved-override", options: `["name=rootless"]`, want: "1234:5678", explicit: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -54,7 +55,7 @@ func TestInstallUsesConfiguredConfigUserAndPreservesRerunSecrets(t *testing.T) {
 					Volumes []string `yaml:"volumes"`
 				} `yaml:"services"`
 			}
-			if err := yaml.Unmarshal([]byte(clitest.Read(t, filepath.Join(e.AppDir("seerr"), "compose.yml"))), &doc); err != nil {
+			if err := yaml.Unmarshal([]byte(clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))), &doc); err != nil {
 				t.Fatal(err)
 			}
 			settings, err := p.LoadSettings()
@@ -65,7 +66,7 @@ func TestInstallUsesConfiguredConfigUserAndPreservesRerunSecrets(t *testing.T) {
 			if got := os.Expand(svc.User, func(key string) string { return settings[key] }); got != tc.want {
 				t.Fatalf("config writer user = %q, want configured %s instead of the image's fixed 1000:1000", got, tc.want)
 			}
-			if len(svc.Ports) != 1 || svc.Ports[0] != "${BIND_IP}:"+e.Port("seerr")+":5055" || len(svc.Volumes) != 1 || svc.Volumes[0] != "./config:/app/config" {
+			if len(svc.Ports) != 1 || svc.Ports[0] != "${BIND_IP}:"+e.Port("seerr")+":5055" || len(svc.Volumes) != 1 || svc.Volumes[0] != "./apps/seerr/config:/app/config" {
 				t.Fatal("selected HTTP port or config mount changed")
 			}
 			after, err := p.LoadSecrets()

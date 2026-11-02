@@ -35,11 +35,25 @@ func (s *Service) Backup(ctx context.Context, ids []string, out, passphrase stri
 			if err != nil {
 				return err
 			}
-			if rootless {
+			helperApps := map[string]bool{}
+			for _, id := range targets {
+				if rootless || ss.settings["MEDIA_SEPARATE_USERS"] == "on" && slices.Contains(mediaIdentityApps, id) {
+					helperApps[id] = true
+				}
+			}
+			if len(helperApps) > 0 {
 				if err := s.prepareBackupHelper(ctx); err != nil {
 					return err
 				}
 				for _, id := range targets {
+					if !helperApps[id] {
+						continue
+					}
+					if ss.p.IsExtra(id) {
+						if _, err := os.Lstat(ss.p.AppDir(id)); errors.Is(err, os.ErrNotExist) {
+							continue // A service written directly in compose.yml has no App folder.
+						}
+					}
 					if err := s.validateBackupHelperDirectory(ss.p.AppDir(id)); err != nil {
 						return err
 					}
@@ -81,7 +95,7 @@ func (s *Service) Backup(ctx context.Context, ids []string, out, passphrase stri
 			manifest := backup.Manifest{Version: 1, Created: s.Deps.Now().UTC(), CLIVersion: s.Deps.Version}
 			for _, id := range targets {
 				entry := backup.ManifestApp{ID: id, Extra: ss.p.IsExtra(id)}
-				if rootless {
+				if helperApps[id] {
 					entry.OwnershipNamespace = backup.OwnershipDocker
 				}
 				if a, found := s.Catalog.App(id); found && ss.state.Apps[id] != nil {
@@ -100,9 +114,12 @@ func (s *Service) Backup(ctx context.Context, ids []string, out, passphrase stri
 				f.Close()
 				return err
 			}
-			for _, name := range []string{".env", "secrets.env", "state.json"} {
+			for _, name := range []string{".env", "secrets.env", "state.json", "compose.yml"} {
 				data, err := ss.p.ReadHomeFile(name)
 				if err != nil {
+					if name == "secrets.env" && errors.Is(err, os.ErrNotExist) {
+						continue
+					}
 					f.Close()
 					return err
 				}
@@ -126,7 +143,7 @@ func (s *Service) Backup(ctx context.Context, ids []string, out, passphrase stri
 				return fmt.Errorf("cannot determine running Apps before backup: %w", err)
 			}
 			for _, id := range targets {
-				if err := ss.archiveApp(ctx, w, id, containers, rootless); err != nil {
+				if err := ss.archiveApp(ctx, w, id, containers, helperApps[id]); err != nil {
 					f.Close()
 					return err
 				}
@@ -157,7 +174,7 @@ func (s *Service) Backup(ctx context.Context, ids []string, out, passphrase stri
 	return written, err
 }
 
-func (ss *session) archiveApp(ctx context.Context, w *backup.Writer, id string, containers []compose.Container, rootless bool) (result error) {
+func (ss *session) archiveApp(ctx context.Context, w *backup.Writer, id string, containers []compose.Container, dockerArchive bool) (result error) {
 	services, err := ss.services(id)
 	if err != nil {
 		return err
@@ -193,7 +210,13 @@ func (ss *session) archiveApp(ctx context.Context, w *backup.Writer, id string, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if rootless {
+	_, statErr := os.Lstat(ss.p.AppDir(id))
+	if errors.Is(statErr, os.ErrNotExist) && ss.p.IsExtra(id) {
+		// Directly edited Compose services need no synthetic App data folder.
+		// Their definition and referenced resources are in the canonical YAML.
+		log.Emit(events.Event{Event: events.StepWarn, App: id, Step: "archive-exclusions",
+			Msg: "saved the Compose definition; external bind mounts and named-volume data require separate backups"})
+	} else if dockerArchive {
 		err = ss.archiveDockerTree(ctx, w, id)
 	} else {
 		err = w.AddTree(ss.p.AppDir(id), ss.p.AppFolder(id)+"/"+id)

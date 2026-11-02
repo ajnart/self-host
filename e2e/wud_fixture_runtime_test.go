@@ -203,7 +203,7 @@ func (f *wudRuntimeFixture) observe(r *runner) bool {
 		cmd.Env = r.env
 		return executeOwnedCommand(ctx, cmd)
 	}
-	res := run("compose", "--project-directory", r.project, "--env-file", filepath.Join(r.project, ".env"), "--env-file", filepath.Join(r.project, "secrets.env"), "-f", filepath.Join(r.project, "compose.yml"), "-f", f.override, "-p", r.name, "ps", "-q", "ntfy")
+	res := run("compose", "--project-directory", r.project, "--env-file", filepath.Join(r.project, ".env"), "-f", filepath.Join(r.project, "compose.yml"), "-f", f.override, "-p", r.name, "ps", "-q", "ntfy")
 	id := strings.TrimSpace(res.stdout)
 	f.observation = wudInventoryDiagnostic{Phase: "container-selector", Count: len(strings.Fields(res.stdout)), Outcome: "command-failed"}
 	if res.code == 0 {

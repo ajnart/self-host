@@ -133,7 +133,7 @@ func TestWUDWrapperAllowsOnlyPublicNtfyAdminSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefix := []string{"compose", "--project-directory", project, "-p", "owned-test", "--env-file", filepath.Join(project, ".env"), "--env-file", filepath.Join(project, "secrets.env"), "-f", filepath.Join(project, "compose.yml")}
+	prefix := []string{"compose", "--project-directory", project, "-p", "owned-test", "--env-file", filepath.Join(project, ".env"), "-f", filepath.Join(project, "compose.yml")}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for _, suffix := range [][]string{

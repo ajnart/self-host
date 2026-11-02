@@ -28,9 +28,9 @@ func installed(t *testing.T, ids ...string) (*system.Deps, *catalog.Catalog) {
 
 func composeCalls(deps *system.Deps) []string {
 	var calls []string
-	for _, line := range deps.Runner.(*systemtest.Runner).Calls() {
-		if _, rest, found := strings.Cut(line, "secrets.env "); found {
-			calls = append(calls, rest)
+	for _, cmd := range deps.Runner.(*systemtest.Runner).Cmds() {
+		if cmd.Name == "docker" && len(cmd.Args) > 5 && cmd.Args[0] == "compose" {
+			calls = append(calls, strings.Join(cmd.Args[5:], " "))
 		}
 	}
 	return calls
@@ -80,13 +80,15 @@ func TestUnmanagedAppInLegacyAppsFolderKeepsWorking(t *testing.T) {
 	root := projectRoot(t, deps)
 	os.MkdirAll(filepath.Join(root, "apps", "whoami"), 0o755)
 	os.WriteFile(filepath.Join(root, "apps", "whoami", "compose.yml"), []byte("services:\n  whoami:\n    image: traefik/whoami\n    ports:\n      - ${BIND_IP}:8099:80\n"), 0o644)
+	// Model the actual legacy layout before its first canonical migration.
+	os.WriteFile(filepath.Join(root, "compose.yml"), []byte("name: selfhost\ninclude: [apps/one/compose.yml, apps/whoami/compose.yml]\n"), 0o644)
 
 	code, out := runWith(t, deps, cat, "start", "whoami")
 
 	if code != 0 || lastCompose(deps) != "up -d --remove-orphans whoami" {
 		t.Fatalf("start unmanaged: %d %q\n%s", code, lastCompose(deps), out)
 	}
-	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "apps/whoami/compose.yml") {
+	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "whoami:") {
 		t.Fatal("root compose does not include the unmanaged app")
 	}
 	_, statusOut := runWith(t, deps, cat, "status", "--json")
@@ -314,5 +316,27 @@ func TestHiddenAppIsUnlistedAndRefusedForNewInstalls(t *testing.T) {
 	}
 	if _, err := os.Stat(projectRoot(t, deps)); err == nil {
 		t.Fatal("refused install changed the Host")
+	}
+}
+
+func TestManualCanonicalComposeEditsSurviveLifecycleAndOtherApps(t *testing.T) {
+	deps, cat := installed(t, "one", "two")
+	path := filepath.Join(projectRoot(t, deps), "compose.yml")
+	root := readFile(t, path)
+	root = strings.Replace(root, "services:\n", "services:\n  # A person added this App directly.\n  handmade:\n    image: example/handmade\n", 1)
+	root = strings.Replace(root, "image: example/echo:latest", "# Keep this image and DNS choice.\n    image: example/custom:stable\n    dns: [192.0.2.53]", 1)
+	if err := os.WriteFile(path, []byte(root), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"start", "one"}, {"update", "one"}, {"install", "two", "--yes"}, {"remove", "two", "--yes"}} {
+		if code, out := runWith(t, deps, cat, args...); code != 0 {
+			t.Fatalf("%v failed: %s", args, out)
+		}
+		current := readFile(t, path)
+		for _, want := range []string{"# A person added this App directly.", "example/handmade", "# Keep this image and DNS choice.", "example/custom:stable", "dns: [192.0.2.53]"} {
+			if !strings.Contains(current, want) {
+				t.Fatalf("%v lost manual edit %q", args, want)
+			}
+		}
 	}
 }

@@ -414,7 +414,7 @@ func (v *dashboardView) needsAttention(ctx *viewContext) []need {
 	}
 	for _, c := range ctx.checks {
 		// Stopped containers and a stale LAN IP are already listed above.
-		if c.Level == host.OK || c.ID == "running" || c.ID == "lan-ip" || c.ID == "easy-names" && ctx.status.Names != nil && !ctx.status.Names.Working {
+		if c.Level == host.OK || c.Level == host.Skipped || c.ID == "running" || c.ID == "lan-ip" || c.ID == "easy-names" && ctx.status.Names != nil && !ctx.status.Names.Working {
 			continue
 		}
 		command := c.Hint

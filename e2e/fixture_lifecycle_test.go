@@ -3,7 +3,10 @@
 package e2e
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -53,9 +56,33 @@ func TestFixtureLifecycle(t *testing.T) {
 		t.Fatalf("fixture lifecycle = %v, want %v", calls, want)
 	}
 	compose := r.dockerArgs("compose", "-p", "selfhost-e2e-fake", "down", "--volumes", "--remove-orphans")
-	wantCompose := []string{"compose", "--project-directory", "/owned/project", "--env-file", "/owned/project/.env", "--env-file", "/owned/project/secrets.env", "-f", "/owned/project/compose.yml", "-f", "/owned/override.yml", "-p", "selfhost-e2e-fake", "down", "--volumes", "--remove-orphans"}
+	wantCompose := []string{"compose", "--project-directory", "/owned/project", "--env-file", "/owned/project/.env", "-f", "/owned/project/compose.yml", "-f", "/owned/override.yml", "-p", "selfhost-e2e-fake", "down", "--volumes", "--remove-orphans"}
 	if !reflect.DeepEqual(compose, wantCompose) {
 		t.Fatalf("Compose args = %v, want %v", compose, wantCompose)
+	}
+}
+
+func TestRunnerDockerArgsUsesCanonicalEnvironmentWithoutLegacySecretsFile(t *testing.T) {
+	r := &runner{project: t.TempDir()}
+	if err := os.WriteFile(filepath.Join(r.project, ".env"), []byte("PUID=1000\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	legacy := filepath.Join(r.project, "secrets.env")
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatal("canonical fixture must not have a legacy secrets file")
+	}
+	for _, operation := range [][]string{
+		{"compose", "-p", "selfhost-e2e-fake", "ps", "--all", "--format", "json"},
+		{"compose", "-p", "selfhost-e2e-fake", "down", "--volumes", "--remove-orphans"},
+	} {
+		got := r.dockerArgs(operation...)
+		want := append([]string{"compose", "--project-directory", r.project, "--env-file", filepath.Join(r.project, ".env")}, operation[1:]...)
+		if !slices.Equal(got, want) || slices.Contains(got, legacy) {
+			t.Fatalf("canonical observation/cleanup requires a legacy file: %v", got)
+		}
+	}
+	if got := r.dockerArgs("image", "inspect", "owned-image"); !slices.Equal(got, []string{"image", "inspect", "owned-image"}) {
+		t.Fatalf("non-Compose command changed: %v", got)
 	}
 }
 

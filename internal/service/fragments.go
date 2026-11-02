@@ -28,7 +28,52 @@ func (ss *session) writeFragment(id, content string) error {
 		return err
 	}
 	if st := ss.state.Apps[id]; st != nil {
-		st.FragmentSHA256 = fragmentSum([]byte(project.FragmentHeader(id) + content))
+		data, err := ss.p.ReadFragment(id)
+		if err != nil {
+			return err
+		}
+		st.FragmentSHA256 = fragmentSum(data)
+	}
+	return nil
+}
+
+// normalizeRender makes generation comparisons use the canonical file's paths
+// and defaults. Legacy Projects retain their original fragment representation.
+func (ss *session) normalizeRender(id, content string) (string, error) {
+	if !ss.p.Canonical() {
+		return project.FragmentHeader(id) + content, nil
+	}
+	data, err := ss.p.NormalizeFragment(id, content)
+	return string(data), err
+}
+
+// migrateCompose preserves hashes only for legacy fragments whose contents
+// still match the recorded generation. Customized fragments stay customized.
+func (ss *session) migrateCompose() error {
+	previous := map[string][]byte{}
+	if !ss.p.Canonical() {
+		for id, st := range ss.state.Apps {
+			if st == nil || st.FragmentSHA256 == "" {
+				continue
+			}
+			data, err := ss.p.ReadFragment(id)
+			if err != nil {
+				return err
+			}
+			if fragmentSum(data) == st.FragmentSHA256 {
+				previous[id] = data
+			}
+		}
+	}
+	if err := ss.p.WriteRoot(); err != nil {
+		return err
+	}
+	for id := range previous {
+		data, err := ss.p.ReadFragment(id)
+		if err != nil {
+			return err
+		}
+		ss.state.Apps[id].FragmentSHA256 = fragmentSum(data)
 	}
 	return nil
 }
@@ -158,7 +203,11 @@ func (ss *session) refreshFragments(ctx context.Context, ids []string) error {
 		if err != nil {
 			return err
 		}
-		if string(data) == project.FragmentHeader(id)+fragment {
+		expected, err := ss.normalizeRender(id, fragment)
+		if err != nil {
+			return err
+		}
+		if string(data) == expected {
 			if st.FragmentSHA256 == "" {
 				st.FragmentSHA256 = fragmentSum(data)
 			}

@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -38,6 +40,11 @@ func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	storage := "      - ${DOWNLOADS_ROOT}:/downloads\n"
+	if mediastorage.Shared(rc.Settings) {
+		// Keep the previous mount for queue/history and existing download paths.
+		storage += "      - ${DATA_ROOT}/usenet:/data/usenet\n"
+	}
 	return `services:
   nzbget:
     image: ghcr.io/nzbgetcom/nzbget:latest
@@ -50,8 +57,7 @@ func (App) Compose(rc app.RenderContext) string {
       TZ: ${TZ}
     volumes:
       - ./config:/config
-      - ${DOWNLOADS_ROOT}:/downloads
-    ports:
+` + storage + `    ports:
       - ${BIND_IP}:` + port + `:6789
 `
 }
@@ -101,6 +107,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			"then open " + h.URL + " and sign in with the password from `self-host credentials`.",
 		Credential: "admin",
 	}); err != nil {
+		return err
+	}
+	if err := downloadFolders(ctx, h); err != nil {
 		return err
 	}
 	if h.Peer("homarr") == nil {
@@ -202,7 +211,117 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	if ok, err := adminWorks(ctx, h); !ok {
 		return fmt.Errorf("the Admin login %s cannot read NZBGet's version over RPC: %v", h.AdminUser(), err)
 	}
+	if mediastorage.Shared(h.Settings) {
+		ok, err := downloadFoldersMatch(ctx, h)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New("NZBGet download folders or file permissions do not match the shared media layout; run self-host setup nzbget")
+		}
+	}
 	return nil
 }
 
 func (App) Links() []app.Link { return nil }
+
+func (App) StandaloneGuide() string {
+	return "Set DestDir to /data/usenet/complete and InterDir to /data/usenet/incomplete in Settings > Paths. The /downloads mount retains queue/history and existing downloads; changing defaults does not move existing jobs or files."
+}
+
+type configOption struct {
+	Name  string
+	Value string
+}
+
+func downloadOptions(h *helpers.H) []configOption {
+	mask := h.Settings["UMASK"]
+	if mask == "" {
+		mask = "022"
+	}
+	if h.Settings["MEDIA_SEPARATE_USERS"] == "on" {
+		mask = "002"
+	}
+	return []configOption{{"DestDir", "/data/usenet/complete"}, {"InterDir", "/data/usenet/incomplete"}, {"UMask", mask}}
+}
+
+func optionsMatch(entries, wanted []configOption) bool {
+	values := map[string]string{}
+	for _, entry := range entries {
+		values[entry.Name] = entry.Value
+	}
+	for _, option := range wanted {
+		value, found := values[option.Name]
+		if !found {
+			return false
+		}
+		if option.Name == "UMask" {
+			value = strings.TrimLeft(value, "0")
+			option.Value = strings.TrimLeft(option.Value, "0")
+		} else {
+			value = strings.TrimRight(value, "/")
+		}
+		if value != option.Value {
+			return false
+		}
+	}
+	return true
+}
+
+func downloadFoldersMatch(ctx context.Context, h *helpers.H) (bool, error) {
+	for _, method := range []string{"config", "loadconfig"} {
+		var entries []configOption
+		if err := callRPC(ctx, h, h.AdminUser(), h.AdminPassword(), method, &entries); err != nil {
+			return false, err
+		}
+		if !optionsMatch(entries, downloadOptions(h)) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func downloadFolders(ctx context.Context, h *helpers.H) error {
+	if !mediastorage.Shared(h.Settings) {
+		return nil
+	}
+	return h.Step(ctx, "download-folders", "use shared Usenet download folders", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) { return downloadFoldersMatch(ctx, h) },
+		Do: func(ctx context.Context) error {
+			var entries []configOption
+			if err := callRPC(ctx, h, h.AdminUser(), h.AdminPassword(), "loadconfig", &entries); err != nil {
+				return err
+			}
+			if len(entries) == 0 {
+				return errors.New("NZBGet returned no saved configuration; shared paths were not written")
+			}
+			wanted := downloadOptions(h)
+			if !optionsMatch(entries, wanted) {
+				for _, option := range wanted {
+					found := false
+					for i := range entries {
+						if entries[i].Name == option.Name {
+							entries[i] = option
+							found = true
+						}
+					}
+					if !found {
+						entries = append(entries, option)
+					}
+				}
+				var saved bool
+				if err := callRPC(ctx, h, h.AdminUser(), h.AdminPassword(), "saveconfig", &saved, entries); err != nil {
+					return err
+				}
+				if !saved {
+					return errors.New("NZBGet did not save the shared download folders")
+				}
+			}
+			if err := h.Restart(ctx); err != nil {
+				return errors.New("NZBGet shared folders are saved, but its scoped restart failed; retry self-host setup nzbget")
+			}
+			return h.Poll(ctx, 2*time.Minute, func(ctx context.Context) (bool, error) { return downloadFoldersMatch(ctx, h) })
+		},
+		Hint: "In NZBGet > Settings > Paths set DestDir to /data/usenet/complete and InterDir to /data/usenet/incomplete. Existing jobs and files are not moved; review their recorded paths before importing them.",
+	})
+}

@@ -160,7 +160,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		Check: func(ctx context.Context) (bool, error) {
 			return identityWorks(ctx, h, h.Secret(h.Key("api_secret")))
 		},
-		Hint: "Recreate the container so it imports ZEROTIER_API_SECRET from secrets.env: " +
+		Hint: "Recreate the container so it imports ZEROTIER_API_SECRET from .env: " +
 			"self-host start zerotier",
 		Credential: h.Key("api_secret"),
 	})

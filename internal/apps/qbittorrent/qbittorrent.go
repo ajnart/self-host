@@ -15,12 +15,13 @@ import (
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
 const (
-	// downloadsPath is where ${DOWNLOADS_ROOT} is mounted, in qBittorrent and
-	// in Sonarr and Radarr, so no remote path mapping is needed.
+	// downloadsPath preserves the container path of legacy Projects. New
+	// Projects use /data/torrents consistently across the media Apps.
 	downloadsPath = "/downloads"
 	// torrentPort is the peer port, published for TCP and UDP.
 	torrentPort = 6881
@@ -61,6 +62,11 @@ func (App) Inputs() []app.Input {
 // matches for both.
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("qbittorrent", rc.Settings)
+	mount := "${DOWNLOADS_ROOT}:" + downloadsPath
+	if mediastorage.Shared(rc.Settings) {
+		mount = "${DATA_ROOT}/torrents:/data/torrents"
+	}
 	torrent := strconv.Itoa(torrentPort)
 	if selected := rc.Inputs["torrent-port"]; selected != "" {
 		torrent = selected
@@ -70,15 +76,15 @@ func (App) Compose(rc app.RenderContext) string {
     image: lscr.io/linuxserver/qbittorrent:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: ${UMASK}
+      UMASK: ` + mask + `
       WEBUI_PORT: "` + port + `"
       TORRENTING_PORT: "` + torrent + `"
     volumes:
       - ./config:/config
-      - ${DOWNLOADS_ROOT}:` + downloadsPath + `
+      - ` + mount + `
     ports:
       - ${BIND_IP}:` + port + `:` + port + `
       - ${BIND_IP}:` + torrent + `:` + torrent + `
@@ -163,16 +169,17 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
-	return h.Step(ctx, "save-path", "save downloads in "+downloadsPath, helpers.StepSpec{
+	path := mediastorage.Torrents(h.Settings)
+	return h.Step(ctx, "save-path", "save downloads in "+path, helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return savePath(ctx, h) },
 		Do: func(ctx context.Context) error {
 			s, ok, err := adminSession(ctx, h)
 			if err != nil || !ok {
 				return errors.Join(errors.New("the Admin login is refused"), err)
 			}
-			return setPreferences(ctx, h, s, map[string]string{"save_path": downloadsPath})
+			return setPreferences(ctx, h, s, map[string]string{"save_path": path})
 		},
-		Hint:       "In qBittorrent open Tools > Options > Downloads and set Default Save Path to " + downloadsPath + ".",
+		Hint:       "In qBittorrent open Tools > Options > Downloads and set Default Save Path to " + path + ".",
 		Credential: "admin",
 	})
 }
@@ -233,7 +240,7 @@ func savePath(ctx context.Context, h *helpers.H) (bool, error) {
 	if err := resp.Decode(&prefs); err != nil {
 		return false, err
 	}
-	return prefs.SavePath == downloadsPath, nil
+	return strings.TrimRight(prefs.SavePath, "/") == mediastorage.Torrents(h.Settings), nil
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {
@@ -245,7 +252,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 		return fmt.Errorf("the Admin login %s cannot sign in to qBittorrent", h.AdminUser())
 	}
 	if ok, err := savePath(ctx, h); err != nil || !ok {
-		return fmt.Errorf("qBittorrent does not save downloads in %s: %v", downloadsPath, err)
+		return fmt.Errorf("qBittorrent does not save downloads in %s: %v", mediastorage.Torrents(h.Settings), err)
 	}
 	return nil
 }
@@ -253,5 +260,5 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "The WebUI starts with a temporary administrator password printed in the container logs; sign in with it, set your own and set the default save path to " + downloadsPath + "."
+	return "The WebUI starts with a temporary administrator password printed in the container logs; sign in with it, set your own and set the default save path to /data/torrents."
 }

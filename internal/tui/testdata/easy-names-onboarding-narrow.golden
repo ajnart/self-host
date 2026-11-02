@@ -19,6 +19,6 @@
 
   phones · TVs · laptops ──── router ──── Caddy · App name
                                  │
-                            internet ✗
+                             firewall
 
  q quit      ↑/↓  focus   space  select   enter  continue   esc  back   ?  more

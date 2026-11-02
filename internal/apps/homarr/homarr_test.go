@@ -548,10 +548,10 @@ func TestFreshInstallReachesFinishAndStoresAnAPIKey(t *testing.T) {
 	if step != "finish" {
 		t.Fatalf("onboarding step %q, want finish\n%s", step, r.Out)
 	}
-	secrets := clitest.Read(t, filepath.Join(clitest.Root(t, deps), "secrets.env"))
+	secrets := clitest.Read(t, filepath.Join(clitest.Root(t, deps), ".env"))
 	for _, want := range []string{"HOMARR_SECRET_ENCRYPTION_KEY=", "HOMARR_API_KEY="} {
 		if !strings.Contains(secrets, want) {
-			t.Errorf("secrets.env lacks %s:\n%s", want, secrets)
+			t.Errorf(".env lacks %s:\n%s", want, secrets)
 		}
 	}
 	for _, step := range []string{"admin", "onboarding", "api-key", "notebook", "check"} {

@@ -9,9 +9,8 @@ import (
 	"github.com/ajnart/self-host/internal/host"
 )
 
-// OnboardingChecks prepares the approved non-secret App inputs for Host-owned
-// disk and port inspection. Doctor is deliberately unchanged.
-func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []host.Check {
+// OnboardingChecks inspects the proposed App inputs and storage before approval.
+func (s *Service) OnboardingChecks(ctx context.Context, opts InstallOptions) []host.Check {
 	p, err := s.Project()
 	if err != nil {
 		return []host.Check{{ID: "disk", Title: "Disk space", Level: host.Fail,
@@ -48,7 +47,20 @@ func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []hos
 				Input: input.Key, Protocols: input.HostPortProtocols, Automatic: !inputWasSet(opts.Sets, info.ID, input.Key)})
 		}
 	}
-	return host.Onboarding(s.Deps, p.Root, len(apps), ports)
+	checks := host.Onboarding(s.Deps, p.Root, len(apps), ports)
+	settings := s.detectSettings(ctx, p.Owner, opts.Exposure)
+	applyInstallSettings(settings, opts)
+	if check := accessCheck(settings); check.Level == host.Warn && settings["EXPOSURE"] != ExposureLocal {
+		checks = append(checks, check)
+	}
+	if err := normalizeMediaSettings(settings); err != nil {
+		return append(checks, host.Check{ID: "media-storage", Title: "Media storage", Level: host.Fail, Detail: err.Error()})
+	}
+	if err := s.ensureMediaIdentities(ctx, settings); err != nil {
+		return append(checks, host.Check{ID: "media-users", Title: "Media file owners", Level: host.Fail,
+			Detail: err.Error(), Hint: "Review separate Linux file owners in Where; existing files have not been changed."})
+	}
+	return append(checks, s.mediaHardlinkChecks(ctx, settings, apps)...)
 }
 
 func plannedPort(value string, fallback int) (int, error) {

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,7 +47,14 @@ func planFromAnswers(backend Backend, v *answers) *plan {
 		}
 	}
 	if needsMedia {
-		opts.MediaRoot, opts.DownloadsRoot = folders.expand(v.media), folders.expand(v.downloads)
+		if v.mediaLayout == "shared" {
+			opts.Settings["MEDIA_LAYOUT"] = "shared"
+			opts.Settings["DATA_ROOT"] = folders.expand(v.dataRoot)
+			opts.Settings["MEDIA_SEPARATE_USERS"] = v.separateMediaUsers
+			opts.Settings["MEDIA_COPY_FALLBACK"] = v.mediaCopyFallback
+		} else {
+			opts.MediaRoot, opts.DownloadsRoot = folders.expand(v.media), folders.expand(v.downloads)
+		}
 	}
 	settings := map[string]string{"TZ": v.tz, "LAN_IP": v.lan, "PUID": v.puid, "PGID": v.pgid, "EXPOSURE": v.exposure}
 	if v.easyNames {
@@ -54,6 +62,14 @@ func planFromAnswers(backend Backend, v *answers) *plan {
 	}
 	if needsMedia {
 		settings["MEDIA_ROOT"], settings["DOWNLOADS_ROOT"] = folders.expand(v.media), folders.expand(v.downloads)
+		if v.mediaLayout == "shared" {
+			settings["MEDIA_LAYOUT"] = "shared"
+			settings["DATA_ROOT"] = folders.expand(v.dataRoot)
+			settings["MEDIA_ROOT"] = filepath.Join(settings["DATA_ROOT"], "media")
+			settings["DOWNLOADS_ROOT"] = filepath.Join(settings["DATA_ROOT"], "torrents")
+			settings["MEDIA_SEPARATE_USERS"] = v.separateMediaUsers
+			settings["MEDIA_COPY_FALLBACK"] = v.mediaCopyFallback
+		}
 	}
 	return &plan{apps: apps, opts: opts, links: linksBetween(cat, apps, nil), settings: settings, fresh: true}
 }
@@ -159,6 +175,10 @@ func planLines(t theme, p *plan, width int) []string {
 		lines = append(lines, row("Settings", fmt.Sprintf("TZ=%s PUID=%s PGID=%s", p.settings["TZ"], p.settings["PUID"], p.settings["PGID"])))
 		if p.settings["MEDIA_ROOT"] != "" {
 			lines = append(lines, row("Folders", "media "+p.settings["MEDIA_ROOT"]+" · downloads "+p.settings["DOWNLOADS_ROOT"]))
+		}
+		if p.settings["MEDIA_LAYOUT"] == "shared" {
+			lines = append(lines, row("Storage", "hardlink-friendly paths; capability checked after startup"),
+				row("File owners", "separate Linux users "+p.settings["MEDIA_SEPARATE_USERS"]+" · copy fallback "+p.settings["MEDIA_COPY_FALLBACK"]))
 		}
 		admin := p.opts.AdminUser + " · password generated (see it with: self-host credentials)"
 		if p.opts.AdminPassword != "" {

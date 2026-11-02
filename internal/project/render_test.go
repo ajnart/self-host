@@ -34,7 +34,7 @@ func TestWriteFragmentRejectsOtherAppServiceBeforeOverwrite(t *testing.T) {
 	}
 }
 
-func TestOwnershipValidationChecksPlannedUnionAndAllowsLegacyRepair(t *testing.T) {
+func TestOwnershipValidationUsesCanonicalAppSections(t *testing.T) {
 	p := testProject(t)
 	replacements := map[string]string{"one": "services:\n  one-cache:\n    image: example/one\n", "two": "services:\n  two-cache:\n    image: example/two\n"}
 	if err := p.ValidateServiceOwnership(replacements); err != nil {
@@ -48,8 +48,8 @@ func TestOwnershipValidationChecksPlannedUnionAndAllowsLegacyRepair(t *testing.T
 	if err := os.WriteFile(p.FragmentPath("two"), []byte(strings.ReplaceAll(replacements["two"], "two-cache", "one-cache")), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if p.ValidateServiceOwnership(nil) == nil {
-		t.Fatal("legacy collision was accepted")
+	if err := p.ValidateServiceOwnership(nil); err != nil {
+		t.Fatal("archival fragment changes overrode authoritative Compose", err)
 	}
 	if err := p.ValidateServiceOwnership(map[string]string{"two": replacements["two"]}); err != nil {
 		t.Fatal("planned replacement could not repair legacy collision")
@@ -62,7 +62,7 @@ func TestOwnershipValidationChecksPlannedUnionAndAllowsLegacyRepair(t *testing.T
 	}
 }
 
-func TestTheRootComposeFileIncludesTheEasyNamesCaddyWhenItExists(t *testing.T) {
+func TestTheRootComposeFileContainsTheEasyNamesCaddyWhenItExists(t *testing.T) {
 	p := testProject(t)
 	if err := p.WriteFragment("one", "services:\n  one:\n    image: example/one\n"); err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestTheRootComposeFileIncludesTheEasyNamesCaddyWhenItExists(t *testing.T) {
 		t.Fatal(err)
 	}
 	root, _ := os.ReadFile(p.Path("compose.yml"))
-	want := "include:\n  - apps/one/compose.yml\n  - access/caddy/compose.yml\n"
+	want := "access-caddy:"
 	if !strings.Contains(string(root), want) {
 		t.Fatalf("root:\n%s\nwant it to contain %q", root, want)
 	}
@@ -86,12 +86,12 @@ func TestTheRootComposeFileIncludesTheEasyNamesCaddyWhenItExists(t *testing.T) {
 		t.Fatal(err)
 	}
 	root, _ = os.ReadFile(p.Path("compose.yml"))
-	if strings.Contains(string(root), "access") {
+	if strings.Contains(string(root), "access-caddy") {
 		t.Fatalf("root still includes it:\n%s", root)
 	}
 }
 
-func TestTheRootComposeFileWithOnlyTheCaddyIncludesIt(t *testing.T) {
+func TestTheRootComposeFileWithOnlyTheCaddyContainsIt(t *testing.T) {
 	p := testProject(t)
 	if err := p.WriteNamesFragment("services:\n  access-caddy:\n    image: caddy\n"); err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestTheRootComposeFileWithOnlyTheCaddyIncludesIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	root, _ := os.ReadFile(p.Path("compose.yml"))
-	if !strings.Contains(string(root), "include:\n  - access/caddy/compose.yml\n") || strings.Contains(string(root), "services: {}") {
+	if !strings.Contains(string(root), "access-caddy:") || strings.Contains(string(root), "include:") {
 		t.Fatalf("root:\n%s", root)
 	}
 }

@@ -229,7 +229,7 @@ func (s *Service) ConfigSet(ctx context.Context, pairs []string) error {
 		key, value, found := strings.Cut(pair, "=")
 		key = strings.ToUpper(strings.TrimSpace(key))
 		if !found || !slices.Contains(project.SettingKeys, key) || key == "BIND_IP" {
-			return fmt.Errorf("%q: settable keys are TZ, PUID, PGID, UMASK, LAN_IP, EXPOSURE, EASY_NAMES, MEDIA_ROOT, DOWNLOADS_ROOT", pair)
+			return fmt.Errorf("%q: settable keys are %s", pair, strings.Join(project.SettingKeys, ", "))
 		}
 		value, err := s.resolveAuto(key, strings.TrimSpace(value))
 		if err != nil {
@@ -287,6 +287,14 @@ func (s *Service) ConfigSet(ctx context.Context, pairs []string) error {
 			state, err := p.LoadState()
 			if err != nil {
 				return err
+			}
+			if err := s.validateMediaChange(ctx, previous, next, state); err != nil {
+				return err
+			}
+			for key, value := range next {
+				if previous[key] != value {
+					changes[key] = value
+				}
 			}
 			if err := s.validateNames(ctx, next, state); err != nil {
 				return err
