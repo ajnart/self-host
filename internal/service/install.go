@@ -399,15 +399,15 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err := ss.allocateInputPorts(a, values, opts.Sets, st.Inputs, port); err != nil {
 					return err
 				}
-				if err := ss.ensureSecrets(a); err != nil {
-					return err
-				}
 				previousPort, previousInputs := st.Port, st.Inputs
 				st.Port, st.Inputs = port, publicInputs(a, values)
 				if preflight, ok := a.(app.PreflightChecker); ok {
 					if err := preflight.Preflight(ctx, ss.helpers(a)); err != nil {
 						return err
 					}
+				}
+				if err := ss.ensureSecrets(a); err != nil {
+					return err
 				}
 				ss.emitStage([]string{info.ID}, events.Event{Event: events.StepStart, App: info.ID, Step: StageRender, Msg: "render " + info.ID})
 				rc, err := s.renderContext(ctx, a, port, values, ss.settings)
