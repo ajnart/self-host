@@ -1,0 +1,28 @@
+docs/catalog/traps/healthchecks.md
+  h_d6e478ca18e517 11,13,17-20,24,29
+internal/apps/healthchecks/credentials.go
+  h_d6e478ca18e517 1-192
+internal/apps/healthchecks/credentials_test.go
+  h_d6e478ca18e517 1-287
+internal/apps/healthchecks/healthchecks.go
+  h_d6e478ca18e517 46-48
+internal/apps/healthchecks/healthchecks_test.go
+  h_d6e478ca18e517 13,152,160-164,173,178-179,181-201,241-253,255,286,301,303,324-327,387
+internal/apps/healthchecks/setup.go
+  h_d6e478ca18e517 18,20,31-34,37,50,105,108,112,117,126,130,134,139-146,148-149,159,162-165,169-204
+internal/apps/homarr/target_healthchecks.go
+  h_d6e478ca18e517 1-63
+internal/apps/homarr/target_healthchecks_test.go
+  h_d6e478ca18e517 1-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "60e6b0d6abdfece34f66a9121b708d8b00815a9a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
