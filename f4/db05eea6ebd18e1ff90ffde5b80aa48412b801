@@ -1,0 +1,18 @@
+docs/catalog/traps/komga.md
+  h_d6e478ca18e517 1-23
+internal/apps/komga/komga.go
+  h_d6e478ca18e517 1-187
+internal/apps/komga/komga_test.go
+  h_d6e478ca18e517 1-418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4db05eea6ebd18e1ff90ffde5b80aa48412b801",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
