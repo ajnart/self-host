@@ -10,7 +10,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-const ownerRecoveryHint = "Open Tandoor and verify the intended administrator using the Admin login shown privately by self-host credentials. For a known new installation, create the first administrator in Tandoor's setup page yourself; otherwise recover the existing account explicitly. Finish any email verification or MFA without disabling it. Select an existing Space owned by that administrator, then run self-host setup tandoor. Setup never creates accounts or Spaces, resets passwords, switches Spaces or issues API tokens."
+const ownerRecoveryHint = "Open Tandoor and verify the intended administrator using the Admin login shown privately by self-host credentials. For a known new installation, create the first administrator in Tandoor's setup page yourself; otherwise recover the existing account explicitly. Finish any email verification or MFA without disabling it. Select an existing Space owned by that administrator, then run self-host setup tandoor. Owner verification never creates accounts or Spaces, resets passwords or switches Spaces."
 
 const throttleHint = "Tandoor rate-limited verification (HTTP 429). Wait at least one minute for its quota to reset, then retry self-host setup tandoor. Keep existing accounts, Spaces and credentials unchanged."
 
@@ -95,8 +95,12 @@ func loginOwner(ctx context.Context, h *helpers.H) (string, int64, error) {
 }
 
 func ownerRead(ctx context.Context, h *helpers.H, token, path string, value any) error {
+	return authenticatedRead(ctx, h, map[string]string{"X-Session-Token": token}, path, value, ownerRecoveryHint)
+}
+
+func authenticatedRead(ctx context.Context, h *helpers.H, header map[string]string, path string, value any, hint string) error {
 	resp, err := h.HTTP(ctx, helpers.Request{
-		Path: path, NoRedirect: true, Header: map[string]string{"X-Session-Token": token},
+		Path: path, NoRedirect: true, Header: header,
 	})
 	if err != nil {
 		return errors.New("Tandoor administrator and Space verification request failed")
@@ -106,7 +110,7 @@ func ownerRead(ctx context.Context, h *helpers.H, token, path string, value any)
 			return &helpers.ManualError{Hint: throttleHint}
 		}
 		if resp.Status >= 300 && resp.Status < 500 {
-			return &helpers.ManualError{Hint: ownerRecoveryHint}
+			return &helpers.ManualError{Hint: hint}
 		}
 		return fmt.Errorf("Tandoor administrator and Space verification returned HTTP %d", resp.Status)
 	}
@@ -121,6 +125,18 @@ func verifyOwner(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
+	var memberships, current json.RawMessage
+	if err := ownerRead(ctx, h, token, "/api/user-space/all_personal/", &memberships); err != nil {
+		return err
+	}
+	if err := ownerRead(ctx, h, token, "/api/space/current/", &current); err != nil {
+		return err
+	}
+	_, err = accountSpace(h, id, memberships, current)
+	return err
+}
+
+func accountSpace(h *helpers.H, id int64, personal, current json.RawMessage) (int64, error) {
 	var memberships []struct {
 		ID     int64   `json:"id"`
 		Space  int64   `json:"space"`
@@ -130,21 +146,21 @@ func verifyOwner(ctx context.Context, h *helpers.H) error {
 			Name string `json:"name"`
 		} `json:"groups"`
 	}
-	if err := ownerRead(ctx, h, token, "/api/user-space/all_personal/", &memberships); err != nil {
-		return err
+	if json.Unmarshal(personal, &memberships) != nil {
+		return 0, errors.New("Tandoor did not return valid administrator and Space metadata")
 	}
 	seenIDs, seenSpaces := map[int64]bool{}, map[int64]bool{}
 	var activeSpace int64
 	for _, membership := range memberships {
 		if membership.ID <= 0 || membership.Space <= 0 || membership.Active == nil || seenIDs[membership.ID] || seenSpaces[membership.Space] || !membership.User.matches(id, h.AdminUser()) {
-			return &helpers.ManualError{Hint: ownerRecoveryHint}
+			return 0, &helpers.ManualError{Hint: ownerRecoveryHint}
 		}
 		seenIDs[membership.ID], seenSpaces[membership.Space] = true, true
 		if !*membership.Active {
 			continue
 		}
 		if activeSpace != 0 {
-			return &helpers.ManualError{Hint: ownerRecoveryHint}
+			return 0, &helpers.ManualError{Hint: ownerRecoveryHint}
 		}
 		admin := false
 		for _, group := range membership.Groups {
@@ -153,22 +169,22 @@ func verifyOwner(ctx context.Context, h *helpers.H) error {
 			}
 		}
 		if !admin {
-			return &helpers.ManualError{Hint: ownerRecoveryHint}
+			return 0, &helpers.ManualError{Hint: ownerRecoveryHint}
 		}
 		activeSpace = membership.Space
 	}
 	if activeSpace == 0 {
-		return &helpers.ManualError{Hint: ownerRecoveryHint}
+		return 0, &helpers.ManualError{Hint: ownerRecoveryHint}
 	}
 	var space struct {
 		ID        int64   `json:"id"`
 		CreatedBy account `json:"created_by"`
 	}
-	if err := ownerRead(ctx, h, token, "/api/space/current/", &space); err != nil {
-		return err
+	if json.Unmarshal(current, &space) != nil {
+		return 0, errors.New("Tandoor did not return valid administrator and Space metadata")
 	}
 	if space.ID != activeSpace || !space.CreatedBy.matches(id, h.AdminUser()) {
-		return &helpers.ManualError{Hint: ownerRecoveryHint}
+		return 0, &helpers.ManualError{Hint: ownerRecoveryHint}
 	}
-	return nil
+	return activeSpace, nil
 }

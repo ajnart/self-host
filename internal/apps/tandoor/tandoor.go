@@ -124,23 +124,38 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 func (App) StandaloneGuide() string {
-	return "After the first start, create the first administrator in Tandoor's setup page only for a known new installation. Preserve existing accounts and Spaces; this version verifies an existing administrator and its owned active Space but never creates or resets them automatically. Registration, external connectors, metrics and new-Space AI features are disabled by default. Review ALLOWED_HOSTS for your selected Access. Managed Homarr linking is not available in this version."
+	return "After the first start, create the first administrator in Tandoor's setup page only for a known new installation. Preserve existing accounts and Spaces; Setup never creates or resets them automatically. Registration, external connectors, metrics and new-Space AI features are disabled by default. Review ALLOWED_HOSTS for your selected Access. Plain Compose does not issue a read-only token or configure Homarr; create a read-scoped user token in Tandoor Settings > API if you choose to configure that connection yourself."
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := h.Ready(ctx, "/api/server-settings/current/", helpers.WantStatus(200), helpers.Timeout(5*time.Minute)); err != nil {
 		return err
 	}
-	return h.Step(ctx, "owner", "verify the existing Tandoor administrator and active Space", helpers.StepSpec{
+	if err := h.Step(ctx, "owner", "verify the existing Tandoor administrator and active Space", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			err := verifyOwner(ctx, h)
 			return err == nil, err
 		},
 		Do:   func(ctx context.Context) error { return verifyOwner(ctx, h) },
 		Hint: ownerRecoveryHint, Credential: "admin",
+	}); err != nil {
+		return err
+	}
+	return h.Step(ctx, "homarr-key", "verify Tandoor's dedicated read-only Homarr token", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) {
+			err := VerifyHomarr(ctx, h)
+			return err == nil, err
+		},
+		Do:   func(ctx context.Context) error { return ensureHomarrToken(ctx, h) },
+		Hint: HomarrRecoveryHint,
 	})
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error { return verifyOwner(ctx, h) }
+func (App) Check(ctx context.Context, h *helpers.H) error {
+	if err := verifyOwner(ctx, h); err != nil {
+		return err
+	}
+	return VerifyHomarr(ctx, h)
+}
 
 func (App) Links() []app.Link { return nil }

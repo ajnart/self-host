@@ -2,12 +2,12 @@
 
 ## Scope
 
-This is an App-only source implementation for #180. It supplies the deployment
-definition and checks an existing administrator and its owned active Space.
-Automatic first-account creation, managed token issuance and native Homarr wiring
-are not implemented. Catalog registration, DCM promotion and generated metadata
-remain coordinator-owned. No native, rendered, persistence or lifecycle runtime
-acceptance has been performed.
+This source implementation for #180 supplies the deployment definition, checks
+an existing administrator and its owned active Space, issues one dedicated
+read-scoped token through the shared credential journal and supplies a native
+Homarr Stats leaf. Automatic first-account creation remains Manual. Catalog and
+Homarr registration, DCM promotion and generated metadata remain coordinator-owned.
+No native, rendered, persistence or lifecycle runtime acceptance has been performed.
 
 ## Deployment and persistence
 
@@ -74,9 +74,10 @@ an actionable `helpers.ManualError`. For a positively known new installation, th
 person may create the first administrator in Tandoor's setup page. Otherwise they
 must recover the existing account explicitly. Sign in using the intended Admin
 login, select an existing Space it owns and retry `self-host setup tandoor`.
-Setup never posts to the bootstrap form, resets accounts, switches Spaces or
-scrapes the database. The ordinary sign-in itself creates an upstream session;
-it does not create a recipe account, API token or Space.
+Owner verification never posts to the bootstrap form, resets accounts, switches
+Spaces or scrapes the database. The ordinary sign-in itself creates an upstream
+session, not a recipe account or Space. A separate credential step owns API-token
+issuance as described below.
 
 The API requests do not use browser session cookies: upstream's cookie-authenticated
 middleware can activate a first Space when none is active. Header-token requests
@@ -84,24 +85,57 @@ instead require an already-active membership. Redirects are not followed. Failur
 messages contain no raw response bodies or private recipe/keyword data. No recipe,
 meal-plan, import, website-scraping or provider-action endpoint is requested.
 
-## Deferred native Homarr work
+## Native Homarr credentials and statistics
 
 Tandoor's advertised kind is `tandoor`, with only `apiKey` authentication. Homarr
 consumes a Bearer token with the exact `read` scope. Tandoor tokens have no managed
-name and are masked shortly after creation. Issuance/recovery must wait for the
-reviewed #150 journal; this App does not copy an issuance state machine, adopt a
-matching token, rotate a lost/rejected credential or read token values from a
-database. Existing token secrets and ownership records are untouched.
+name and are masked shortly after creation. The App uses the reviewed #150
+`CredentialIssuance.Pending/Begin/Capture/Commit` operations; it does not copy a
+journal or adopt a matching user token. A dedicated 90-day `read` token is issued
+through `POST /api/access-token/` only when no active/ownership/pending record
+exists. The App prepares it even before Homarr is installed, so either installation
+order has a credential available once central registration is assembled.
 
-The later #147-backed connector must bind real Stats metrics `users`, `recipes`
-and `keywords`, each in `count` units. Users/recipes describe the first accessible
+Intent records contain only the exact authenticated account, active/first Space
+IDs, scope and expiry. After the request, capture saves only the one-time token
+and selected response status/token ID/scope/expiry before semantic acceptance.
+Neither raw response bodies nor the all-token inventory is persisted. The saved
+token is authenticated against fresh account and Space metadata; its exact ID,
+`read` scope, expiry and full-or-masked suffix are checked through the official
+owner-filtered token inventory. A valid credential is retained. Private active
+storage uses `TANDOOR_HOMARR_API_KEY` and `TANDOOR_HOMARR_TOKEN_OWNERSHIP`; the shared
+journal uses `TANDOOR_HOMARR_TOKEN_PENDING`.
+
+A captured, fully verified attempt can resume through the shared Commit operation
+without another POST. An intent-only, malformed, lost, conflicting, rejected or
+expired record remains Manual. Unknown responses and persistence failures do not
+authorize replacement. HTTP 429 retains a fixed retry hint; a throttled issuance
+still keeps its pending attempt and never automatically posts again. Restore only
+known matching records from a verified Project Backup, or explicitly review the
+recorded attempt in Settings → API. Do not clear pending state to bypass the hold,
+rotate credentials, recreate users/Spaces or scrape a database to recover a key.
+
+The Homarr leaf binds real Stats metrics `users`, `recipes` and `keywords`, each
+in `count` units, using the reviewed #147 `validCountStats`/`countValue` primitives.
+Users/recipes describe the first accessible
 Space; keywords describe the token's active Space. These identities can differ.
 An empty Space list is not a valid zero sample. A fresh controlled first account
 can legitimately report 1 user, 0 recipes and 0 keywords without manufacturing
 recipes or changing meal plans. That is a planned expectation, not runtime proof.
-Saved-integration account/Space identity, genuine advancing refresh, rendering,
-both installation orders, invalid-key recovery and ownership-preserving removal
-remain unimplemented or unrun as applicable.
+Before Homarr mutation, read-only preflight verifies the App-owned credential.
+Verification also reads the saved Homarr integration's account, active Space and
+first accessible Space through its adapter-backed requests, checking exact returned
+integration ID/kind/status and stable identities. Counts alone do not prove the
+selected account. The common Stats pipeline obtains one advancing forced sample
+and catalog; the leaf checks integral nonnegative count units, at least one user,
+no retry/backoff and a one-minute acquisition-clock tolerance. Zero recipes and
+keywords remain valid. No recipe payload, import or meal plan is requested.
+
+Shared reconciliation retains ownership, compatibility and user layout; this leaf
+does not edit the registry or shared cleanup. Central assembly, real advancing
+refresh/rendering, both installation orders, invalid-key recovery and
+ownership-preserving removal still require separate acceptance. First-account
+creation remains an explicit incomplete automatic-Setup criterion, not native proof.
 
 ## Official sources
 

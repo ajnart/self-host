@@ -2,6 +2,8 @@ package tandoor_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/apps/tandoor"
@@ -23,22 +26,36 @@ import (
 type tandoorSecrets struct {
 	values map[string]string
 	writes int
+	failAt int
+	saved  []string
 }
 
 func (s *tandoorSecrets) Get(key string) string { return s.values[key] }
 func (s *tandoorSecrets) Set(key, value string) error {
 	s.writes++
+	if s.writes == s.failAt {
+		return errors.New("private-store-canary " + value)
+	}
 	s.values[key] = value
+	s.saved = append(s.saved, value)
 	return nil
 }
 
 type tandoorFixture struct {
-	login      string
-	membership string
-	space      string
-	statuses   map[string]int
-	requests   []string
-	location   string
+	login       string
+	membership  string
+	space       string
+	statuses    map[string]int
+	requests    []string
+	location    string
+	spaces      string
+	inventory   string
+	expires     string
+	issued      bool
+	posts       int
+	issueStatus int
+	issueBody   string
+	afterIssue  func()
 }
 
 func tandoorAccount(id int, username string) string {
@@ -52,6 +69,8 @@ func newTandoorFixture() *tandoorFixture {
 		membership: `[{"id":81,"user":` + user + `,"space":31,"active":true,"groups":[{"name":"admin"}]},{"id":82,"user":` + user + `,"space":44,"active":false,"groups":[{"name":"guest"}]}]`,
 		space:      `{"id":31,"created_by":` + user + `,"recipe_count":0,"user_count":1}`,
 		statuses:   map[string]int{},
+		spaces:     `{"results":[{"id":31},{"id":44}]}`,
+		issued:     true,
 	}
 }
 
@@ -59,7 +78,7 @@ func (f *tandoorFixture) handler(t *testing.T) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests = append(f.requests, r.Method+" "+r.URL.RequestURI())
-		if r.URL.RawQuery != "" || r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" {
+		if r.URL.RawQuery != "" || r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" && r.Header.Get("Authorization") != "Bearer tda_fixture_read_key_1234" {
 			t.Error("unexpected query, browser cookie or bearer authentication")
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -77,8 +96,8 @@ func (f *tandoorFixture) handler(t *testing.T) http.Handler {
 			}
 			http.SetCookie(w, &http.Cookie{Name: "sessionid", Value: "never-use-browser-session"})
 			body = f.login
-		case "GET /api/user-space/all_personal/", "GET /api/space/current/":
-			if r.Header.Get("X-Session-Token") != "fixture-session-secret" {
+		case "GET /api/user-space/all_personal/", "GET /api/space/current/", "GET /api/space/", "GET /api/access-token/":
+			if r.Header.Get("X-Session-Token") != "fixture-session-secret" && r.Header.Get("Authorization") != "Bearer tda_fixture_read_key_1234" {
 				t.Error("missing App session token")
 				w.WriteHeader(http.StatusForbidden)
 				return
@@ -87,6 +106,43 @@ func (f *tandoorFixture) handler(t *testing.T) http.Handler {
 			if r.URL.Path == "/api/space/current/" {
 				body = f.space
 			}
+			if r.URL.Path == "/api/space/" {
+				body = f.spaces
+			}
+			if r.URL.Path == "/api/access-token/" {
+				body = fmt.Sprintf(`[{"id":91,"scope":"read","expires":%q,"token":"tda_************_******_***********1234"},{"id":92,"scope":"write","expires":%q,"token":"unrelated-private-token"}]`, f.expires, f.expires)
+				if f.inventory != "" {
+					body = f.inventory
+				}
+			}
+		case "POST /api/access-token/":
+			if r.Header.Get("X-Session-Token") != "fixture-session-secret" || f.issued {
+				t.Error("invalid or duplicate token issuance")
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			var input map[string]string
+			if json.NewDecoder(r.Body).Decode(&input) != nil || len(input) != 2 || input["scope"] != "read" || input["expires"] != f.expires {
+				t.Error("unexpected token scope or expiry")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			f.posts++
+			f.issued = true
+			if f.afterIssue != nil {
+				f.afterIssue()
+			}
+			code := http.StatusCreated
+			if f.issueStatus != 0 {
+				code = f.issueStatus
+			}
+			w.WriteHeader(code)
+			body = fmt.Sprintf(`{"id":91,"scope":"read","expires":%q,"token":"tda_fixture_read_key_1234"}`, f.expires)
+			if f.issueBody != "" {
+				body = f.issueBody
+			}
+			w.Write([]byte(body))
+			return
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -109,10 +165,13 @@ func tandoorHarness(t *testing.T, fixture *tandoorFixture) (*helpers.H, *tandoor
 	server := httptest.NewServer(fixture.handler(t))
 	t.Cleanup(server.Close)
 	deps := systemtest.NewDeps(t)
+	fixture.expires = deps.Now().UTC().Add(90 * 24 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	fingerprint := sha256.Sum256([]byte("tda_fixture_read_key_1234"))
+	ownership := fmt.Sprintf(`{"tokenId":91,"accountId":17,"activeSpaceId":31,"firstSpaceId":31,"scope":"read","expires":%q,"fingerprint":%q}`, fixture.expires, hex.EncodeToString(fingerprint[:]))
 	secrets := &tandoorSecrets{values: map[string]string{
 		"ADMIN_USER": "admin", "ADMIN_PASSWORD": "fixture-password",
 		"TANDOOR_SECRET_KEY": "preserved-app-secret", "TANDOOR_DB_PASSWORD": "preserved-database-secret",
-		"TANDOOR_HOMARR_API_KEY": "preserved-read-token", "TANDOOR_HOMARR_TOKEN_OWNERSHIP": "preserved-token-record",
+		"TANDOOR_HOMARR_API_KEY": "tda_fixture_read_key_1234", "TANDOOR_HOMARR_TOKEN_OWNERSHIP": ownership,
 	}}
 	output := &bytes.Buffer{}
 	results := []helpers.StepResult{}
@@ -139,13 +198,13 @@ func TestTandoorExistingOwnerAndSpacesAreVerifiedWithoutMutation(t *testing.T) {
 	if secrets.writes != 0 || !reflect.DeepEqual(before, secrets.values) {
 		t.Fatal("verification changed persisted credentials")
 	}
-	if len(fixture.requests) != 11 || tandoorLogins(fixture) != 1 {
+	if len(fixture.requests) != 27 || tandoorLogins(fixture) != 1 {
 		t.Fatalf("unexpected verification request count: %d", len(fixture.requests))
 	}
 	if (*results)[len(*results)-1].Status != status.StepSkip {
 		t.Fatal("existing owner did not complete an idempotent verification step")
 	}
-	for _, private := range []string{"fixture-password", "fixture-session-secret", "preserved-read-token"} {
+	for _, private := range []string{"fixture-password", "fixture-session-secret", "tda_fixture_read_key_1234"} {
 		if strings.Contains(output.String(), private) {
 			t.Fatal("verification exposed private material")
 		}
@@ -354,7 +413,7 @@ func TestTandoorComposeAndPublicMetadataMatchOfficialContract(t *testing.T) {
 	if secrets := a.Secrets(); len(secrets) != 2 || secrets[0].Name != "secret_key" || secrets[0].Length < 48 || secrets[1].Name != "db_password" || secrets[1].Length < 48 {
 		t.Fatalf("missing first-start private secrets: %+v", secrets)
 	}
-	if !strings.Contains(a.StandaloneGuide(), "not available") || !strings.Contains(a.StandaloneGuide(), "ALLOWED_HOSTS") {
+	if !strings.Contains(a.StandaloneGuide(), "read-only token") || !strings.Contains(a.StandaloneGuide(), "ALLOWED_HOSTS") {
 		t.Fatal("standalone guidance obscures the partial Setup boundary")
 	}
 }
