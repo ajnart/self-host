@@ -172,6 +172,7 @@ func TestHomeboxOfficialPersistentCompose(t *testing.T) {
 	var _ app.SecretDeclarer = a
 	var _ app.AdminEmailProvider = a
 	var _ app.StandaloneGuide = a
+	var _ app.PreflightChecker = a
 	info := a.Info()
 	if info.ID != "homebox" || info.Service != "homebox" || info.Image != "ghcr.io/sysadminsmedia/homebox:latest" || info.Port != 3100 || info.ContainerPort != 7745 || len(info.Description) > 100 {
 		t.Fatal("incorrect App deployment metadata")

@@ -19,10 +19,19 @@ Backup/Restore or lifecycle acceptance.
   database and journal files, local attachments and optional configuration.
   Restart, update and non-purge removal must retain it; no Setup step imports,
   edits or deletes inventory, locations or attachments.
-- Keep `HOMEBOX_API_KEY_PEPPER` with the data in private backups. The existing
-  secret generator supplies it once, before first startup, and reuses saved
-  values. Homebox requires at least 32 bytes. Replacing it invalidates every API
-  key; never rotate it as credential recovery or adopt data without its pepper.
+- Keep `HOMEBOX_API_KEY_PEPPER` with the data in private backups. Homebox requires
+  at least 32 bytes. Its credential-aware prerequisite runs before Install or
+  fragment refresh can generate secrets, and again before startup. Missing or
+  short pepper remains Manual, including an apparently new or empty directory:
+  this context does not independently prove safe fresh storage. Automatic
+  Service-side initial pepper generation is therefore explicitly not accepted
+  in this slice. For a separately approved new inventory, provision one strong
+  private pepper; for existing data, restore only the original through private
+  `homebox.api_key_pepper` / `install --set-file` input from an owner-only file.
+  Empty input reuses a saved pepper. Replacing it invalidates every API key;
+  never rotate it as credential recovery or adopt data without its pepper.
+  The existing secret declaration still supplies standalone export metadata;
+  it is not authority to replace missing keys for retained data.
 - This uses the regular image's default user. Rootless/hardened variants need
   their documented UID 65532 writable-storage preparation; this App does not
   change ownership recursively, inject unsupported PUID/PGID values or silently

@@ -33,6 +33,8 @@ func (App) AdminEmail(username string) string {
 
 func (App) Inputs() []app.Input {
 	return []app.Input{
+		{Key: "api_key_pepper", Prompt: "Original Homebox API-key pepper", Private: true, RecoveryOnly: true,
+			Help: "Restore the original pepper of at least 32 bytes for existing data. For an explicitly approved new inventory, provision one strong private value and retain it permanently. Missing values stop before automatic generation or startup; never supply a replacement for retained data. Empty input preserves a saved pepper."},
 		{Key: "account_identity", Prompt: "Known Homebox account and inventory identity", Private: true, RecoveryOnly: true,
 			Help: "Optional matching JSON with accountId, email and groupId for the intended existing account. Restore only independently verified identities through private --set-file input. Empty input preserves the saved selection; changing it requires an explicit inventory selection decision."},
 		{Key: "api_key", Prompt: "Existing Homebox account API key", Private: true, RecoveryOnly: true,
@@ -42,6 +44,16 @@ func (App) Inputs() []app.Input {
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "api_key_pepper", Length: 64, Hex: true}}
+}
+
+func (App) Preflight(ctx context.Context, h *helpers.H) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if h.Secrets == nil {
+		return nil
+	}
+	return requirePepper(h)
 }
 
 func (App) Compose(rc app.RenderContext) string {
@@ -82,5 +94,5 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "Registration starts disabled. For a genuinely new inventory only, explicitly enable registration in the Compose file, create the intended account, then disable registration again. Otherwise sign in to the existing account without replacing it. Keep the complete data folder and HOMEBOX_API_KEY_PEPPER together in private backups; changing the pepper invalidates existing API keys. Automatic first-account creation, API-key issuance and native Homarr linking are not yet supported."
+	return "Registration starts disabled. For a genuinely new inventory only, explicitly enable registration in the Compose file, create the intended account, then disable registration again. Otherwise sign in to the existing account without replacing it. Keep the complete data folder and HOMEBOX_API_KEY_PEPPER together in private backups; changing the pepper invalidates existing API keys. With self-host, a missing pepper needs explicit private provisioning for a new inventory or restoration of the original for existing data before generation or startup. Automatic first-account creation, API-key issuance and native Homarr linking are not yet supported."
 }

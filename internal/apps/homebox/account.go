@@ -101,9 +101,16 @@ func readAccountData(ctx context.Context, h *helpers.H, token, path string, valu
 	return nil
 }
 
+func requirePepper(h *helpers.H) error {
+	if h.Secrets == nil || len(h.Secret(h.Key("api_key_pepper"))) < 32 {
+		return &helpers.ManualError{Hint: "Homebox is held before secret generation or startup. Restore the original pepper of at least 32 bytes with private homebox.api_key_pepper input through --set-file and an owner-only credential file, after reviewing and separately approving any Compose replacement. For an explicitly approved new inventory only, provision one strong private pepper and keep it with the data. Do not generate a replacement for retained data: it invalidates every existing API key. Retry self-host install homebox after that recovery; self-host setup homebox does not provision the pepper."}
+	}
+	return nil
+}
+
 func verifyAccount(ctx context.Context, h *helpers.H, rememberIdentity bool) error {
-	if len(h.Secret(h.Key("api_key_pepper"))) < 32 {
-		return &helpers.ManualError{Hint: "Restore the existing Homebox API-key pepper of at least 32 bytes through the Project secret boundary. Do not generate a replacement for an existing inventory: that invalidates every API key. Then retry self-host setup homebox."}
+	if err := requirePepper(h); err != nil {
+		return err
 	}
 	identity, saved, err := savedIdentity(h)
 	if err != nil {
