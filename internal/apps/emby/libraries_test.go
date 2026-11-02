@@ -78,3 +78,45 @@ func TestReadServerLibrariesReusesExistingCredentialWithoutHomarrOrAuthenticatio
 		})
 	}
 }
+
+func TestReadServerLibrariesRecoveryHintsAreConsumerNeutral(t *testing.T) {
+	for _, mode := range []string{"missing-key", "public-identity", "rejected-key", "authenticated-identity", "inventory"} {
+		t.Run(mode, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/System/Info/Public":
+					id := "emby-id"
+					if mode == "public-identity" {
+						id = "different-id"
+					}
+					json.NewEncoder(w).Encode(map[string]string{"Id": id})
+				case "/emby/System/Info":
+					if mode == "rejected-key" {
+						w.WriteHeader(403)
+						return
+					}
+					id := "emby-id"
+					if mode == "authenticated-identity" {
+						id = "different-id"
+					}
+					json.NewEncoder(w).Encode(map[string]string{"Id": id, "Version": "4.10.2.0"})
+				case "/Library/MediaFolders":
+					w.Write([]byte(`{"Items":[]}`))
+				default:
+					t.Errorf("unexpected read-only recovery request: %s", r.URL.Path)
+					w.WriteHeader(404)
+				}
+			}))
+			t.Cleanup(server.Close)
+			h := helpers.New(helpers.Config{App: "emby", BaseURL: server.URL, HTTP: server.Client(), Log: events.Discard()})
+			key := "existing-key"
+			if mode == "missing-key" {
+				key = ""
+			}
+			_, _, err := emby.ReadServerLibraries(context.Background(), h, key, "emby-id")
+			if err == nil || strings.Contains(strings.ToLower(err.Error()), "seerr") {
+				t.Fatalf("target-owned recovery is missing or names a consumer: %v", err)
+			}
+		})
+	}
+}

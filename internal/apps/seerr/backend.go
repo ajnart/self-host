@@ -127,16 +127,21 @@ func readBackendIdentity(h *helpers.H) (backendIdentity, bool, error) {
 	return identity, true, nil
 }
 
-func rememberBackendIdentity(h *helpers.H, identity backendIdentity) error {
+func checkBackendIdentity(h *helpers.H, identity backendIdentity) (bool, error) {
 	saved, exists, err := readBackendIdentity(h)
 	if err != nil {
-		return err
+		return exists, err
 	}
-	if exists {
-		if saved != identity {
-			return &helpers.ManualError{Hint: "Seerr's verified server identity changed. Review the existing connection and recorded identity before retrying; no backend, credential or library selection was replaced."}
-		}
-		return nil
+	if exists && saved != identity {
+		return true, &helpers.ManualError{Hint: "Seerr's verified server identity changed. Review the existing connection and recorded identity before retrying; no backend, credential or library selection was replaced."}
+	}
+	return exists, nil
+}
+
+func rememberBackendIdentity(h *helpers.H, identity backendIdentity) error {
+	exists, err := checkBackendIdentity(h, identity)
+	if err != nil || exists {
+		return err
 	}
 	raw, err := json.Marshal(identity)
 	if err != nil {
@@ -161,6 +166,17 @@ func verifyMediaBackend(ctx context.Context, from, to *helpers.H, id string) err
 	if to.App != id || to.Service == "" || to.ContainerPort <= 0 || to.ContainerPort > 65535 || configured.IP != to.Service || configured.Port != to.ContainerPort || configured.UseSSL == nil || *configured.UseSSL || (configured.URLBase != nil && *configured.URLBase != "") || (id == "emby" && configured.URLBase == nil) {
 		return &helpers.ManualError{Hint: "Seerr's existing " + id + " endpoint does not match this Project's internal server. Review its media-server settings without replacing the connection or selected libraries."}
 	}
+	configuredID := configured.ServerID
+	if id == "plex" {
+		configuredID = configured.MachineID
+	}
+	if configuredID == "" {
+		return backendIdentityMismatch()
+	}
+	identity := backendIdentity{Backend: id, ServerID: configuredID, Host: configured.IP, Port: configured.Port}
+	if _, err := checkBackendIdentity(from, identity); err != nil {
+		return err
+	}
 	var libraries []backendLibrary
 	if err := backendRead(ctx, from, backendPath(id)+"/library", &libraries); err != nil {
 		return err
@@ -176,21 +192,18 @@ func verifyMediaBackend(ctx context.Context, from, to *helpers.H, id string) err
 		for _, library := range target {
 			available[library.ID] = library.Type
 		}
-		if configured.MachineID == "" || configured.MachineID != serverID {
-			return backendIdentityMismatch(err)
-		}
 	} else {
 		var target []emby.Library
 		serverID, target, err = emby.ReadServerLibraries(ctx, to, configured.APIKey, configured.ServerID)
 		for _, library := range target {
 			available[library.ID] = library.Type
 		}
-		if configured.ServerID == "" || configured.ServerID != serverID {
-			return backendIdentityMismatch(err)
-		}
 	}
 	if err != nil {
-		return err
+		return backendTargetError(id, err)
+	}
+	if configuredID != serverID {
+		return backendIdentityMismatch()
 	}
 	if len(libraries) == 0 && len(available) > 0 {
 		return &helpers.ManualError{Hint: "Seerr has no saved library choices for this server's available libraries. Review and select the intended libraries in Seerr manually; no inventory was synced or library enabled automatically."}
@@ -221,7 +234,7 @@ func verifyMediaBackend(ctx context.Context, from, to *helpers.H, id string) err
 			seenUsers[user.ID] = true
 		}
 	}
-	if err := rememberBackendIdentity(from, backendIdentity{Backend: id, ServerID: serverID, Host: to.Service, Port: to.ContainerPort}); err != nil {
+	if err := rememberBackendIdentity(from, identity); err != nil {
 		return err
 	}
 	if id == "plex" {
@@ -230,11 +243,20 @@ func verifyMediaBackend(ctx context.Context, from, to *helpers.H, id string) err
 	return nil
 }
 
-func backendIdentityMismatch(err error) error {
-	if err != nil {
+func backendIdentityMismatch() error {
+	return &helpers.ManualError{Hint: "Seerr's saved media-server identity does not match the authenticated target. Review the connection before retrying; no backend or library selection was changed."}
+}
+
+func backendTargetError(id string, err error) error {
+	if !errors.Is(err, helpers.ErrManual) {
 		return err
 	}
-	return &helpers.ManualError{Hint: "Seerr's saved media-server identity does not match the authenticated target. Review the connection before retrying; no backend or library selection was changed."}
+	hint := "Review Seerr's existing " + id + " media-server settings and the target's own Setup, then retry self-host setup " + id + " seerr. No connection credential or selected library was replaced."
+	var manual *helpers.ManualError
+	if errors.As(err, &manual) && manual.Hint != "" {
+		hint = manual.Hint + " " + hint
+	}
+	return &helpers.ManualError{Hint: hint}
 }
 
 func removeMediaBackend(ctx context.Context, from, to *helpers.H, id string) error {

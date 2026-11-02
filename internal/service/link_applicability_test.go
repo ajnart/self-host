@@ -125,3 +125,64 @@ func TestHistoricalLinkRemovalDoesNotConsultApplicability(t *testing.T) {
 		t.Fatalf("historic removal skipped: %v, calls %d", blocked, removed)
 	}
 }
+
+func TestTargetRecoveryOnlyRechecksOutstandingOptInApplicability(t *testing.T) {
+	consumer := &applicableTestApp{testApp: &testApp{id: "consumer", done: map[string]bool{}}}
+	trigger := &testApp{id: "trigger", done: map[string]bool{}}
+	other := &testApp{id: "other", done: map[string]bool{}}
+	h := newHarness(t, consumer, trigger, other)
+	if err := h.install("consumer", "trigger", "other"); err != nil {
+		t.Fatal(err)
+	}
+	ss, err := h.svc.open(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	triggered, predicates, unexpectedApply, legacyRetries := 0, 0, 0, 0
+	consumer.links = []app.Link{
+		app.NewLink("link-trigger", "trigger", "trigger", app.LinkStep{
+			Do: func(context.Context, *helpers.H, *helpers.H) error { triggered++; return nil },
+		}, nil),
+		{ID: "link-choice", Target: "other", Title: "choice", Applicable: func(context.Context, *helpers.H) (bool, error) { predicates++; return false, nil },
+			Apply: func(context.Context, *helpers.H, *helpers.H) error { unexpectedApply++; return nil }},
+		{ID: "link-wait", Target: "other", Title: "wait", Applicable: func(context.Context, *helpers.H) (bool, error) { predicates++; return false, nil },
+			Apply: func(context.Context, *helpers.H, *helpers.H) error { unexpectedApply++; return nil }},
+		{ID: "link-selected-manual", Target: "other", Title: "selected Manual", Applicable: func(context.Context, *helpers.H) (bool, error) { predicates++; return true, nil },
+			Apply: func(context.Context, *helpers.H, *helpers.H) error { unexpectedApply++; return nil }},
+		{ID: "link-healthy", Target: "other", Title: "healthy", Applicable: func(context.Context, *helpers.H) (bool, error) {
+			t.Error("healthy applicability was unnecessarily reevaluated")
+			return true, nil
+		}},
+		{ID: "link-legacy-manual", Target: "other", Title: "legacy Manual", Apply: func(context.Context, *helpers.H, *helpers.H) error { unexpectedApply++; return nil }},
+		app.NewLink("link-legacy-failed", "other", "legacy failed", app.LinkStep{
+			Do: func(context.Context, *helpers.H, *helpers.H) error { legacyRetries++; return nil },
+		}, nil),
+		{ID: "link-absent", Target: "absent", Title: "absent", Applicable: func(context.Context, *helpers.H) (bool, error) {
+			t.Error("absent target was probed")
+			return false, nil
+		}},
+	}
+	st := ss.state.Apps["consumer"]
+	for _, id := range []string{"link-choice", "link-selected-manual", "link-legacy-manual", "link-absent"} {
+		st.Steps[id] = project.StepRecord{Status: stepstatus.StepManual, Hint: "keep this prerequisite unless unselected"}
+	}
+	st.Steps["link-wait"] = project.StepRecord{Status: stepstatus.StepSkip, Msg: linkWaitingMessage("other")}
+	st.Steps["link-healthy"] = project.StepRecord{Status: stepstatus.StepOK}
+	st.Steps["link-legacy-failed"] = project.StepRecord{Status: stepstatus.StepFail}
+	if _, err := ss.runSetup(context.Background(), trigger); err != nil {
+		t.Fatal(err)
+	}
+	if triggered != 1 || predicates != 3 || unexpectedApply != 0 || legacyRetries != 1 {
+		t.Fatalf("unexpected recovery scope: trigger=%d predicates=%d other providers=%d legacy retries=%d", triggered, predicates, unexpectedApply, legacyRetries)
+	}
+	for _, id := range []string{"link-choice", "link-wait"} {
+		if got := st.Steps[id]; got.Status != stepstatus.StepSkip || got.Hint != "" || got.Msg == linkWaitingMessage("other") {
+			t.Fatalf("outstanding selection was not refreshed: %+v", got)
+		}
+	}
+	for _, id := range []string{"link-selected-manual", "link-legacy-manual", "link-absent"} {
+		if got := st.Steps[id]; got.Status != stepstatus.StepManual || got.Hint != "keep this prerequisite unless unselected" {
+			t.Fatalf("unrelated prerequisite was changed: %+v", got)
+		}
+	}
+}

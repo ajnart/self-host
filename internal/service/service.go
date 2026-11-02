@@ -450,9 +450,14 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 			// indirectly (Seerr's servers need its Jellyfin Link), so retry it.
 			for _, link := range links {
 				if link.Target != id && !ss.failed(otherID, link.ID) {
-					continue
+					record := ss.state.Apps[otherID].Steps[link.ID]
+					if link.Applicable == nil || !slices.Contains(installed, link.Target) || !(record.Status.NeedsAttention() || record.Status == stepstatus.StepSkip && record.Msg == linkWaitingMessage(link.Target)) {
+						continue
+					}
+					ss.linkApplicable(ctx, ss.helpers(other), link)
+				} else {
+					ss.applyLink(ctx, other, link, installed)
 				}
-				ss.applyLink(ctx, other, link, installed)
 				otherState := ss.state.Apps[otherID]
 				otherState.Setup = setupResult(otherState)
 				if otherState.Setup == stepstatus.SetupIncomplete {
@@ -470,19 +475,8 @@ func (ss *session) applyLink(ctx context.Context, from app.App, link app.Link, i
 	if !slices.Contains(installed, link.Target) {
 		return
 	}
-	if link.Applicable != nil {
-		selected, err := link.Applicable(ctx, h)
-		if err != nil {
-			ss.reportUnexpected(h, link.ID, h.Step(ctx, link.ID, link.Title, helpers.StepSpec{
-				Do:   func(context.Context) error { return err },
-				Hint: "Review the selected target, then run self-host setup " + from.Info().ID + ".",
-			}))
-			return
-		}
-		if !selected {
-			h.Skip(link.ID, "not selected: "+link.Title)
-			return
-		}
+	if !ss.linkApplicable(ctx, h, link) {
+		return
 	}
 	to := ss.readyPeer(link.Target)
 	if to == nil {
@@ -490,6 +484,24 @@ func (ss *session) applyLink(ctx context.Context, from app.App, link app.Link, i
 		return
 	}
 	ss.reportUnexpected(h, link.ID, link.Apply(ctx, h, to))
+}
+
+func (ss *session) linkApplicable(ctx context.Context, h *helpers.H, link app.Link) bool {
+	if link.Applicable == nil {
+		return true
+	}
+	selected, err := link.Applicable(ctx, h)
+	if err != nil {
+		ss.reportUnexpected(h, link.ID, h.Step(ctx, link.ID, link.Title, helpers.StepSpec{
+			Do:   func(context.Context) error { return err },
+			Hint: "Review the selected target, then run self-host setup " + h.App + ".",
+		}))
+		return false
+	}
+	if !selected {
+		h.Skip(link.ID, "not selected: "+link.Title)
+	}
+	return selected
 }
 
 func linkWaitingMessage(target string) string {

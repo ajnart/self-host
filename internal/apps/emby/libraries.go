@@ -15,7 +15,7 @@ type Library struct {
 
 func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID string) (string, []Library, error) {
 	if key == "" {
-		return "", nil, &helpers.ManualError{Hint: "Restore Seerr's verified Emby connection credential in its media-server settings, then retry self-host setup seerr. No key was created or replaced."}
+		return "", nil, &helpers.ManualError{Hint: "Restore the existing Emby connection credential through its owner before retrying. No key was created or replaced."}
 	}
 	h.Log.Secret(key)
 	public, err := h.HTTP(ctx, helpers.Request{Path: "/System/Info/Public", NoRedirect: true})
@@ -24,11 +24,11 @@ func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID stri
 	}
 	var identity struct{ ID string }
 	if public.Status != http.StatusOK || public.Decode(&identity) != nil || identity.ID == "" || expectedID == "" || identity.ID != expectedID {
-		return "", nil, &helpers.ManualError{Hint: "Emby's current server identity does not match Seerr's saved server. Review ownership before sending the saved connection credential; no key was submitted or replaced."}
+		return "", nil, &helpers.ManualError{Hint: "Emby's current server identity does not match the expected server. Review ownership before sending the saved connection credential; no key was submitted or replaced."}
 	}
 	id, err := serverIdentity(ctx, h, key)
 	if errors.Is(err, errAPIKeyRejected) {
-		return "", nil, &helpers.ManualError{Hint: "Emby rejected Seerr's saved connection credential. Review Seerr's media-server settings and restore the intended credential before retrying; no key was replaced."}
+		return "", nil, &helpers.ManualError{Hint: "Emby rejected the saved connection credential. Restore the intended credential through its owner before retrying; no key was replaced."}
 	}
 	if err != nil {
 		return "", nil, err
@@ -47,7 +47,7 @@ func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID stri
 		TotalRecordCount *int
 	}
 	if resp.Status != http.StatusOK || resp.Decode(&data) != nil || data.Items == nil || data.TotalRecordCount == nil || *data.TotalRecordCount != len(data.Items) {
-		return "", nil, errors.New("Emby did not return complete authenticated library folders; review the connection without resyncing Seerr's selections")
+		return "", nil, errors.New("Emby did not return complete authenticated library folders; review its identity, credential and library inventory before retrying")
 	}
 	libraries := []Library{}
 	seen := map[string]bool{}

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/app"
@@ -16,8 +17,11 @@ import (
 	"github.com/ajnart/self-host/internal/apps/emby"
 	"github.com/ajnart/self-host/internal/apps/plex"
 	"github.com/ajnart/self-host/internal/apps/seerr"
+	"github.com/ajnart/self-host/internal/clitest"
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/project"
+	stepstatus "github.com/ajnart/self-host/internal/status"
 )
 
 func backendFixture(t *testing.T, id string, libraries []map[string]any) (*arrtest.Seerr, *helpers.H, *helpers.H, *[]helpers.StepResult) {
@@ -264,6 +268,84 @@ func TestBackendRejectsChangedIdentityEndpointAndCredentials(t *testing.T) {
 	}
 }
 
+func TestBackendRecordMismatchStopsBeforeTargetCredentialsOrSeerrProbes(t *testing.T) {
+	for _, id := range []string{"emby", "plex"} {
+		for _, changed := range []string{"server", "host", "port"} {
+			t.Run(id+"-"+changed, func(t *testing.T) {
+				fake, from, to, _ := backendFixture(t, id, savedBackendLibraries())
+				settings := map[string]any{"ip": id, "port": to.ContainerPort, "useSsl": false, "urlBase": "", "serverId": "server-B", "machineId": "server-B", "apiKey": "seerr-emby-key"}
+				kind := 3
+				if id == "plex" {
+					kind = 1
+					to.SetSecret("PLEX_SERVER_ID", "server-B")
+					to.Inputs["verified_server_id"] = "server-B"
+				}
+				fake.ConfigureMediaServer(kind, true, settings, savedBackendLibraries())
+				record := map[string]any{"backend": id, "serverId": "server-B", "host": id, "port": to.ContainerPort}
+				switch changed {
+				case "server":
+					record["serverId"] = "server-A"
+				case "host":
+					record["host"] = "previous-server"
+				case "port":
+					record["port"] = to.ContainerPort + 1
+				}
+				raw, err := json.Marshal(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+				from.SetSecret("SEERR_BACKEND_IDENTITY", string(raw))
+				var targetRequests, credentialRequests atomic.Int32
+				targetHandler := backendTargetHandler(t, id, "server-B", false)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					targetRequests.Add(1)
+					if r.Header.Get("X-Emby-Token") != "" || r.Header.Get("Authorization") != "" || r.Header.Get("X-Plex-Token") != "" {
+						credentialRequests.Add(1)
+					}
+					targetHandler.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				to.BaseURL, to.Config.HTTP = server.URL, server.Client()
+				if err := linkTo(t, id).Apply(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) {
+					t.Fatal("record mismatch did not stop as Manual", err)
+				}
+				if targetRequests.Load() != 0 || credentialRequests.Load() != 0 {
+					t.Fatalf("changed target received requests before record validation: total=%d credential-bearing=%d", targetRequests.Load(), credentialRequests.Load())
+				}
+				for _, request := range fake.Requests() {
+					if strings.HasSuffix(request, "/users") {
+						t.Fatal("record mismatch allowed a Seerr connection probe")
+					}
+				}
+				if from.Secret("SEERR_BACKEND_IDENTITY") != string(raw) {
+					t.Fatal("mismatched identity was replaced")
+				}
+				requireReadOnlyBackend(t, fake)
+			})
+		}
+	}
+}
+
+func TestSeerrOwnsConsumerRecoveryForNeutralTargetFailures(t *testing.T) {
+	for _, id := range []string{"emby", "plex"} {
+		t.Run(id, func(t *testing.T) {
+			fake, from, to, results := backendFixture(t, id, savedBackendLibraries())
+			if id == "emby" {
+				fake.ConfigureMediaServer(3, true, map[string]any{"ip": "emby", "port": 8096, "useSsl": false, "urlBase": "", "serverId": "server-id", "apiKey": ""}, savedBackendLibraries())
+			} else {
+				to.Inputs["verified_server_id"] = ""
+			}
+			if err := linkTo(t, id).Apply(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("target prerequisite did not remain Manual", err)
+			}
+			if len(*results) != 1 || !strings.Contains((*results)[0].Hint, "Seerr's existing "+id) || !strings.Contains((*results)[0].Hint, "self-host setup "+id+" seerr") {
+				t.Fatalf("Seerr did not supply consumer-owned recovery: %+v", *results)
+			}
+			requireReadOnlyBackend(t, fake)
+		})
+	}
+}
+
 type backendReadyEmby struct{ emby.App }
 
 func (backendReadyEmby) Setup(context.Context, *helpers.H) error { return nil }
@@ -299,6 +381,33 @@ func TestEmbyBackendBothInstallationOrdersIgnoreUnselectedUnreadyPlex(t *testing
 			requireReadOnlyBackend(t, e.Seerr)
 		})
 	}
+}
+
+func TestEmbyTargetRecoveryClearsOtherManualBackendSelections(t *testing.T) {
+	e := newEnv(t, seerr.App{}, backendReadyEmby{}, backendUnreadyPlex{})
+	e.Serve("emby", backendTargetHandler(t, "emby", "server-id", false))
+	e.Run("install", "plex", "--yes")
+	if r := e.Run("install", "emby", "--yes"); r.Code != 0 {
+		t.Fatal(r.Out)
+	}
+	r := e.Run("install", "seerr", "--yes", "--json")
+	if r.StepEvent("seerr", "link-plex") != "step.manual" || r.StepEvent("seerr", "link-emby") != "step.manual" {
+		t.Fatal("fresh ambiguous selection did not leave both Links Manual", r.Out)
+	}
+	e.Seerr.ConfigureMediaServer(3, true, map[string]any{"ip": "emby", "port": 8096, "useSsl": false, "urlBase": "", "serverId": "server-id", "apiKey": "seerr-emby-key"}, savedBackendLibraries())
+	r = e.Run("setup", "emby", "--json")
+	if r.StepEvent("seerr", "link-emby") != "step.ok" || r.StepEvent("seerr", "link-plex") != "step.skip" {
+		t.Fatal("target-triggered recovery retained the other Manual selection", r.Out)
+	}
+	p := &project.Project{Root: clitest.Root(t, e.Deps)}
+	state, err := p.LoadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Apps["seerr"].Setup != stepstatus.SetupOK || state.Apps["seerr"].Steps["link-plex"].Hint != "" {
+		t.Fatalf("recovered consumer retained Manual selection state: %+v", state.Apps["seerr"])
+	}
+	requireReadOnlyBackend(t, e.Seerr)
 }
 
 func TestBackendPublicStateRequiresExplicitFields(t *testing.T) {
