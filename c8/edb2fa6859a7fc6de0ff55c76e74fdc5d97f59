@@ -1,0 +1,20 @@
+internal/apps/homarr/homarr.go
+  h_d6e478ca18e517 73,95
+internal/apps/homarr/procedure_data.go
+  h_d6e478ca18e517 1-165
+internal/apps/homarr/procedure_data_test.go
+  h_d6e478ca18e517 1-145
+internal/apps/homarr/target_sonarr_test.go
+  h_d6e478ca18e517 205-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8edb2fa6859a7fc6de0ff55c76e74fdc5d97f59",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
