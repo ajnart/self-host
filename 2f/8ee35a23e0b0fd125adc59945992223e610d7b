@@ -1,0 +1,22 @@
+docs/homarr-proxmox-proof.md
+  h_d6e478ca18e517 1-132
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 10-13
+internal/apps/homarr/target_proxmox.go
+  h_d6e478ca18e517 1-138
+internal/apps/homarr/target_proxmox_external_test.go
+  h_d6e478ca18e517 1-97
+internal/apps/homarr/target_proxmox_test.go
+  h_d6e478ca18e517 1-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f8ee35a23e0b0fd125adc59945992223e610d7b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
