@@ -1,0 +1,32 @@
+internal/apps/homarr/external_connections.go
+  h_d6e478ca18e517 13-39
+internal/apps/homarr/external_connections_test.go
+  h_d6e478ca18e517 26-28,55-60,70-76,222-338
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 610-614
+internal/apps/homarr/ownership.go
+  h_d6e478ca18e517 43-66
+internal/apps/homarr/ownership_test.go
+  h_d6e478ca18e517 7,155-213
+internal/apps/homarr/shared_widgets.go
+  h_d6e478ca18e517 55-58,60
+internal/cli/connections_test.go
+  h_d6e478ca18e517 12,90-124
+internal/service/connections.go
+  h_d6e478ca18e517 133-174,247,484-486
+internal/service/connections_test.go
+  h_d6e478ca18e517 333-383
+internal/service/service.go
+  h_d6e478ca18e517 243,259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f0b81fc738b71b7ea594723ecfeceed84b674767",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
