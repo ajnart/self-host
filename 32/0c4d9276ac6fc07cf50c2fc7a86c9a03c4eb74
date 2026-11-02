@@ -1,0 +1,22 @@
+docs/catalog/traps/nzbget.md
+  h_d6e478ca18e517 8-12
+internal/apps/nzbget/downloadclient.go
+  h_d6e478ca18e517 1-105
+internal/apps/nzbget/downloadclient_test.go
+  h_d6e478ca18e517 1-170
+internal/apps/nzbget/links_test.go
+  h_d6e478ca18e517 1-218
+internal/apps/servarr/nzbget.go
+  h_d6e478ca18e517 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "320c4d9276ac6fc07cf50c2fc7a86c9a03c4eb74",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
