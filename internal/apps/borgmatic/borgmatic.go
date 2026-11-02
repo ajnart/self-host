@@ -83,8 +83,11 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}); err != nil {
 		return err
 	}
-	h.Info("Borgmatic is prepared but cron is disabled; nothing is backed up yet. Run a reviewed job with " +
-		"docker compose exec borgmatic borgmatic --verbosity 1, and prove recovery with an isolated restore.")
+	h.Info("Borgmatic is prepared but cron is disabled; no repository is initialized and no backup is run by Setup. " +
+		"Review and approve the sources, destination and repository writes before creating a repository or running a backup. " +
+		"Once the repository is ready and the backup is approved, run from the Project folder, replacing PROJECT_NAME with its existing Compose project name: " +
+		"docker compose -p PROJECT_NAME -f compose.yml --env-file .env --env-file secrets.env run --rm --no-deps -T borgmatic borgmatic create --verbosity 1. " +
+		"The version-only container exits, so exec cannot run the job. Prove recovery with a separately approved isolated restore.")
 	return nil
 }
 

@@ -61,7 +61,8 @@ func (f *fakeImmich) handler() http.Handler {
 	})
 	mux.HandleFunc("POST /api/api-keys", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": "statistics-key", "secret": "statistics-secret"})
+		json.NewEncoder(w).Encode(map[string]any{"id": "statistics-key", "secret": "statistics-secret",
+			"name": "self-host Homarr statistics", "permissions": []string{"user.read", "server.statistics"}})
 	})
 	mux.HandleFunc("GET /api/api-keys/me", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "statistics-secret" {

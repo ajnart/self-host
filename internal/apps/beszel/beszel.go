@@ -35,6 +35,9 @@ const (
 	dockerSocketTarget = "/var/run/docker.sock"
 	agentPort          = "45876"
 	proxyPort          = "45877"
+
+	machineRecoveryHint  = "Restore the recorded system from a Backup, or explicitly reconcile BESZEL_MACHINE_ID through the Project's secrets boundary after verifying this machine's replacement in the Hub, then run: self-host setup beszel. Do not clear the recorded ID to select by name."
+	machineBootstrapHint = "Verify this machine in the Hub and rename the other systems called This machine so only this machine keeps that name, then run: self-host setup beszel."
 )
 
 func (App) DockerSocketTarget() string { return dockerSocketTarget }
@@ -254,17 +257,28 @@ func machine(ctx context.Context, h *helpers.H) (hubSystem, bool, error) {
 		return hubSystem{}, false, err
 	}
 	stored := h.Secret(h.Key("machine_id"))
-	for _, item := range items {
-		if item.ID != "" && item.ID == stored {
-			return item, true, nil
+	if stored != "" {
+		for _, item := range items {
+			if item.ID == stored {
+				return item, true, nil
+			}
 		}
+		hint := "the recorded system is missing from the Hub; " + machineRecoveryHint
+		h.Info(hint)
+		return hubSystem{}, false, errors.Join(helpers.ErrManual, errors.New(hint))
 	}
+	var found hubSystem
 	for _, item := range items {
 		if item.ID != "" && item.Name == SystemName {
-			return item, true, nil
+			if found.ID != "" {
+				hint := "more than one system is called This machine; " + machineBootstrapHint
+				h.Info(hint)
+				return hubSystem{}, false, errors.Join(helpers.ErrManual, errors.New(hint))
+			}
+			found = item
 		}
 	}
-	return hubSystem{}, false, nil
+	return found, found.ID != "", nil
 }
 
 // MachineID is the Hub's record id for this machine's system, read as the
@@ -351,6 +365,9 @@ func startAgent(ctx context.Context, h *helpers.H) error {
 	if h.Secret(h.Key("agent_key")) == "" || h.Secret(h.Key("agent_token")) == "" {
 		return errors.New("the agent's key and token are not stored yet")
 	}
+	if _, _, err := machine(ctx, h); err != nil {
+		return err
+	}
 	if err := h.Up(ctx, AgentService); err != nil {
 		return err
 	}
@@ -368,11 +385,11 @@ func startAgent(ctx context.Context, h *helpers.H) error {
 
 func ready(ctx context.Context, h *helpers.H, path string) error {
 	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
+		resp, err := h.HTTP(ctx, helpers.Request{Path: path, NoRedirect: true})
 		if err != nil {
 			return false, err
 		}
-		return resp.Status < 500, nil
+		return resp.Status == http.StatusOK, nil
 	}
 	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
 		Check: probe,
@@ -423,7 +440,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	return h.Step(ctx, "agent", "start the agent and wait for this machine in the Hub", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return enrolled(ctx, h) },
 		Do:    func(ctx context.Context) error { return startAgent(ctx, h) },
-		Hint:  "Read the agent's output with: self-host logs " + h.App + "; it needs the Docker socket proxy and port " + agentPort + " free on this machine",
+		Hint:  "Read the agent's output with: self-host logs " + h.App + "; it needs the Docker socket proxy and port " + agentPort + " free on this machine. For missing or ambiguous system identity, follow the reported Manual recovery without clearing the recorded ID.",
 	})
 }
 
@@ -435,8 +452,17 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	if !ok {
 		return errors.New("the Admin login cannot sign in to Beszel")
 	}
-	_, err = MachineID(ctx, h)
-	return err
+	system, listed, err := machine(ctx, h)
+	if err != nil {
+		return err
+	}
+	if !listed {
+		return errors.New("this machine is not listed in the Hub; run: self-host setup beszel")
+	}
+	if system.Status != "up" {
+		return errors.New("this machine is not online in the Hub; read self-host logs beszel, resume this machine in the Hub if it was paused, then run: self-host setup beszel")
+	}
+	return nil
 }
 
 func (App) Links() []app.Link { return nil }

@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ajnart/self-host/internal/app"
@@ -293,8 +295,9 @@ func createKey(ctx context.Context, h *helpers.H) (string, error) {
 }
 
 type virtualFolder struct {
-	Name      string
-	Locations []string
+	Name           string
+	Locations      []string
+	CollectionType string
 }
 
 func virtualFolders(ctx context.Context, h *helpers.H) ([]virtualFolder, error) {
@@ -311,15 +314,30 @@ func hasLibrary(ctx context.Context, h *helpers.H, l library) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	found := false
 	for _, f := range folders {
-		if f.Name == l.name {
-			return true, nil
+		matchingPath := false
+		for _, location := range f.Locations {
+			if path.Clean(location) == l.path() {
+				matchingPath = true
+				break
+			}
+		}
+		if matchingPath && f.CollectionType == l.collectionType {
+			found = true
+			continue
+		}
+		if matchingPath || strings.EqualFold(f.Name, l.name) {
+			return false, fmt.Errorf("%w: an existing Jellyfin library conflicts with %s (%s, type %s); review its folders and content type in Dashboard > Libraries, resolve the conflict without replacing its options, then run self-host setup jellyfin", helpers.ErrManual, l.name, l.path(), l.collectionType)
 		}
 	}
-	return false, nil
+	return found, nil
 }
 
 func addLibrary(ctx context.Context, h *helpers.H, l library) error {
+	if exists, err := hasLibrary(ctx, h, l); err != nil || exists {
+		return err
+	}
 	if _, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "mkdir", "-p", l.path()); err != nil {
 		return err
 	}
@@ -373,8 +391,8 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		err := h.Step(ctx, "library-"+l.folder, "add the "+l.name+" library ("+l.path()+")", helpers.StepSpec{
 			Check: func(ctx context.Context) (bool, error) { return hasLibrary(ctx, h, l) },
 			Do:    func(ctx context.Context) error { return addLibrary(ctx, h, l) },
-			Hint: "Open " + h.URL + "/web/#/dashboard/libraries > Add Media Library: " + l.name +
-				", folder " + l.path() + ".",
+			Hint: "Open " + h.URL + "/web/#/dashboard/libraries and review existing libraries before adding " + l.name +
+				", folder " + l.path() + ", content type " + l.collectionType + ". A different display name is fine when the folder and type match. Setup preserves existing library options; explicitly resolve any conflicting name, folder or type, then run self-host setup jellyfin.",
 			Credential: "admin",
 		})
 		if err != nil {

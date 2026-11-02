@@ -1,11 +1,8 @@
-// Package seerr is Seerr, where people request movies and shows. Its admin
-// is the Jellyfin administrator, so all of its configuration happens in
-// Links: sign in to Jellyfin and enable its libraries, then add Sonarr and
-// Radarr as the default servers.
 package seerr
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -41,7 +38,12 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
+func (App) Inputs() []app.Input {
+	return []app.Input{
+		{Key: "sonarr_profile", Prompt: "Sonarr quality profile ID or exact name", RecoveryOnly: true, Help: "Optional when Sonarr has one profile. With multiple profiles, choose an upstream profile ID or unique exact name; existing connections are preserved."},
+		{Key: "radarr_profile", Prompt: "Radarr quality profile ID or exact name", RecoveryOnly: true, Help: "Optional when Radarr has one profile. With multiple profiles, choose an upstream profile ID or unique exact name; existing connections are preserved."},
+	}
+}
 
 // Secrets pins Seerr's API key: the container adopts API_KEY on start.
 func (App) Secrets() []app.SecretSpec { return []app.SecretSpec{{Name: "api_key", Length: 32}} }
@@ -151,32 +153,49 @@ func syncLibraries(ctx context.Context, h *helpers.H) ([]jellyfinLibrary, error)
 	return libs, resp.Decode(&libs)
 }
 
-func listLibraries(ctx context.Context, h *helpers.H) ([]jellyfinLibrary, error) {
-	resp, err := h.Expect(ctx, helpers.Request{Path: "/api/v1/settings/jellyfin/library", Header: keyHeader(h)})
+func verifyJellyfinTarget(ctx context.Context, from, to *helpers.H) error {
+	resp, err := from.Expect(ctx, helpers.Request{Path: "/api/v1/settings/jellyfin", Header: keyHeader(from)})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var libs []jellyfinLibrary
-	return libs, resp.Decode(&libs)
+	var configured struct {
+		IP       string `json:"ip"`
+		Port     int    `json:"port"`
+		UseSSL   *bool  `json:"useSsl"`
+		URLBase  string `json:"urlBase"`
+		ServerID string `json:"serverId"`
+	}
+	if err := resp.Decode(&configured); err != nil {
+		return err
+	}
+	if to.App != "jellyfin" || configured.IP != to.Service || configured.Port != to.ContainerPort || configured.UseSSL == nil || *configured.UseSSL || configured.URLBase != "" || configured.ServerID == "" {
+		from.Info("Seerr's existing Jellyfin connection does not match this Project. Review its media-server settings; no connection or library selection was changed.")
+		return helpers.ErrManual
+	}
+	resp, err = to.Expect(ctx, helpers.Request{Path: "/System/Info/Public"})
+	if err != nil {
+		return err
+	}
+	var target struct {
+		ID string `json:"Id"`
+	}
+	if err := resp.Decode(&target); err != nil {
+		return err
+	}
+	if target.ID == "" || target.ID != configured.ServerID {
+		from.Info("Seerr's saved Jellyfin server identity does not match the target. Review the connection before retrying; no settings were changed.")
+		return helpers.ErrManual
+	}
+	return nil
 }
 
-// connected reports whether Seerr is set up on Jellyfin with every Jellyfin
-// library enabled.
-func connected(ctx context.Context, h *helpers.H) (bool, error) {
+func connected(ctx context.Context, h, to *helpers.H) (bool, error) {
 	p, err := readPublic(ctx, h)
 	if err != nil || !p.Initialized || p.MediaServerType != mediaServerJellyfin {
 		return false, err
 	}
-	libs, err := listLibraries(ctx, h)
-	if err != nil || len(libs) == 0 {
-		return false, err
-	}
-	for _, l := range libs {
-		if !l.Enabled {
-			return false, nil
-		}
-	}
-	return true, nil
+	err = verifyJellyfinTarget(ctx, h, to)
+	return err == nil, err
 }
 
 func connect(ctx context.Context, from, to *helpers.H) error {
@@ -185,7 +204,18 @@ func connect(ctx context.Context, from, to *helpers.H) error {
 		return err
 	}
 	if p.MediaServerType != mediaServerNone && p.MediaServerType != mediaServerJellyfin {
-		return errors.New("Seerr is already set up with another media server; it is left as it is")
+		from.Info("Seerr is already set up with another media server; its connection and library selections were left unchanged.")
+		return helpers.ErrManual
+	}
+	if p.MediaServerType == mediaServerJellyfin {
+		if err := verifyJellyfinTarget(ctx, from, to); err != nil {
+			return err
+		}
+		if p.Initialized {
+			return nil
+		}
+		from.Info("Seerr's Jellyfin Setup is unfinished. Open " + from.URL + "/setup, review the selected libraries and finish Setup, then run self-host setup seerr. Existing selections were left unchanged; an interrupted library sync is not completion.")
+		return helpers.ErrManual
 	}
 	session, err := signIn(ctx, from, to, p)
 	if err != nil {
@@ -213,19 +243,17 @@ func connect(ctx context.Context, from, to *helpers.H) error {
 	return err
 }
 
-// jellyfinLink signs Seerr in to Jellyfin with the Admin login, enables every
-// Jellyfin library and finishes Seerr's setup.
 func jellyfinLink() app.Link {
 	return app.NewLink("link-jellyfin", "jellyfin", "media server: Jellyfin",
 		app.LinkStep{
-			Message: "sign in to Jellyfin and enable its libraries",
-			Check: func(ctx context.Context, from, _ *helpers.H) (bool, error) {
-				return connected(ctx, from)
+			Message: "connect Jellyfin and preserve existing library selections",
+			Check: func(ctx context.Context, from, to *helpers.H) (bool, error) {
+				return connected(ctx, from, to)
 			},
 			Do: func(ctx context.Context, from, to *helpers.H) error { return connect(ctx, from, to) },
 			Hint: func(from, to *helpers.H) string {
-				return "Open " + from.URL + "/setup: choose Jellyfin, server " + to.Service + " port " + strconv.Itoa(to.ContainerPort) +
-					", sign in with the Admin login (any email), enable every library and finish."
+				return "Review " + from.URL + "/settings/jellyfin: keep your chosen libraries and verify server " + to.Service + " port " + strconv.Itoa(to.ContainerPort) +
+					". For a new Seerr, open /setup, choose Jellyfin and sign in with the Admin login (any email). Do not replace an existing media server."
 			},
 		}, nil)
 }
@@ -250,8 +278,9 @@ var (
 )
 
 func (s server) points(item map[string]any, to *helpers.H) bool {
-	port, _ := item["port"].(float64)
-	return item["hostname"] == to.Service && int(port) == to.ContainerPort
+	port, valid := item["port"].(json.Number)
+	parsed, err := port.Int64()
+	return valid && err == nil && item["hostname"] == to.Service && parsed == int64(to.ContainerPort)
 }
 
 func (s server) list(ctx context.Context, h *helpers.H) ([]map[string]any, error) {
@@ -260,52 +289,75 @@ func (s server) list(ctx context.Context, h *helpers.H) ([]map[string]any, error
 		return nil, err
 	}
 	var items []map[string]any
-	return items, resp.Decode(&items)
+	if err := decodeServerResponse(resp, &items); err != nil {
+		return nil, err
+	}
+	if items == nil {
+		return nil, errors.New("Seerr returned an invalid server list; no connection was changed")
+	}
+	ids := map[int64]bool{}
+	for _, item := range items {
+		id, valid := serverResourceID(item)
+		host, _ := item["hostname"].(string)
+		port, portValid := item["port"].(json.Number)
+		parsed, err := port.Int64()
+		if !valid || ids[id] || strings.TrimSpace(host) == "" || !portValid || err != nil || parsed <= 0 || parsed > 65535 {
+			return nil, errors.New("Seerr returned invalid or duplicate server identities; no connection was changed")
+		}
+		ids[id] = true
+	}
+	return items, nil
 }
 
-// owned is the servers of this kind that point at to.
 func (s server) owned() app.Owned {
 	return app.Owned{
-		Find: func(ctx context.Context, h, to *helpers.H) ([]string, error) {
-			items, err := s.list(ctx, h)
-			if err != nil {
-				return nil, err
-			}
-			var ids []string
-			for _, item := range items {
-				if s.points(item, to) {
-					id, _ := item["id"].(float64)
-					ids = append(ids, strconv.Itoa(int(id)))
-				}
-			}
-			return ids, nil
-		},
-		Delete: func(ctx context.Context, h, _ *helpers.H, id string) error {
-			_, err := h.Expect(ctx, helpers.Request{Method: "DELETE", Path: "/api/v1/settings/" + s.id + "/" + id, Header: keyHeader(h)})
-			return err
-		},
+		Find:   s.findOwned,
+		Delete: s.deleteOwned,
 	}
 }
 
+type qualityProfile struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 type testResult struct {
-	Profiles []struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
-	} `json:"profiles"`
+	Profiles    []qualityProfile `json:"profiles"`
 	RootFolders []struct {
 		Path string `json:"path"`
 	} `json:"rootFolders"`
 }
 
-// add tests the connection, then saves the server as the default with its
-// first quality profile and the root folder the server's Setup made.
+func (s server) selectProfile(h *helpers.H, profiles []qualityProfile) (qualityProfile, error) {
+	selection := h.Inputs[s.id+"_profile"]
+	var matches []qualityProfile
+	for _, profile := range profiles {
+		if selection == "" && len(profiles) == 1 || selection != "" && (selection == strconv.Itoa(profile.ID) || selection == profile.Name) {
+			matches = append(matches, profile)
+		}
+	}
+	if len(matches) != 1 || matches[0].ID <= 0 || matches[0].Name == "" {
+		h.Info("Choose an upstream " + s.name + " quality profile ID or unique exact name, then run: self-host install seerr --set seerr." + s.id + "_profile=<choice> --yes. No connection was added or adopted.")
+		return qualityProfile{}, helpers.ErrManual
+	}
+	return matches[0], nil
+}
+
 func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	p, err := readPublic(ctx, from)
 	if err != nil {
 		return err
 	}
 	if !p.Initialized {
-		return errors.New("Seerr is not connected to Jellyfin yet (see link-jellyfin)")
+		return errors.New("finish Seerr's media-server setup before adding a request service (see link-jellyfin for Jellyfin)")
+	}
+	ids, err := s.findOwned(ctx, from, to)
+	if err != nil || len(ids) > 0 {
+		return err
+	}
+	if to.Secret(to.Key("api_key")) == "" {
+		from.Info("The target's API key is missing. Repair its own Setup before retrying Seerr; no server was added.")
+		return helpers.ErrManual
 	}
 	conn := map[string]any{"hostname": to.Service, "port": to.ContainerPort, "apiKey": to.Secret(to.Key("api_key")), "useSsl": false, "baseUrl": ""}
 	resp, err := from.HTTP(ctx, helpers.Request{Method: "POST", Path: "/api/v1/settings/" + s.id + "/test", Header: keyHeader(from), JSON: conn})
@@ -322,6 +374,10 @@ func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	if len(test.Profiles) == 0 {
 		return fmt.Errorf("%s has no quality profile", s.name)
 	}
+	profile, err := s.selectProfile(from, test.Profiles)
+	if err != nil {
+		return err
+	}
 	folder := ""
 	for _, f := range test.RootFolders {
 		if f.Path == s.rootFolder {
@@ -331,9 +387,27 @@ func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	if folder == "" {
 		return fmt.Errorf("%s has no root folder %s", s.name, s.rootFolder)
 	}
+	existing, err := s.list(ctx, from)
+	if err != nil {
+		return err
+	}
+	makeDefault := true
+	for _, item := range existing {
+		if s.points(item, to) {
+			return s.manualOwnership(from)
+		}
+		isDefault, defaultValid := item["isDefault"].(bool)
+		is4k, kindValid := item["is4k"].(bool)
+		if !defaultValid || !kindValid {
+			return s.manualOwnership(from)
+		}
+		if isDefault && !is4k {
+			makeDefault = false
+		}
+	}
 	body := map[string]any{
-		"name": s.name, "activeProfileId": test.Profiles[0].ID, "activeProfileName": test.Profiles[0].Name,
-		"activeDirectory": folder, "is4k": false, "isDefault": true, "syncEnabled": false, "preventSearch": false,
+		"name": s.name, "activeProfileId": profile.ID, "activeProfileName": profile.Name,
+		"activeDirectory": folder, "is4k": false, "isDefault": makeDefault, "syncEnabled": false, "preventSearch": false,
 		"tagRequests": false, "tags": []any{}, "overrideRule": []any{},
 	}
 	for k, v := range conn {
@@ -342,26 +416,23 @@ func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	for k, v := range s.extra {
 		body[k] = v
 	}
-	_, err = from.Expect(ctx, helpers.Request{Method: "POST", Path: "/api/v1/settings/" + s.id, Header: keyHeader(from), JSON: body})
-	return err
+	return s.createOwned(ctx, from, to, body)
 }
 
-// serverLink makes Sonarr or Radarr the default server Seerr sends requests
-// to, reached by Compose service name with its API key.
 func serverLink(s server) app.Link {
 	return app.NewOwnedLink("link-"+s.id, s.id, "requests go to "+s.name, s.owned(),
 		app.LinkStep{
 			Message: "send requests to " + s.name,
 			Do:      func(ctx context.Context, from, to *helpers.H) error { return s.add(ctx, from, to) },
 			Hint: func(from, to *helpers.H) string {
-				return "Open " + from.URL + "/settings/services, add " + s.name + " with host " + to.Service + ", port " + strconv.Itoa(to.ContainerPort) +
-					", its API key from `self-host credentials`, the first quality profile and root folder " + s.rootFolder + ", marked default."
+				return "Review " + from.URL + "/settings/services: " + s.name + " uses host " + to.Service + ", port " + strconv.Itoa(to.ContainerPort) +
+					", its API key from `self-host credentials` and root folder " + s.rootFolder + ". For multiple profiles, run self-host install seerr --set seerr." + s.id + "_profile=<ID-or-exact-name> --yes. Existing defaults and search choices are preserved; unowned servers are never adopted or deleted."
 			},
 		},
 		app.LinkStep{
 			Message: "stop sending requests to " + s.name,
 			Hint: func(from, _ *helpers.H) string {
-				return "Open " + from.URL + "/settings/services and delete " + s.name + "."
+				return "Review " + from.URL + "/settings/services and remove only the intended " + s.name + " entry. Unowned or changed entries are left for manual review."
 			},
 		})
 }

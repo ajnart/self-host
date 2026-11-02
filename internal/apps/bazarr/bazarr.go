@@ -76,7 +76,33 @@ func anonymousDenied(ctx context.Context, h *helpers.H) (bool, error) {
 }
 
 func adminExists(ctx context.Context, h *helpers.H) (bool, error) {
-	return anonymousDenied(ctx, h)
+	state, err := h.ConfigValue(ctx, "config/config/config.yaml", func(data []byte) (string, bool, error) {
+		for _, field := range []string{"auth.type", "auth.username", "auth.password"} {
+			_, found, err := helpers.YAMLPath(field)(data)
+			if err != nil {
+				return "", false, errors.New("Bazarr authentication settings could not be decoded")
+			}
+			if found {
+				return "configured", true, nil
+			}
+		}
+		_, found, err := helpers.YAMLPath("auth.apikey")(data)
+		return "unconfigured", found, err
+	}, 2*time.Minute)
+	if err != nil {
+		return false, fmt.Errorf("%w: Bazarr authentication settings could not be verified; existing settings were left unchanged", helpers.ErrManual)
+	}
+	exists := state == "configured"
+	if !exists {
+		exists, err = anonymousDenied(ctx, h)
+		if err != nil {
+			return false, err
+		}
+	}
+	if exists {
+		return true, fmt.Errorf("%w: Bazarr already has authentication settings that the Admin login does not satisfy; existing credentials were left unchanged", helpers.ErrManual)
+	}
+	return false, nil
 }
 
 func createAdmin(ctx context.Context, h *helpers.H, user, password string) error {
@@ -117,7 +143,9 @@ func firstAdmin() firstadmin.FirstAdmin {
 		Exists: adminExists,
 		Create: createAdmin,
 		Login:  loginWorks,
-		Manual: "Settings > General > Authentication: set it to Basic with the administrator username and password",
+		Hint: func(h *helpers.H, _ string) string {
+			return "Open " + h.URL + " > Settings > General > Authentication and review the existing login. Setup does not replace existing credentials. If you choose to use the Admin login from self-host credentials, set Basic authentication with that login, then run self-host setup bazarr. If the saved authentication settings cannot be read, restore access to the App's configuration before retrying."
+		},
 	}
 }
 

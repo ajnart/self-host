@@ -51,21 +51,31 @@ func (t target) verifyData(ctx context.Context, from, to *helpers.H, integration
 }
 
 // Ownership stays per integration, even when several integrations share an item.
-func allOwnedWidgets(h *helpers.H) map[string]bool {
+func allOwnedWidgets(h *helpers.H) (map[string]bool, error) {
 	owned := map[string]bool{}
 	for _, t := range targets() {
 		id := h.Secret(h.Key("linked_" + t.id))
-		for itemID, yes := range ownedWidgets(h, id) {
+		if id == "" {
+			continue
+		}
+		widgets, err := ownedWidgets(h, id)
+		if err != nil {
+			return nil, err
+		}
+		for itemID, yes := range widgets {
 			if yes {
 				owned[itemID] = true
 			}
 		}
 	}
-	return owned
+	return owned, nil
 }
 
-func sharedWidgetCurrent(h *helpers.H, current map[string]any, w widget, integrationID string) bool {
-	owned := allOwnedWidgets(h)
+func sharedWidgetCurrent(h *helpers.H, current map[string]any, w widget, integrationID string) (bool, error) {
+	owned, err := allOwnedWidgets(h)
+	if err != nil {
+		return false, err
+	}
 	count := 0
 	found := false
 	entries := []any{}
@@ -78,7 +88,7 @@ func sharedWidgetCurrent(h *helpers.H, current map[string]any, w widget, integra
 			options, _ := item["options"].(map[string]any)
 			partition, _ := options["entries"].([]any)
 			if len(partition) > 100 || smallSharedWidget(current, item) {
-				return false
+				return false, nil
 			}
 			if wiredTo(item, w.kind, integrationID) {
 				entries = append(entries, partition...)
@@ -92,12 +102,12 @@ func sharedWidgetCurrent(h *helpers.H, current map[string]any, w widget, integra
 	}
 	// An explicitly unowned widget is left alone.
 	if count == 0 {
-		return hasWidget(itemsOf(current), w.kind, integrationID)
+		return hasWidget(itemsOf(current), w.kind, integrationID), nil
 	}
 	if w.kind == "stats" {
-		return found && widgetCurrent(map[string]any{"options": map[string]any{"entries": entries}}, w, integrationID)
+		return found && widgetCurrent(map[string]any{"options": map[string]any{"entries": entries}}, w, integrationID), nil
 	}
-	return count == 1 && found
+	return count == 1 && found, nil
 }
 
 func smallSharedWidget(current, item map[string]any) bool {
@@ -119,6 +129,9 @@ func smallSharedWidget(current, item map[string]any) bool {
 }
 
 func ensureSharedWidget(ctx context.Context, h *helpers.H, w widget, integrationID string, owned map[string]bool) error {
+	if err := validateOwnership(h); err != nil {
+		return err
+	}
 	current, err := board(ctx, h)
 	if err != nil {
 		return err
@@ -133,7 +146,10 @@ func ensureSharedWidget(ctx context.Context, h *helpers.H, w widget, integration
 			}
 		}
 	}
-	allOwned := allOwnedWidgets(h)
+	allOwned, err := allOwnedWidgets(h)
+	if err != nil {
+		return err
+	}
 	for id, yes := range owned {
 		if yes {
 			allOwned[id] = true
@@ -226,7 +242,10 @@ func ensureSharedWidget(ctx context.Context, h *helpers.H, w widget, integration
 	}
 	for _, raw := range ids {
 		id, _ := raw.(string)
-		ownership := ownedWidgets(h, id)
+		ownership, err := ownedWidgets(h, id)
+		if err != nil {
+			return err
+		}
 		for removedID := range removed {
 			delete(ownership, removedID)
 		}
@@ -248,6 +267,21 @@ func ensureSharedWidget(ctx context.Context, h *helpers.H, w widget, integration
 // Homarr 2.4.1 accepts at most 100 entries per Stats item. Keep entry IDs and
 // display options while spreading only recorded owned items across that limit.
 func ensureStatsPartitions(ctx context.Context, h *helpers.H, current map[string]any, previous []map[string]any, ids, entries []any, integrationID string, owned map[string]bool) error {
+	for _, raw := range ids {
+		if id, ok := raw.(string); ok && id != "" {
+			if _, err := ownedWidgets(h, id); err != nil {
+				return err
+			}
+		}
+	}
+	for _, raw := range entries {
+		entry, _ := raw.(map[string]any)
+		if id := stringField(entry, "integrationId"); id != "" {
+			if _, err := ownedWidgets(h, id); err != nil {
+				return err
+			}
+		}
+	}
 	count := max(1, (len(entries)+99)/100)
 	partitions := make([]map[string]any, 0, count)
 	bindings := map[string]bool{}
@@ -290,7 +324,10 @@ func ensureStatsPartitions(ctx context.Context, h *helpers.H, current map[string
 			// against this owned partition rather than leaving an unclaimed item.
 			for _, raw := range partitionIDs {
 				boundID, _ := raw.(string)
-				ownership := ownedWidgets(h, boundID)
+				ownership, err := ownedWidgets(h, boundID)
+				if err != nil {
+					return err
+				}
 				ownership[id] = true
 				data, _ := json.Marshal(ownership)
 				if err := h.SetSecret(h.Key("widgets_"+boundID), string(data)); err != nil {
@@ -346,7 +383,10 @@ func ensureStatsPartitions(ctx context.Context, h *helpers.H, current map[string
 	}
 	for _, raw := range ids {
 		id, _ := raw.(string)
-		ownership := ownedWidgets(h, id)
+		ownership, err := ownedWidgets(h, id)
+		if err != nil {
+			return err
+		}
 		for _, item := range previous {
 			delete(ownership, stringField(item, "id"))
 		}

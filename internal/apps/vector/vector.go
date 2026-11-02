@@ -62,7 +62,18 @@ func (App) Compose(rc app.RenderContext) string {
 
 var probe = firstadmin.NoAccount{Probe: firstadmin.Probe{Path: "/health", Contains: `"ok":true`}}
 
-func (App) Setup(ctx context.Context, h *helpers.H) error { return probe.Setup(ctx, h) }
+func (App) Setup(ctx context.Context, h *helpers.H) error {
+	if err := probe.Setup(ctx, h); err != nil {
+		return err
+	}
+	h.Info("Vector's starter configuration sends only its own internal_logs to the console. It collects no other App or host logs and sends nothing to Loki. Review apps/vector/config before adding sources or destinations; API health alone does not prove log delivery.")
+	return nil
+}
+
 func (App) Check(ctx context.Context, h *helpers.H) error { return probe.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }
+
+func (App) StandaloneGuide() string {
+	return "The starter configuration sends only Vector's own internal_logs to the console; it collects no other App or host logs and sends nothing to Loki. Review the configuration mounted at /etc/vector/vector.yaml before adding sources or destinations. A healthy API does not prove log delivery."
+}

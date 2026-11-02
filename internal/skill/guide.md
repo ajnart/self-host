@@ -446,7 +446,9 @@ Read `status --json`: `addresses` lists only working Easy names ahead of
 `IP:port`, after valid private Tailscale and available verified Cloudflare
 Addresses; `url` remains the first. Homarr tiles share that browser Address.
 
-Homarr Links support Homarr 2.4.1, not an arbitrary mutable development build.
+Homarr Links require an authenticated API version of at least 2.4.1 and the
+required native capabilities; accepting a version is not native-widget proof.
+Peer-specific privacy and prerequisite holds still apply.
 Immich Setup creates a dedicated read-only statistics key. Retry its own Setup
 before retrying Homarr: `self-host setup immich`, then `self-host setup homarr`.
 A lost managed key is a Manual step with a recovery hint, never an excuse to
@@ -607,6 +609,23 @@ Installing `beszel` also enrols this machine: a `beszel-agent` and a
 `beszel-socket-proxy` service, the only Docker socket mount any App may declare.
 Both stay out of Compose until Setup stores the Hub's key and token, so finding
 them not running before Setup finishes is expected.
+Check requires the recorded machine to be online, not merely listed in the Hub.
+A missing recorded system or ambiguous first-enrolment name stays Manual:
+follow its recovery hint, preserve the recorded identity and retry
+`self-host setup beszel`. Never clear the ID to adopt another system by name.
+
+## Media configuration
+
+Sonarr and Radarr see the same `/downloads` as qBittorrent and separate library
+roots under `/media`. Imports can copy while torrents keep seeding; these
+separate bind mounts do not provide cross-mount hardlinks or atomic moves.
+Changing to a common-parent layout requires an explicitly reviewed migration.
+Preserve existing roots, categories, quality profiles and naming choices;
+TRaSH recommendations are choices to review, not permission for bulk rewrites.
+When Seerr finds multiple profiles, ask which existing profile to use and pass
+its ID or exact name with `--set seerr.sonarr_profile=<choice>` and/or
+`--set seerr.radarr_profile=<choice>` on install. Existing connections keep
+their profile, default-server and search choices.
 
 ## Project folder
 

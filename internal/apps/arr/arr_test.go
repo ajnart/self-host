@@ -189,7 +189,7 @@ func applicationNames(e *arrtest.Env) []string {
 func TestMediaRecipeInstallsAndWiresEverything(t *testing.T) {
 	e := arrtest.New(t, catalog.Default())
 
-	r := e.Run("install", "media", "--yes", "--json")
+	r := e.Run("install", "media", "--yes", "--json", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	if r.Code != 0 {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
@@ -219,7 +219,7 @@ func TestMediaRecipeInstallsAndWiresEverything(t *testing.T) {
 
 func TestSecondSetupSkipsEveryStepExceptWaitAndCheck(t *testing.T) {
 	e := arrtest.New(t, catalog.Default())
-	e.Run("install", "media", "--yes")
+	e.Run("install", "media", "--yes", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	r := e.Run("setup", "--json")
 
@@ -267,7 +267,7 @@ func TestInstallingRadarrLaterRunsOnlyRadarrLinks(t *testing.T) {
 
 func TestRemovingSonarrRemovesItFromProwlarr(t *testing.T) {
 	e := arrtest.New(t, catalog.Default())
-	e.Run("install", "media", "--yes")
+	e.Run("install", "media", "--yes", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	r := e.Run("remove", "sonarr", "--yes", "--json")
 
@@ -287,7 +287,7 @@ func TestRemovingSonarrRemovesItFromProwlarr(t *testing.T) {
 
 func TestRemovingQBittorrentRemovesTheDownloadClients(t *testing.T) {
 	e := arrtest.New(t, catalog.Default())
-	e.Run("install", "media", "--yes")
+	e.Run("install", "media", "--yes", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	r := e.Run("remove", "qbittorrent", "--yes", "--json")
 
@@ -325,7 +325,7 @@ func TestProwlarrNeedsNoMediaFolders(t *testing.T) {
 func TestAPIKeysNeverAppearInEvents(t *testing.T) {
 	e := arrtest.New(t, catalog.Default())
 
-	r := e.Run("install", "media", "--yes", "--json", "--verbose")
+	r := e.Run("install", "media", "--yes", "--json", "--verbose", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	for _, key := range []string{e.Sonarr.Key, e.Radarr.Key, e.Prowlarr.Key} {
 		if strings.Contains(r.Out, key) {

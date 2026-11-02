@@ -621,6 +621,9 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 	if len(incomplete) > 0 {
 		return fmt.Errorf("%w: dashboard reconciliation failed; follow its hints, then run self-host setup homarr", ErrIncomplete)
 	}
+	if ss.state.Apps[a.Info().ID].Setup == stepstatus.SetupManual {
+		return fmt.Errorf("%w: dashboard reconciliation needs manual steps; follow its hints, then run self-host setup homarr", ErrManual)
+	}
 	return nil
 }
 

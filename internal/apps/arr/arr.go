@@ -68,7 +68,7 @@ func Prowlarr() App {
 	return App{
 		info: app.Info{
 			ID: "prowlarr", Name: "Prowlarr", Category: "Requests",
-			Description:   "Manage the search sites that Sonarr and Radarr use to find your downloads",
+			Description:   "Manage the search sites Sonarr, Radarr and Lidarr use to find your downloads",
 			Image:         "lscr.io/linuxserver/prowlarr:latest",
 			Docs:          "https://wiki.servarr.com/prowlarr",
 			Port:          9696,
@@ -76,7 +76,7 @@ func Prowlarr() App {
 			Service:       "prowlarr",
 		},
 		api:   apiV1,
-		links: []app.Link{applicationLink("sonarr"), applicationLink("radarr")},
+		links: []app.Link{applicationLink("sonarr"), applicationLink("radarr"), applicationLink("lidarr")},
 	}
 }
 

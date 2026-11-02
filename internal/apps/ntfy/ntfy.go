@@ -92,32 +92,48 @@ func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
 func homarrToken(h *helpers.H) string { return h.Secret(h.Key("homarr_token")) }
 
 type issuedToken struct {
-	Token string `json:"token"`
+	Token   string `json:"token"`
+	Expires *int64 `json:"expires"`
 }
 
 // tokenReadsTopic subscribes to the topic with the token. An admin token
 // inherits the Admin user's read-write access to every topic.
 func tokenReadsTopic(ctx context.Context, h *helpers.H, token, topic string) (bool, error) {
-	if token == "" || topic == "" {
+	if topic == "" {
+		return false, errors.New("ntfy's saved Homarr topic is missing; restore NTFY_TOPIC before retrying Setup")
+	}
+	if token == "" {
 		return false, nil
 	}
 	resp, err := h.HTTP(ctx, helpers.Request{
-		Path:   "/" + topic + "/json?poll=1",
-		Header: map[string]string{"Authorization": "Bearer " + token},
+		Path:       "/" + topic + "/json?poll=1",
+		NoRedirect: true,
+		Header:     map[string]string{"Authorization": "Bearer " + token},
 	})
 	if err != nil {
 		return false, err
 	}
-	return resp.Status == http.StatusOK, nil
+	switch resp.Status {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return false, fmt.Errorf("ntfy rejected the saved Homarr access token (HTTP %d): %w", resp.Status, helpers.ErrManual)
+	default:
+		return false, fmt.Errorf("ntfy Homarr topic access returned HTTP %d; retry Setup when the API is available", resp.Status)
+	}
 }
 
 // createHomarrToken mints a non-expiring administrator token (POST
 // /v1/account/token) and saves it for Homarr.
 func createHomarrToken(ctx context.Context, h *helpers.H) error {
+	if ok, err := tokenReadsTopic(ctx, h, homarrToken(h), h.Secret(h.Key("topic"))); err != nil || ok {
+		return err
+	}
 	resp, err := h.Expect(ctx, helpers.Request{
 		Method: "POST", Path: "/v1/account/token",
 		User: h.AdminUser(), Password: h.AdminPassword(),
-		JSON: map[string]any{"label": "homarr"},
+		NoRedirect: true,
+		JSON:       map[string]any{"label": "homarr", "expires": 0},
 	})
 	if err != nil {
 		return err
@@ -129,7 +145,14 @@ func createHomarrToken(ctx context.Context, h *helpers.H) error {
 	if issued.Token == "" {
 		return errors.New("ntfy did not return an access token")
 	}
-	return h.SetSecret(h.Key("homarr_token"), issued.Token)
+	if err := h.SetSecret(h.Key("homarr_token"), issued.Token); err != nil {
+		return err
+	}
+	if issued.Expires == nil || *issued.Expires != 0 {
+		h.Info("ntfy did not confirm a non-expiring Homarr token. The returned token was saved to avoid duplicate issuance; inspect its expiry privately before retrying Setup. Setup will not extend or replace it.")
+		return helpers.ErrManual
+	}
+	return nil
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
@@ -164,8 +187,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return tokenReadsTopic(ctx, h, homarrToken(h), h.Secret(h.Key("topic")))
 		},
 		Do: func(ctx context.Context) error { return createHomarrToken(ctx, h) },
-		Hint: "Create an ntfy access token for " + user + " and save it in secrets.env as " +
-			h.Key("homarr_token") + ".",
+		Hint: "Inspect Homarr's saved ntfy token privately with self-host credentials. Restore the existing token for " + user +
+			" and its topic through the Project secret boundary, then retry self-host setup ntfy. Setup preserves valid tokens and their expiry; " +
+			"it does not rotate rejected tokens. If replacement is necessary, explicitly approve it before changing " + h.Key("homarr_token") + ".",
 		Credential: "admin",
 	})
 }

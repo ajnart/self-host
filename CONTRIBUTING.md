@@ -9,6 +9,9 @@
 3. Update `CONTEXT.md` when a term changes, and `README.md` and `internal/skill/guide.md` when behaviour a person or agent sees changes.
 4. Cite a current primary source for every upstream fact about an App (image, ports, first-run behaviour).
 
+Adding an App or its Links? Start with the [App extension checklist](docs/catalog/adding-apps.md).
+Media defaults and TRaSH references are in [Media Setup](docs/catalog/media-setup.md).
+
 ## Gate
 
 Run this from the repository root and paste the result in the pull request:

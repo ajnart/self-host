@@ -248,15 +248,19 @@ These connections are called Links. They run when both Apps have finished their 
 
 A **Link** connects one App to another. It belongs to the App using the connection, such as Sonarr using qBittorrent as a download client.
 
-| Consumer       | Linked to                                         |
-| -------------- | ------------------------------------------------- |
-| Sonarr, Radarr | qBittorrent (download client)                     |
-| Prowlarr       | Sonarr, Radarr                                    |
-| Seerr          | Jellyfin, Sonarr, Radarr                          |
-| Cleanuparr     | Sonarr, Radarr, qBittorrent                       |
-| Homarr         | native tiles and widgets for the Apps it supports |
+| Consumer               | Linked to                                         |
+| ---------------------- | ------------------------------------------------- |
+| Sonarr, Radarr, Lidarr | qBittorrent (download client)                     |
+| Prowlarr               | Sonarr, Radarr, Lidarr                            |
+| Seerr                  | Jellyfin, Sonarr, Radarr                          |
+| Cleanuparr             | Sonarr, Radarr, qBittorrent                       |
+| Homarr                 | native tiles and widgets for the Apps it supports |
 
 A failing Link marks the consuming App as needing attention, not its target. Browser-only steps are reported as **Manual steps** with a hint and stay retryable: `self-host setup <app>`. Homarr Links need Homarr **2.4.1** or newer; NZBGet and SABnzbd Links need **2.5.1** or newer. Other versions stop with a recovery hint (back up first). See the [Homarr contracts](docs/homarr-integration-contract.md) and [proof](docs/homarr-proof.md).
+
+See [Media Setup](docs/catalog/media-setup.md) for shared folders, hardlink limitations and TRaSH quality/naming guidance. Existing profiles and paths stay yours; Setup does not import score bundles or migrate libraries.
+
+When Seerr finds several quality profiles, choose an existing profile with `--set seerr.sonarr_profile=<ID-or-name>` and `--set seerr.radarr_profile=<ID-or-name>` on install. Existing connections keep their selections.
 
 </details>
 
@@ -348,6 +352,8 @@ Want Compose files without using the CLI? [Docker Compose Maker](https://self-ho
 | `docs/`             | Decisions, agent briefs, release notes and proofs.        |
 
 `site/` and `dcm/` are one bun workspace: run `bun install` at the root. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+For Apps and Links, use the [extension checklist](docs/catalog/adding-apps.md).
 
 ## Community and support
 

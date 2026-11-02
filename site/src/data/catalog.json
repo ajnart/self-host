@@ -520,8 +520,12 @@
    "c": "Requests",
    "img": "lscr.io/linuxserver/lidarr:latest",
    "p": 8686,
-   "l": [],
-   "lt": [],
+   "l": [
+    "qbittorrent"
+   ],
+   "lt": [
+    "download client: qBittorrent"
+   ],
    "i": "svg/lidarr.svg"
   },
   {
@@ -808,17 +812,19 @@
   {
    "id": "prowlarr",
    "name": "Prowlarr",
-   "d": "Manage the search sites that Sonarr and Radarr use to find your downloads",
+   "d": "Manage the search sites Sonarr, Radarr and Lidarr use to find your downloads",
    "c": "Requests",
    "img": "lscr.io/linuxserver/prowlarr:latest",
    "p": 9696,
    "l": [
     "sonarr",
-    "radarr"
+    "radarr",
+    "lidarr"
    ],
    "lt": [
     "sync indexers to Sonarr",
-    "sync indexers to Radarr"
+    "sync indexers to Radarr",
+    "sync indexers to Lidarr"
    ],
    "i": "svg/prowlarr.svg"
   },

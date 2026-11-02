@@ -206,6 +206,11 @@ func (ss *session) unlink(ctx context.Context, id string) []string {
 			}
 			ss.forgetStep(otherID, link.ID)
 			ss.forgetStep(otherID, "un"+link.ID)
+			st := ss.state.Apps[otherID]
+			switch st.Setup {
+			case stepstatus.SetupOK, stepstatus.SetupIncomplete, stepstatus.SetupManual:
+				st.Setup = setupResult(st)
+			}
 		}
 	}
 	return failed

@@ -27,11 +27,14 @@ func (App) Info() app.Info {
 		Port:          8686,
 		ContainerPort: 8686,
 		Service:       "lidarr",
+		UsesMedia:     true,
 	}
 }
 
 func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link {
+	return []app.Link{servarr.QBittorrentLink(servarr.V1, "musicCategory", "music")}
+}
 
 func (App) StandaloneGuide() string { return lidarrServarr.StandaloneGuide("") }
 
@@ -53,6 +56,8 @@ func (App) Compose(rc app.RenderContext) string {
     volumes:
       - ./config:/config
       - ./media-data:/data
+      - ${MEDIA_ROOT}:/media
+      - ${DOWNLOADS_ROOT}:/downloads
     ports:
       - ${BIND_IP}:` + port + `:8686
     healthcheck:

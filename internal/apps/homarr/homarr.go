@@ -330,6 +330,9 @@ func (s *session) createAPIKey(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
+	if err := validateOwnership(h); err != nil {
+		return err
+	}
 	if err := h.Ready(ctx, "/api/health/live", helpers.Timeout(2*time.Minute)); err != nil {
 		return err
 	}

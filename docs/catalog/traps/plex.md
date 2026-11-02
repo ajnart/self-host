@@ -14,6 +14,15 @@
 - Do not put PLEX_CLAIM in catalog data, a generated Compose file, or Docker command arguments. Use the upstream bootstrap's PLEX_CLAIM_FILE with an owner-issued private token; a generated password cannot replace the account-bound claim token.
 - Never enable DEBUG: the upstream bootstrap's shell tracing can expose claim and server tokens.
 
+Standalone use needs a private `claim-token` file (mode `0600`) before the
+first start, mounted read-only at `/run/secrets/claim-token` with
+`PLEX_CLAIM_FILE` pointing there, as in the App's Compose. The standalone
+converter currently substitutes a claim environment entry for this mount;
+restore the private-file configuration rather than supplying the token in
+that environment entry or command arguments. The token from
+https://www.plex.tv/claim expires after four minutes. A failed first-run claim
+needs inspection and separately reviewed recovery, not an automatic reclaim.
+
 ## Setup and Homarr credential
 
 Plex Setup reuses a verified `PLEX_API_KEY` and `PLEX_SERVER_ID` from the
@@ -53,6 +62,9 @@ self-host setup plex
 The identifier is non-secret; never substitute a token in that command.
 This uses the existing approved install/input boundary because `setup` has
 no input-changing flags. Existing claim inputs are retained privately.
+Their presence, even alongside a valid server token, does not prove the
+bootstrap exchanged that claim for this server. Explicit `verified_server_id`
+confirmation is required even when a claim token was supplied on first start.
 This recorded confirmation is a person assertion, not account API proof.
 
 ## Native Homarr contract and evidence limits

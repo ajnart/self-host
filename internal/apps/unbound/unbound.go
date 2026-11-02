@@ -25,6 +25,7 @@ func (App) Info() app.Info {
 		Port:          5335,
 		ContainerPort: 5335,
 		Service:       "unbound",
+		NoWebUI:       true,
 	}
 }
 

@@ -24,7 +24,7 @@ func requestApps() []app.App {
 func TestSeerrSignsInToJellyfinAndSendsRequestsToSonarrAndRadarr(t *testing.T) {
 	e := newEnv(t, requestApps()...)
 
-	r := e.Run("install", "sonarr", "radarr", "jellyfin", "seerr", "--yes", "--json")
+	r := e.Run("install", "sonarr", "radarr", "jellyfin", "seerr", "--yes", "--json", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	if r.Code != 0 {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
@@ -57,7 +57,7 @@ func TestSeerrSignsInToJellyfinAndSendsRequestsToSonarrAndRadarr(t *testing.T) {
 
 func TestRerunAddsNoSecondServer(t *testing.T) {
 	e := newEnv(t, requestApps()...)
-	e.Run("install", "sonarr", "radarr", "jellyfin", "seerr", "--yes")
+	e.Run("install", "sonarr", "radarr", "jellyfin", "seerr", "--yes", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	r := e.Run("setup", "seerr", "--json")
 
@@ -74,7 +74,7 @@ func TestRerunAddsNoSecondServer(t *testing.T) {
 func TestWithoutJellyfinSeerrDoesNotScheduleItsJellyfinLink(t *testing.T) {
 	e := newEnv(t, requestApps()...)
 
-	r := e.Run("install", "sonarr", "seerr", "--yes", "--json")
+	r := e.Run("install", "sonarr", "seerr", "--yes", "--json", "--set", "seerr.sonarr_profile=1")
 
 	if r.StepEvent("seerr", "link-jellyfin") != "" {
 		t.Errorf("an absent Jellyfin must not schedule its Link:\n%s", r.Out)
@@ -95,7 +95,7 @@ func TestWithoutJellyfinSeerrDoesNotScheduleItsJellyfinLink(t *testing.T) {
 
 func TestRemovingSonarrRemovesItFromSeerr(t *testing.T) {
 	e := newEnv(t, requestApps()...)
-	e.Run("install", "sonarr", "radarr", "jellyfin", "seerr", "--yes")
+	e.Run("install", "sonarr", "radarr", "jellyfin", "seerr", "--yes", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	if r := e.Run("remove", "sonarr", "--yes"); r.Code != 0 {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
@@ -109,7 +109,7 @@ func TestRemovingSonarrRemovesItFromSeerr(t *testing.T) {
 func TestMediaRecipeInstallsAndWiresEverything(t *testing.T) {
 	e := arrtest.New(t, catalog.Default())
 
-	r := e.Run("install", "media", "--yes", "--json")
+	r := e.Run("install", "media", "--yes", "--json", "--set", "seerr.sonarr_profile=1", "--set", "seerr.radarr_profile=1")
 
 	if r.Code != 0 {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)

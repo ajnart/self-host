@@ -151,7 +151,7 @@ func (j *Jellyfin) Handler() http.Handler {
 			w.Write([]byte(`{"Version":"12.2.0","StartupWizardCompleted":false}`))
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"Version": "12.2.0", "ServerName": "Jellyfin", "StartupWizardCompleted": j.completed})
+		json.NewEncoder(w).Encode(map[string]any{"Id": "jellyfin-server", "Version": "12.2.0", "ServerName": "Jellyfin", "StartupWizardCompleted": j.completed})
 	}))
 	mux.HandleFunc("POST /Startup/Configuration", j.elevated(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

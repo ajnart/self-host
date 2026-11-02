@@ -29,6 +29,7 @@ func (App) Info() app.Info {
 		Port:          8080,
 		ContainerPort: 8080,
 		Service:       "sabnzbd",
+		UsesMedia:     true,
 	}
 }
 
@@ -44,9 +45,11 @@ func (App) Compose(rc app.RenderContext) string {
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      UMASK: ${UMASK}
     volumes:
       - ./config:/config
       - ./media-data:/data
+      - ${DOWNLOADS_ROOT}:/downloads
     ports:
       - ${BIND_IP}:` + port + `:8080
 `
@@ -55,7 +58,7 @@ func (App) Compose(rc app.RenderContext) string {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "After the first start, set the WebUI username and password in Config > General."
+	return "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. For new downloads, choose separate Temporary and Completed Download Folders under /downloads, such as /downloads/incomplete and /downloads/complete. In Config > Categories, use relative folders tv, movies and music beneath the completed folder. The legacy /data mount remains available; review existing paths and categories before changing them."
 }
 
 // readAPIKey waits for the key SABnzbd writes to its config on first start.
@@ -207,6 +210,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}); err != nil {
 		return err
 	}
+	h.Info("For new downloads, choose separate Temporary and Completed Download Folders in SABnzbd > Config > Folders, such as /downloads/incomplete and /downloads/complete. In Config > Categories, use relative folders tv, movies and music beneath the completed folder, matching your import App's category. The shared /downloads mount is available and legacy /data is retained; Setup does not rewrite existing paths or categories.")
 	if configured, err := providerConfigured(ctx, h); err == nil && !configured {
 		h.Info("SABnzbd is secured and ready; add your own Usenet provider in SABnzbd > Config > Servers to start downloading. Setup creates no provider account and makes no provider request.")
 		h.Skip("provider", "no Usenet provider yet; add one when you are ready")
