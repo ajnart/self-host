@@ -1,0 +1,62 @@
+README.md
+  h_d6e478ca18e517 17,28-31,39-42,151,168-169,373-377,379-380
+dcm/src/data/selfhost.json
+  h_d6e478ca18e517 2869-2908
+docs/catalog/traps/oxynote.md
+  h_d6e478ca18e517 1-22
+e2e/acceptance.md
+  h_d6e478ca18e517 3
+e2e/acceptance_fixture_test.go
+  h_d6e478ca18e517 24
+e2e/testdata/inventory.json
+  h_d6e478ca18e517 373-379
+internal/app/app.go
+  h_d6e478ca18e517 30-31
+internal/apps/oxynote/oxynote.go
+  h_d6e478ca18e517 1-167
+internal/apps/oxynote/oxynote_test.go
+  h_d6e478ca18e517 1-200
+internal/catalog/batch_misc2.go
+  h_d6e478ca18e517 10,26
+internal/service/access.go
+  h_d6e478ca18e517 11,103-106,124-127
+internal/service/cloudflare.go
+  h_d6e478ca18e517 192-194,296-299
+internal/service/install.go
+  h_d6e478ca18e517 385-387
+internal/service/names.go
+  h_d6e478ca18e517 192,287
+internal/service/navigation.go
+  h_d6e478ca18e517 30-35
+internal/service/oxynote_access_test.go
+  h_d6e478ca18e517 1-87
+internal/service/restore.go
+  h_d6e478ca18e517 620
+internal/service/tailscale.go
+  h_d6e478ca18e517 70,206-208
+internal/tui/cloudflare.go
+  h_d6e478ca18e517 28
+internal/tui/onboarding_plan.go
+  h_d6e478ca18e517 169
+internal/tui/testdata/onboarding-what-default-focus-narrow.golden
+  h_d6e478ca18e517 16
+internal/tui/testdata/onboarding-what-default-focus.golden
+  h_d6e478ca18e517 22
+site/src/data/catalog.json
+  h_d6e478ca18e517 696-705
+tools/sitegen/icons.go
+  h_d6e478ca18e517 67
+tools/sitegen/stars.go
+  h_d6e478ca18e517 68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a4607ef6a80da57c97e840ecf765c73a8653a00b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
