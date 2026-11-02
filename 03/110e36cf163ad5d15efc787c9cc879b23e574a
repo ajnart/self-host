@@ -1,0 +1,16 @@
+.github/workflows/release.yml
+  h_d6e478ca18e517 156
+docs/releasing.md
+  h_d6e478ca18e517 155-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03110e36cf163ad5d15efc787c9cc879b23e574a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
