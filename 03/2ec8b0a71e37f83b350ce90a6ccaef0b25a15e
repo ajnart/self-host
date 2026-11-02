@@ -1,0 +1,20 @@
+README.md
+  h_d6e478ca18e517 78
+docs/research/agent-skill-audit.md
+  h_d6e478ca18e517 21-22
+site/src/content/docs/docs/agents.md
+  h_d6e478ca18e517 24
+site/src/pages/llms.txt.ts
+  h_d6e478ca18e517 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "032ec8b0a71e37f83b350ce90a6ccaef0b25a15e",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
