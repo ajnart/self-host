@@ -123,14 +123,14 @@ func installedTiles(ctx context.Context, h *helpers.H, apply bool) (bool, error)
 				if !wanted || stringField(existing, "name") != t.name || stringField(existing, "pingUrl") != genericPing(candidate) {
 					continue
 				}
-				matches := 0
-				for _, other := range apps {
-					if stringField(other, "name") == t.name && stringField(other, "pingUrl") == genericPing(candidate) {
-						matches++
+				ownedID := recorded[t.id]
+				if ownedID == "" || ownedID != appID(existing) {
+					if ownedID != "" || canonical[installedTileMarker+t.id] != "" {
+						continue
 					}
-				}
-				if matches != 1 {
-					return false, fmt.Errorf("Homarr has ambiguous %s App records; keep the owned record, mark its description %q, then run self-host setup homarr", t.name, installedTileMarker+t.id)
+					hint := fmt.Sprintf("Homarr has ambiguous %s App ownership; preserve existing Apps and tiles. Review %s through the Project secret boundary and record only explicitly confirmed owned App IDs, or create a separate App with description %q to preserve all existing Apps, then run self-host setup homarr", t.name, h.Key("app_ids"), installedTileMarker+t.id)
+					h.Info(hint)
+					return false, fmt.Errorf("%s: %w", hint, helpers.ErrManual)
 				}
 				marker = installedTileMarker + t.id
 				adopt = true

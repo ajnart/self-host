@@ -2015,7 +2015,7 @@ func TestRemovalDeletesTilesWhenAppRecordAlreadyMissing(t *testing.T) {
 	}
 }
 
-func TestSetupAdoptsLegacySupportedAppWithoutDuplicateTile(t *testing.T) {
+func TestSetupMigratesRecordedLegacyAppWithoutDuplicateTile(t *testing.T) {
 	fake := newFake()
 	fake.apiKey = "keyid.secret"
 	fake.adminExists = true
@@ -2025,7 +2025,9 @@ func TestSetupAdoptsLegacySupportedAppWithoutDuplicateTile(t *testing.T) {
 	fake.apps = []map[string]any{{"id": "legacy-app", "name": "Sonarr", "description": nil, "iconUrl": "https://example.test/icon.svg", "href": "http://old-host.example:8989", "pingUrl": "http://sonarr:8989"}}
 	fake.items = []map[string]any{{"id": "legacy-tile", "kind": "app", "options": map[string]any{"appId": "legacy-app", "openInNewTab": true, "showTitle": true}, "integrationIds": []any{}}}
 	srv := serve(t, fake)
-	h := homarrH(t, srv, allSecrets())
+	secrets := allSecrets()
+	secrets["HOMARR_APP_IDS"] = `{"sonarr":"legacy-app"}`
+	h := homarrH(t, srv, secrets)
 	h.InstalledApps = func(context.Context) ([]helpers.InstalledApp, error) {
 		return []helpers.InstalledApp{{ID: "sonarr", Name: "Sonarr", URL: "http://new-host.example:8989", Service: "sonarr", ContainerPort: 8989}}, nil
 	}
@@ -2137,8 +2139,31 @@ func TestInvalidWidgetOwnershipFailsWithoutDeletingUserWidgets(t *testing.T) {
 	}
 	fake.mu.Unlock()
 	delete(secrets, key)
-	if err := link.Remove(context.Background(), from, to); err == nil || !strings.Contains(err.Error(), "ambiguous") {
-		t.Fatalf("ambiguous legacy widgets were not protected: %v", err)
+	fake.mu.Lock()
+	beforeRemoval, _ := json.Marshal([]any{fake.apps, fake.integrations, fake.items})
+	fake.mu.Unlock()
+	var logged []events.Event
+	from.Log = events.New(events.SinkFunc(func(event events.Event) { logged = append(logged, event) }))
+	if err := link.Remove(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("ambiguous legacy widgets did not require Manual recovery: %v", err)
+	}
+	fake.mu.Lock()
+	afterRemoval, _ := json.Marshal([]any{fake.apps, fake.integrations, fake.items})
+	fake.mu.Unlock()
+	if string(beforeRemoval) != string(afterRemoval) || secrets[key] != "" {
+		t.Fatal("ambiguous legacy recovery changed resources or recorded inferred ownership")
+	}
+	manual, actionable := false, false
+	for _, event := range logged {
+		if event.Event == events.StepManual && event.Step == "unlink-sonarr" {
+			manual = true
+		}
+		if event.Event == events.Info && strings.Contains(event.Msg, key) && strings.Contains(event.Msg, "{} to preserve all existing widgets") {
+			actionable = true
+		}
+	}
+	if !manual || !actionable {
+		t.Fatal("ambiguous legacy recovery lacks a Manual event or actionable ownership hint")
 	}
 	secrets[key] = "{}"
 	if err := link.Remove(context.Background(), from, to); err != nil {
