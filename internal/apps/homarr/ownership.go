@@ -58,6 +58,19 @@ func validateOwnership(h *helpers.H) error {
 			}
 		}
 	}
+	if h.ExternalConnections != nil {
+		connections, err := h.ExternalConnections()
+		if err != nil {
+			return err
+		}
+		for _, c := range connections {
+			if id := h.Secret(h.Key("linked_external-" + c.ID)); id != "" {
+				if _, err := ownedWidgets(h, id); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
