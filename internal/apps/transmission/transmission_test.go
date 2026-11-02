@@ -27,6 +27,7 @@ type fakeTransmission struct {
 	anonymous       int
 	accepted        int
 	lockouts        int
+	downloadDir     string
 }
 
 func (f *fakeTransmission) auth(w http.ResponseWriter, r *http.Request) bool {
@@ -75,7 +76,8 @@ func (f *fakeTransmission) handler() http.Handler {
 			return
 		}
 		var request struct {
-			Method string `json:"method"`
+			Method    string         `json:"method"`
+			Arguments map[string]any `json:"arguments"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -83,7 +85,10 @@ func (f *fakeTransmission) handler() http.Handler {
 		}
 		switch request.Method {
 		case "session-get":
-			w.Write([]byte(`{"result":"success","arguments":{"version":"4.1.3","rpc-version-semver":"6.0.1"}}`))
+			json.NewEncoder(w).Encode(map[string]any{"result": "success", "arguments": map[string]any{"version": "4.1.3", "rpc-version-semver": "6.0.1", "download-dir": f.downloadDir}})
+		case "session-set":
+			f.downloadDir, _ = request.Arguments["download-dir"].(string)
+			w.Write([]byte(`{"result":"success","arguments":{}}`))
 		case "session-stats":
 			w.Write([]byte(`{"result":"success","arguments":{"downloadSpeed":0,"uploadSpeed":0,"torrentCount":0,"activeTorrentCount":0,"pausedTorrentCount":0}}`))
 		case "torrent-get":
@@ -102,12 +107,16 @@ func TestPreseededLoginIsProvenThroughRPC(t *testing.T) {
 	h := porttest.New(t, porttest.Options{App: "transmission", Service: "transmission",
 		Secrets: porttest.Secrets{"ADMIN_USER": "admin", "ADMIN_PASSWORD": "secret"}}, server, rec)
 
+	h.Settings["MEDIA_LAYOUT"] = "shared"
 	h.Config.Exec = &authPolicyExec{t: t, output: "true"}
 	if err := (transmission.App{}).Setup(context.Background(), h); err != nil {
 		t.Fatalf("Setup: %v", err)
 	}
 	if err := (transmission.App{}).Check(context.Background(), h); err != nil {
 		t.Fatalf("Check: %v", err)
+	}
+	if rec.Status("save-path") != stepstatus.StepOK {
+		t.Fatal("shared torrent download path was not configured")
 	}
 	if rec.Status("admin") != stepstatus.StepSkip {
 		t.Fatalf("admin step = %q, want skip", rec.Status("admin"))

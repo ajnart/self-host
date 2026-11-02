@@ -228,7 +228,7 @@ func TestNamespaceRestoreAppliesScopedDatabaseMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{".env", "secrets.env", "state.json"} {
+	for _, name := range []string{".env", "state.json"} {
 		if err := w.AddBytes(name, []byte(readFile(t, filepath.Join(root, name))), 0o600); err != nil {
 			t.Fatal(err)
 		}

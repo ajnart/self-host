@@ -89,7 +89,7 @@ func TestSavedInvalidTokenFailsBeforeAPICallsAndPreservesCredentials(t *testing.
 		if record.ID != "setup-token" || record.Status != stepstatus.StepFail {
 			continue
 		}
-		for _, required := range []string{"PANGOLIN_SETUP_TOKEN", filepath.Join(h.Dir, "..", "..", "secrets.env"), "32 lowercase alphanumeric", "ADMIN_PASSWORD", "data", "self-host install pangolin"} {
+		for _, required := range []string{"PANGOLIN_SETUP_TOKEN", filepath.Join(h.Dir, "..", "..", ".env"), "32 lowercase alphanumeric", "ADMIN_PASSWORD", "data", "self-host install pangolin"} {
 			if !strings.Contains(record.Hint, required) {
 				t.Fatal("bootstrap recovery hint omitted its bounded private replacement instructions")
 			}

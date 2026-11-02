@@ -208,6 +208,22 @@ func TestAccessExportUnmanagedWebApp(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(dir, "compose.yml"), []byte("services:\n  whoami-web:\n    image: traefik/whoami\n    ports: [\"8099:80\"]\n    environment:\n      PRIVATE: synthetic-private-value\n    env_file: never-read.env\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
+			if folder == "apps" {
+				p := &project.Project{Root: root}
+				ids, err := p.AppIDs()
+				if err != nil {
+					t.Fatal(err)
+				}
+				var compose strings.Builder
+				compose.WriteString("name: selfhost\ninclude:\n")
+				for _, id := range ids {
+					compose.WriteString("  - apps/" + id + "/compose.yml\n")
+				}
+				compose.WriteString("  - apps/whoami/compose.yml\n")
+				if err := os.WriteFile(filepath.Join(root, "compose.yml"), []byte(compose.String()), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			before := treeListing(t, root)
 			commands := len(deps.Runner.(*systemtest.Runner).Calls())
 			for _, format := range []string{"caddy", "nginx", "traefik", "json"} {
@@ -310,9 +326,6 @@ func TestAccessExportUnmanagedExplicitHTTPPort(t *testing.T) {
 func TestAccessExportDoesNotLoadSecrets(t *testing.T) {
 	deps, cat := accessSample(t)
 	path := filepath.Join(projectRoot(t, deps), "secrets.env")
-	if err := os.Rename(path, path+".fixture"); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.Mkdir(path, 0o700); err != nil {
 		t.Fatal(err)
 	}

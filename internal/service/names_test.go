@@ -175,8 +175,8 @@ http://:80 {
 		t.Fatalf("fragment:\n%s", fragment)
 	}
 	root, _ := os.ReadFile(filepath.Join(h.root(), "compose.yml"))
-	if !strings.Contains(string(root), "  - access/caddy/compose.yml\n") {
-		t.Fatalf("the root Compose file does not include the Caddy:\n%s", root)
+	if !strings.Contains(string(root), "access-caddy:") || strings.Contains(string(root), "include:") {
+		t.Fatalf("the root Compose file does not contain the Caddy service:\n%s", root)
 	}
 	settings, _ := os.ReadFile(filepath.Join(h.root(), ".env"))
 	if !strings.Contains(string(settings), "EASY_NAMES=on\n") || !strings.Contains(string(settings), "EXPOSURE=lan\n") {
@@ -572,7 +572,7 @@ func TestCustomizedOriginFragmentsRefuseAccessChangesBeforeAnyWrites(t *testing.
 				}
 			}
 			p, _ := h.svc.Project()
-			file := p.FragmentPath(a.Info().ID)
+			file := p.Path("compose.yml")
 			data, _ := os.ReadFile(file)
 			custom := strings.Replace(string(data), a.Info().Image, "example/custom:pin", 1)
 			custom = strings.Replace(custom, "    volumes:", "      CUSTOM_ENV: keep\n    volumes:\n      - ./custom:/custom", 1)

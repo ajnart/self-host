@@ -472,7 +472,7 @@ func (r *runner) dockerArgs(args ...string) []string {
 	if len(args) == 0 || args[0] != "compose" {
 		return args
 	}
-	prefix := []string{"compose", "--project-directory", r.project, "--env-file", filepath.Join(r.project, ".env"), "--env-file", filepath.Join(r.project, "secrets.env")}
+	prefix := []string{"compose", "--project-directory", r.project, "--env-file", filepath.Join(r.project, ".env")}
 	prefix = r.fixtureOverrides(prefix)
 	return append(prefix, args[1:]...)
 }

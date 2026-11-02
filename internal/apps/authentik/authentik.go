@@ -115,7 +115,7 @@ func (App) Compose(rc app.RenderContext) string {
 func tokenUser(ctx context.Context, h *helpers.H) (bool, error) {
 	token := h.Secret(h.Key("bootstrap_token"))
 	if token == "" {
-		return false, fmt.Errorf("%s is missing from secrets.env", h.Key("bootstrap_token"))
+		return false, fmt.Errorf("%s is missing from .env", h.Key("bootstrap_token"))
 	}
 	resp, err := h.HTTP(ctx, helpers.Request{
 		Path:   "/api/v3/core/users/me/",
@@ -150,11 +150,11 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		Check: func(ctx context.Context) (bool, error) { return tokenUser(ctx, h) },
 		Do: func(ctx context.Context) error {
 			if h.Secret(h.Key("bootstrap_token")) == "" {
-				return errors.New("the bootstrap token is missing from secrets.env")
+				return errors.New("the bootstrap token is missing from .env")
 			}
 			return h.Poll(ctx, bootstrapTimeout, func(ctx context.Context) (bool, error) { return tokenUser(ctx, h) })
 		},
-		Hint:       "Recreate authentik so it reads " + h.Key("bootstrap_token") + " from secrets.env: self-host start authentik",
+		Hint:       "Recreate authentik so it reads " + h.Key("bootstrap_token") + " from .env: self-host start authentik",
 		Credential: h.Key("bootstrap_token"),
 	})
 }

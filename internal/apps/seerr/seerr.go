@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -249,6 +250,10 @@ var (
 	}}
 )
 
+func (s server) libraryPath(to *helpers.H) string {
+	return mediastorage.Media(to.Settings) + strings.TrimPrefix(s.rootFolder, "/media")
+}
+
 func (s server) points(item map[string]any, to *helpers.H) bool {
 	port, _ := item["port"].(float64)
 	return item["hostname"] == to.Service && int(port) == to.ContainerPort
@@ -324,12 +329,12 @@ func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	}
 	folder := ""
 	for _, f := range test.RootFolders {
-		if f.Path == s.rootFolder {
+		if f.Path == s.libraryPath(to) {
 			folder = f.Path
 		}
 	}
 	if folder == "" {
-		return fmt.Errorf("%s has no root folder %s", s.name, s.rootFolder)
+		return fmt.Errorf("%s has no root folder %s", s.name, s.libraryPath(to))
 	}
 	body := map[string]any{
 		"name": s.name, "activeProfileId": test.Profiles[0].ID, "activeProfileName": test.Profiles[0].Name,
@@ -355,7 +360,7 @@ func serverLink(s server) app.Link {
 			Do:      func(ctx context.Context, from, to *helpers.H) error { return s.add(ctx, from, to) },
 			Hint: func(from, to *helpers.H) string {
 				return "Open " + from.URL + "/settings/services, add " + s.name + " with host " + to.Service + ", port " + strconv.Itoa(to.ContainerPort) +
-					", its API key from `self-host credentials`, the first quality profile and root folder " + s.rootFolder + ", marked default."
+					", its API key from `self-host credentials`, the first quality profile and root folder " + s.libraryPath(to) + ", marked default."
 			},
 		},
 		app.LinkStep{

@@ -27,8 +27,14 @@ func (h *H) ConfigValue(ctx context.Context, rel string, extract Extractor, time
 	}
 	path := filepath.Join(h.Dir, rel)
 	var value string
-	err := h.Poll(ctx, timeout, func(context.Context) (bool, error) {
-		data, err := os.ReadFile(path)
+	err := h.Poll(ctx, timeout, func(ctx context.Context) (bool, error) {
+		var data []byte
+		var err error
+		if h.ReadConfig != nil {
+			data, err = h.ReadConfig(ctx, rel)
+		} else {
+			data, err = os.ReadFile(path)
+		}
 		if err != nil {
 			return false, err
 		}

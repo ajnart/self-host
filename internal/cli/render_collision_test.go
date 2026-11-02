@@ -36,7 +36,7 @@ func TestRestoreServiceCollisionPreservesDataBeforeCompose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{".env", "secrets.env", "state.json"} {
+	for _, name := range []string{".env", "state.json"} {
 		if err := w.AddBytes(name, []byte(readFile(t, filepath.Join(root, name))), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestRestoreServiceCollisionPreservesDataBeforeCompose(t *testing.T) {
 	}
 }
 
-func TestLifecycleCollisionRejectsApplyAndReinstallCanRepair(t *testing.T) {
+func TestLifecycleIgnoresChangedRecoverySnapshots(t *testing.T) {
 	deps := systemtest.NewDeps(t)
 	one := &collisionApp{echoApp: &echoApp{id: "one", done: map[string]bool{}}, cache: "one-cache", config: "one configuration"}
 	two := &collisionApp{echoApp: &echoApp{id: "two", done: map[string]bool{}}, cache: "two-cache", config: "two configuration"}
@@ -77,33 +77,20 @@ func TestLifecycleCollisionRejectsApplyAndReinstallCanRepair(t *testing.T) {
 	if result := clitest.Run(t, deps, cat, "install", "one", "two", "--yes"); result.Code != 0 {
 		t.Fatal(result.Out)
 	}
-	fragment := filepath.Join(projectRoot(t, deps), "apps", "two", "compose.yml")
-	// Model an existing legacy/manual composition without going through the new writer guard.
-	legacy := strings.ReplaceAll(readFile(t, fragment), "two-cache:", "one-cache:")
-	if err := os.WriteFile(fragment, []byte(legacy), 0o644); err != nil {
+	root := projectRoot(t, deps)
+	before := readFile(t, filepath.Join(root, "compose.yml"))
+	fragment := filepath.Join(root, "apps", "two", "compose.yml")
+	recovery := strings.ReplaceAll(readFile(t, fragment), "two-cache:", "one-cache:")
+	if err := os.WriteFile(fragment, []byte(recovery), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runner := deps.Runner.(*systemtest.Runner)
 	for _, verb := range []string{"start", "restart", "update"} {
-		start := len(runner.Cmds())
-		result := clitest.Run(t, deps, cat, verb, "one")
-		if result.Code == 0 || !strings.Contains(result.Out, "one-cache") {
-			t.Fatalf("%s did not reject conflicting service ownership", verb)
+		if result := clitest.Run(t, deps, cat, verb, "one"); result.Code != 0 {
+			t.Fatalf("%s used recovery snapshot: %s", verb, result.Out)
 		}
-		for _, cmd := range runner.Cmds()[start:] {
-			if strings.Contains(systemtest.Line(cmd), "docker compose --project-directory") {
-				t.Fatal("conflicting composition triggered Compose observation or apply")
-			}
+		if readFile(t, filepath.Join(root, "compose.yml")) != before {
+			t.Fatal("lifecycle replaced authoritative Compose from recovery snapshot")
 		}
-		if readFile(t, fragment) != legacy {
-			t.Fatal("failed lifecycle changed existing fragment")
-		}
-	}
-	if result := clitest.Run(t, deps, cat, "install", "two", "--yes"); result.Code != 0 {
-		t.Fatal("explicit reinstall could not repair legacy composition")
-	}
-	if result := clitest.Run(t, deps, cat, "start", "one"); result.Code != 0 {
-		t.Fatal("repaired composition could not start")
 	}
 }
 

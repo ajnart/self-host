@@ -29,7 +29,7 @@ func TestRestoreMissingReplacementPreservesProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{".env", "secrets.env", "state.json"} {
+	for _, name := range []string{".env", "state.json"} {
 		if err := w.AddBytes(name, []byte(readFile(t, filepath.Join(root, name))), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestRestoreEmptyServicesRejectsBeforeMutation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, name := range []string{".env", "secrets.env", "state.json"} {
+			for _, name := range []string{".env", "state.json"} {
 				if err := w.AddBytes(name, []byte(readFile(t, filepath.Join(root, name))), 0o600); err != nil {
 					t.Fatal(err)
 				}
@@ -194,7 +194,8 @@ func TestRestoreStartFailureRetainsOriginalRecoveryCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	beforeState := readFile(t, filepath.Join(root, "state.json"))
-	beforeSecrets := readFile(t, filepath.Join(root, "secrets.env"))
+	beforeSecrets := readFile(t, filepath.Join(root, ".env"))
+	beforeCompose := readFile(t, filepath.Join(root, "compose.yml"))
 	deps.Runner.(*systemtest.Runner).OnFunc("docker compose --project-directory", func(cmd system.Cmd) system.Result {
 		if strings.Contains(systemtest.Line(cmd), " up -d --remove-orphans one") {
 			return system.Result{ExitCode: 1, Stderr: []byte("start refused")}
@@ -215,8 +216,11 @@ func TestRestoreStartFailureRetainsOriginalRecoveryCopy(t *testing.T) {
 	if readFile(t, filepath.Join(paths[0], "replaced-one", "db.sqlite")) != "latest-original" {
 		t.Fatal("original data was discarded")
 	}
-	if readFile(t, filepath.Join(paths[0], "original-records", "state.json")) != beforeState || readFile(t, filepath.Join(paths[0], "original-records", "secrets.env")) != beforeSecrets {
+	if readFile(t, filepath.Join(paths[0], "original-records", "state.json")) != beforeState || readFile(t, filepath.Join(paths[0], "original-records", ".env")) != beforeSecrets {
 		t.Fatal("original recovery records were discarded")
+	}
+	if readFile(t, filepath.Join(paths[0], "original-records", "compose.yml")) != beforeCompose {
+		t.Fatal("original Compose file was not retained for recovery")
 	}
 }
 
@@ -259,7 +263,7 @@ func TestRestoreReplacementFailureRollsBackDataAndRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	beforeState := readFile(t, filepath.Join(root, "state.json"))
-	beforeSecrets := readFile(t, filepath.Join(root, "secrets.env"))
+	beforeSecrets := readFile(t, filepath.Join(root, ".env"))
 	baseRunner := deps.Runner.(*systemtest.Runner)
 	baseRunner.OnFunc("docker compose --project-directory", func(cmd system.Cmd) system.Result {
 		if strings.Contains(systemtest.Line(cmd), " ps ") {
@@ -291,7 +295,7 @@ func TestRestoreReplacementFailureRollsBackDataAndRecords(t *testing.T) {
 			t.Fatalf("%s original not recovered: %q", id, got)
 		}
 	}
-	if readFile(t, filepath.Join(root, "state.json")) != beforeState || readFile(t, filepath.Join(root, "secrets.env")) != beforeSecrets {
+	if readFile(t, filepath.Join(root, "state.json")) != beforeState || readFile(t, filepath.Join(root, ".env")) != beforeSecrets {
 		t.Fatal("failed restore changed records")
 	}
 	var upCalls []string

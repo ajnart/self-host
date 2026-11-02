@@ -32,10 +32,10 @@ func TestSeerrSignsInToJellyfinAndSendsRequestsToSonarrAndRadarr(t *testing.T) {
 	if !e.Seerr.Initialized() {
 		t.Error("Seerr setup not finished (settings/initialize)")
 	}
-	if got := e.Seerr.EnabledLibraries(); !slices.Equal(got, []string{"Movies", "Shows"}) {
+	if got := e.Seerr.EnabledLibraries(); !slices.Equal(got, []string{"Movies", "Shows", "Music"}) {
 		t.Errorf("enabled libraries %v, want Movies and Shows", got)
 	}
-	for kind, folder := range map[string]string{"sonarr": "/media/tv", "radarr": "/media/movies"} {
+	for kind, folder := range map[string]string{"sonarr": "/data/media/tv", "radarr": "/data/media/movies"} {
 		servers := e.Seerr.Servers(kind)
 		if len(servers) != 1 {
 			t.Fatalf("%s servers %v", kind, servers)

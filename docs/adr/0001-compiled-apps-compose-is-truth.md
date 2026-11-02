@@ -1,5 +1,9 @@
 # Apps are compiled Go; Compose files decide what runs
 
+The per-App include-file layout below is superseded by
+[ADR 0014](0014-one-editable-compose-file.md). Compiled Apps and Compose as the
+source of truth remain.
+
 Catalog Apps are Go code compiled into the `self-host` binary, sharing one helpers package for HTTP, waits, container exec, secrets and config edits. We rejected bash setup scripts and an embedded JS engine: one typed language keeps Setup testable and the helpers in one place, at the cost that nobody can add automatic Setup without a new release. Agents add off-catalog apps by writing `apps/<id>/compose.yml` themselves; the root `compose.yml` only `include:`s every app folder, so start, stop, update and backup work from Compose files alone, and `state.json`/`secrets.env` are just the credentials and step-result record.
 
 ## Amendment: `up` removes orphaned Project containers

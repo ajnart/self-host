@@ -6,18 +6,18 @@
   │ your phone or    │──────│ Tailscale       │──────│ this computer │
   │ laptop, anywhere │      │ private network │      │ private name  │
   ╰──────────────────╯      ╰────────┬────────╯      ╰───────────────╯
-                                internet ✗
+                               private names
 
   Tailscale lets you open each App with its own private HTTPS name from your
-  phone, laptop or TV, wherever you are. Your Home network Addresses keep
-  working.
+  phone, laptop or TV, wherever you are. Existing IP:port Addresses and
+  firewall rules stay unchanged.
 
   What is Tailscale?
   A service that joins your own devices into one private network, wherever
-  they are. Only devices you sign in can see your Apps.
+  they are. Access to Tailscale Addresses follows your Tailscale access rules.
+  Existing IP:port Addresses are separate.
 
   On your phone or TV
-  Install Tailscale on your phone, laptop or TV and sign in to the same
 
   ↑/↓ scroll · esc or ? closes · more below ↓
 

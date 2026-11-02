@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"encoding/json"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ajnart/self-host/internal/catalog"
 	"github.com/ajnart/self-host/internal/clitest"
+	"github.com/ajnart/self-host/internal/project"
 	stepstatus "github.com/ajnart/self-host/internal/status"
 	"github.com/ajnart/self-host/internal/system"
 	"github.com/ajnart/self-host/internal/systemtest"
@@ -89,8 +91,13 @@ func TestConfigReviewShowsDriftAndFixesItKeepingInstalledApps(t *testing.T) {
 	deps, cat, _ := installedAtOffice(t)
 	deps.TimeZone = func() string { return "America/New_York" }
 	root := projectRoot(t, deps)
+	p := &project.Project{Root: root}
+	beforeSecrets, err := p.LoadSecrets()
+	if err != nil {
+		t.Fatal(err)
+	}
 	kept := map[string]string{}
-	for _, name := range []string{"secrets.env", "compose.yml", "apps/one/compose.yml", "apps/two/compose.yml"} {
+	for _, name := range []string{"compose.yml", "apps/one/compose.yml", "apps/two/compose.yml"} {
 		kept[name] = readFile(t, filepath.Join(root, name))
 	}
 
@@ -110,6 +117,10 @@ func TestConfigReviewShowsDriftAndFixesItKeepingInstalledApps(t *testing.T) {
 	env := readFile(t, filepath.Join(root, ".env"))
 	if !strings.Contains(env, "LAN_IP="+home+"\n") || !strings.Contains(env, "TZ=America/New_York\n") {
 		t.Fatalf("fixes not applied:\n%s", env)
+	}
+	afterSecrets, err := p.LoadSecrets()
+	if err != nil || !maps.Equal(beforeSecrets, afterSecrets) {
+		t.Fatal("Host review changed private credentials")
 	}
 	for name, before := range kept {
 		if readFile(t, filepath.Join(root, name)) != before {

@@ -1,9 +1,8 @@
 // Package project owns the Project directory: Host settings, secrets, state,
-// the include-only root Compose file and the lock.
+// the editable root Compose file and the lock.
 package project
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -30,7 +29,7 @@ const (
 )
 
 // SettingKeys is the order Host settings are written in.
-var SettingKeys = []string{"TZ", "PUID", "PGID", "UMASK", "LAN_IP", "EXPOSURE", "EASY_NAMES", "BIND_IP", "MEDIA_ROOT", "DOWNLOADS_ROOT"}
+var SettingKeys = []string{"TZ", "PUID", "PGID", "UMASK", "LAN_IP", "EXPOSURE", "EASY_NAMES", "BIND_IP", "MEDIA_ROOT", "DOWNLOADS_ROOT", "MEDIA_LAYOUT", "DATA_ROOT", "MEDIA_SEPARATE_USERS", "MEDIA_COPY_FALLBACK", "MEDIA_UMASK", "SONARR_PUID", "RADARR_PUID", "QBITTORRENT_PUID", "JELLYFIN_PUID", "BAZARR_PUID", "LIDARR_PUID", "SABNZBD_PUID", "DELUGE_PUID", "TRANSMISSION_PUID"}
 
 type Project struct {
 	Root  string
@@ -121,20 +120,10 @@ func (p *Project) writeFile(name string, data []byte, mode os.FileMode) error {
 
 func parseEnv(data []byte) map[string]string {
 	values := map[string]string{}
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	for _, entry := range environmentEntries(data) {
+		if entry.key != "" {
+			values[entry.key] = entry.value
 		}
-		key, value, found := strings.Cut(line, "=")
-		if !found {
-			continue
-		}
-		if len(value) >= 2 && value[0] == '\'' && value[len(value)-1] == '\'' {
-			value = value[1 : len(value)-1]
-		}
-		values[strings.TrimSpace(key)] = value
 	}
 	return values
 }
@@ -149,7 +138,7 @@ func formatEnv(header string, values map[string]string, order []string) []byte {
 			return
 		}
 		seen[key] = true
-		if strings.ContainsAny(value, " $#\"\\`") {
+		if strings.ContainsAny(value, " $#\"\\`\n\r") {
 			value = "'" + value + "'"
 		}
 		fmt.Fprintf(&b, "%s=%s\n", key, value)
@@ -171,24 +160,32 @@ func formatEnv(header string, values map[string]string, order []string) []byte {
 // ValidSetting reports whether a value is acceptable for a Host setting.
 func ValidSetting(key, value string) error {
 	switch key {
-	case "PUID", "PGID":
+	case "PUID", "PGID", "SONARR_PUID", "RADARR_PUID", "QBITTORRENT_PUID", "JELLYFIN_PUID", "BAZARR_PUID", "LIDARR_PUID", "SABNZBD_PUID", "DELUGE_PUID", "TRANSMISSION_PUID":
 		if n, err := strconv.Atoi(value); err != nil || n < 0 {
 			return errors.New("a non-negative integer")
 		}
-	case "UMASK":
+	case "UMASK", "MEDIA_UMASK":
 		if len(value) < 3 || len(value) > 4 {
 			return errors.New("3 or 4 octal digits")
 		}
 		if _, err := strconv.ParseUint(value, 8, 16); err != nil {
 			return errors.New("3 or 4 octal digits")
 		}
-	case "MEDIA_ROOT", "DOWNLOADS_ROOT":
+	case "MEDIA_ROOT", "DOWNLOADS_ROOT", "DATA_ROOT":
 		if !filepath.IsAbs(value) {
 			return errors.New("an absolute path")
 		}
 	case "LAN_IP":
 		if _, err := netip.ParseAddr(value); err != nil {
 			return errors.New("an IP address")
+		}
+	case "MEDIA_SEPARATE_USERS", "MEDIA_COPY_FALLBACK":
+		if value != "on" && value != "off" {
+			return errors.New("on or off")
+		}
+	case "MEDIA_LAYOUT":
+		if value != "legacy" && value != "shared" {
+			return errors.New("legacy or shared")
 		}
 	case "TZ":
 		if value == "" {
@@ -209,33 +206,164 @@ func ValidEnvValue(value string) error {
 	return nil
 }
 
+// LoadSettings returns only public Host settings. The private Compose .env
+// also holds credentials and arbitrary user interpolation values.
 func (p *Project) LoadSettings() (map[string]string, error) {
-	data, err := os.ReadFile(p.Path(".env"))
+	values, err := p.loadEnv(".env")
+	if err != nil {
+		return nil, err
+	}
+	settings := map[string]string{}
+	for _, key := range SettingKeys {
+		if value, ok := values[key]; ok {
+			settings[key] = value
+		}
+	}
+	return settings, nil
+}
+
+func (p *Project) loadEnv(name string) (map[string]string, error) {
+	data, err := os.ReadFile(p.Path(name))
 	if err != nil {
 		return nil, err
 	}
 	return parseEnv(data), nil
+}
+
+func publicSetting(key string) bool {
+	for _, candidate := range SettingKeys {
+		if key == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Project) SaveSettings(settings map[string]string) error {
-	header := "# Host settings shared by every App. Change with: self-host config set KEY=value\n"
-	return p.writeFile(p.Path(".env"), formatEnv(header, settings, SettingKeys), 0o644)
+	updates := map[string]string{}
+	remove := map[string]bool{}
+	for _, key := range SettingKeys {
+		if value, ok := settings[key]; ok {
+			updates[key] = value
+		} else {
+			remove[key] = true
+		}
+	}
+	return p.updateEnv(updates, remove)
 }
 
 func (p *Project) LoadSecrets() (map[string]string, error) {
-	data, err := os.ReadFile(p.Path("secrets.env"))
+	// Keep the legacy file readable for old Backups. The live .env wins after
+	// migration so a stale legacy credential cannot replace a rotated value.
+	values := map[string]string{}
+	var err error
+	if !p.Canonical() {
+		values, err = p.loadEnv("secrets.env")
+	}
 	if errors.Is(err, os.ErrNotExist) {
-		return map[string]string{}, nil
+		values, err = map[string]string{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return parseEnv(data), nil
+	combined, err := p.loadEnv(".env")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	for key, value := range combined {
+		if !publicSetting(key) {
+			values[key] = value
+		}
+	}
+	for key := range values {
+		if publicSetting(key) {
+			delete(values, key)
+		}
+	}
+	return values, nil
 }
 
 func (p *Project) SaveSecrets(secrets map[string]string) error {
-	header := "# Private credentials. Show with: self-host credentials\n"
-	return p.writeFile(p.Path("secrets.env"), formatEnv(header, secrets, []string{"ADMIN_USER", "ADMIN_PASSWORD"}), 0o600)
+	updates := map[string]string{}
+	for key, value := range secrets {
+		if !publicSetting(key) {
+			updates[key] = value
+		}
+	}
+	// Remove retired credentials from the combined file, preserving public
+	// settings and comments. Unknown values survive through LoadSecrets.
+	old, err := p.LoadSecrets()
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	remove := map[string]bool{}
+	for key := range old {
+		if !publicSetting(key) {
+			if _, ok := updates[key]; !ok {
+				remove[key] = true
+			}
+		}
+	}
+	if err := p.updateEnv(updates, remove); err != nil {
+		return err
+	}
+	// Keep legacy records in sync while they exist, so rollback and old
+	// Backup readers remain recoverable without resurrecting deleted keys.
+	if _, err := os.Stat(p.Path("secrets.env")); err == nil {
+		return p.syncLegacySecrets()
+	}
+	return nil
+}
+
+// updateEnv changes individual assignments rather than regenerating user
+// comments and unknown interpolation values. Values emitted by self-host are
+// single quoted when Compose interpolation would otherwise alter them.
+func (p *Project) updateEnv(updates map[string]string, remove map[string]bool) error {
+	data, err := os.ReadFile(p.Path(".env"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	data, err = p.legacyEnvironment(data)
+	if err != nil {
+		return err
+	}
+	// Preserve unchanged assignments byte for byte, including user quoting,
+	// interpolation syntax and inline comments.
+	current := parseEnv(data)
+	changed := map[string]string{}
+	for key, value := range updates {
+		if old, ok := current[key]; !ok || old != value {
+			changed[key] = value
+		}
+	}
+	updates = changed
+	var out strings.Builder
+	seen := map[string]bool{}
+	for _, entry := range environmentEntries(data) {
+		key := entry.key
+		if key != "" && remove[key] {
+			continue
+		}
+		if value, ok := updates[key]; key != "" && ok {
+			if !seen[key] {
+				out.Write(formatEnv("", map[string]string{key: value}, []string{key}))
+			}
+			seen[key] = true
+			continue
+		}
+		out.WriteString(entry.text)
+		out.WriteByte('\n')
+	}
+	order := append([]string{}, SettingKeys...)
+	order = append(order, "ADMIN_USER", "ADMIN_PASSWORD")
+	rest := map[string]string{}
+	for key, value := range updates {
+		if !seen[key] {
+			rest[key] = value
+		}
+	}
+	out.Write(formatEnv("", rest, order))
+	return p.writeFile(p.Path(".env"), []byte(out.String()), 0o600)
 }
 
 // Appearance is how the Dashboard and the interactive terminal draw. It is
@@ -379,7 +507,7 @@ const ExtraDirName = "extra"
 
 // IsExtra reports whether id is an Unmanaged app in extra/. A folder in apps/
 // with the same name wins, so a Catalog App is never shadowed by one.
-func (p *Project) IsExtra(id string) bool {
+func (p *Project) legacyIsExtra(id string) bool {
 	if _, err := os.Stat(p.Path("apps", id, "compose.yml")); err == nil {
 		return false
 	}
@@ -400,19 +528,6 @@ func (p *Project) AppDir(id string) string { return p.Path(p.AppFolder(id), id) 
 
 func (p *Project) FragmentPath(id string) string { return filepath.Join(p.AppDir(id), "compose.yml") }
 
-func (p *Project) WriteFragment(id, content string) error {
-	if err := p.ValidateFragment(id, content); err != nil {
-		return err
-	}
-	if p.IsExtra(id) {
-		return fmt.Errorf("%s is an Unmanaged app in %s; choose another name or move that folder", id, p.Path(ExtraDirName, id))
-	}
-	if err := p.MkdirAll("apps", id); err != nil {
-		return err
-	}
-	return p.writeFile(p.FragmentPath(id), []byte(FragmentHeader(id)+content), 0o644)
-}
-
 // FragmentHeader is the first line WriteFragment puts in an App's compose.yml.
 func FragmentHeader(id string) string {
 	return "# Generated by self-host for " + id + ". Reinstalling the App rewrites this file.\n"
@@ -429,7 +544,7 @@ func (p *Project) WriteAppFile(id, rel string, data []byte, mode os.FileMode) er
 
 // AppIDs lists every folder in apps/ or extra/ that holds a compose.yml,
 // Catalog Apps and Unmanaged apps alike.
-func (p *Project) AppIDs() ([]string, error) {
+func (p *Project) legacyAppIDs() ([]string, error) {
 	seen := map[string]bool{}
 	var ids []string
 	for _, folder := range []string{"apps", ExtraDirName} {
@@ -465,13 +580,13 @@ func (p *Project) NamesFragmentPath() string { return p.Path(NamesFolder, "compo
 func (p *Project) NamesCaddyfilePath() string { return p.Path(NamesFolder, "config", "Caddyfile") }
 
 // HasNames reports whether the Caddy for Easy names has been written.
-func (p *Project) HasNames() bool {
+func (p *Project) legacyHasNames() bool {
 	_, err := os.Stat(p.NamesFragmentPath())
 	return err == nil
 }
 
 // WriteNamesFragment writes the Compose fragment of the Caddy for Easy names.
-func (p *Project) WriteNamesFragment(content string) error {
+func (p *Project) writeLegacyNamesFragment(content string) error {
 	if err := p.MkdirAll("access", "caddy"); err != nil {
 		return err
 	}
@@ -499,41 +614,12 @@ func (p *Project) WriteNamesCaddyfile(content string) (bool, error) {
 }
 
 // RemoveNames deletes the Caddy for Easy names and everything it holds.
-func (p *Project) RemoveNames() error {
+func (p *Project) removeLegacyNames() error {
 	if err := os.RemoveAll(p.Path(NamesFolder)); err != nil {
 		return err
 	}
 	_ = os.Remove(p.Path("access"))
 	return nil
-}
-
-// WriteRoot rewrites compose.yml as an include list of every app folder, then
-// the Caddy for Easy names when it exists.
-func (p *Project) WriteRoot() error {
-	ids, err := p.AppIDs()
-	if err != nil {
-		return err
-	}
-	var includes []string
-	for _, id := range ids {
-		includes = append(includes, p.AppFolder(id)+"/"+id+"/compose.yml")
-	}
-	if p.HasNames() {
-		includes = append(includes, NamesFolder+"/compose.yml")
-	}
-	var b strings.Builder
-	b.WriteString("# Generated by self-host on every change. Do not edit.\n")
-	b.WriteString("# To add an app yourself, create extra/<name>/compose.yml and run: self-host start <name>\n")
-	b.WriteString("name: " + Name + "\n")
-	if len(includes) == 0 {
-		b.WriteString("services: {}\n")
-	} else {
-		b.WriteString("include:\n")
-		for _, include := range includes {
-			b.WriteString("  - " + include + "\n")
-		}
-	}
-	return p.writeFile(p.Path("compose.yml"), []byte(b.String()), 0o644)
 }
 
 // Lock

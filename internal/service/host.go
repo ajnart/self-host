@@ -9,7 +9,8 @@ import (
 	"github.com/ajnart/self-host/internal/host"
 )
 
-// addresses lists this machine's LAN candidates, the default route first.
+// addresses lists this machine's addresses, the default route first. The
+// default route may use a public address rather than a private LAN.
 func (s *Service) addresses() []string {
 	var ips []string
 	if ip, err := s.Deps.LANIP(); err == nil && ip != "" && ip != "127.0.0.1" {
@@ -46,17 +47,38 @@ const lanHint = "Run: self-host config set LAN_IP=auto (detects this network's a
 func (s *Service) lanCheck(settings map[string]string) host.Check {
 	stale, current := s.lanStale(settings)
 	if !stale {
-		return host.Check{ID: "lan-ip", Title: "LAN IP", Level: host.OK,
-			Detail: "local network: other devices connect to " + settings["LAN_IP"]}
+		address := settings["LAN_IP"]
+		check := host.Check{ID: "lan-ip", Title: "Host address", Level: host.OK,
+			Detail: host.ClassifyAddress(address).Label() + ": App links use " + address + "; reachability depends on routing and firewall rules"}
+		if settings["EXPOSURE"] == ExposureLocal {
+			check.Detail = "this computer only: App links use 127.0.0.1"
+		}
+		return check
 	}
 	hint := lanHint
 	if settings[settingNames] == namesOn {
 		hint += "; Easy names contain the LAN address, so update bookmarks afterward. A DHCP reservation avoids another change."
 	}
-	return host.Check{ID: "lan-ip", Title: "LAN IP", Level: host.Warn,
+	return host.Check{ID: "lan-ip", Title: "Host address", Level: host.Warn,
 		Detail: fmt.Sprintf("Apps use %s, which is not an address of this machine any more (now %s); their URLs do not work",
 			settings["LAN_IP"], strings.Join(current, ", ")),
 		Hint: hint}
+}
+
+func accessCheck(settings map[string]string) host.Check {
+	check := host.Check{ID: "exposure", Title: "Access", Level: host.OK,
+		Detail: "Home network: Apps listen on every host address; reachability depends on routing and firewall rules"}
+	if settings["EXPOSURE"] == ExposureLocal {
+		check.Level, check.Detail = host.Warn, "this machine only: other devices cannot connect (TVs, phones, other computers)"
+		check.Hint = "To reach Apps from other devices run: self-host config set EXPOSURE=lan"
+		return check
+	}
+	if host.ClassifyAddress(settings["LAN_IP"]) == host.AddressPublic {
+		check.Level = host.Warn
+		check.Detail = "public IP " + settings["LAN_IP"] + ": Apps listen on every host address and may be reachable from the internet"
+		check.Hint = "Restrict incoming App ports in your host/provider firewall, or choose This computer only: self-host config set EXPOSURE=local. A connection from this computer does not verify internet reachability."
+	}
+	return check
 }
 
 // SettingReview is one Host setting next to what the host looks like now.
@@ -120,9 +142,10 @@ func (s *Service) ReviewSettings(ctx context.Context) ([]SettingReview, error) {
 		}
 		review = append(review, r)
 	}
-	for _, key := range []string{"UMASK", "MEDIA_ROOT", "DOWNLOADS_ROOT"} {
+	for _, key := range []string{"UMASK"} {
 		review = append(review, SettingReview{Key: key, Current: settings[key]})
 	}
+	review = append(review, mediaSettingReviews(settings)...)
 	return review, nil
 }
 

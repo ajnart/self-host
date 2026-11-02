@@ -214,7 +214,7 @@ func TestSettingsAccessSubTabListsTheFiveOptionsAndExplainsTheHighlightedOne(t *
 		}
 		last = at
 	}
-	if !strings.Contains(flat(out), lanExplanation) || !strings.Contains(out, "phones · TVs · laptops ──── router ──── this computer 192.168.1.20") {
+	if !strings.Contains(flat(strings.ReplaceAll(out, "│", " ")), lanExplanation) || !strings.Contains(out, "phones · TVs · laptops ──── router ──── this computer 192.168.1.20") {
 		t.Fatalf("the highlighted option shows the explanation and the diagram Onboarding does\n%s", out)
 	}
 	if len(m.settings.pairs()) != 0 {
@@ -266,7 +266,7 @@ func TestQuestionMarkOpensTheHelpPageOfTheHighlightedAccessOptionAndEscCloses(t 
 	m = drive(t, m, press("?"))
 
 	page := flat(screen(m))
-	for _, want := range []string{"What is a LAN address?", "Nobody on the internet can open your Apps unless your router forwards ports", "╭", "Technical details"} {
+	for _, want := range []string{"What is a LAN address?", "A public address may expose Apps directly to the internet", "╭", "Technical details"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("the Settings help page lacks %q\n%s", want, screen(m))
 		}

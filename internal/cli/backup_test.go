@@ -87,7 +87,7 @@ func TestBackupArchivesEveryAppWithSecretsAndManifest(t *testing.T) {
 	if got := manifestApps(manifest); len(got) != 2 {
 		t.Fatalf("manifest apps %v", got)
 	}
-	if files["apps/one/db.sqlite"] != "one-v1" || !strings.Contains(files["secrets.env"], "ADMIN_PASSWORD=") || files["state.json"] == "" {
+	if files["apps/one/db.sqlite"] != "one-v1" || !strings.Contains(files[".env"], "ADMIN_PASSWORD=") || files["state.json"] == "" || files["compose.yml"] == "" {
 		t.Fatalf("archive misses data or secrets: %v", keys(files))
 	}
 	if r.StepEvent("", "unencrypted") != "step.warn" {
@@ -155,7 +155,7 @@ func TestRestoreEverythingRebuildsTheProject(t *testing.T) {
 	cat := testCatalog(&echoApp{id: "one", done: map[string]bool{}}, &echoApp{id: "two", done: map[string]bool{}})
 	out := filepath.Join(t.TempDir(), "backup.tar.zst")
 	clitest.Run(t, deps, cat, "backup", "-o", out)
-	secrets := readFile(t, filepath.Join(root, "secrets.env"))
+	secrets := readFile(t, filepath.Join(root, ".env"))
 	os.RemoveAll(root)
 
 	r := clitest.Run(t, deps, cat, "restore", out, "--yes")
@@ -163,10 +163,10 @@ func TestRestoreEverythingRebuildsTheProject(t *testing.T) {
 	if r.Code != 0 {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
 	}
-	if readFile(t, filepath.Join(root, "secrets.env")) != secrets {
+	if readFile(t, filepath.Join(root, ".env")) != secrets {
 		t.Fatal("secrets not restored")
 	}
-	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "apps/two/compose.yml") {
+	if !strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "  two:") || strings.Contains(readFile(t, filepath.Join(root, "compose.yml")), "include:") {
 		t.Fatal("root compose not rebuilt")
 	}
 	status := clitest.Run(t, deps, cat, "status", "--json")

@@ -15,12 +15,15 @@ import (
 
 const homarrUsername = "self-host-homarr"
 
-func callRPC(ctx context.Context, h *helpers.H, username, password, method string, result any) error {
+func callRPC(ctx context.Context, h *helpers.H, username, password, method string, result any, params ...any) error {
 	id := "selfhost-" + method
+	if params == nil {
+		params = []any{}
+	}
 	response, err := h.HTTP(ctx, helpers.Request{
 		Method: http.MethodPost, Path: "/jsonrpc", NoRedirect: true,
 		User: username, Password: password,
-		JSON: map[string]any{"version": "1.1", "method": method, "params": []any{}, "id": id},
+		JSON: map[string]any{"version": "1.1", "method": method, "params": params, "id": id},
 	})
 	if err != nil {
 		return fmt.Errorf("NZBGet %s could not be reached; retry self-host setup nzbget", method)

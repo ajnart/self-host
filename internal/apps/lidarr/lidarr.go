@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/apps/servarr"
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -27,13 +28,16 @@ func (App) Info() app.Info {
 		Port:          8686,
 		ContainerPort: 8686,
 		Service:       "lidarr",
+		UsesMedia:     true,
 	}
 }
 
 func (App) Inputs() []app.Input { return nil }
 func (App) Links() []app.Link   { return nil }
 
-func (App) StandaloneGuide() string { return lidarrServarr.StandaloneGuide("") }
+func (App) StandaloneGuide() string {
+	return lidarrServarr.StandaloneGuide("/data/media/music") + " Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used."
+}
 
 var lidarrServarr = servarr.Servarr{Name: "Lidarr", API: servarr.V1}
 
@@ -41,18 +45,23 @@ const recoveryHint = "Preserve Lidarr's configuration and review Settings > Gene
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("lidarr", rc.Settings)
+	mount := "./media-data:/data"
+	if mediastorage.Shared(rc.Settings) {
+		mount = "${DATA_ROOT}:/data"
+	}
 	return `services:
   lidarr:
     image: lscr.io/linuxserver/lidarr:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: ${UMASK}
+      UMASK: ` + mask + `
     volumes:
       - ./config:/config
-      - ./media-data:/data
+      - ` + mount + `
     ports:
       - ${BIND_IP}:` + port + `:8686
     healthcheck:

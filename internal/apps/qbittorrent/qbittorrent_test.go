@@ -42,8 +42,8 @@ func TestInstallReplacesTheTemporaryPasswordWithTheAdminLogin(t *testing.T) {
 	if gotUser != user || gotPass != pass || pass == e.QBittorrent.TempPassword {
 		t.Fatalf("qBittorrent login is %s/%s, want the Admin login %s/%s", gotUser, gotPass, user, pass)
 	}
-	if e.QBittorrent.SavePath() != "/downloads" {
-		t.Errorf("save path %q, want /downloads", e.QBittorrent.SavePath())
+	if e.QBittorrent.SavePath() != "/data/torrents" {
+		t.Errorf("save path %q, want /data/torrents", e.QBittorrent.SavePath())
 	}
 	for _, step := range []string{"admin-login", "save-path", "check"} {
 		if r.StepEvent("qbittorrent", step) != "step.ok" {
@@ -56,7 +56,7 @@ func TestFragmentUsesLinuxserverImageAndHostSettings(t *testing.T) {
 	e := newEnv(t)
 	e.Run("install", "qbittorrent", "--yes")
 
-	fragment := clitest.Read(t, filepath.Join(e.AppDir("qbittorrent"), "compose.yml"))
+	fragment := clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))
 
 	port := e.Port("qbittorrent")
 	for _, want := range []string{
@@ -65,8 +65,8 @@ func TestFragmentUsesLinuxserverImageAndHostSettings(t *testing.T) {
 		`WEBUI_PORT: "` + port + `"`,
 		"${BIND_IP}:" + port + ":" + port,
 		"6881:6881/udp",
-		"./config:/config",
-		"${DOWNLOADS_ROOT}:/downloads",
+		"./apps/qbittorrent/config:/config",
+		"${DATA_ROOT}/torrents:/data/torrents",
 	} {
 		if !strings.Contains(fragment, want) {
 			t.Errorf("fragment lacks %q:\n%s", want, fragment)
@@ -163,7 +163,7 @@ func TestPeerPortsFollowExposure(t *testing.T) {
 	e := newEnv(t)
 	e.Run("install", "qbittorrent", "--yes")
 
-	fragment := clitest.Read(t, filepath.Join(e.AppDir("qbittorrent"), "compose.yml"))
+	fragment := clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))
 
 	for _, want := range []string{"${BIND_IP}:6881:6881\n", "${BIND_IP}:6881:6881/udp"} {
 		if !strings.Contains(fragment, want) {
@@ -175,7 +175,7 @@ func TestPeerPortsFollowExposure(t *testing.T) {
 func TestInstallSelectsTorrentPortThroughCLI(t *testing.T) {
 	e := newEnv(t)
 	e.Run("install", "qbittorrent", "--yes", "--set", "qbittorrent.torrent-port=24567")
-	fragment := clitest.Read(t, filepath.Join(e.AppDir("qbittorrent"), "compose.yml"))
+	fragment := clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))
 	for _, want := range []string{"TORRENTING_PORT: \"24567\"", "${BIND_IP}:24567:24567\n", "${BIND_IP}:24567:24567/udp"} {
 		if !strings.Contains(fragment, want) {
 			t.Errorf("selected peer port missing from installed fragment: %s", want)
