@@ -111,6 +111,10 @@ func TestAutobrrSavedIdentityFailureStopsBeforeStats(t *testing.T) {
 		{"another-integration", ""}, {"autobrr-owned", "[]"}, {"autobrr-owned", "null"},
 		{"autobrr-owned", `[{"name":"self-host Homarr statistics","key":"autobrr-private-key","scopes":[],"created_at":"2026-11-02T12:00:00Z"}]`},
 		{"autobrr-owned", `[{"name":"self-host Homarr statistics","key":"[REDACTED]","scopes":[],"created_at":"2026-10-02T12:00:00Z"}]`},
+		{"autobrr-owned", `[{"name":"self-host Homarr statistics","key":"autobrr-private-key","scopes":[],"created_at":"2026-11-02T12:00:00Z"},{"name":"self-host Homarr statistics","key":"[REDACTED]","scopes":[],"created_at":"2026-11-02T12:00:00Z"}]`},
+		{"autobrr-owned", `[{"name":"self-host Homarr statistics","key":"different-private-key","scopes":[],"created_at":"2026-11-02T12:00:00Z"},{"name":"self-host Homarr statistics","key":"[REDACTED]","scopes":[],"created_at":"2026-11-02T12:00:00Z"}]`},
+		{"autobrr-owned", `[{"name":"self-host Homarr statistics","key":"[REDACTED]","scopes":[],"created_at":"2026-11-02T12:00:00Z"},{"name":"self-host Homarr statistics","key":"different-private-key","scopes":[],"created_at":"2026-11-02T12:00:00Z"}]`},
+		{"autobrr-owned", `[{"name":"changed-name","key":"autobrr-private-key","scopes":[],"created_at":"2026-10-02T12:00:00Z"},{"name":"self-host Homarr statistics","key":"[REDACTED]","scopes":[],"created_at":"2026-11-02T12:00:00Z"}]`},
 	} {
 		fixture := autobrrStatsFixture()
 		from, to := autobrrVerificationFixture(t, fixture, scenario.id, scenario.inventory)
@@ -149,9 +153,44 @@ func TestAutobrrStatsRejectInvalidValuesUnitsAndNoOp(t *testing.T) {
 		}
 	}
 	for _, value := range []float64{math.NaN(), math.Inf(1)} {
-		sample := statsSample{values: map[string]any{"approvedPushes": value}, units: map[string]string{"approvedPushes": "count"}}
+		sample := statsSample{
+			values:  map[string]any{"approvedPushes": value, "rejectedPushes": float64(0), "filters": float64(0), "indexers": float64(0)},
+			units:   map[string]string{"approvedPushes": "count", "rejectedPushes": "count", "filters": "count", "indexers": "count"},
+			retryAt: float64(0), startedAt: 4000000, completedAt: 4001000, updatedAt: 4000000,
+		}
 		if err := verifyAutobrrStats(sample); err == nil {
 			t.Fatal("nonfinite native count admitted")
+		}
+	}
+}
+
+func TestAutobrrStatsRetainLocalSafeIntegerAndClockLimits(t *testing.T) {
+	for _, metric := range []string{"approvedPushes", "rejectedPushes", "filters", "indexers"} {
+		sample := statsSample{
+			values:  map[string]any{"approvedPushes": float64(0), "rejectedPushes": float64(0), "filters": float64(0), "indexers": float64(0)},
+			units:   map[string]string{"approvedPushes": "count", "rejectedPushes": "count", "filters": "count", "indexers": "count"},
+			retryAt: float64(0), startedAt: 4000000, completedAt: 4001000, updatedAt: 4000000,
+		}
+		sample.values[metric] = float64(9007199254740991)
+		if err := verifyAutobrrStats(sample); err != nil {
+			t.Fatalf("valid safe-integer limit was rejected: %v", err)
+		}
+		sample.values[metric] = float64(9007199254740992)
+		if err := verifyAutobrrStats(sample); err == nil {
+			t.Fatal("shared count reuse lost Autobrr's maximum safe integer limit")
+		}
+		sample.values[metric] = float64(0)
+		for _, timestamp := range []float64{400000, 4061000} {
+			sample.updatedAt = timestamp
+			if err := verifyAutobrrStats(sample); err != nil {
+				t.Fatalf("allowed local clock boundary was rejected: %v", err)
+			}
+		}
+		for _, timestamp := range []float64{399999, 4061001} {
+			sample.updatedAt = timestamp
+			if err := verifyAutobrrStats(sample); err == nil {
+				t.Fatal("shared count reuse lost Autobrr's age/future-skew hold")
+			}
 		}
 	}
 }

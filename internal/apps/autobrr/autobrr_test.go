@@ -24,6 +24,7 @@ type autobrrFixture struct {
 	adminPosts    int
 	keyPosts      int
 	keys          []map[string]any
+	cachedKeys    []map[string]any
 	loginCode     int
 	identity      string
 	onboardCode   int
@@ -35,16 +36,20 @@ type autobrrFixture struct {
 	tokenRequests int
 	rejectToken   bool
 	mutations     []string
+	requests      []string
 }
 
 func (f *autobrrFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	request := r.Method + " " + r.URL.Path
 	if r.Method != "GET" {
-		f.mutations = append(f.mutations, r.Method+" "+r.URL.Path)
+		f.mutations = append(f.mutations, request)
 	}
 	if r.Header.Get("X-API-Token") != "" {
 		f.tokenRequests++
+		request += " token"
 	}
+	f.requests = append(f.requests, request)
 	switch r.URL.Path {
 	case "/api/healthz/readiness":
 		w.Write([]byte(`{"status":"ready"}`))
@@ -100,10 +105,17 @@ func (f *autobrrFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cookieOK := cookieErr == nil && cookie.Value == "private-session"
 	keyOK := false
 	for _, key := range f.keys {
-		keyOK = keyOK || r.Header.Get("X-API-Token") == key["key"]
-	}
-	if f.rejectToken {
-		keyOK = false
+		if r.Header.Get("X-API-Token") != key["key"] || f.rejectToken {
+			continue
+		}
+		keyOK = true
+		cached := false
+		for _, existing := range f.cachedKeys {
+			cached = cached || existing["key"] == key["key"]
+		}
+		if !cached {
+			f.cachedKeys = append(f.cachedKeys, key)
+		}
 	}
 	if !cookieOK && !keyOK {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -129,6 +141,9 @@ func (f *autobrrFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			key := map[string]any{"name": "self-host Homarr statistics", "key": "issued-private-key", "scopes": []string{}, "created_at": "2026-11-02T12:00:00Z"}
 			f.keys = append(f.keys, key)
+			if len(f.cachedKeys) > 0 {
+				f.cachedKeys = append(f.cachedKeys, key)
+			}
 			code := f.keyCode
 			if code == 0 {
 				code = http.StatusCreated
@@ -139,6 +154,10 @@ func (f *autobrrFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			json.NewEncoder(w).Encode(key)
+			return
+		}
+		if len(f.cachedKeys) > 0 {
+			json.NewEncoder(w).Encode(f.cachedKeys)
 			return
 		}
 		json.NewEncoder(w).Encode(f.keys)
@@ -357,5 +376,63 @@ func TestAutobrrPreflightHoldsBeforeUnpreparedNonRootConfigStart(t *testing.T) {
 	}
 	if len(f.mutations) != 0 || f.tokenRequests != 0 || len(s) != 2 {
 		t.Fatal("the pre-start hold changed accounts, keys or private records")
+	}
+}
+
+func TestAutobrrNonemptyCachedInventoryNeverAuthorizesIssuance(t *testing.T) {
+	for _, hiddenCollision := range []bool{false, true} {
+		unrelated := map[string]any{"key": "unrelated-private-key", "name": "person-owned", "scopes": []string{}, "created_at": "2026-10-01T00:00:00Z"}
+		f := &autobrrFixture{configured: true, keys: []map[string]any{unrelated}, cachedKeys: []map[string]any{unrelated}}
+		if hiddenCollision {
+			f.keys = append(f.keys, map[string]any{"key": "hidden-private-key", "name": "self-host Homarr statistics", "scopes": []string{}, "created_at": "2026-10-02T00:00:00Z"})
+		}
+		before, err := json.Marshal(f.keys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := &autobrrFaultSecrets{autobrrSecrets: autobrrAdminSecrets()}
+		for range 2 {
+			err := (autobrr.App{}).Setup(t.Context(), autobrrH(t, f, s))
+			var manual *helpers.ManualError
+			if !errors.As(err, &manual) || !errors.Is(err, helpers.ErrManual) || !strings.Contains(manual.Hint, "cache") {
+				t.Fatalf("partial inventory authorized issuance instead of actionable uncertainty: %v", err)
+			}
+		}
+		after, err := json.Marshal(f.keys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.keyPosts != 0 || f.tokenRequests != 0 || len(s.writes) != 0 || string(after) != string(before) || len(f.cachedKeys) != 1 {
+			t.Fatal("uncertain cached discovery changed keys, the cache or private records")
+		}
+	}
+}
+
+func TestAutobrrVerifiesSavedKeyBeforeReadingPartialCache(t *testing.T) {
+	f := &autobrrFixture{configured: true, keys: []map[string]any{}}
+	s := autobrrAdminSecrets()
+	if err := (autobrr.App{}).Setup(t.Context(), autobrrH(t, f, s)); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := map[string]any{"key": "unrelated-private-key", "name": "person-owned", "scopes": []string{}, "created_at": "2026-10-01T00:00:00Z"}
+	f.keys = append(f.keys, unrelated)
+	f.cachedKeys = []map[string]any{unrelated}
+	f.requests = nil
+	f.tokenRequests = 0
+	h := autobrrH(t, f, s)
+	if err := autobrr.VerifyHomarr(t.Context(), h); err != nil {
+		t.Fatalf("valid saved key was rejected before populating its cached identity: %v", err)
+	}
+	verified := false
+	for _, request := range f.requests {
+		if request == "GET /api/config token" {
+			verified = true
+		}
+		if request == "GET /api/keys" && !verified {
+			t.Fatal("cached inventory was read before the saved credential was authenticated")
+		}
+	}
+	if !verified || len(f.cachedKeys) != 2 || f.keyPosts != 1 || h.Log.Redact("unrelated-private-key") != "[redacted]" {
+		t.Fatal("saved-key verification lost identity, privacy or no-reissuance guarantees")
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/autobrr"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -56,9 +55,13 @@ func verifyAutobrr(ctx context.Context, from, to *helpers.H, integrationID strin
 }
 
 func verifyAutobrrStats(sample statsSample) error {
-	for _, metric := range []string{"approvedPushes", "rejectedPushes", "filters", "indexers"} {
-		count, ok := sample.values[metric].(float64)
-		if !ok || sample.units[metric] != "count" || math.IsNaN(count) || math.IsInf(count, 0) || count < 0 || count > 9007199254740991 || math.Trunc(count) != count {
+	metrics := []string{"approvedPushes", "rejectedPushes", "filters", "indexers"}
+	if !validCountStats(sample, metrics...) {
+		return errors.New("Homarr returned incomplete Autobrr count statistics; retry self-host setup homarr")
+	}
+	for _, metric := range metrics {
+		count, _ := countValue(sample.values[metric])
+		if count > 9007199254740991 {
 			return errors.New("Homarr returned incomplete Autobrr count statistics; retry self-host setup homarr")
 		}
 	}

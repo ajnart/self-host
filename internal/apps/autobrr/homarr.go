@@ -106,16 +106,27 @@ func readKeys(ctx context.Context, h *helpers.H, session *helpers.Session) ([]ap
 }
 
 func matchKey(keys []apiKey, key string, ownership keyOwnership) error {
+	found := false
+	matchingMetadata := 0
 	for _, current := range keys {
-		if current.Key != key {
-			continue
+		metadataMatches := current.Name == ownership.Name && current.CreatedAt.Equal(ownership.CreatedAt) && current.Scopes != nil && len(current.Scopes) == 0
+		if metadataMatches {
+			matchingMetadata++
 		}
-		if current.Name != ownership.Name || !current.CreatedAt.Equal(ownership.CreatedAt) || current.Scopes == nil || len(current.Scopes) != 0 {
-			return homarrManual("The recorded Autobrr key metadata no longer matches its issuance.")
+		if current.Key == key {
+			if !metadataMatches {
+				return homarrManual("The recorded Autobrr key metadata no longer matches its issuance.")
+			}
+			found = true
 		}
-		return nil
 	}
-	return homarrManual("The recorded Autobrr key is absent from the authenticated inventory.")
+	if matchingMetadata > 1 {
+		return homarrManual("Multiple Autobrr keys share the recorded creation metadata; the credential identity is ambiguous.")
+	}
+	if !found {
+		return homarrManual("The recorded Autobrr key is absent from the authenticated inventory.")
+	}
+	return nil
 }
 
 func VerifyHomarrInventory(h *helpers.H, body []byte) error {
@@ -126,6 +137,11 @@ func VerifyHomarrInventory(h *helpers.H, body []byte) error {
 	keys, err := keyInventory(h, body)
 	if err != nil {
 		return err
+	}
+	for _, key := range keys {
+		if key.Key == h.Secret(h.Key("homarr_api_key")) {
+			return homarrManual("Homarr returned the expected Autobrr key without redacting it; the saved connection did not prove it used that credential.")
+		}
 	}
 	return matchKey(keys, "[REDACTED]", ownership)
 }
@@ -158,18 +174,18 @@ func verifyKey(ctx context.Context, h *helpers.H, key string, ownership keyOwner
 	if err := verifyConfiguration(resp); err != nil {
 		return err
 	}
-	keys, err := readKeys(ctx, h, session)
-	if err != nil {
-		return err
-	}
-	if err := matchKey(keys, key, ownership); err != nil {
-		return err
-	}
 	resp, err = h.HTTP(ctx, helpers.Request{Path: "/api/config", NoRedirect: true, Header: map[string]string{"X-API-Token": key}})
 	if err != nil || resp.Status != http.StatusOK {
 		return homarrManual("Autobrr did not accept its recorded statistics credential.")
 	}
 	if err := verifyConfiguration(resp); err != nil {
+		return err
+	}
+	keys, err := readKeys(ctx, h, session)
+	if err != nil {
+		return err
+	}
+	if err := matchKey(keys, key, ownership); err != nil {
 		return err
 	}
 	return verifyStatistics(ctx, h, key)
@@ -262,13 +278,15 @@ func prepareHomarrKey(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
-	intent := keyIntent{Username: h.AdminUser(), Name: homarrKeyName, Scopes: []string{}, Existing: []string{}}
 	for _, key := range keys {
 		if key.Name == homarrKeyName {
 			return homarrManual("An unowned Autobrr key already uses the statistics name; it was preserved.")
 		}
-		intent.Existing = append(intent.Existing, fingerprint(key.Key))
 	}
+	if len(keys) != 0 {
+		return homarrManual("Autobrr's nonempty API-key list may contain only validation-cache entries, so absence of the statistics name cannot authorize issuance. Preserve all keys and restore a known matching private credential/ownership tuple; do not clear the cache or restart to force discovery.")
+	}
+	intent := keyIntent{Username: h.AdminUser(), Name: homarrKeyName, Scopes: []string{}, Existing: []string{}}
 	encoded, err := json.Marshal(intent)
 	if err != nil {
 		return errors.New("Autobrr key intent could not be encoded")
