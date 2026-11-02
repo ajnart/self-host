@@ -1,0 +1,14 @@
+docs/releasing.md
+  h_d6e478ca18e517 173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8579a5a05be6aaf8ee89686fcf0f00fdf705ea81",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
