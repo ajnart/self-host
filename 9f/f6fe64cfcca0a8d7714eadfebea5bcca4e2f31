@@ -1,0 +1,20 @@
+docs/catalog/traps/transmission.md
+  h_d6e478ca18e517 11-21,36-40
+internal/apps/servarr/transmission.go
+  h_d6e478ca18e517 1-69
+internal/apps/servarr/transmission_test.go
+  h_d6e478ca18e517 1-423
+internal/apps/transmission/downloadclient.go
+  h_d6e478ca18e517 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ff6fe64cfcca0a8d7714eadfebea5bcca4e2f31",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
