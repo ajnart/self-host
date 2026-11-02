@@ -204,7 +204,11 @@ Read it before you run it, and check the published hash:
 ```bash
 curl -fsSL https://self-host.fyi/install -o install.sh &&
 curl -fsSL https://self-host.fyi/install.sh.sha256 -o install.sh.sha256 &&
-shasum -a 256 -c install.sh.sha256 &&
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c install.sh.sha256
+else
+  shasum -a 256 -c install.sh.sha256
+fi &&
 less install.sh && bash install.sh
 ```
 

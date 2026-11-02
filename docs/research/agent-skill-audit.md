@@ -68,6 +68,13 @@ remain replaceable by design; removing the marker opts out of management.
 These are source-level ownership checks, not cryptographic authentication or
 complete protection against hostile concurrent directory replacement.
 
+CodeRabbit's follow-up identified partial fresh-install publication as a
+retryability gap: both files must be staged before the destination is published.
+It also identified checksum-tool portability, missing archive platform
+selection and new-versus-existing Project guidance. The follow-up fixes retain
+fail-closed verification, support either checksum utility, detect supported
+archive platforms and direct existing Projects to the Dashboard Catalog.
+
 Gemini's native target was `~/.gemini/config/skills`; its
 [official documentation](https://geminicli.com/docs/cli/skills/) specifies
 `~/.gemini/skills`. Installation uses the documented path, while explicit

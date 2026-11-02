@@ -25,7 +25,11 @@ export const INSTALL_METHODS = [
 		slug: "read-it-first",
 		code: `curl -fsSL https://self-host.fyi/install -o install.sh &&
 curl -fsSL https://self-host.fyi/install.sh.sha256 -o install.sh.sha256 &&
-shasum -a 256 -c install.sh.sha256 &&
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c install.sh.sha256
+else
+  shasum -a 256 -c install.sh.sha256
+fi &&
 less install.sh && bash install.sh`,
 	},
 	{
@@ -33,7 +37,11 @@ less install.sh && bash install.sh`,
 		slug: "release-archive",
 		code: `(
 set -eu
-VERSION=${VERSION} OS=linux ARCH=amd64
+VERSION=${VERSION}
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+case "$OS" in linux|darwin) ;; *) exit 1 ;; esac
+ARCH="$(uname -m)"
+case "$ARCH" in x86_64|amd64) ARCH=amd64 ;; arm64|aarch64) ARCH=arm64 ;; *) exit 1 ;; esac
 BASE=https://github.com/ajnart/self-host/releases/download/v$VERSION
 ARCHIVE=self-host_\${VERSION}_\${OS}_\${ARCH}.tar.gz
 curl -fsSLO "$BASE/$ARCHIVE"

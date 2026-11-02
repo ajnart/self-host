@@ -21,7 +21,7 @@ self-host apps info immich
 self-host install immich
 ```
 
-In a terminal, the positional install command acts immediately; inspect the requirements and approve the change before running it. Run bare `self-host` for Onboarding's Review instead. Agents pass `--yes --json` only after the person approves their plan. Start with [Getting started](/docs/getting-started) for Docker Compose requirements and the dated platform-verification table; being in the Catalog does not mean an App has passed a launch run on every platform.
+In a terminal, the positional install command acts immediately; inspect the requirements and approve the change before running it. For a new Project, run bare `self-host` for Onboarding's Review instead; with an existing Project, use the Dashboard Catalog. Agents pass `--yes --json` only after the person approves their plan. Start with [Getting started](/docs/getting-started) for Docker Compose requirements and the dated platform-verification table; being in the Catalog does not mean an App has passed a launch run on every platform.
 
 Prefer to keep your own `docker-compose.yaml`? [Docker Compose Maker](/compose) generates one, with a `.env`, for the same Apps and for containers outside the Catalog. It does not run Setup or Links.
 

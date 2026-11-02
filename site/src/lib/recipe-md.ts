@@ -39,7 +39,7 @@ export function recipeMarkdown(recipe: Recipe): string {
 		`self-host install ${recipe.id}`,
 		"```",
 		"",
-		"In a terminal, the positional install command acts immediately. Run bare `self-host` for Onboarding's Review instead. Agents pass `--yes --json` only after the person approves their plan.",
+		"In a terminal, the positional install command acts immediately. For a new Project, run bare `self-host` for Onboarding's Review instead; with an existing Project, use the Dashboard Catalog. Agents pass `--yes --json` only after the person approves their plan.",
 		"",
 		"## Apps",
 		"",

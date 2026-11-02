@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 //go:embed SKILL.md
@@ -162,20 +163,51 @@ func installOne(dir string) (string, error) {
 		return UpToDate, nil
 	}
 	if !exists {
-		if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-			return "", err
-		}
-		if err := os.Mkdir(dir, 0o755); errors.Is(err, fs.ErrExist) {
-			return LeftAlone, nil
-		} else if err != nil {
-			return "", err
-		}
+		return installNew(dir)
 	}
 	if err := replaceFile(file, router); err != nil {
 		return "", err
 	}
 	if err := replaceFile(filepath.Join(dir, markerName), []byte(markerContent)); err != nil {
 		return "", err
+	}
+	return Written, nil
+}
+
+func installNew(dir string) (status string, err error) {
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		return "", err
+	}
+	stage, err := os.MkdirTemp(filepath.Dir(dir), ".self-host-*")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		err = errors.Join(err, os.RemoveAll(stage))
+	}()
+	if err := replaceFile(filepath.Join(stage, "SKILL.md"), router); err != nil {
+		return "", err
+	}
+	if err := replaceFile(filepath.Join(stage, markerName), []byte(markerContent)); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(stage, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Mkdir(dir, 0o755); errors.Is(err, fs.ErrExist) {
+		return LeftAlone, nil
+	} else if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err != nil {
+			if removeErr := os.Remove(dir); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+				err = errors.Join(err, removeErr)
+			}
+		}
+	}()
+	if err := syscall.Rename(stage, dir); err != nil {
+		return "", &os.LinkError{Op: "rename", Old: stage, New: dir, Err: err}
 	}
 	return Written, nil
 }
