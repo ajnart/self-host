@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,10 +30,11 @@ type secret struct {
 // widget that shows one thing the target knows by id gets its options from
 // bind, which reads that id from the target when the widget is added.
 type widget struct {
-	kind    string
-	options map[string]any
-	metrics []string
-	bind    func(ctx context.Context, to *helpers.H, integrationID string) (map[string]any, error)
+	kind           string
+	options        map[string]any
+	metrics        []string
+	bind           func(ctx context.Context, to *helpers.H, integrationID string) (map[string]any, error)
+	managedOptions []string
 }
 
 func plain(kind string) widget { return widget{kind: kind, options: map[string]any{}} }
@@ -45,13 +49,15 @@ type target struct {
 	id   string
 	name string
 	// kind is the Homarr integration kind; empty means tile only.
-	kind      string
-	internal  func(to *helpers.H) string
-	secrets   func(from, to *helpers.H) []secret
-	widgets   []widget
-	preflight func(ctx context.Context, from, to *helpers.H) error
-	verify    func(ctx context.Context, from, to *helpers.H, integrationID string) error
-	stats     func(statsSample) error
+	kind          string
+	internal      func(to *helpers.H) string
+	secrets       func(from, to *helpers.H) []secret
+	widgets       []widget
+	preflight     func(ctx context.Context, from, to *helpers.H) error
+	verify        func(ctx context.Context, from, to *helpers.H, integrationID string) error
+	stats         func(statsSample) error
+	prepare       func(ctx context.Context, from, to *helpers.H) (target, error)
+	nullableStats []string
 }
 
 func fixed(u string) func(*helpers.H) string { return func(*helpers.H) string { return u } }
@@ -406,6 +412,14 @@ func widgetOptions(w widget, integrationID string) map[string]any {
 
 func widgetCurrent(item map[string]any, w widget, integrationID string) bool {
 	if w.kind != "stats" {
+		options, _ := item["options"].(map[string]any)
+		for _, key := range w.managedOptions {
+			actual, present := options[key]
+			expected, wanted := w.options[key]
+			if present != wanted || !reflect.DeepEqual(actual, expected) {
+				return false
+			}
+		}
 		return true
 	}
 	options, _ := item["options"].(map[string]any)
@@ -424,6 +438,51 @@ func widgetCurrent(item map[string]any, w widget, integrationID string) bool {
 		}
 	}
 	return true
+}
+
+func (t target) reconcileOwnedOptions(ctx context.Context, h *helpers.H, current map[string]any, integrationID string, apply bool) (bool, error) {
+	if !slices.ContainsFunc(t.widgets, func(w widget) bool { return len(w.managedOptions) > 0 }) {
+		return true, nil
+	}
+	owned, err := ownedWidgets(h, integrationID)
+	if err != nil {
+		return false, err
+	}
+	items := itemsOf(current)
+	changed := false
+	for index, item := range items {
+		if !owned[stringField(item, "id")] {
+			continue
+		}
+		for _, w := range t.widgets {
+			if len(w.managedOptions) == 0 || !wiredTo(item, w.kind, integrationID) || widgetCurrent(item, w, integrationID) {
+				continue
+			}
+			ids, ok := item["integrationIds"].([]any)
+			options, valid := item["options"].(map[string]any)
+			if !ok || len(ids) != 1 || ids[0] != integrationID || !valid || sharedWidget(w.kind) {
+				return false, &helpers.ManualError{Hint: "Preserve the shared or edited owned " + t.name + " widget. Review its bindings and options before retrying self-host setup homarr; only an exclusively bound recorded owned widget can be updated automatically."}
+			}
+			changed = true
+			if !apply {
+				continue
+			}
+			updated := maps.Clone(options)
+			for _, key := range w.managedOptions {
+				delete(updated, key)
+				if value, present := w.options[key]; present {
+					updated[key] = value
+				}
+			}
+			replacement := maps.Clone(item)
+			replacement["options"] = updated
+			items[index] = replacement
+		}
+	}
+	if changed && apply {
+		return false, saveItems(ctx, h, current, items)
+	}
+	return !changed, nil
 }
 
 func addItem(ctx context.Context, h *helpers.H, body map[string]any) (helpers.Response, error) {
@@ -701,6 +760,16 @@ func widgetInitialSize(kind string) map[string]any {
 }
 
 func (t target) addWidgets(ctx context.Context, h, to *helpers.H, boardID, integrationID string, items []map[string]any) error {
+	if slices.ContainsFunc(t.widgets, func(w widget) bool { return len(w.managedOptions) > 0 }) {
+		current, err := board(ctx, h)
+		if err != nil {
+			return err
+		}
+		if _, err := t.reconcileOwnedOptions(ctx, h, current, integrationID, true); err != nil {
+			return err
+		}
+		items = itemsOf(current)
+	}
 	if t.id == "beszel" {
 		current, err := board(ctx, h)
 		if err != nil {
@@ -797,6 +866,13 @@ func removeWidgets(ctx context.Context, h *helpers.H, integrationID string, widg
 // to it exist. It deliberately does not claim them: that is what a rerun
 // proves.
 func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
+	if t.prepare != nil {
+		prepared, err := t.prepare(ctx, from, to)
+		if err != nil {
+			return false, err
+		}
+		t = prepared
+	}
 	if t.preflight != nil {
 		if err := t.preflight(ctx, from, to); err != nil {
 			return false, err
@@ -853,6 +929,9 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 	if from.Secret(integrationFingerprintKey(from, integrationID)) != integrationFingerprint(t, from, to) {
 		return false, nil
 	}
+	if ready, err := t.reconcileOwnedOptions(ctx, from, current, integrationID, false); err != nil || !ready {
+		return false, err
+	}
 	if t.id == "beszel" {
 		ready, err := reconcileBeszelSystemStats(ctx, from, to, current, integrationID, false)
 		if err != nil || !ready {
@@ -888,6 +967,13 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 }
 
 func (t target) add(ctx context.Context, from, to *helpers.H) error {
+	if t.prepare != nil {
+		prepared, err := t.prepare(ctx, from, to)
+		if err != nil {
+			return err
+		}
+		t = prepared
+	}
 	if t.preflight != nil {
 		if err := t.preflight(ctx, from, to); err != nil {
 			return err
