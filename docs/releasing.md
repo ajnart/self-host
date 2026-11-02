@@ -152,9 +152,10 @@ downloads the published linux/amd64 and linux/arm64 archives and checksums, and
 calls `scripts/publish-docker.sh X.Y.Z`. The script rechecks published checksums
 and builds `ghcr.io/ajnart/self-host` (alpine + Docker CLI + Compose plugin,
 about 130 MB), pushing `:X.Y.Z` and `:latest` without rebuilding Go or running
-Apps. Publication is serialized across tags; inside that job, a GitHub Latest
-release lookup skips older verification runs and fails on API/authentication
-errors, so they cannot downgrade `:latest`.
+Apps. Publication is serialized across tags with `queue: max` (up to 100 pending
+jobs), so older verification runs cannot replace queued publications. Inside
+that job, a GitHub Latest release lookup skips older verification runs and fails
+on API/authentication errors, so they cannot downgrade `:latest`.
 
 The pinned QEMU, Buildx and GHCR login actions follow
 [Docker's GitHub Actions guidance](https://github.com/docker/docs/blob/main/content/manuals/build/ci/github-actions/push-multi-registries.md).
