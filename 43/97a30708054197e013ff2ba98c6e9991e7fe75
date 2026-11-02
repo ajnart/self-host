@@ -1,0 +1,38 @@
+dcm/src/data/selfhost.json
+  h_d6e478ca18e517 214
+docs/catalog/traps/audiobookshelf.md
+  h_d6e478ca18e517 7
+docs/catalog/traps/homarr.md
+  h_d6e478ca18e517 15-21
+docs/catalog/traps/immich.md
+  h_d6e478ca18e517 14-16
+docs/catalog/traps/ntfy.md
+  h_d6e478ca18e517 6-9
+internal/apps/audiobookshelf/audiobookshelf.go
+  h_d6e478ca18e517 36
+internal/apps/homarr/homarr.go
+  h_d6e478ca18e517 333-338,340,396-398
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 8,2131-2132
+internal/apps/homarr/ownership.go
+  h_d6e478ca18e517 17-21,24,28
+internal/apps/immich/homarr.go
+  h_d6e478ca18e517 4,6,26-54,69,73,76,79,82,86,89-151,174-177,271-273,284-288,290-291,293-294
+internal/apps/immich/immich.go
+  h_d6e478ca18e517 198
+internal/apps/immich/immich_test.go
+  h_d6e478ca18e517 64-65,72
+internal/apps/ntfy/ntfy.go
+  h_d6e478ca18e517 7,96-114,120-122,153-156,163,166-170,172-174,179,213-214,220-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4397a30708054197e013ff2ba98c6e9991e7fe75",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
