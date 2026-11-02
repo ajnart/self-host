@@ -38,6 +38,9 @@ func (App) Inputs() []app.Input {
 			Help: "Optional selection of an existing local administrator using the shared Admin password. The default is the Admin username at selfhost.local. This never creates an account or changes its password. Supply private values through an owner-only input file; preserve existing Compose before any separately approved reinstall."},
 		{Key: "account_id", Prompt: "Recorded Karakeep administrator ID", Private: true, RecoveryOnly: true,
 			Help: "Restore only the recorded ID of the selected account after independently verifying its identity. An empty value preserves the saved ID. Never clear or replace an ID to accept a different account."},
+		{Key: "homarr_api_key", Prompt: "Recorded Karakeep Homarr key", Private: true, RecoveryOnly: true, Help: HomarrRecoveryHint},
+		{Key: "homarr_key_ownership", Prompt: "Recorded Karakeep Homarr key ownership", Private: true, RecoveryOnly: true, Help: HomarrRecoveryHint},
+		{Key: "homarr_key_pending", Prompt: "Recorded Karakeep key issuance journal", Private: true, RecoveryOnly: true, Help: HomarrRecoveryHint},
 	}
 }
 
@@ -79,7 +82,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	var checkErr error
-	return h.Step(ctx, "owner", "verify the existing Karakeep administrator", helpers.StepSpec{
+	if err := h.Step(ctx, "owner", "verify the existing Karakeep administrator", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			if h.Secret(h.Key("account_id")) == "" || h.Secret(h.Key("admin_email")) == "" {
 				return false, nil
@@ -106,6 +109,30 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return nil
 		},
 		Hint: ownerRecoveryHint, Credential: "admin",
+	}); err != nil {
+		return err
+	}
+	checkErr = nil
+	return h.Step(ctx, "homarr-key", "prepare read-only Karakeep statistics access", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) {
+			_, exists, err := homarrIssuance.Pending(h)
+			if err != nil {
+				checkErr = err
+				return false, err
+			}
+			if exists || h.Secret(h.Key("homarr_api_key")) == "" && h.Secret(h.Key("homarr_key_ownership")) == "" {
+				return false, nil
+			}
+			checkErr = VerifyHomarr(ctx, h)
+			return checkErr == nil, checkErr
+		},
+		Do: func(ctx context.Context) error {
+			if checkErr != nil {
+				return checkErr
+			}
+			return ensureHomarrKey(ctx, h)
+		},
+		Hint: HomarrRecoveryHint, Credential: "admin",
 	})
 }
 
@@ -113,8 +140,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	if h.Secret(h.Key("account_id")) == "" || h.Secret(h.Key("admin_email")) == "" {
 		return ownerManual("Karakeep has no verified recorded administrator; run self-host setup karakeep.")
 	}
-	_, err := readOwner(ctx, h)
-	return err
+	return VerifyHomarr(ctx, h)
 }
 
 func (App) Links() []app.Link { return nil }

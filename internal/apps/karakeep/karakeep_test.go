@@ -1,6 +1,8 @@
 package karakeep_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,12 +29,18 @@ type secrets struct {
 	values map[string]string
 	writes []string
 	fail   string
+	failAt int
+	calls  map[string]int
 }
 
 func (s *secrets) Get(key string) string { return s.values[key] }
 
 func (s *secrets) Set(key, value string) error {
-	if key == s.fail {
+	if s.calls == nil {
+		s.calls = map[string]int{}
+	}
+	s.calls[key]++
+	if key == s.fail && (s.failAt == 0 || s.calls[key] == s.failAt) {
 		return errors.New("synthetic private storage failure")
 	}
 	s.writes = append(s.writes, key)
@@ -41,15 +49,31 @@ func (s *secrets) Set(key, value string) error {
 }
 
 type fakeKarakeep struct {
-	mu         sync.Mutex
-	requests   []string
-	email      string
-	ownerID    string
-	loginCode  int
-	loginBody  string
-	session    string
-	profile    string
-	logoutCode int
+	mu             sync.Mutex
+	requests       []string
+	email          string
+	ownerID        string
+	loginCode      int
+	loginBody      string
+	session        string
+	profile        string
+	logoutCode     int
+	keys           []map[string]any
+	inventoryBody  string
+	afterInventory string
+	issued         int
+	createCode     int
+	createBody     string
+	dropCreate     bool
+	keyCode        int
+	keyOwner       string
+}
+
+const karakeepTestKey = "ak2_aaaaaaaaaaaaaaaaaaaa_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+const karakeepTestKeyID = "aaaaaaaaaaaaaaaaaaaa"
+
+func karakeepTestInventory() map[string]any {
+	return map[string]any{"id": "key-resource-1", "name": "self-host Homarr statistics", "keyId": karakeepTestKeyID, "scopes": []string{"users:read"}}
 }
 
 func (f *fakeKarakeep) handler(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +116,20 @@ func (f *fakeKarakeep) handler(w http.ResponseWriter, r *http.Request) {
 			"user":    map[string]any{"id": f.ownerID, "email": f.email, "role": "admin"},
 		})
 	case "GET /api/v1/users/me":
-		if !f.authenticated(r) {
+		ownerID := f.ownerID
+		if r.Header.Get("Authorization") != "" {
+			if r.Header.Get("Authorization") != "Bearer "+karakeepTestKey || f.keyCode != 0 {
+				code := f.keyCode
+				if code == 0 {
+					code = http.StatusUnauthorized
+				}
+				w.WriteHeader(code)
+				return
+			}
+			if f.keyOwner != "" {
+				ownerID = f.keyOwner
+			}
+		} else if !f.authenticated(r) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -100,7 +137,49 @@ func (f *fakeKarakeep) handler(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, f.profile)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"id": f.ownerID, "email": f.email, "localUser": true})
+		json.NewEncoder(w).Encode(map[string]any{"id": ownerID, "email": f.email, "localUser": true})
+	case "GET /api/trpc/apiKeys.list":
+		if !f.authenticated(r) || r.Header.Get("Authorization") != "" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if f.issued > 0 && f.afterInventory != "" {
+			fmt.Fprint(w, f.afterInventory)
+			return
+		}
+		if f.inventoryBody != "" {
+			fmt.Fprint(w, f.inventoryBody)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": map[string]any{"keys": f.keys}}}})
+	case "POST /api/trpc/apiKeys.create":
+		var input struct {
+			JSON struct {
+				Name   string
+				Scopes []string
+			} `json:"json"`
+		}
+		if !f.authenticated(r) || r.Header.Get("Authorization") != "" || r.Header.Get("Origin") != "http://"+r.Host || json.NewDecoder(r.Body).Decode(&input) != nil || input.JSON.Name != "self-host Homarr statistics" || !slices.Equal(input.JSON.Scopes, []string{"users:read"}) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		f.issued++
+		f.keys = append(f.keys, karakeepTestInventory())
+		if f.dropCreate {
+			connection, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				connection.Close()
+			}
+			return
+		}
+		if f.createCode != 0 {
+			w.WriteHeader(f.createCode)
+		}
+		if f.createBody != "" {
+			fmt.Fprint(w, f.createBody)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": map[string]any{"id": "key-resource-1", "name": "self-host Homarr statistics", "key": karakeepTestKey, "scopes": []string{"users:read"}}}}})
 	case "POST /api/auth/sign-out":
 		if !f.authenticated(r) || r.Header.Get("Origin") != "http://"+r.Host {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -138,12 +217,21 @@ func newHarness(t *testing.T, fake *fakeKarakeep) *harness {
 	if fake.ownerID == "" {
 		fake.ownerID = "selected-owner"
 	}
+	if fake.keys == nil {
+		fake.keys = []map[string]any{karakeepTestInventory()}
+	}
 	server := httptest.NewServer(http.HandlerFunc(fake.handler))
 	t.Cleanup(server.Close)
 	box := &harness{fake: fake, secrets: &secrets{values: map[string]string{
 		"ADMIN_USER": "admin", "ADMIN_PASSWORD": "synthetic-password", "KARAKEEP_AUTH_SECRET": "synthetic-signing-secret",
-		"KARAKEEP_HOMARR_API_KEY": "preserved-key", "UNRELATED_PRIVATE_VALUE": "preserved-unrelated",
+		"KARAKEEP_HOMARR_API_KEY": karakeepTestKey, "UNRELATED_PRIVATE_VALUE": "preserved-unrelated",
 	}}}
+	fingerprint := sha256.Sum256([]byte(karakeepTestKey))
+	ownership, err := json.Marshal(map[string]any{"id": "key-resource-1", "keyId": karakeepTestKeyID, "name": "self-host Homarr statistics", "scopes": []string{"users:read"}, "accountId": fake.ownerID, "fingerprint": hex.EncodeToString(fingerprint[:])})
+	if err != nil {
+		t.Fatal(err)
+	}
+	box.secrets.values["KARAKEEP_HOMARR_KEY_OWNERSHIP"] = string(ownership)
 	log := events.Discard()
 	log.AddSink(events.SinkFunc(func(event events.Event) { box.events = append(box.events, event) }))
 	box.h = helpers.New(helpers.Config{
@@ -272,7 +360,7 @@ func TestKarakeepExistingOwnerIsVerifiedPinnedAndReused(t *testing.T) {
 		}
 	}
 	for _, request := range box.fake.requests {
-		if strings.Contains(request, "sign-up") || strings.Contains(request, "apiKeys") || strings.Contains(request, "stats") || strings.Contains(request, "bookmarks") {
+		if strings.Contains(request, "sign-up") || strings.Contains(request, "apiKeys.") && request != "GET /api/trpc/apiKeys.list" || strings.Contains(request, "stats") || strings.Contains(request, "bookmarks") {
 			t.Fatalf("App-only verification performed an unapproved action: %s", request)
 		}
 	}

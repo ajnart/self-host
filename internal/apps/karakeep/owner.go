@@ -45,6 +45,10 @@ func hasBodyError(value json.RawMessage) bool {
 }
 
 func readOwner(ctx context.Context, h *helpers.H) (owner ownerIdentity, err error) {
+	return withOwnerSession(ctx, h, nil)
+}
+
+func withOwnerSession(ctx context.Context, h *helpers.H, visit func(context.Context, *helpers.Session, ownerIdentity, string) error) (owner ownerIdentity, err error) {
 	email, err := ownerEmail(h)
 	if err != nil {
 		return owner, err
@@ -97,6 +101,11 @@ func readOwner(ctx context.Context, h *helpers.H) (owner ownerIdentity, err erro
 	}
 	if recorded := h.Secret(h.Key("account_id")); recorded != "" && owner.ID != recorded {
 		return ownerIdentity{}, ownerManual("The authenticated Karakeep account differs from the recorded administrator; its ID and credentials were preserved.")
+	}
+	if visit != nil {
+		if err := visit(ctx, session, owner, origin); err != nil {
+			return ownerIdentity{}, err
+		}
 	}
 	return owner, nil
 }

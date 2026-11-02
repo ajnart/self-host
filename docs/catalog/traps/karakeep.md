@@ -81,20 +81,72 @@ Compose: preserve and review manual definitions and separately approve any
 replacement before using `install --set-file`. Retry `self-host setup karakeep`
 after resolving the reported Manual prerequisite.
 
-## Partial implementation boundary
+## Dedicated read-only credential
 
-Automatic first-account bootstrap, dedicated key issuance and the Homarr Link
-are not part of this initial slice. No pending-key journal or token is issued
-while the shared issuance helper is awaiting review. Existing API keys are
-preserved untouched. The eventual read-only Homarr key needs exactly
-`users:read`, not the guide's loose bookmark-read wording or full access.
+After the existing owner is verified, Setup prepares one key named
+`self-host Homarr statistics` with exactly `users:read`, not the guide's loose
+bookmark-read wording, write access or full access. It is prepared even when
+Homarr is absent, so later installation does not require Homarr to issue a
+credential on Karakeep's behalf. Key creation and listing use the positively
+verified owner's session-only tRPC procedures; password-to-key exchange is
+never used as a login or discovery check.
+
+The selected account, returned resource ID, token's separate `keyId`, exact
+name/scope and secret fingerprint form the retained private ownership tuple.
+A valid tuple is read back and reused. An existing same-name key without its
+known matching private record is preserved as an unowned collision; it is not
+adopted, deleted or replaced. A rejected key or changed metadata stays Manual.
+
+Issuance uses the reviewed shared `helpers.CredentialIssuance` journal's four
+operations: Pending, Begin, Capture and Commit. A complete authenticated
+preinventory is recorded before the one non-idempotent request. Its returned
+one-time secret and complete private response are captured before accepting
+status, scopes, identifiers or bearer account identity. Verification then
+requires the new resource/keyId to be absent from the preinventory, present in
+a fresh session-owned inventory with exact metadata, and authenticated as the
+recorded account. A timeout, lost capture, malformed response, storage failure
+or unresolved outcome never permits a second issuance. Captured, fully
+verifiable evidence can finish the same issuance after private storage is
+repaired; uncertainty remains Manual.
+
+Keep `KARAKEEP_HOMARR_API_KEY`, `KARAKEEP_HOMARR_KEY_OWNERSHIP` and
+`KARAKEEP_HOMARR_KEY_PENDING` private. The corresponding optional private
+recovery inputs restore only independently confirmed matching records; empty
+inputs preserve saved values. Preserve the journal even when active records
+were partly saved. Do not clear a hold, regenerate, revoke or issue a new key
+to turn it into success. Review only the recorded credential in Settings >
+API Keys, resolve its known private evidence, then retry
+`self-host setup karakeep` followed by `self-host setup homarr`.
+
+## Native Homarr connector and remaining boundary
+
+Automatic first-account bootstrap remains Manual; no fresh-account provenance
+was added. Catalog/global registration and generated exports are centrally
+assembled, not performed by this peer package.
 
 The native kind is `karakeep`; its supported surface is shared Stats with
 `bookmarks`, `favorites`, `archived`, `highlights`, `lists` and `tags`, all in
-counts for the selected account. Stats verification must consume the reviewed
-shared count/freshness helpers in the connector continuation. Catalog
-registration, generated exports and native/rendered/lifecycle acceptance
-remain pending; focused fake-backed App checks are not those proofs.
+counts for the selected account. Homarr consumes the peer-owned API key at the
+internal `http://karakeep:3000` Address, separately from the browser Address.
+Its leaf freshly verifies credentials before mutation, then verifies the
+saved Homarr connection identifies the same account; equal zero counts alone
+do not prove that identity.
+
+The central Stats pipeline obtains one catalog and one advancing forced
+refresh per verification invocation. The leaf uses shared `countValue` and
+`validCountStats`, exact count units, integral nonnegative values, successful
+retry metadata and bounded clock policy. Explicit zeros are valid; missing,
+null, negative, fractional, nonfinite or wrong-unit values are not zeros.
+Favorites and archived counts may overlap, but each cannot exceed bookmarks;
+tags/lists/highlights need not be bounded by bookmark count. The leaf does not
+acquire another Stats sample or compare independently cached counters.
+
+Shared reconciliation preserves owned IDs, user widgets/options and unrelated
+cross-kind entries. Retained user connections are released, never reclaimed on
+reconnect; removal does not need the peer's credential or a Stats refresh.
+Focused fake-backed checks are not native/rendered/runtime/lifecycle proof;
+both real installation orders, actual values and survivor behavior still need
+their centrally approved isolated attempt.
 
 ## Sources
 
@@ -108,4 +160,5 @@ remain pending; focused fake-backed App checks are not those proofs.
 - [Auth client and same-origin tests](https://github.com/karakeep-app/karakeep/blob/v0.34.1/apps/web/lib/auth/client.ts), [tests](https://github.com/karakeep-app/karakeep/blob/v0.34.1/apps/web/server/auth.test.ts)
 - [Current account REST routes](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/api/routes/users.ts), [account model](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/models/users.ts)
 - [Scoped user procedures](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/routers/users.ts), [scope enforcement](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/index.ts)
+- [Session-only issuance/list and explicit scope default](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/routers/apiKeys.ts), [separate keyId/resource ID and key format](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/auth.ts)
 - [Resolved Homarr Karakeep provider](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/integrations/src/stats/providers/karakeep.ts)
