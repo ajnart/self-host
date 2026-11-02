@@ -1,0 +1,20 @@
+docs/catalog/traps/romm.md
+  h_d6e478ca18e517 1-33
+internal/apps/romm/romm.go
+  h_d6e478ca18e517 1-143
+internal/apps/romm/romm_test.go
+  h_d6e478ca18e517 1-455
+internal/apps/romm/setup.go
+  h_d6e478ca18e517 1-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "932bdfad241297981c94f88adea06423bc41ab87",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
