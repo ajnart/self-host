@@ -192,11 +192,11 @@ func credentialObject(raw []byte) (json.RawMessage, bool) {
 	if len(raw) == 0 || raw[0] != '{' {
 		return nil, false
 	}
-	var compact bytes.Buffer
-	if json.Compact(&compact, raw) != nil {
+	encoded, err := json.Marshal(json.RawMessage(raw))
+	if err != nil {
 		return nil, false
 	}
-	return json.RawMessage(compact.Bytes()), true
+	return json.RawMessage(encoded), true
 }
 
 func credentialFields(raw []byte, allowed ...string) (map[string]json.RawMessage, bool) {

@@ -167,6 +167,7 @@ func TestCredentialIssuancePreservesMalformedAndConflictingRecords(t *testing.T)
 		`{"version":1,"intent":{},"issued":{"secret":"first","secret":"second","data":{}}}`,
 		`{"version":1,"intent":{},"issued":{"secret":"key","data":[]}}`,
 		`{"version":1,"intent":{},"issued":null} {}`,
+		`{"version":2,"intent":{"name":"A&B"},"issued":{"secret":"synthetic<&>","data":{"name":"<unknown>"}}}`,
 	} {
 		t.Run(raw, func(t *testing.T) {
 			s := newIssuanceStore()
@@ -177,6 +178,12 @@ func TestCredentialIssuancePreservesMalformedAndConflictingRecords(t *testing.T)
 			}
 			if err := issuanceJournal.Begin(h, json.RawMessage(`{}`)); !errors.Is(err, helpers.ErrManual) {
 				t.Fatalf("malformed journal authorized issue: %v", err)
+			}
+			if err := issuanceJournal.Capture(h, helpers.CredentialEvidence{Secret: "synthetic<&>", Data: json.RawMessage(`{"name":"<unknown>"}`)}); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("malformed journal allowed capture: %v", err)
+			}
+			if err := issuanceJournal.Commit(h, json.RawMessage(`{"name":"<unknown>"}`)); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("malformed journal allowed completion: %v", err)
 			}
 			if len(s.writes) != 0 || s.values["DEMO_HOMARR_PENDING"] != raw {
 				t.Fatal("malformed journal changed")
@@ -267,5 +274,118 @@ func TestCredentialIssuanceMasksRawSecretAndRejectsInvalidNames(t *testing.T) {
 	h = issuanceH(s)
 	if _, _, err := issuanceJournal.Pending(h); err != nil || h.Log.Redact(secret) != "[redacted]" {
 		t.Fatalf("read did not register captured raw secret: %v", err)
+	}
+}
+
+func TestCredentialIssuanceReplaysIdenticalEvidenceWithPersistenceEscaping(t *testing.T) {
+	for _, scenario := range []struct {
+		name, data, persisted string
+	}{
+		{"ampersand", `{"name":"A&B"}`, `{"name":"A\u0026B"}`},
+		{"angle brackets", `{"name":"<A&B>"}`, `{"name":"\u003cA\u0026B\u003e"}`},
+		{"unicode and newline", "{\"name\":\"雪\u2028line\u2029end\",\"escaped\":\"\\u96ea\",\"line\":\"first\\nsecond\"}", `{"name":"雪\u2028line\u2029end","escaped":"\u96ea","line":"first\nsecond"}`},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			s := newIssuanceStore()
+			h := issuanceH(s)
+			if err := issuanceJournal.Begin(h, json.RawMessage(`{"account":"A&B"}`)); err != nil {
+				t.Fatal(err)
+			}
+			issued := helpers.CredentialEvidence{Secret: "synthetic<&>\"\\雪\nsecret", Data: json.RawMessage(scenario.data)}
+			if err := issuanceJournal.Capture(h, issued); err != nil {
+				t.Fatal(err)
+			}
+			h = issuanceH(s)
+			before := len(s.writes)
+			pending, exists, err := issuanceJournal.Pending(h)
+			if err != nil || !exists || pending.Issued == nil || string(pending.Issued.Data) != scenario.persisted || pending.Issued.Secret != issued.Secret || len(s.writes) != before {
+				t.Fatalf("persisted evidence did not round-trip read-only: exists=%v err=%v", exists, err)
+			}
+			if h.Log.Redact(issued.Secret) != "[redacted]" {
+				t.Fatal("read masked only the JSON-escaped secret")
+			}
+			if err := issuanceJournal.Capture(h, issued); err != nil {
+				t.Fatalf("identical original evidence was rejected after persistence: %v", err)
+			}
+			if len(s.writes) != before+1 || s.writes[before].key != "DEMO_HOMARR_PENDING" {
+				t.Fatal("identical replay did not repeat its write barrier")
+			}
+			if err := issuanceJournal.Commit(h, json.RawMessage(`{"name":"A&B<owner>"}`)); err != nil {
+				t.Fatal(err)
+			}
+			if s.disk["DEMO_HOMARR_API_KEY"] != issued.Secret || s.disk["DEMO_HOMARR_PENDING"] != "" {
+				t.Fatal("escaping changed the captured secret or completion ordering")
+			}
+		})
+	}
+}
+
+func TestCredentialIssuanceEscapedReplayRepeatsAmbiguousWriteBarrier(t *testing.T) {
+	for _, mode := range []string{"after-memory", "after-disk"} {
+		t.Run(mode, func(t *testing.T) {
+			s := newIssuanceStore()
+			h := issuanceH(s)
+			if err := issuanceJournal.Begin(h, json.RawMessage(`{"account":"A&B"}`)); err != nil {
+				t.Fatal(err)
+			}
+			issued := helpers.CredentialEvidence{Secret: "synthetic<&>\"\\雪\nsecret", Data: json.RawMessage(`{"name":"<A&B>","unicode":"\u96ea","line":"first\nsecond"}`)}
+			s.failAt, s.failure = 2, mode
+			if err := issuanceJournal.Capture(h, issued); err == nil || errors.Is(err, helpers.ErrManual) || strings.Contains(err.Error(), "canary") || errors.Unwrap(err) != nil {
+				t.Fatalf("ambiguous capture did not return a fixed persistence failure: %v", err)
+			}
+			if mode == "after-disk" {
+				s.values = maps.Clone(s.disk)
+				h = issuanceH(s)
+			}
+			if err := issuanceJournal.Begin(h, json.RawMessage(`{"account":"A&B"}`)); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("ambiguous capture permitted another issuance: %v", err)
+			}
+			s.failAt = 3
+			if err := issuanceJournal.Capture(h, issued); err == nil || errors.Is(err, helpers.ErrManual) || errors.Unwrap(err) != nil || len(s.writes) != 3 {
+				t.Fatalf("same capture skipped the fresh write barrier: %v", err)
+			}
+			s.failAt = 0
+			if err := issuanceJournal.Capture(h, issued); err != nil || len(s.writes) != 4 {
+				t.Fatalf("same capture could not resume its write: %v", err)
+			}
+			before := len(s.writes)
+			if err := issuanceJournal.Commit(h, json.RawMessage(`{"name":"A&B<owner>"}`)); err != nil {
+				t.Fatal(err)
+			}
+			keys := []string{}
+			for _, write := range s.writes[before:] {
+				keys = append(keys, write.key)
+			}
+			want := []string{"DEMO_HOMARR_PENDING", "DEMO_HOMARR_OWNERSHIP", "DEMO_HOMARR_API_KEY", "DEMO_HOMARR_PENDING"}
+			if !reflect.DeepEqual(keys, want) || s.disk["DEMO_HOMARR_API_KEY"] != issued.Secret || s.disk["DEMO_HOMARR_PENDING"] != "" || h.Log.Redact(issued.Secret) != "[redacted]" {
+				t.Fatal("escaped recovery changed ordering, raw-secret masking or the final credential")
+			}
+		})
+	}
+}
+
+func TestCredentialIssuanceEncodingNormalizationDoesNotEquateChangedEvidence(t *testing.T) {
+	for _, data := range []string{
+		`{"name":"A&B!","unicode":"\u0041","count":1}`,
+		`{"name":"A&B","unicode":"A","count":1}`,
+		`{"name":"A&B","unicode":"\u0041","count":1.0}`,
+		`{"count":1,"unicode":"\u0041","name":"A&B"}`,
+	} {
+		s := newIssuanceStore()
+		h := issuanceH(s)
+		if err := issuanceJournal.Begin(h, json.RawMessage(`{}`)); err != nil {
+			t.Fatal(err)
+		}
+		issued := helpers.CredentialEvidence{Secret: "synthetic<&>\nsecret", Data: json.RawMessage(`{"name":"A&B","unicode":"\u0041","count":1}`)}
+		if err := issuanceJournal.Capture(h, issued); err != nil {
+			t.Fatal(err)
+		}
+		before, stored := len(s.writes), s.disk["DEMO_HOMARR_PENDING"]
+		if err := issuanceJournal.Capture(h, helpers.CredentialEvidence{Secret: issued.Secret, Data: json.RawMessage(data)}); !errors.Is(err, helpers.ErrManual) || len(s.writes) != before || s.disk["DEMO_HOMARR_PENDING"] != stored || s.values["DEMO_HOMARR_PENDING"] != stored {
+			t.Fatalf("changed evidence or provider-level JSON equivalence bypassed the hold: %v", err)
+		}
+		if err := issuanceJournal.Capture(h, helpers.CredentialEvidence{Secret: "different<&>\nsecret", Data: issued.Data}); !errors.Is(err, helpers.ErrManual) || len(s.writes) != before {
+			t.Fatalf("different raw credential bypassed the hold: %v", err)
+		}
 	}
 }
