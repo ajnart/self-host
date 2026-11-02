@@ -172,6 +172,17 @@ type FileDeclarer interface {
 	Files(rc RenderContext, secret func(name string) string) []File
 }
 
+type Directory struct {
+	Path string
+	Mode uint32
+	UID  string
+	GID  string
+}
+
+type DirectoryDeclarer interface {
+	Directories(RenderContext) []Directory
+}
+
 // StandaloneGuide is an optional interface for Apps whose first start leaves
 // the person a step that Setup does after the container runs, such as creating
 // the first administrator. The standalone Compose export prints the sentence or
