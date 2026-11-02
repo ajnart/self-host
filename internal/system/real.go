@@ -20,10 +20,20 @@ import (
 	"time"
 )
 
-type execRunner struct{}
+type ExecRunner struct {
+	environment []string
+}
 
-func (execRunner) Run(ctx context.Context, cmd Cmd) (Result, error) {
-	c := command(ctx, cmd)
+func NewExecRunner(environment []string) *ExecRunner {
+	return &ExecRunner{environment: slices.Clone(environment)}
+}
+
+func (r *ExecRunner) Environment() []string {
+	return slices.Clone(r.environment)
+}
+
+func (r *ExecRunner) Run(ctx context.Context, cmd Cmd) (Result, error) {
+	c := r.command(ctx, cmd)
 	var stdout, stderr bytes.Buffer
 	c.Stdout, c.Stderr = &stdout, &stderr
 	err := c.Run()
@@ -36,17 +46,17 @@ func (execRunner) Run(ctx context.Context, cmd Cmd) (Result, error) {
 	return result, err
 }
 
-func (execRunner) Stream(ctx context.Context, cmd Cmd, w io.Writer) error {
-	c := command(ctx, cmd)
+func (r *ExecRunner) Stream(ctx context.Context, cmd Cmd, w io.Writer) error {
+	c := r.command(ctx, cmd)
 	c.Stdout, c.Stderr = w, w
 	return c.Run()
 }
 
-func (execRunner) StreamIO(ctx context.Context, cmd Cmd, stdin io.Reader, stdout, stderr io.Writer) error {
+func (r *ExecRunner) StreamIO(ctx context.Context, cmd Cmd, stdin io.Reader, stdout, stderr io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	c := command(ctx, cmd)
+	c := r.command(ctx, cmd)
 	if stdin != nil {
 		c.Stdin = stdin
 	}
@@ -58,10 +68,12 @@ func (execRunner) StreamIO(ctx context.Context, cmd Cmd, stdin io.Reader, stdout
 	return err
 }
 
-func command(ctx context.Context, cmd Cmd) *exec.Cmd {
+func (r *ExecRunner) command(ctx context.Context, cmd Cmd) *exec.Cmd {
 	c := exec.CommandContext(ctx, cmd.Name, cmd.Args...)
 	c.Dir = cmd.Dir
-	if len(cmd.Env) > 0 {
+	if r.environment != nil {
+		c.Env = append(slices.Clone(r.environment), cmd.Env...)
+	} else if len(cmd.Env) > 0 {
 		c.Env = append(os.Environ(), cmd.Env...)
 	}
 	if cmd.Stdin != nil {
@@ -99,7 +111,7 @@ func Real(version string) *Deps {
 		Version:                version,
 		GOOS:                   runtime.GOOS,
 		GOARCH:                 runtime.GOARCH,
-		Runner:                 execRunner{},
+		Runner:                 NewExecRunner(nil),
 		HTTP:                   &http.Client{Timeout: 30 * time.Second},
 		PublicHTTP:             publicHTTP(),
 		LookPath:               exec.LookPath,
