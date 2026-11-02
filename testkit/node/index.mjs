@@ -680,53 +680,34 @@ export function createSelfHost(options = {}) {
         throw fault("PROTOCOL");
     return new SelfHostHandle(options);
 }
-export async function withApp(app, callback, options = {}) {
-    const selfHost = createSelfHost(options);
+async function scopedLifetime(work, close, onCleanupError) {
     let result;
     try {
-        result = {
-            ok: true,
-            value: await callback(await selfHost.spinup(app, options)),
-        };
+        result = { ok: true, value: await work() };
     }
     catch (error) {
         result = { ok: false, error };
     }
     try {
-        await selfHost.close();
+        await close();
     }
     catch (error) {
         if (result.ok)
             throw error;
-    }
-    if (!result.ok)
-        throw result.error;
-    return result.value;
-}
-export async function withPair(consumer, target, callback, options) {
-    const selfHost = createSelfHost(options);
-    let result;
-    try {
-        result = {
-            ok: true,
-            value: await callback(await selfHost.spinupPair(consumer, target, options)),
-        };
-    }
-    catch (error) {
-        result = { ok: false, error };
-    }
-    try {
-        await selfHost.close();
-    }
-    catch (error) {
-        if (result.ok)
-            throw error;
-        if (options.onCleanupError && error instanceof TestkitError)
+        if (onCleanupError && error instanceof TestkitError)
             await Promise.allSettled([
-                Promise.resolve().then(() => options.onCleanupError?.(error)),
+                Promise.resolve().then(() => onCleanupError(error)),
             ]);
     }
     if (!result.ok)
         throw result.error;
     return result.value;
+}
+export async function withApp(app, callback, options = {}) {
+    const selfHost = createSelfHost(options);
+    return scopedLifetime(async () => callback(await selfHost.spinup(app, options)), () => selfHost.close());
+}
+export async function withPair(consumer, target, callback, options) {
+    const selfHost = createSelfHost(options);
+    return scopedLifetime(async () => callback(await selfHost.spinupPair(consumer, target, options)), () => selfHost.close(), options.onCleanupError);
 }

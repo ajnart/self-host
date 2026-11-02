@@ -294,3 +294,36 @@ test("pair action failures retain typed primary causes and cleanup status", asyn
 		await expect(pair.inspect()).rejects.toThrow("Fixture is not available.");
 	}
 });
+
+test("shared scoped lifetime preserves single-App returns and both APIs' primitive failures", async () => {
+	const { binary, manifest } = fixture();
+	const options = { binary, manifest, timeoutMs: 1000 };
+	expect(await withApp("sonarr", async () => 0, options)).toBe(0);
+	expect(await withApp("sonarr", () => undefined, options)).toBeUndefined();
+	await expect(withApp("cleanup-failure", () => 1, options)).rejects.toThrow(
+		"Fixture cleanup failed",
+	);
+	for (const pair of [false, true]) {
+		for (const primary of [undefined, 0]) {
+			let caught = false;
+			const callback = async () => {
+				throw primary;
+			};
+			try {
+				if (pair)
+					await withPair("cleanup-failure", "peer", callback, {
+						...options,
+						order: "consumer-first",
+						onCleanupError: async () => {
+							throw new Error("secondary notification");
+						},
+					});
+				else await withApp("cleanup-failure", callback, options);
+			} catch (error) {
+				caught = true;
+				expect(error).toBe(primary);
+			}
+			expect(caught).toBe(true);
+		}
+	}
+});

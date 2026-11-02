@@ -946,28 +946,40 @@ export function createSelfHost(options: SelfHostOptions = {}): SelfHost {
 	return new SelfHostHandle(options);
 }
 
+async function scopedLifetime<T>(
+	work: () => T | Promise<T>,
+	close: () => Promise<void>,
+	onCleanupError?: (error: TestkitError) => void | Promise<void>,
+): Promise<T> {
+	let result: { ok: true; value: T } | { ok: false; error: unknown };
+	try {
+		result = { ok: true, value: await work() };
+	} catch (error) {
+		result = { ok: false, error };
+	}
+	try {
+		await close();
+	} catch (error) {
+		if (result.ok) throw error;
+		if (onCleanupError && error instanceof TestkitError)
+			await Promise.allSettled([
+				Promise.resolve().then(() => onCleanupError(error)),
+			]);
+	}
+	if (!result.ok) throw result.error;
+	return result.value;
+}
+
 export async function withApp<T>(
 	app: string,
 	callback: (app: App) => T | Promise<T>,
 	options: SelfHostOptions & SpinupOptions = {},
 ): Promise<T> {
 	const selfHost = createSelfHost(options);
-	let result: { ok: true; value: T } | { ok: false; error: unknown };
-	try {
-		result = {
-			ok: true,
-			value: await callback(await selfHost.spinup(app, options)),
-		};
-	} catch (error) {
-		result = { ok: false, error };
-	}
-	try {
-		await selfHost.close();
-	} catch (error) {
-		if (result.ok) throw error;
-	}
-	if (!result.ok) throw result.error;
-	return result.value;
+	return scopedLifetime<T>(
+		async () => callback(await selfHost.spinup(app, options)),
+		() => selfHost.close(),
+	);
 }
 
 export async function withPair<T>(
@@ -980,26 +992,9 @@ export async function withPair<T>(
 		},
 ): Promise<T> {
 	const selfHost = createSelfHost(options);
-	let result: { ok: true; value: T } | { ok: false; error: unknown };
-	try {
-		result = {
-			ok: true,
-			value: await callback(
-				await selfHost.spinupPair(consumer, target, options),
-			),
-		};
-	} catch (error) {
-		result = { ok: false, error };
-	}
-	try {
-		await selfHost.close();
-	} catch (error) {
-		if (result.ok) throw error;
-		if (options.onCleanupError && error instanceof TestkitError)
-			await Promise.allSettled([
-				Promise.resolve().then(() => options.onCleanupError?.(error)),
-			]);
-	}
-	if (!result.ok) throw result.error;
-	return result.value;
+	return scopedLifetime<T>(
+		async () => callback(await selfHost.spinupPair(consumer, target, options)),
+		() => selfHost.close(),
+		options.onCleanupError,
+	);
 }
