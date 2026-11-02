@@ -1,0 +1,24 @@
+cmd/self-host-testkit/main.go
+  h_d6e478ca18e517 56-61,150-152,256-257,259,261,266,271-273
+cmd/self-host-testkit/main_test.go
+  h_d6e478ca18e517 19-21,34,36,103-149,187-189,193
+internal/system/exec_runner_test.go
+  h_d6e478ca18e517 1-68
+internal/system/real.go
+  h_d6e478ca18e517 23-33,35-36,49-50,55,59,71,74-76,114
+testkit/recovery.go
+  h_d6e478ca18e517 15,85
+testkit/testkit.go
+  h_d6e478ca18e517 62,117,119,123,347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb7ec35671adc4b85c1be0d1075f683d77b52068",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
