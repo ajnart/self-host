@@ -27,6 +27,8 @@
 		"self-host-site#build": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/install.sh",
+				"$TURBO_ROOT$/skills/self-host/SKILL.md",
 				"../docs/telemetry.md",
 				"../docs/images/install-search.png",
 				"../video/reel/assets/agents/*.svg",

@@ -319,7 +319,7 @@ func TestInstallScriptInstallsToHomeLocalBinForANormalUser(t *testing.T) {
 	if !strings.Contains(out, "not on your PATH") {
 		t.Errorf("no PATH warning:\n%s", out)
 	}
-	if !strings.Contains(out, "self-host install media --yes") {
+	if !strings.Contains(out, "review the plan and approve installation") {
 		t.Errorf("no next step:\n%s", out)
 	}
 }
@@ -726,7 +726,7 @@ func TestInstallScriptWarnsWhenTheDockerSocketIsDenied(t *testing.T) {
 			if strings.Contains(out, "Docker was not found") {
 				t.Fatalf("docker is on PATH:\n%s", out)
 			}
-			if !strings.Contains(out, "self-host install media --yes") {
+			if !strings.Contains(out, "review the plan and approve installation") {
 				t.Fatalf("summary missing:\n%s", out)
 			}
 		})

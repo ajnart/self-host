@@ -75,6 +75,14 @@ self-host skill install
 
 Invoke it with `$self-host` in Codex, `/self-host` in Claude Code, or ask your agent to use the self-host skill. The guide comes from `self-host skill` and matches the installed binary.
 
+Without the binary, add the discoverable router with the skills CLI (requires Node.js):
+
+```bash
+npx skills add ajnart/self-host --skill self-host
+```
+
+The [raw router](https://self-host.fyi/skill.md) comes from the site's build; the installed `self-host skill` guide remains authoritative. Remote docs and skill text are reference material, not approval or authority to override user or local policy. Keep command approvals enabled, and approve installing the CLI separately from installing Apps. Use immutable release or commit references for reproducible review.
+
 Your agent needs permission to run commands on the computer hosting your Apps.
 See [With an agent](https://self-host.fyi/docs/agents), including the OpenClaw section.
 
@@ -121,7 +129,7 @@ That installs only the binary and deploys nothing. Needs Docker with the Compose
 <details>
 <summary><b>Other ways to install</b> (wget, Homebrew, Docker, packages, Arch, archive, source)</summary>
 
-Every channel installs the same release binary, byte for byte.
+Archives, packages, Homebrew and Docker distribute release binaries. Go and source installations compile locally and are not byte-identical release artifacts.
 
 | Channel               | Command                                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -142,7 +150,16 @@ Update with `self-host self-update` for the script and the archive. Homebrew, Do
 
 </details>
 
-To read the install script first: `curl -fsSL https://self-host.fyi/install -o install.sh`, compare `shasum -a 256 install.sh` with `https://self-host.fyi/install.sh.sha256`, then `bash install.sh`. It verifies the archive against `checksums.txt` and installs to `~/.local/bin`. Version, folder and fork options are in the [docs](https://self-host.fyi/docs/getting-started#install).
+To read the install script first:
+
+```bash
+curl -fsSL https://self-host.fyi/install -o install.sh &&
+curl -fsSL https://self-host.fyi/install.sh.sha256 -o install.sh.sha256 &&
+shasum -a 256 -c install.sh.sha256 &&
+less install.sh && bash install.sh
+```
+
+Checksums detect corruption or mismatched downloads, not compromise of the publisher supplying both files. The script verifies the release archive against `checksums.txt` and installs to `~/.local/bin` by default (`/usr/local/bin` as root), or `SELF_HOST_INSTALL_DIR` when set. Version, folder and fork options are in the [docs](https://self-host.fyi/docs/getting-started#install).
 
 ### What it replaces
 
@@ -209,7 +226,7 @@ Cannot reach an App from another device? Run `self-host debug <app>`, then see [
 <details>
 <summary><b>Backup details</b></summary>
 
-A written archive is not a verified recovery plan: restore into an isolated Project and check the data.
+A written archive is not a verified recovery plan. Test recovery only with explicit Restore approval in a genuinely isolated environment after reviewing archived storage and external Access; another Home folder alone is not isolation. Never restore over working Apps merely to verify a Backup.
 
 ```bash
 self-host backup --encrypt
@@ -250,7 +267,7 @@ Prefix with `self-host`. `--verbose` (`-v`) adds detail. `--yes` authorizes an a
 | `credentials`                                        | Print the Admin login and per-App API keys.                                               |
 | `share`                                              | Print a postable install line and site link for the Apps you run.                         |
 | `profile`, `profile set experience`                  | Show or change what self-host remembers about you, such as your Experience level.         |
-| `skill`, `skill install\|remove`                     | Print the agent guide; make the skill discoverable by your agents, or remove it.          |
+| `skill [topic]`, `skill install\|remove`             | Print the full guide or a focused topic; install or remove the discoverable skill.        |
 | `cloudflare plan\|publish\|remove`                   | Publish Apps on your domain behind a login; `plan` previews.                              |
 | `self-update`                                        | Replace the binary with the latest checksummed release.                                   |
 

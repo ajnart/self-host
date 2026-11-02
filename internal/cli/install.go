@@ -24,7 +24,7 @@ func (a *program) installCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !yes && !a.deps.Interactive {
-				return a.fail(fmt.Errorf("pass --yes to install without the interactive review"))
+				return a.fail(fmt.Errorf("pass --yes after approving the install; positional install acts immediately in a terminal, without a review"))
 			}
 			opts.Targets = args
 			if opts.AdminPassword == "" {
@@ -37,7 +37,7 @@ func (a *program) installCmd() *cobra.Command {
 			return a.fail(err)
 		},
 	}
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "install without asking for confirmation")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "authorize a non-terminal install; positional install acts immediately in a terminal without a review")
 	cmd.Flags().StringArrayVar(&opts.Sets, "set", nil, "input as app.key=value or key=value (repeatable); app.port=N picks a port")
 	cmd.Flags().StringArrayVar(&opts.SetFiles, "set-file", nil, "private input as app.key=PATH to an owner-only file, or app.key=- for stdin (at most one; maximum 64 KiB)")
 	cmd.Flags().StringVar(&opts.Exposure, "exposure", "", "lan (default) or local, for a new Project")

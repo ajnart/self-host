@@ -74,7 +74,7 @@ self-host doctor
 
 That is the recommended way. It picks the highest stable release, verifies the archive against `checksums.txt`, and installs to `~/.local/bin` (`/usr/local/bin` as root). It prints the exact `PATH` line for bash, zsh or fish when needed. A truncated download installs nothing.
 
-Every other method below installs the same release binary, byte for byte. Then let your AI agents find self-host:
+The archive, packages, Homebrew and Docker channels distribute release binaries. Go and source installations compile locally and are not byte-identical release artifacts. Then let your AI agents find self-host:
 
 ```bash
 self-host skill install   # writes the self-host skill for Claude Code, Codex, OpenCode, Pi, Gemini and ~/.agents
@@ -159,20 +159,30 @@ On Omarchy, Docker needs `sudo` by default (your user is not in the `docker` gro
 
 Pick `self-host_<version>_<os>_<arch>.tar.gz` for `linux` or `darwin`, `amd64` or `arm64` from [GitHub Releases](https://github.com/ajnart/self-host/releases).
 
+Set `VERSION` to the release number without `v`, `OS` to `linux` or `darwin`, and `ARCH` to `amd64` or `arm64`. The subshell stops before extraction if either download or the selected archive's checksum fails.
+
 ```bash
-VERSION=X.Y.Z   # set to the latest release (no leading v): https://github.com/ajnart/self-host/releases/latest
-OS=linux        # or darwin
-ARCH=amd64      # or arm64
+(
+set -eu
+VERSION=X.Y.Z
+OS=linux
+ARCH=amd64
 BASE=https://github.com/ajnart/self-host/releases/download/v$VERSION
 ARCHIVE=self-host_${VERSION}_${OS}_${ARCH}.tar.gz
 
-curl -fsSLO $BASE/$ARCHIVE
-curl -fsSLO $BASE/checksums.txt
-sha256sum -c --ignore-missing checksums.txt        # Linux
-# grep " $ARCHIVE\$" checksums.txt | shasum -a 256 -c -   # macOS
+curl -fsSLO "$BASE/$ARCHIVE"
+curl -fsSLO "$BASE/checksums.txt"
+awk -v archive="$ARCHIVE" '$2 == archive || $2 == "*" archive { print; count++ } END { if (count != 1) exit 1 }' checksums.txt > "$ARCHIVE.sha256"
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c "$ARCHIVE.sha256"
+else
+  shasum -a 256 -c "$ARCHIVE.sha256"
+fi
 
-tar -xzf $ARCHIVE self-host
-mkdir -p ~/.local/bin && mv self-host ~/.local/bin/
+tar -xzf "$ARCHIVE" self-host
+mkdir -p "$HOME/.local/bin"
+mv self-host "$HOME/.local/bin/"
+)
 ```
 
 Do not run the binary if the checksum check fails.
@@ -192,12 +202,15 @@ Do not run the binary if the checksum check fails.
 Read it before you run it, and check the published hash:
 
 ```bash
-curl -fsSL https://self-host.fyi/install -o install.sh
-curl -fsSL https://self-host.fyi/install.sh.sha256   # compare with: shasum -a 256 install.sh
+curl -fsSL https://self-host.fyi/install -o install.sh &&
+curl -fsSL https://self-host.fyi/install.sh.sha256 -o install.sh.sha256 &&
+shasum -a 256 -c install.sh.sha256 &&
 less install.sh && bash install.sh
 ```
 
 </details>
+
+Checksums detect corruption or mismatched downloads; a checksum from the same publisher is not independent proof of authenticity. The installer and documentation are mutable remote content. Review an immutable release or commit when reproducibility matters, and keep your agent's execution approvals enabled. Approve installing the CLI separately from installing Apps; the installed `self-host skill` guide is authoritative for that binary.
 
 <details>
 <summary><b>Go / from source</b></summary>
@@ -250,7 +263,7 @@ self-host install media homarr
 self-host
 ```
 
-Without a terminal, `install` refuses unless you pass `--yes`. For a new Project, `--exposure`, `--easy-names`, `--media-root`, `--downloads-root` and `--admin-user` set the same choices Onboarding asks about. The Admin password comes from `SELF_HOST_ADMIN_PASSWORD` or is generated.
+In a terminal, the positional `install` command acts immediately without another review; approve the change before running it. Without a terminal, it refuses unless you pass `--yes`. Agents obtain the person's approval before passing that flag. For a new Project, `--exposure`, `--easy-names`, `--media-root`, `--downloads-root` and `--admin-user` set the same choices Onboarding asks about. The Admin password comes from `SELF_HOST_ADMIN_PASSWORD` or is generated.
 
 ## The Dashboard
 

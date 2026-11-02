@@ -35,6 +35,17 @@
   ! Cache-Control
   Cache-Control: no-cache
 
+/skill.md
+  Content-Type: text/markdown; charset=utf-8
+  Link: </llms.txt>; rel="describedby"
+  ! Cache-Control
+  Cache-Control: no-cache
+
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+  ! Cache-Control
+  Cache-Control: no-cache
+
 /catalog.json
   Access-Control-Allow-Origin: *
   ! Cache-Control
