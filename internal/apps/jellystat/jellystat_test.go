@@ -35,7 +35,9 @@ type jellystatFixture struct {
 	admins      any
 	token       any
 	loginStatus int
+	username    string
 	keyStatus   int
+	keys        []keyRecord
 	requests    []string
 }
 
@@ -48,7 +50,7 @@ func newJellystatFixture() *jellystatFixture {
 			"settings": map[string]any{"ExcludedLibraries": []string{"existing-library"}, "preferred_admin": "kept"},
 		},
 		admins: []any{map[string]any{"Id": "selected-admin", "Policy": map[string]bool{"IsAdministrator": true}}},
-		token:  "synthetic-jwt", loginStatus: http.StatusOK, keyStatus: http.StatusOK,
+		token:  "synthetic-jwt", loginStatus: http.StatusOK, keyStatus: http.StatusOK, username: "admin",
 	}
 }
 
@@ -64,7 +66,7 @@ func (f *jellystatFixture) serve(t *testing.T, w http.ResponseWriter, r *http.Re
 		value = f.state
 	case "POST /auth/login":
 		var body struct{ Username, Password string }
-		if json.NewDecoder(r.Body).Decode(&body) != nil || body.Username != "admin" || body.Password != passwordHash("synthetic-password") {
+		if json.NewDecoder(r.Body).Decode(&body) != nil || body.Username != f.username || body.Password != passwordHash("synthetic-password") {
 			t.Error("login did not use the existing Admin login and CryptoJS-compatible hash")
 		}
 		w.WriteHeader(f.loginStatus)
@@ -87,6 +89,11 @@ func (f *jellystatFixture) serve(t *testing.T, w http.ResponseWriter, r *http.Re
 			t.Error("backend verification did not use the verified Jellystat session")
 		}
 		value = f.admins
+	case "GET /api/keys":
+		if r.Header.Get("X-API-Token") != "synthetic-key" {
+			t.Error("inventory verification did not use the saved key")
+		}
+		value = f.keys
 	default:
 		t.Error("verification attempted an unexpected route or mutation")
 		w.WriteHeader(http.StatusNotFound)
@@ -137,6 +144,12 @@ func TestJellystatExistingIdentityAndBackendAreVerifiedWithoutMutation(t *testin
 			h.Inputs["media_server"] = kind
 			sec := h.Secrets.(jellystatSecrets)
 			sec["JELLYSTAT_HOMARR_API_KEY"] = "synthetic-key"
+			owned, err := json.Marshal(keyOwnership{Identity: currentKeyIdentity(h), Name: homarrKeyName, Fingerprint: keyFingerprint("synthetic-key")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			sec["JELLYSTAT_HOMARR_OWNERSHIP"] = string(owned)
+			f.keys = []keyRecord{{Name: homarrKeyName, Key: "synthetic-key"}}
 			beforeSecrets := maps.Clone(sec)
 			beforeConfig, _ := json.Marshal(f.config)
 			for range 2 {
@@ -152,7 +165,7 @@ func TestJellystatExistingIdentityAndBackendAreVerifiedWithoutMutation(t *testin
 				t.Fatal("verification changed saved credentials or configuration")
 			}
 			calls := strings.Join(f.calls(), "\n")
-			if strings.Contains(calls, "/keys") || strings.Contains(calls, "/sync") || strings.Contains(calls, "/stats") {
+			if strings.Contains(calls, "POST /api/keys") || strings.Contains(calls, "/sync") || strings.Contains(calls, "/stats") {
 				t.Fatal("App-only verification issued credentials, imported history or acquired provisional Stats")
 			}
 		})

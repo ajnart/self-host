@@ -7,14 +7,15 @@
 - App-relative `database/` and `backup-data/` binds retain the database, existing connection, history and Jellystat backup files under the App's Backup boundary. Never attach an older PostgreSQL database, migrate its major, adopt another database or change existing mounts automatically. Restore matching database and JWT secrets with the data; do not rotate them to recover a failed connection.
 - Only the App receives its database password and JWT secret. The database has no published port. No media mount, Docker socket, privileged mode, PUID/PGID mapping, master-login override or TLS bypass is supplied.
 
-## Read-only Setup slice (#160)
+## Existing-instance Setup and owned keys (#160)
 
-This initial slice verifies an existing instance; automatic account bootstrap,
-backend configuration and API-key issuance are not implemented. Fresh or
-ambiguous accounts remain Manual until the reviewed shared issuance/bootstrap
-contract is available. Configuration state 1 means an account already exists;
+Setup verifies an existing instance; automatic account bootstrap and backend
+configuration are not implemented. Fresh or ambiguous accounts remain Manual;
+the accepted credential journal does not supply first-account authority.
+Configuration state 1 means an account already exists;
 upstream `/auth/createuser` can overwrite it. Setup never calls that endpoint,
-changes credentials, disables login, or writes configuration or databases.
+replaces existing credentials, disables login, edits the selected connection or
+directly writes databases. Its only provider mutation is dedicated-key issuance.
 
 The existing shared Admin login is checked through `/auth/login`, followed by
 authenticated `/api/getconfig`. CryptoJS calls its legacy Keccak-512 digest
@@ -46,13 +47,43 @@ and is not a substitute for Jellystat authentication or a globally unique
 server-ID proof. Existing libraries, exclusions, preferred user and task settings
 are never changed. Missing positive backend identity remains Manual.
 
-An optionally restored private `homarr_api_key` is checked read-only against the
-same authenticated configuration. It is not claimed as managed ownership.
-Jellystat keys are unscoped: a dedicated key can authorize writes even when its
-consumer only reads. Never describe such a key as technically read-only or pass
-it in a query string. No key list, key creation, deletion, rotation or independent
-issuance journal is used here. Missing automatic issuance and the Homarr leaf
-remain pending the reviewed #150 and #147 contracts.
+When Homarr is installed, or a saved key/ownership/journal exists, Setup prepares
+one dedicated key named `self-host Homarr statistics`. Standalone Setup without
+those conditions issues no key. Jellystat keys are unscoped and grant full API
+access even though this Link only reads; never describe the credential as
+technically read-only or pass it in a query string.
+
+The accepted `CredentialIssuance` helper owns Pending/Begin/Capture/Commit.
+Before POSTing `/api/keys`, Setup verifies the account and backend, reads the
+authenticated inventory, refuses an existing unowned creation name and records
+a durable intent. The response contains every key: only exactly one new entry
+with the selected name and an otherwise unchanged inventory is captured.
+Every decodable raw key is registered in memory for redaction, even on rejected
+responses. The journal retains only the selected new secret, its status and
+pinned identity, and aggregate pre-inventory count/digest; other users' raw keys,
+names and records are never persisted. Capture precedes HTTP-success and
+credential-acceptance checks. Raw bodies and transport errors never become
+public diagnostics.
+
+Only an originally successful, unambiguous capture can commit after read-only
+key authentication, exact inventory membership and pinned-instance verification.
+Ownership binds the key fingerprint, App account/internal Address and selected
+backend Address/kind/administrator ID. Rejected or uncertain outcomes, malformed
+journals, lost ownership, changed identity and private-store failures remain
+Manual. Reruns may finish the same verified captured key but never issue a
+replacement, adopt a matching name or rotate a key. Preserve and privately
+reconcile `homarr_api_key`, `homarr_ownership` and `homarr_pending`; clearing a
+journal to cause another POST is not recovery. Upstream has no compare-and-set
+issuance API; concurrent independent credential administration is not proven.
+
+The Homarr leaf checks the recorded integration ID/kind/internal Address and the
+single private `apiKey` alternative. It then uses the supported saved-connection
+GETs for `/api/getconfig` and `/api/keys`. Homarr redacts only its configured
+secret: the unique selected key must be exactly `[REDACTED]`, while a different
+masked key is rejected. Thus another valid key to the same backend cannot pass
+as the issued key. No caller-supplied authentication override is sent. These
+read-only generic requests require explicitly granted full integration access;
+denied or unsupported access remains Manual, never bypassed.
 
 ## Activity and acceptance boundary
 
@@ -68,8 +99,12 @@ Homarr's `jellystat` kind supports shared Stats only: `songs`, `movies`,
 `episodes`, `other`, all `count`, mapped from Audio/Movie/Series/Other playback
 views in the last 30 days. They are not media inventory or durations. Legitimate
 zeros require positive intended-instance identity and a genuinely advancing
-Homarr refresh. This App-only slice does not implement or claim that native,
-rendered, scheduler, lifecycle, installation-order or live persistence acceptance.
+Homarr refresh. The leaf reuses shared count validation and obtains exactly one
+central catalog/snapshot/forced-refresh sample per verification invocation;
+missing/null, fractional/negative/nonfinite counts, wrong units, errors, stale
+or nonadvancing data and out-of-attempt timestamps are rejected. Native identity
+checks do not acquire another Stats sample. Source/fake contracts do not claim
+native runtime, rendered, scheduler, lifecycle, installation-order or live persistence acceptance.
 Catalog registration, metadata and generated data are coordinator-owned and
 still required before the App is published.
 
@@ -84,3 +119,4 @@ Checked 2026-11-02 against Jellystat 1.1.12 source
 - [Scheduler](https://github.com/CyferShepard/Jellystat/blob/10678476792bc88700c574b97d09f300f47f7291/backend/classes/task-scheduler.js), [distinct history import](https://github.com/CyferShepard/Jellystat/blob/10678476792bc88700c574b97d09f300f47f7291/backend/routes/sync.js), [first-run UI sync](https://github.com/CyferShepard/Jellystat/blob/10678476792bc88700c574b97d09f300f47f7291/src/pages/setup.jsx).
 - [PostgreSQL 18 storage](https://github.com/docker-library/postgres/blob/master/18/bookworm/Dockerfile), [CryptoJS padding](https://github.com/brix/crypto-js/blob/develop/src/sha3.js), [upstream Keccak vector](https://github.com/brix/crypto-js/blob/develop/test/sha3-test.js), [Go v0.58.0 compatibility API](https://pkg.go.dev/golang.org/x/crypto@v0.58.0/sha3#NewLegacyKeccak512).
 - [Homarr Jellystat Stats provider](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/integrations/src/stats/providers/jellystat.ts).
+- [Saved-connection request and credential-specific response redaction](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/api/src/router/integration/integration-request.ts), [private integration-secret metadata](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/api/src/router/integration/integration-router.ts). The saved-request/redaction mechanism also exists in the historical resolved 2.4.1 source `3d4150e59f600876b7e308f857b2f21572b75348`; actual compatibility and permissions are still checked rather than assumed from a tag.

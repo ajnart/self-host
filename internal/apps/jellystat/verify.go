@@ -51,18 +51,29 @@ func request(ctx context.Context, h *helpers.H, req helpers.Request, value any) 
 }
 
 func verify(ctx context.Context, h *helpers.H) error {
+	_, err := verifiedSession(ctx, h)
+	if err != nil {
+		return err
+	}
+	if homarrRelevant(h) {
+		return verifySavedHomarr(ctx, h)
+	}
+	return nil
+}
+
+func verifiedSession(ctx context.Context, h *helpers.H) (string, error) {
 	var state struct {
 		State   *int   `json:"state"`
 		Version string `json:"version"`
 	}
 	if err := request(ctx, h, helpers.Request{Path: "/auth/isConfigured"}, &state); err != nil {
-		return err
+		return "", err
 	}
 	if state.State == nil || *state.State < 0 || *state.State > 2 || !helpers.VersionCompatible(state.Version, "1.1.12") {
-		return &helpers.ManualError{Hint: "Jellystat did not identify a supported configuration state and version. Review its private database and API compatibility, then run self-host setup jellystat; no bootstrap was attempted."}
+		return "", &helpers.ManualError{Hint: "Jellystat did not identify a supported configuration state and version. Review its private database and API compatibility, then run self-host setup jellystat; no bootstrap was attempted."}
 	}
 	if *state.State == 0 || h.AdminUser() == "" || h.AdminPassword() == "" {
-		return &helpers.ManualError{Hint: accountRecovery}
+		return "", &helpers.ManualError{Hint: accountRecovery}
 	}
 	password := passwordHash(h.AdminPassword())
 	h.Log.Secret(h.AdminPassword(), password)
@@ -73,25 +84,25 @@ func verify(ctx context.Context, h *helpers.H) error {
 		Method: http.MethodPost, Path: "/auth/login",
 		JSON: map[string]string{"username": h.AdminUser(), "password": password},
 	}, &login); err != nil {
-		return err
+		return "", err
 	}
 	if strings.TrimSpace(login.Token) == "" {
-		return &helpers.ManualError{Hint: accountRecovery}
+		return "", &helpers.ManualError{Hint: accountRecovery}
 	}
 	h.Log.Secret(login.Token)
 	header := map[string]string{"Authorization": "Bearer " + login.Token}
 	var config configuration
 	if err := request(ctx, h, helpers.Request{Path: "/api/getconfig", Header: header}, &config); err != nil {
-		return err
+		return "", err
 	}
 	if err := verifyAccount(h, config); err != nil {
-		return err
+		return "", err
 	}
 	if *state.State != 2 {
-		return &helpers.ManualError{Hint: backendRecovery}
+		return "", &helpers.ManualError{Hint: backendRecovery}
 	}
 	if err := verifySelection(h, config); err != nil {
-		return err
+		return "", err
 	}
 	var admins []struct {
 		ID     string `json:"Id"`
@@ -100,32 +111,21 @@ func verify(ctx context.Context, h *helpers.H) error {
 		} `json:"Policy"`
 	}
 	if err := request(ctx, h, helpers.Request{Path: "/proxy/getAdminUsers", Header: header}, &admins); err != nil {
-		return err
+		return "", err
 	}
 	matches := 0
 	for _, admin := range admins {
 		if admin.ID == "" || admin.Policy.IsAdministrator == nil || !*admin.Policy.IsAdministrator {
-			return &helpers.ManualError{Hint: backendRecovery}
+			return "", &helpers.ManualError{Hint: backendRecovery}
 		}
 		if admin.ID == h.Secret(h.Key("server_admin_id")) {
 			matches++
 		}
 	}
 	if matches != 1 {
-		return &helpers.ManualError{Hint: backendRecovery}
+		return "", &helpers.ManualError{Hint: backendRecovery}
 	}
-	if key := h.Secret(h.Key("homarr_api_key")); key != "" {
-		h.Log.Secret(key)
-		var keyConfig configuration
-		if err := request(ctx, h, helpers.Request{Path: "/api/getconfig", Header: map[string]string{"X-API-Token": key}}, &keyConfig); err != nil {
-			return err
-		}
-		if err := verifyAccount(h, keyConfig); err != nil {
-			return err
-		}
-		return verifySelection(h, keyConfig)
-	}
-	return nil
+	return login.Token, nil
 }
 
 func verifyAccount(h *helpers.H, config configuration) error {

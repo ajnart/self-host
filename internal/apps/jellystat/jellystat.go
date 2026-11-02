@@ -35,7 +35,11 @@ func (App) Inputs() []app.Input {
 		{Key: "server_admin_id", Prompt: "Expected existing media-server administrator ID", Private: true,
 			Help: "A known administrator ID on the selected backend. Verification requires Jellystat to read that identity using its existing connection; no user or activity is created."},
 		{Key: "homarr_api_key", Prompt: "Saved Jellystat Homarr API key", Private: true, RecoveryOnly: true,
-			Help: "Optional private restoration of a known existing key for read-only verification. No key is issued, rotated or claimed as owned. Empty input preserves the saved secret; reinstalling replaces Compose and requires separate review."},
+			Help: "Restore only the known issued key with its matching ownership and pending records. Empty input preserves the saved secret; reinstalling replaces Compose and requires separate review."},
+		{Key: "homarr_ownership", Prompt: "Saved Jellystat Homarr key ownership", Private: true, RecoveryOnly: true,
+			Help: "Restore the exact verified ownership record, including its key fingerprint and pinned account/backend. A name or matching endpoint alone is not ownership."},
+		{Key: "homarr_pending", Prompt: "Saved Jellystat key issuance journal", Private: true, RecoveryOnly: true,
+			Help: "Preserve unresolved issuance evidence. Never clear this record to trigger another key; reconcile the original selected credential privately before retrying Setup."},
 	}
 }
 
@@ -109,9 +113,25 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := h.Ready(ctx, "/auth/isConfigured", helpers.WantStatus(200), helpers.NoRedirect()); err != nil {
 		return err
 	}
-	return h.Step(ctx, "verify", "verify the existing Jellystat account and selected media server", helpers.StepSpec{
-		Do:   func(ctx context.Context) error { return (App{}).Check(ctx, h) },
+	if err := h.Step(ctx, "verify", "verify the existing Jellystat account and selected media server", helpers.StepSpec{
+		Do: func(ctx context.Context) error {
+			_, err := verifiedSession(ctx, h)
+			return err
+		},
 		Hint: accountRecovery, Credential: "admin",
+	}); err != nil {
+		return err
+	}
+	if !homarrRelevant(h) {
+		return nil
+	}
+	return h.Step(ctx, "homarr-key", "prepare Jellystat access for Homarr statistics", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) {
+			err := VerifyHomarr(ctx, h)
+			return err == nil, err
+		},
+		Do:   func(ctx context.Context) error { return setupHomarrKey(ctx, h) },
+		Hint: homarrRecovery, Credential: "admin",
 	})
 }
 
