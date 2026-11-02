@@ -152,7 +152,11 @@ func (e *sabnzbdLinkExecutor) Exec(_ context.Context, service string, _ map[stri
 	if e.distinct && service != "sabnzbd" {
 		identity = "1:77"
 	}
-	return system.Result{Stdout: []byte(directory + "\n" + identity + "\n")}, nil
+	backing := "/shared/downloads"
+	if identity == "1:99" {
+		backing = "/shared/library"
+	}
+	return system.Result{Stdout: []byte(directory + "\n" + identity + "\n1 0 0:5 " + backing + " " + directory + " rw - ext4 /dev/fixture rw\n")}, nil
 }
 
 func sabnzbdConsumerLink(t *testing.T, consumer app.App) app.Link {
@@ -411,7 +415,11 @@ func (r *sabnzbdLinkRunner) Run(ctx context.Context, cmd system.Cmd) (system.Res
 			if strings.Contains(directory, "/media/") {
 				identity = "1:99"
 			}
-			return system.Result{Stdout: []byte(directory + "\n" + identity + "\n")}, nil
+			backing := "/shared/downloads"
+			if identity == "1:99" {
+				backing = "/shared/library"
+			}
+			return system.Result{Stdout: []byte(directory + "\n" + identity + "\n1 0 0:5 " + backing + " " + directory + " rw - ext4 /dev/fixture rw\n")}, nil
 		}
 	}
 	return r.Runner.Run(ctx, cmd)

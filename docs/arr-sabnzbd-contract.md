@@ -20,6 +20,8 @@ Before every native test, SABnzbd verifies the accepted full key, explicit authe
 
 Specific recovery is persisted in the consumer's Manual step. Directory checks and successful native authentication do not establish a hardlink, atomic move, imported file, populated library or provider-account acceptance.
 
+Read-only directory probes include Linux mount metadata so different bind aliases cannot hide an overlapping backing library. Nested or stacked mounts and unreadable/unsupported metadata remain Manual for explicit storage review. Backing paths are used only for comparison and never emitted in recovery output. See the [Linux mountinfo format](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html).
+
 ## Ownership and lifecycle
 
 The existing private `<CONSUMER>_LINK_SABNZBD_RESOURCE` record stores the positive returned Arr ID, target, endpoint and connection fingerprint. Creation intent is saved immediately before creation; an uncertain response remains Manual without a second POST or adoption by name/endpoint. Reruns keep the owned ID; accepted target credential changes update only that ID. A lost recorded resource or a changed unmasked credential needs explicit recovery.

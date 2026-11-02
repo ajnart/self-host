@@ -16,8 +16,10 @@ import (
 
 type servarrPathExecutor struct {
 	helpers.Executor
-	paths map[string]string
-	calls int
+	paths   map[string]string
+	backing map[string]string
+	mounts  string
+	calls   int
 }
 
 func (e *servarrPathExecutor) Exec(_ context.Context, service string, _ map[string]string, args ...string) (system.Result, error) {
@@ -29,7 +31,15 @@ func (e *servarrPathExecutor) Exec(_ context.Context, service string, _ map[stri
 	if !ok {
 		return system.Result{ExitCode: 1}, nil
 	}
-	return system.Result{Stdout: []byte(value)}, nil
+	canonical := strings.Split(value, "\n")[0]
+	root := "/shared/downloads"
+	if strings.Contains(value, "1:99") {
+		root = "/shared/library"
+	}
+	if custom := e.backing[service+":"+args[7]]; custom != "" {
+		root = custom
+	}
+	return system.Result{Stdout: []byte(value + "1 0 0:5 " + root + " " + canonical + " rw - ext4 /dev/fixture rw\n" + e.mounts)}, nil
 }
 
 func TestDownloadPathsVerifySharedAndExistingLegacyMappings(t *testing.T) {
@@ -41,7 +51,7 @@ func TestDownloadPathsVerifySharedAndExistingLegacyMappings(t *testing.T) {
 				remote, local, library = "/data/complete/tv", "/downloads/sab/tv", "/media/tv"
 				mappings = append(mappings, map[string]any{"id": 1, "host": "contract", "remotePath": "/data/complete", "localPath": "/downloads/sab"})
 			}
-			exec := &servarrPathExecutor{paths: map[string]string{"contract:" + remote: remote + "\n1:42\n", "sonarr:" + local: local + "\n1:42\n", "sonarr:" + library: library + "\n1:99\n"}}
+			exec := &servarrPathExecutor{paths: map[string]string{"contract:" + remote: remote + "\n1:42\n", "sonarr:" + local: local + "\n1:42\n", "sonarr:" + library: library + "\n1:99\n"}, backing: map[string]string{}}
 			mux := http.NewServeMux()
 			mux.HandleFunc("GET /api/v3/rootfolder", func(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode([]map[string]any{{"id": 1, "path": library}})
@@ -56,11 +66,25 @@ func TestDownloadPathsVerifySharedAndExistingLegacyMappings(t *testing.T) {
 			if err := p.verifyDownloadPath(context.Background(), from, to, remote); err != nil {
 				t.Fatal(err)
 			}
+			exec.mounts = "2 1 0:6 /nested " + remote + "/nested rw - ext4 /dev/nested rw\n"
+			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("nested mount was accepted without review", err)
+			}
+			exec.mounts = "2 1 0:5 /stacked " + remote + " rw - ext4 /dev/stacked rw\n"
+			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("stacked mount was accepted without review", err)
+			}
+			exec.mounts = ""
 			exec.paths["sonarr:"+library] = library + "\n1:42\n"
 			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("aliased library directory accepted", err)
 			}
 			exec.paths["sonarr:"+library] = library + "\n1:99\n"
+			exec.backing["sonarr:"+library] = "/shared"
+			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("library mounted as a backing ancestor was accepted", err)
+			}
+			delete(exec.backing, "sonarr:"+library)
 			exec.paths["sonarr:"+local] = local + "\n1:77\n"
 			if err := p.verifyDownloadPath(context.Background(), from, to, remote); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("separate App-local storage accepted", err)

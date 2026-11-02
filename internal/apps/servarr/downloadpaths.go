@@ -16,14 +16,19 @@ test -r "$1"
 test -w "$1"
 test -x "$1"
 readlink -f -- "$1"
-stat -L -c '%d:%i' -- "$1"`
+stat -L -c '%d:%i' -- "$1"
+cat /proc/self/mountinfo`
+
+type downloadDirectory struct {
+	canonical, identity, mountDevice, backing string
+}
 
 func downloadPathValid(value string) bool {
 	return strings.HasPrefix(value, "/") && value != "/" && path.Clean(value) == value && !strings.ContainsAny(value, "\r\n\x00\\")
 }
 
 func pathWithin(parent, child string) bool {
-	return parent == child || strings.HasPrefix(child, parent+"/")
+	return parent == child || parent == "/" && strings.HasPrefix(child, "/") || strings.HasPrefix(child, parent+"/")
 }
 
 func (p providerLink) pathManual(h *helpers.H, reason string) error {
@@ -75,31 +80,75 @@ func (p providerLink) mappedDownloadPath(ctx context.Context, from, to *helpers.
 	return local, nil
 }
 
-func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory string) (string, string, error) {
+func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory string) (downloadDirectory, error) {
 	if h.Config.Exec == nil || !downloadPathValid(directory) {
-		return "", "", fmt.Errorf("directory access is unavailable")
+		return downloadDirectory{}, fmt.Errorf("directory access is unavailable")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	result, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "sh", "-eu", "-c", downloadDirectoryProbe, "self-host-download-path", directory)
 	if err != nil || result.ExitCode != 0 || len(result.Stderr) != 0 {
-		return "", "", fmt.Errorf("directory access could not be verified as the App user")
+		return downloadDirectory{}, fmt.Errorf("directory access could not be verified as the App user")
 	}
 	lines := strings.Split(strings.TrimSpace(string(result.Stdout)), "\n")
-	if len(lines) != 2 || !downloadPathValid(lines[0]) {
-		return "", "", fmt.Errorf("directory identity is unavailable")
+	if len(lines) < 3 || !downloadPathValid(lines[0]) {
+		return downloadDirectory{}, fmt.Errorf("directory identity is unavailable")
 	}
 	parts := strings.Split(lines[1], ":")
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("directory identity is invalid")
+		return downloadDirectory{}, fmt.Errorf("directory identity is invalid")
 	}
 	for _, part := range parts {
 		number, err := strconv.ParseUint(part, 10, 64)
 		if err != nil || number == 0 || strconv.FormatUint(number, 10) != part {
-			return "", "", fmt.Errorf("directory identity is invalid")
+			return downloadDirectory{}, fmt.Errorf("directory identity is invalid")
 		}
 	}
-	return lines[0], lines[1], nil
+	observation := downloadDirectory{canonical: lines[0], identity: lines[1]}
+	selected := ""
+	unescape := strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, "\\")
+	for _, line := range lines[2:] {
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			return downloadDirectory{}, fmt.Errorf("directory mount information is invalid")
+		}
+		separator := -1
+		for index := 6; index < len(fields)-3; index++ {
+			if fields[index] == "-" {
+				separator = index
+				break
+			}
+		}
+		device := strings.Split(fields[2], ":")
+		if separator < 0 || len(device) != 2 {
+			return downloadDirectory{}, fmt.Errorf("directory mount information is invalid")
+		}
+		for _, part := range device {
+			if number, err := strconv.ParseUint(part, 10, 32); err != nil || strconv.FormatUint(number, 10) != part {
+				return downloadDirectory{}, fmt.Errorf("directory mount device is invalid")
+			}
+		}
+		root, mount := unescape.Replace(fields[3]), unescape.Replace(fields[4])
+		if root != "/" && !downloadPathValid(root) || mount != "/" && !downloadPathValid(mount) {
+			return downloadDirectory{}, fmt.Errorf("directory mount information is unsupported")
+		}
+		if mount != observation.canonical && pathWithin(observation.canonical, mount) {
+			return downloadDirectory{}, fmt.Errorf("nested storage needs explicit review")
+		}
+		if !pathWithin(mount, observation.canonical) || len(mount) < len(selected) {
+			continue
+		}
+		if mount == selected {
+			return downloadDirectory{}, fmt.Errorf("stacked storage needs explicit review")
+		}
+		selected = mount
+		observation.mountDevice = fields[2]
+		observation.backing = path.Join(root, strings.TrimPrefix(strings.TrimPrefix(observation.canonical, mount), "/"))
+	}
+	if selected == "" {
+		return downloadDirectory{}, fmt.Errorf("directory backing storage is unavailable")
+	}
+	return observation, nil
 }
 
 func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.H, completed string) error {
@@ -120,12 +169,12 @@ func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.
 	if len(roots) == 0 {
 		return p.pathManual(from, "choose the intended library root and any required profiles in the consuming App first")
 	}
-	_, remoteIdentity, err := downloadDirectoryIdentity(ctx, to, completed)
+	remote, err := downloadDirectoryIdentity(ctx, to, completed)
 	if err != nil {
 		return p.pathManual(from, "the downloader cannot verify access to its completed folder as its App user")
 	}
-	canonical, localIdentity, err := downloadDirectoryIdentity(ctx, from, local)
-	if err != nil || remoteIdentity != localIdentity {
+	observed, err := downloadDirectoryIdentity(ctx, from, local)
+	if err != nil || remote.identity != observed.identity || remote.mountDevice != observed.mountDevice || remote.backing != observed.backing {
 		return p.pathManual(from, "the completed folder is not verified as the same accessible directory in both Apps; legacy App-local folders are not shared storage")
 	}
 	ids := map[int64]bool{}
@@ -134,11 +183,12 @@ func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.
 			return p.pathManual(from, "the configured library roots are invalid or ambiguous")
 		}
 		ids[root.ID] = true
-		library, libraryIdentity, err := downloadDirectoryIdentity(ctx, from, root.Path)
+		library, err := downloadDirectoryIdentity(ctx, from, root.Path)
 		if err != nil {
 			return p.pathManual(from, "a selected library root is not accessible as the consuming App user")
 		}
-		if libraryIdentity == localIdentity || pathWithin(canonical, library) || pathWithin(library, canonical) || pathWithin(local, root.Path) || pathWithin(root.Path, local) {
+		backingOverlap := library.mountDevice == observed.mountDevice && (pathWithin(library.backing, observed.backing) || pathWithin(observed.backing, library.backing))
+		if backingOverlap || library.identity == observed.identity || pathWithin(observed.canonical, library.canonical) || pathWithin(library.canonical, observed.canonical) || pathWithin(local, root.Path) || pathWithin(root.Path, local) {
 			return p.pathManual(from, "completed downloads and configured library roots overlap")
 		}
 	}
