@@ -1,0 +1,18 @@
+internal/service/fragments.go
+  h_d6e478ca18e517 233-237
+internal/service/install.go
+  h_d6e478ca18e517 409-411
+internal/service/secret_preflight_test.go
+  h_d6e478ca18e517 1-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "414a662caedc2be520104543f75d699ad903f7b5",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
