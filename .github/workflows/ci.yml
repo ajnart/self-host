@@ -58,6 +58,8 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - name: Install
         run: bun install --frozen-lockfile
+      - name: SDK transport regressions
+        run: bun test testkit/node/tests
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo/cache
