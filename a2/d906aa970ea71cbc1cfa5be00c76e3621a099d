@@ -1,0 +1,26 @@
+docs/catalog/traps/bazarr.md
+  h_d6e478ca18e517 7-17,29-35
+internal/apps/bazarr/api.go
+  h_d6e478ca18e517 85,95-97
+internal/apps/bazarr/bazarr.go
+  h_d6e478ca18e517 36-42,164-167
+internal/apps/bazarr/install_test.go
+  h_d6e478ca18e517 1-145
+internal/apps/bazarr/links.go
+  h_d6e478ca18e517 1-402
+internal/apps/bazarr/links_test.go
+  h_d6e478ca18e517 1-613
+internal/apps/bazarr/ownership.go
+  h_d6e478ca18e517 1-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2d906aa970ea71cbc1cfa5be00c76e3621a099d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
