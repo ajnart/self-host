@@ -1,3 +1,5 @@
+import { type TestkitStartupReason } from "./reasons.mjs";
+export type { TestkitStartupReason } from "./reasons.mjs";
 export interface Credentials {
     readonly username: string;
     readonly password: string;
@@ -13,6 +15,7 @@ export interface AppInfo {
 }
 export interface App {
     readonly url: string;
+    readonly recoveryPath?: string;
     getApiKey(name?: string): Promise<string>;
     credentials(): Promise<Credentials>;
     info(): Promise<AppInfo>;
@@ -22,6 +25,7 @@ export interface SpinupOptions {
     image?: string;
 }
 export interface SelfHost {
+    readonly recoveryPath?: string;
     spinup(app: string, options?: SpinupOptions): Promise<App>;
     close(): Promise<void>;
 }
@@ -31,10 +35,11 @@ export interface SelfHostOptions {
     manifest?: string;
 }
 export type TestkitErrorCode = "PROTOCOL" | "STATE" | "START" | "CREDENTIALS" | "INFO" | "CLEANUP" | "TIMEOUT" | "TRANSPORT" | "BINARY";
-export type TestkitStartupReason = "APP" | "OPTIONS" | "DOCKER" | "CAPABILITIES" | "PORT" | "OWNERSHIP" | "LIMITS" | "LOCK" | "UNSUPPORTED" | "STORAGE" | "CONTAINER" | "SETUP";
 export declare class TestkitError extends Error {
     readonly code: TestkitErrorCode;
     readonly reason: TestkitStartupReason | undefined;
-    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason);
+    readonly recoveryPath?: string;
+    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string);
 }
 export declare function createSelfHost(options?: SelfHostOptions): SelfHost;
+export declare function withApp<T>(app: string, callback: (app: App) => T | Promise<T>, options?: SelfHostOptions & SpinupOptions): Promise<T>;

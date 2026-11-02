@@ -69,17 +69,17 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	}
 	selected, ok := cat.App(opts.App)
 	if !ok {
-		return nil, startupError("APP", "testkit requires one Catalog App")
+		return nil, startupError(StartupReasonApp, "testkit requires one Catalog App")
 	}
 	if opts.Image != "" && !project.ValidFixtureImage(opts.Image) {
-		return nil, startupError("OPTIONS", "invalid selected image")
+		return nil, startupError(StartupReasonOptions, "invalid selected image")
 	}
 	total := opts.Timeout
 	if total == 0 {
 		total = 15 * time.Minute
 	}
 	if total <= 0 || total > 15*time.Minute {
-		return nil, startupError("OPTIONS", "testkit timeout must be positive and at most 15 minutes")
+		return nil, startupError(StartupReasonOptions, "testkit timeout must be positive and at most 15 minutes")
 	}
 	reserve := min(time.Minute, total/4)
 	deadline := time.Now().Add(total)
@@ -89,32 +89,32 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	deps := *original
 	owner, err := deps.CurrentUser()
 	if err != nil || owner.UID != os.Geteuid() {
-		return nil, startupError("OWNERSHIP", "testkit requires the current local user")
+		return nil, startupError(StartupReasonOwnership, "testkit requires the current local user")
 	}
 	endpoint, err := host.ActiveDockerEndpoint(work, &deps)
 	if err != nil || endpoint.Kind != "unix" || !strings.HasPrefix(endpoint.Host, "unix:///") {
 		if work.Err() != nil {
 			return nil, work.Err()
 		}
-		return nil, startupError("DOCKER", "testkit requires a local Unix Docker endpoint")
+		return nil, startupError(StartupReasonDocker, "testkit requires a local Unix Docker endpoint")
 	}
 	root, err := os.MkdirTemp(opts.RootParent, "selfhost-testkit-")
 	if err != nil {
-		return nil, startupError("STORAGE", "testkit private root unavailable")
+		return nil, startupError(StartupReasonStorage, "testkit private root unavailable")
 	}
 	root, err = filepath.Abs(root)
 	if err != nil {
-		return nil, startupError("STORAGE", "testkit private root resolution failed")
+		return nil, startupError(StartupReasonStorage, "testkit private root resolution failed")
 	}
 	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
-		return nil, startupError("STORAGE", "testkit private root resolution failed")
+		return nil, startupError(StartupReasonStorage, "testkit private root resolution failed")
 	}
 	name := "testkit-" + service.GenerateHex(24)
 	meta := ownership{Version: 1, Root: root, Name: name, App: opts.App, Endpoint: endpoint.Host, PID: os.Getpid()}
 	if err := writeOwnership(meta); err != nil {
 		os.Remove(root)
-		return nil, startupError("STORAGE", "testkit could not register private ownership")
+		return nil, startupError(StartupReasonStorage, "testkit could not register private ownership")
 	}
 	base := deps.Runner
 	if production, ok := base.(*system.ExecRunner); ok {
@@ -216,13 +216,13 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 		if errors.As(err, &safe) || work.Err() != nil {
 			return nil, err
 		}
-		return nil, startupError("SETUP", "testkit App Setup failed or requires a Manual step")
+		return nil, startupError(StartupReasonSetup, "testkit App Setup failed or requires a Manual step")
 	}
 	if err := guard.verify(work); err != nil {
 		return nil, err
 	}
 	if guard.main.ID == "" || guard.main.Image == "" {
-		return nil, startupError("CONTAINER", "testkit selected container absent")
+		return nil, startupError(StartupReasonContainer, "testkit selected container absent")
 	}
 	digests, err := docker(work, base, "image", "inspect", "--format", `{{json .RepoDigests}}`, guard.main.Image)
 	if err != nil {

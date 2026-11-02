@@ -1,21 +1,34 @@
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
-const metadata = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
-if (typeof metadata !== "object" ||
-    metadata === null ||
-    !("version" in metadata) ||
-    typeof metadata.version !== "string" ||
-    !/^\d+\.\d+\.\d+$/.test(metadata.version)) {
-    throw new Error("Invalid testkit package version.");
+export function packageVersion(path) {
+    try {
+        const metadata = JSON.parse(readFileSync(path, "utf8"));
+        if (typeof metadata === "object" &&
+            metadata !== null &&
+            "name" in metadata &&
+            metadata.name === "@ajnart/self-host-testkit" &&
+            "version" in metadata &&
+            typeof metadata.version === "string" &&
+            /^\d+\.\d+\.\d+$/.test(metadata.version)) {
+            return metadata.version;
+        }
+    }
+    catch {
+        throw new Error("Invalid testkit package metadata.");
+    }
+    throw new Error("Invalid testkit package metadata.");
 }
-export const version = metadata.version;
-export function binaryDirectory() {
+export const version = packageVersion(new URL("./package.json", import.meta.url));
+export function binaryDirectory(exactVersion = version) {
+    if (!/^\d+\.\d+\.\d+$/.test(exactVersion)) {
+        throw new Error("Invalid testkit helper version.");
+    }
     let cache = join(homedir(), ".cache");
     if (process.env.XDG_CACHE_HOME && isAbsolute(process.env.XDG_CACHE_HOME)) {
         cache = process.env.XDG_CACHE_HOME;
     }
-    return join(cache, "self-host-testkit", version, `${process.platform}-${process.arch}`);
+    return join(cache, "self-host-testkit", exactVersion, `${process.platform}-${process.arch}`);
 }
 export function privateDirectory(path) {
     const info = lstatSync(path);
@@ -23,8 +36,7 @@ export function privateDirectory(path) {
         info.uid === process.getuid?.() &&
         (info.mode & 0o077) === 0);
 }
-export function installedBinary() {
-    const directory = binaryDirectory();
+export function installedBinary(directory = binaryDirectory()) {
     const binary = join(directory, "self-host-testkit");
     if (!existsSync(binary))
         return "self-host-testkit";

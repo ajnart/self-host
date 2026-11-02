@@ -6,6 +6,9 @@ import { isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { inspect } from "node:util";
 import { installedBinary } from "./binary.mjs";
+import { type TestkitStartupReason, startupReasons } from "./reasons.mjs";
+
+export type { TestkitStartupReason } from "./reasons.mjs";
 
 export interface Credentials {
 	readonly username: string;
@@ -24,6 +27,7 @@ export interface AppInfo {
 
 export interface App {
 	readonly url: string;
+	readonly recoveryPath?: string;
 	getApiKey(name?: string): Promise<string>;
 	credentials(): Promise<Credentials>;
 	info(): Promise<AppInfo>;
@@ -35,6 +39,7 @@ export interface SpinupOptions {
 }
 
 export interface SelfHost {
+	readonly recoveryPath?: string;
 	spinup(app: string, options?: SpinupOptions): Promise<App>;
 	close(): Promise<void>;
 }
@@ -56,20 +61,6 @@ export type TestkitErrorCode =
 	| "TRANSPORT"
 	| "BINARY";
 
-export type TestkitStartupReason =
-	| "APP"
-	| "OPTIONS"
-	| "DOCKER"
-	| "CAPABILITIES"
-	| "PORT"
-	| "OWNERSHIP"
-	| "LIMITS"
-	| "LOCK"
-	| "UNSUPPORTED"
-	| "STORAGE"
-	| "CONTAINER"
-	| "SETUP";
-
 const MAX_MESSAGE = 65536;
 const CLEANUP_TIMEOUT = 50000;
 const messages = new Map<TestkitErrorCode, string>([
@@ -87,50 +78,33 @@ const messages = new Map<TestkitErrorCode, string>([
 	],
 ]);
 
-const startupReasons = new Map<TestkitStartupReason, string>([
-	["APP", "Choose one supported Catalog App."],
-	["OPTIONS", "Check the selected image and lifetime options."],
-	["DOCKER", "Check the local Unix Docker socket, daemon and Compose plugin."],
-	["CAPABILITIES", "Docker must support memory, CPU quota and PID limits."],
-	["PORT", "A required local port could not be reserved."],
-	["OWNERSHIP", "Fixture ownership or isolation could not be verified."],
-	[
-		"LIMITS",
-		"Container resource caps or selected image could not be verified.",
-	],
-	["LOCK", "The private startup lock is unavailable."],
-	[
-		"UNSUPPORTED",
-		"This App's Compose configuration or operations are unsupported.",
-	],
-	[
-		"STORAGE",
-		"Private fixture storage or the recovery manifest is unavailable.",
-	],
-	["CONTAINER", "The selected App container is absent."],
-	["SETUP", "App Setup failed or requires a Manual step."],
-]);
-
 export class TestkitError extends Error {
 	readonly code: TestkitErrorCode;
 	readonly reason: TestkitStartupReason | undefined;
+	declare readonly recoveryPath?: string;
 
-	constructor(code: TestkitErrorCode, reason?: TestkitStartupReason) {
+	constructor(
+		code: TestkitErrorCode,
+		reason?: TestkitStartupReason,
+		recoveryPath?: string,
+	) {
 		let message = messages.get(code);
 		if (code === "START" && reason)
-			message = `${message} ${startupReasons.get(reason)}`;
+			message = `${message} ${startupReasons[reason]}`;
 		super(message);
 		this.name = "TestkitError";
 		this.code = code;
 		this.reason = reason;
+		Object.defineProperty(this, "recoveryPath", { value: recoveryPath });
 	}
 }
 
 function fault(
 	code: TestkitErrorCode,
 	reason?: TestkitStartupReason,
+	recoveryPath?: string,
 ): TestkitError {
-	return new TestkitError(code, reason);
+	return new TestkitError(code, reason, recoveryPath);
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -174,18 +148,18 @@ function runCleanup(
 			["--cleanup-manifest", manifest, "--owner", owner],
 			{ stdio: "ignore" },
 		);
+		let failed = false;
 		const timer = setTimeout(() => {
+			failed = true;
 			child.kill("SIGKILL");
-			reject(fault("CLEANUP"));
 		}, CLEANUP_TIMEOUT);
 		child.once("error", () => {
-			clearTimeout(timer);
-			reject(fault("CLEANUP"));
+			failed = true;
 		});
-		child.once("exit", (code) => {
+		child.once("close", (code) => {
 			clearTimeout(timer);
-			if (code === 0) resolve(undefined);
-			else reject(fault("CLEANUP"));
+			if (!failed && code === 0) resolve(undefined);
+			else reject(fault("CLEANUP", undefined, manifest));
 		});
 	});
 }
@@ -237,12 +211,20 @@ class Bridge {
 		this.#child.stdout.on("data", (chunk) => this.#receive(chunk));
 	}
 
+	get recoveryPath() {
+		return this.#manifest;
+	}
+
+	#fault(code: TestkitErrorCode, reason?: TestkitStartupReason) {
+		return fault(code, reason, this.#manifest);
+	}
+
 	#fail(code: TestkitErrorCode) {
 		this.#failed = true;
 		this.#buffer = Buffer.alloc(0);
 		for (const pending of this.#pending.values()) {
 			clearTimeout(pending.timer);
-			pending.reject(fault(code));
+			pending.reject(this.#fault(code));
 		}
 		this.#pending.clear();
 		this.#child.kill("SIGTERM");
@@ -269,10 +251,10 @@ class Bridge {
 					!this.#pending.has(response.id) ||
 					Object.hasOwn(response, "error") === Object.hasOwn(response, "result")
 				) {
-					throw fault("PROTOCOL");
+					throw this.#fault("PROTOCOL");
 				}
 				const pending = this.#pending.get(response.id);
-				if (!pending) throw fault("PROTOCOL");
+				if (!pending) throw this.#fault("PROTOCOL");
 				this.#pending.delete(response.id);
 				clearTimeout(pending.timer);
 				if (Object.hasOwn(response, "error")) {
@@ -281,7 +263,7 @@ class Bridge {
 						typeof response.error.code !== "string" ||
 						!isErrorCode(response.error.code)
 					) {
-						pending.reject(fault("PROTOCOL"));
+						pending.reject(this.#fault("PROTOCOL"));
 						this.#fail("PROTOCOL");
 						return;
 					}
@@ -292,13 +274,13 @@ class Bridge {
 							typeof response.error.reason !== "string" ||
 							!isStartupReason(response.error.reason)
 						) {
-							pending.reject(fault("PROTOCOL"));
+							pending.reject(this.#fault("PROTOCOL"));
 							this.#fail("PROTOCOL");
 							return;
 						}
 						reason = response.error.reason;
 					}
-					pending.reject(fault(response.error.code, reason));
+					pending.reject(this.#fault(response.error.code, reason));
 				} else {
 					pending.resolve(response.result);
 				}
@@ -315,7 +297,8 @@ class Bridge {
 		params: Record<string, unknown> = {},
 		timeout = 35000,
 	): Promise<unknown> {
-		if (this.#failed) return Promise.reject(fault("TRANSPORT"));
+		if (this.#failed) return Promise.reject(this.#fault("TRANSPORT"));
+		if (this.#closing) return Promise.reject(this.#fault("STATE"));
 		const id = ++this.#sequence;
 		return new Promise<unknown>((resolve, reject) => {
 			const timer = setTimeout(() => this.#fail("TIMEOUT"), timeout);
@@ -332,17 +315,21 @@ class Bridge {
 	}
 
 	close() {
-		if (!this.#closing) this.#closing = this.#close();
+		if (!this.#closing) {
+			this.#closing = this.#close().catch((error: unknown) => {
+				this.#closing = undefined;
+				throw error;
+			});
+		}
 		return this.#closing;
 	}
 
 	async #close() {
-		let failure: TestkitError | undefined;
 		if (!this.#failed) {
 			try {
 				await this.request("close", {}, CLEANUP_TIMEOUT);
 			} catch {
-				failure = fault("CLEANUP");
+				this.#fail("TRANSPORT");
 			}
 		}
 		this.#child.stdin.end();
@@ -350,12 +337,7 @@ class Bridge {
 		await this.#exited;
 		clearTimeout(kill);
 		if (!this.#spawned) return;
-		try {
-			await runCleanup(this.#binary, this.#manifest, this.#owner);
-		} catch {
-			failure = fault("CLEANUP");
-		}
-		if (failure) throw failure;
+		await runCleanup(this.#binary, this.#manifest, this.#owner);
 	}
 
 	[inspect.custom]() {
@@ -375,6 +357,10 @@ class AppHandle {
 
 	get url() {
 		return this.#url;
+	}
+
+	get recoveryPath() {
+		return this.#bridge.recoveryPath;
 	}
 
 	async getApiKey(name = "") {
@@ -408,9 +394,9 @@ class AppHandle {
 		};
 	}
 
-	async close() {
+	close() {
 		this.#closed = true;
-		await this.#bridge.close();
+		return this.#bridge.close();
 	}
 
 	toJSON() {
@@ -466,6 +452,10 @@ class SelfHostHandle {
 		}
 	}
 
+	get recoveryPath() {
+		return this.#manifest;
+	}
+
 	async spinup(app: string, options?: SpinupOptions): Promise<App> {
 		const selected = options ?? {};
 		if (this.#closed) throw fault("STATE");
@@ -507,12 +497,16 @@ class SelfHostHandle {
 				!strings(value, ["url"]) ||
 				!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(value.url)
 			) {
-				throw fault("PROTOCOL");
+				throw fault("PROTOCOL", undefined, this.#manifest);
 			}
-			if (this.#closed) throw fault("STATE");
+			if (this.#closed) throw fault("STATE", undefined, this.#manifest);
 			return new AppHandle(bridge, value.url);
 		} catch (error) {
-			await bridge.close();
+			try {
+				await bridge.close();
+			} catch {
+				throw error;
+			}
 			throw error;
 		}
 	}
@@ -520,7 +514,10 @@ class SelfHostHandle {
 	close() {
 		if (!this.#closing) {
 			this.#closed = true;
-			this.#closing = this.#close();
+			this.#closing = this.#close().catch((error: unknown) => {
+				this.#closing = undefined;
+				throw error;
+			});
 		}
 		return this.#closing;
 	}
@@ -531,7 +528,7 @@ class SelfHostHandle {
 		);
 		await Promise.allSettled([...this.#starts]);
 		if (results.some((result) => result.status === "rejected"))
-			throw fault("CLEANUP");
+			throw fault("CLEANUP", undefined, this.#manifest);
 		if (this.#directory) {
 			try {
 				try {
@@ -546,7 +543,7 @@ class SelfHostHandle {
 				}
 				rmdirSync(this.#directory);
 			} catch {
-				throw fault("CLEANUP");
+				throw fault("CLEANUP", undefined, this.#manifest);
 			}
 		}
 	}
@@ -565,10 +562,34 @@ function isErrorCode(value: string): value is TestkitErrorCode {
 }
 
 function isStartupReason(value: string): value is TestkitStartupReason {
-	return [...startupReasons.keys()].some((reason) => reason === value);
+	return Object.hasOwn(startupReasons, value);
 }
 
 export function createSelfHost(options: SelfHostOptions = {}): SelfHost {
 	if (!record(options)) throw fault("PROTOCOL");
 	return new SelfHostHandle(options);
+}
+
+export async function withApp<T>(
+	app: string,
+	callback: (app: App) => T | Promise<T>,
+	options: SelfHostOptions & SpinupOptions = {},
+): Promise<T> {
+	const selfHost = createSelfHost(options);
+	let result: { ok: true; value: T } | { ok: false; error: unknown };
+	try {
+		result = {
+			ok: true,
+			value: await callback(await selfHost.spinup(app, options)),
+		};
+	} catch (error) {
+		result = { ok: false, error };
+	}
+	try {
+		await selfHost.close();
+	} catch (error) {
+		if (result.ok) throw error;
+	}
+	if (!result.ok) throw result.error;
+	return result.value;
 }

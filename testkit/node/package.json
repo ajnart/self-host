@@ -16,6 +16,8 @@
 		"index.mjs",
 		"index.d.mts",
 		"binary.mjs",
+		"reasons.mjs",
+		"reasons.d.mts",
 		"setup.mjs",
 		"examples/sonarr.mjs",
 		"README.md",

@@ -1,9 +1,6 @@
-import { createSelfHost } from "@ajnart/self-host-testkit";
+import { withApp } from "@ajnart/self-host-testkit";
 
-const selfHost = createSelfHost();
-
-try {
-	const sonarr = await selfHost.spinup("sonarr");
+await withApp("sonarr", async (sonarr) => {
 	const response = await fetch(`${sonarr.url}/api/v3/system/status`, {
 		headers: { "X-Api-Key": await sonarr.getApiKey() },
 		signal: AbortSignal.timeout(10_000),
@@ -15,6 +12,4 @@ try {
 		throw new Error("Sonarr returned an unexpected identity.");
 	}
 	console.log(`Connected to Sonarr ${status.version}.`);
-} finally {
-	await selfHost.close();
-}
+});
