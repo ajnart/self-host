@@ -1,0 +1,22 @@
+docs/catalog/traps/deluge.md
+  h_d6e478ca18e517 8-20
+internal/apps/deluge/downloadclient.go
+  h_d6e478ca18e517 1-200
+internal/apps/deluge/downloadclient_test.go
+  h_d6e478ca18e517 1-242
+internal/apps/deluge/links_test.go
+  h_d6e478ca18e517 1-488
+internal/apps/servarr/deluge.go
+  h_d6e478ca18e517 1-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f6db86578a076e075c806da351a0fc20aac1b77",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
