@@ -63,6 +63,9 @@ type providerOwnership struct {
 type providerLink struct {
 	api, path, target, implementation, name string
 	endpointField, categoryField, category  string
+	configContract, protocol                string
+	connectionFields                        func(from, to *helpers.H) ([]connectionField, error)
+	verify                                  func(ctx context.Context, from, to *helpers.H, item provider) error
 }
 
 func QBittorrentLink(api, categoryField, category string) app.Link {
@@ -130,8 +133,7 @@ func (p providerLink) ownershipKey(h *helpers.H) string {
 }
 
 func (p providerLink) manual(h *helpers.H, reason string) error {
-	h.Info("Review " + h.URL + " > Settings and " + p.ownershipKey(h) + " in the Project's private .env: " + reason + ". Preserve person-owned entries; never claim an ID by matching its name or endpoint. Remove only a confirmed failed self-host creation manually. Clear an uncertain ownership record only after confirming that creation is absent, then run self-host setup " + h.App + ".")
-	return fmt.Errorf("%w: %s Link ownership needs review: %s", helpers.ErrManual, p.name, reason)
+	return &helpers.ManualError{Hint: "Review " + h.URL + " > Settings and " + p.ownershipKey(h) + " in the Project's private .env: " + reason + ". Preserve person-owned entries; never claim an ID by matching its name or endpoint. Remove only a confirmed failed self-host creation manually. Clear an uncertain ownership record only after confirming that creation is absent, then run self-host setup " + h.App + "."}
 }
 
 func (p providerLink) request(ctx context.Context, h *helpers.H, method, path string, item provider) (helpers.Response, error) {
@@ -204,7 +206,7 @@ func (p providerLink) pointsAtTarget(endpoint string, to *helpers.H) bool {
 	return strings.EqualFold(strings.TrimSuffix(host, "."), p.target) || (to.Service != "" && strings.EqualFold(strings.TrimSuffix(host, "."), to.Service))
 }
 
-func (p providerLink) read(ctx context.Context, from, to *helpers.H) (provider, providerOwnership, error) {
+func (p providerLink) read(ctx context.Context, from, to *helpers.H, removing bool) (provider, providerOwnership, error) {
 	var record providerOwnership
 	if to.App != p.target {
 		return nil, record, p.manual(from, "the Link target does not match its App")
@@ -214,6 +216,9 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H) (provider, 
 			return nil, record, p.manual(from, "the saved ownership is invalid or a previous creation has an uncertain outcome")
 		}
 	}
+	if p.connectionFields != nil && removing && record.ID == 0 {
+		return nil, record, nil
+	}
 	items, err := p.list(ctx, from, p.path)
 	if err != nil {
 		return nil, record, err
@@ -222,10 +227,13 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H) (provider, 
 	for _, item := range items {
 		endpoint, _ := item.field(p.endpointField).(string)
 		if record.ID > 0 && item.id() == record.ID {
-			if found != nil || item["implementation"] != p.implementation || !p.pointsAtTarget(endpoint, to) {
+			if found != nil || item["implementation"] != p.implementation || !p.pointsAtTarget(endpoint, to) || p.connectionFields != nil && (item["configContract"] != p.configContract || item["protocol"] != p.protocol) {
 				return nil, record, p.manual(from, "the recorded ID no longer uniquely identifies the expected implementation and target")
 			}
 			found = item
+			continue
+		}
+		if p.connectionFields != nil && removing {
 			continue
 		}
 		name, _ := item["name"].(string)
@@ -237,6 +245,9 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H) (provider, 
 }
 
 func (p providerLink) connection(from, to *helpers.H) ([]connectionField, error) {
+	if p.connectionFields != nil {
+		return p.connectionFields(from, to)
+	}
 	if p.path == "/applications" {
 		key := to.Secret(to.Key("api_key"))
 		if from.InternalURL() == "" || to.InternalURL() == "" || key == "" {
@@ -273,7 +284,7 @@ func connectionCurrent(item provider, record providerOwnership, fields []connect
 }
 
 func (p providerLink) current(ctx context.Context, from, to *helpers.H, removing bool) (bool, error) {
-	item, record, err := p.read(ctx, from, to)
+	item, record, err := p.read(ctx, from, to, removing)
 	if err != nil {
 		return false, err
 	}
@@ -292,6 +303,9 @@ func (p providerLink) current(ctx context.Context, from, to *helpers.H, removing
 	fields, err := p.connection(from, to)
 	if err != nil {
 		return false, err
+	}
+	if p.connectionFields != nil {
+		return p.downloadCurrent(ctx, from, to, item, record, fields)
 	}
 	current, masked := connectionCurrent(item, record, fields)
 	if current && masked {
@@ -342,7 +356,7 @@ func (p providerLink) save(h *helpers.H, record providerOwnership) error {
 }
 
 func (p providerLink) reconcile(ctx context.Context, from, to *helpers.H, removing bool) error {
-	item, record, err := p.read(ctx, from, to)
+	item, record, err := p.read(ctx, from, to, removing)
 	if err != nil {
 		return err
 	}
@@ -355,7 +369,7 @@ func (p providerLink) reconcile(ctx context.Context, from, to *helpers.H, removi
 			if resp.Status != 200 && resp.Status != 204 && resp.Status != 404 {
 				return fmt.Errorf("remove the recorded %s resource returned HTTP %d", p.name, resp.Status)
 			}
-			remaining, _, err := p.read(ctx, from, to)
+			remaining, _, err := p.read(ctx, from, to, true)
 			if err != nil {
 				return err
 			}
@@ -378,6 +392,9 @@ func (p providerLink) reconcile(ctx context.Context, from, to *helpers.H, removi
 		}
 		return p.create(ctx, from, to, fields)
 	}
+	if p.connectionFields != nil {
+		return p.updateDownload(ctx, from, to, item, record, fields)
+	}
 	if current, masked := connectionCurrent(item, record, fields); current && !masked {
 		return nil
 	}
@@ -399,15 +416,23 @@ func (p providerLink) reconcile(ctx context.Context, from, to *helpers.H, removi
 }
 
 func (p providerLink) create(ctx context.Context, from, to *helpers.H, fields []connectionField) error {
-	templates, err := p.list(ctx, from, p.path+"/schema")
-	if err != nil {
-		return err
-	}
 	var item provider
-	for _, template := range templates {
-		if template["implementation"] == p.implementation {
-			item = template
-			break
+	if p.connectionFields != nil {
+		var err error
+		item, err = p.downloadTemplate(ctx, from)
+		if err != nil {
+			return err
+		}
+	} else {
+		templates, err := p.list(ctx, from, p.path+"/schema")
+		if err != nil {
+			return err
+		}
+		for _, template := range templates {
+			if template["implementation"] == p.implementation {
+				item = template
+				break
+			}
 		}
 	}
 	if item == nil {
@@ -424,6 +449,14 @@ func (p providerLink) create(ctx context.Context, from, to *helpers.H, fields []
 	}
 	for _, field := range fields {
 		if err := item.setField(field.Name, field.Value); err != nil {
+			return err
+		}
+	}
+	if p.connectionFields != nil {
+		if err := p.verifyDownload(ctx, from, to, item, fields); err != nil {
+			return err
+		}
+		if err := p.testDownload(ctx, from, item); err != nil {
 			return err
 		}
 	}
@@ -450,6 +483,9 @@ func (p providerLink) create(ctx context.Context, from, to *helpers.H, fields []
 	var created provider
 	if err := resp.Decode(&created); err != nil || created.id() == 0 || created["implementation"] != p.implementation || created.field(p.endpointField) != endpoint || !p.pointsAtTarget(endpoint, to) {
 		return p.manual(from, "creation did not return a positive resource ID with the expected implementation and target")
+	}
+	if p.connectionFields != nil && (created["configContract"] != p.configContract || created["protocol"] != p.protocol || created["enable"] != true || created.field(p.categoryField) != item.field(p.categoryField)) {
+		return p.manual(from, "creation did not return the expected download-client contract and category")
 	}
 	record.ID = created.id()
 	if err := p.save(from, record); err != nil {
