@@ -1,0 +1,18 @@
+docs/catalog/traps/tandoor.md
+  h_d6e478ca18e517 56-61
+internal/apps/tandoor/owner.go
+  h_d6e478ca18e517 15-16,29-53,65-67,105-107
+internal/apps/tandoor/tandoor_test.go
+  h_d6e478ca18e517 142,155-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3509bf77da65b9487aea4d9a83062a2b114d27e3",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
