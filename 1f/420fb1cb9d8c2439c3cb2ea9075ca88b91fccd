@@ -1,0 +1,16 @@
+site/src/content/docs/docs/agents.md
+  h_d6e478ca18e517 66-73
+site/src/content/docs/docs/getting-started.md
+  h_d6e478ca18e517 36,42-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f420fb1cb9d8c2439c3cb2ea9075ca88b91fccd",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
