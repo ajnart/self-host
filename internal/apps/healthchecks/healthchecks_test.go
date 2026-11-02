@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/app"
@@ -148,6 +149,7 @@ func (s secrets) Get(key string) string       { return s[key] }
 func (s secrets) Set(key, value string) error { s[key] = value; return nil }
 
 type fakeHealthchecks struct {
+	mu                                      sync.Mutex
 	t                                       *testing.T
 	checks, badges, email, owned, badgePage string
 	loginStatus, profileStatus, apiStatus   int
@@ -155,6 +157,11 @@ type fakeHealthchecks struct {
 	requests                                []string
 	logins                                  int
 	redirect                                string
+	key                                     string
+	slotPopulated                           bool
+	slotReads, populateAt, issuances        int
+	issuanceStatus                          int
+	issuanceBody                            string
 }
 
 func newFake(t *testing.T) *fakeHealthchecks {
@@ -163,11 +170,35 @@ func newFake(t *testing.T) *fakeHealthchecks {
 		checks:      `{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"new","n_pings":0}]}`,
 		badges:      `{"badges":{"*":{"svg":"` + badgeURL + `"}}}`,
 		loginStatus: http.StatusFound, profileStatus: http.StatusOK, apiStatus: http.StatusOK, channelsStatus: http.StatusUnauthorized,
+		key: apiKey, slotPopulated: true, issuanceStatus: http.StatusOK,
 	}
 }
 
 func (f *fakeHealthchecks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.requests = append(f.requests, r.Method+" "+r.URL.Path)
+	if r.Method == http.MethodPost && r.URL.Path == "/projects/"+projectID+"/settings/" {
+		if r.ParseForm() != nil || r.Form.Get("create_key") != "api_key_readonly" || r.Form.Get("csrfmiddlewaretoken") != "synthetic-csrf" || len(r.Form) != 2 {
+			f.t.Error("issuance must submit only the selected read-only key form")
+		}
+		if cookie, err := r.Cookie("csrftoken"); err != nil || cookie.Value != "synthetic-csrf" {
+			f.t.Error("issuance did not retain the documented CSRF session")
+		}
+		if f.slotPopulated {
+			f.t.Error("issuance replaced a populated read-only key slot")
+		}
+		f.issuances++
+		f.slotPopulated = true
+		f.key = "hcr_0123456789012345678901234567"
+		w.WriteHeader(f.issuanceStatus)
+		if f.issuanceBody != "" {
+			io.WriteString(w, f.issuanceBody)
+		} else {
+			io.WriteString(w, healthchecksCreatedModal(f.key))
+		}
+		return
+	}
 	if r.Method == http.MethodPost && r.URL.Path == "/accounts/login/" {
 		f.logins++
 		if r.ParseForm() != nil || r.Form.Get("action") != "login" || r.Form.Get("email") != "admin@selfhost.local" || r.Form.Get("password") != "synthetic-password" || r.Form.Get("csrfmiddlewaretoken") != "synthetic-csrf" {
@@ -207,8 +238,21 @@ func (f *fakeHealthchecks) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		io.WriteString(w, `<div id="preview" class="col-md-8"><h2>Preview</h2><img src="`+badgeURL+`"></div>`)
+	case "/projects/" + projectID + "/settings/":
+		f.slotReads++
+		if f.populateAt != 0 && f.slotReads >= f.populateAt {
+			f.slotPopulated = true
+		}
+		http.SetCookie(w, &http.Cookie{Name: "csrftoken", Value: "synthetic-csrf", Path: "/"})
+		io.WriteString(w, `<input type="hidden" name="csrfmiddlewaretoken" value="synthetic-csrf"><table id="api-keys"><tr><td>API key</td><td><code>unrelated-write-key</code></td></tr><tr><td>API key (read-only)</td><td>`)
+		if f.slotPopulated {
+			io.WriteString(w, `<code>masked-read-only-key</code><a data-revoke-key="api_key_readonly">Revoke</a>`)
+		} else {
+			io.WriteString(w, `<span class="not-set">not set</span><a data-create-key="api_key_readonly">Create</a>`)
+		}
+		io.WriteString(w, `</td></tr></table>`)
 	case "/api/v3/checks/", "/api/v3/badges/", "/api/v3/channels/":
-		if r.Header.Get("X-Api-Key") != apiKey {
+		if r.Header.Get("X-Api-Key") != f.key {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -239,6 +283,7 @@ func harness(t *testing.T, fake *fakeHealthchecks) (*helpers.H, secrets, *[]help
 	t.Cleanup(server.Close)
 	deps := systemtest.NewDeps(t)
 	stored := secrets{"ADMIN_USER": "admin", "ADMIN_PASSWORD": "synthetic-password", "HEALTHCHECKS_HOMARR_API_KEY": apiKey, "HEALTHCHECKS_SECRET_KEY": "synthetic-app-secret"}
+	stored["HEALTHCHECKS_HOMARR_KEY_OWNERSHIP"] = healthchecksOwnership(apiKey)
 	var records []helpers.StepResult
 	h := helpers.New(helpers.Config{
 		App: "healthchecks", Service: "healthchecks", BaseURL: server.URL, URL: server.URL,
@@ -253,7 +298,9 @@ func TestSetupCheckAndRerunPreserveChecksAndCredentials(t *testing.T) {
 	for _, checks := range []string{
 		`{"checks":[]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"new","n_pings":0}]}`,
+		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"new","n_pings":0,"last_ping":null,"next_ping":null}]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"paused","n_pings":7}]}`,
+		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"paused","n_pings":0,"last_ping":null,"next_ping":null}]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"up","n_pings":1}]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"down","n_pings":7},{"unique_key":"1123456789012345678901234567890123456789","status":"grace","n_pings":8}]}`,
 	} {
@@ -274,7 +321,10 @@ func TestSetupCheckAndRerunPreserveChecksAndCredentials(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if !maps.Equal(stored, before) || fake.logins != 1 || fake.checks != checks || len(*records) != 4 {
+			fake.mu.Lock()
+			logins, preserved := fake.logins, fake.checks == checks
+			fake.mu.Unlock()
+			if !maps.Equal(stored, before) || logins != 1 || !preserved || len(*records) != 4 {
 				t.Fatal("rerun changed credentials/checks, repeated rate-limited login or lost steps")
 			}
 			for _, result := range *records {
@@ -334,6 +384,7 @@ func TestRejectsMissingMalformedAndWriteCapableData(t *testing.T) {
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"unknown","n_pings":0}]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"up","n_pings":-1}]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"up"}]}`,
+		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"new","n_pings":null}]}`,
 		`{"checks":[` + valid + `,` + valid + `]}`,
 		`{"checks":[{"unique_key":"0123456789012345678901234567890123456789","status":"new","n_pings":0,"ping_url":"synthetic-password"}]}`,
 	} {

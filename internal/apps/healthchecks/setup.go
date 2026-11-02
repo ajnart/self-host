@@ -15,9 +15,9 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-const accountHint = "Healthchecks account bootstrap is Manual in this App-only slice. On a confirmed fresh instance, use the official image's interactive createsuperuser command; never put passwords in command arguments. For an existing account, recover the known Admin login through self-host credentials and Healthchecks Account Settings without replacing users or disabling two-factor authentication. Then retry self-host setup healthchecks."
+const accountHint = "Healthchecks account bootstrap remains Manual without proved first-administrator authority. On a confirmed fresh instance, use the official image's interactive createsuperuser command; never put passwords in command arguments. For an existing account, recover the known Admin login through self-host credentials and Healthchecks Account Settings without replacing users or disabling two-factor authentication. Then retry self-host setup healthchecks."
 const projectHint = "Choose the exact project owned by the Admin login and supply its UUID as healthchecks.project_id. Preserve the existing project and review Compose before any reinstall used to change inputs. Then retry self-host setup healthchecks; Setup never creates or selects a different project."
-const keyHint = "Healthchecks read-only key issuance awaits the reviewed shared helper. Restore the selected project's known read-only API key through the Project's private-input boundary; review and separately approve any reinstall because it can replace Compose. If the secret is lost or rejected, recover its matching Backup or explicitly review that project's read-only key in Project Settings. Do not replace write keys, ping keys or notification settings. Then retry self-host setup healthchecks."
+const keyHint = "Restore the selected project's known read-only API key and matching private ownership or captured issuance records through the Project's private-input boundary; review and separately approve any reinstall because it can replace Compose. If the secret is lost or rejected, recover its matching Backup and reconcile only that project's read-only key in Project Settings. Never clear a pending record to reissue, replace write or ping keys, change projects or alter notification settings. Then retry self-host setup healthchecks."
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := (App{}).Preflight(ctx, h); err != nil {
@@ -28,9 +28,13 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}
 	return h.Step(ctx, "project-access", "verify Healthchecks project and read-only access", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
-			err := verifyProject(ctx, h)
+			if h.Secret(h.Key("homarr_api_key")) == "" || h.Secret(h.Key("homarr_key_ownership")) == "" || h.Secret(h.Key("homarr_key_pending")) != "" {
+				return false, nil
+			}
+			err := VerifyHomarr(ctx, h)
 			return err == nil, err
 		},
+		Do:   func(ctx context.Context) error { return ensureCredential(ctx, h) },
 		Hint: accountHint + " " + projectHint + " " + keyHint, Credential: "admin",
 	})
 }
@@ -43,7 +47,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	if err != nil || response.Status != http.StatusOK || strings.TrimSpace(string(response.Body)) != "OK" {
 		return errors.New("Healthchecks database readiness is unavailable; read self-host logs healthchecks, then retry Setup")
 	}
-	return verifyProject(ctx, h)
+	return VerifyHomarr(ctx, h)
 }
 
 var profileIdentity = regexp.MustCompile(`(?s)<h1\b[^>]*class=["']settings-title["'][^>]*>.*?<small>\s*([^<]+)\s*</small>`)
@@ -98,19 +102,19 @@ func profile(ctx context.Context, h *helpers.H, session *helpers.Session) ([]byt
 	return response.Body, nil
 }
 
-func verifyProject(ctx context.Context, h *helpers.H) error {
+func selectedIdentity(ctx context.Context, h *helpers.H) (projectSelection, *helpers.Session, error) {
 	session, err := account(ctx, h)
 	if err != nil {
-		return err
+		return projectSelection{}, nil, err
 	}
 	body, err := profile(ctx, h, session)
 	if err != nil {
-		return err
+		return projectSelection{}, nil, err
 	}
 	id := strings.ToLower(h.Inputs["project_id"])
 	table := projectTable.FindSubmatch(body)
 	if !projectPattern.MatchString(id) || len(table) != 2 {
-		return &helpers.ManualError{Hint: projectHint}
+		return projectSelection{}, nil, &helpers.ManualError{Hint: projectHint}
 	}
 	found := false
 	for _, match := range ownedProject.FindAllSubmatch(table[1], -1) {
@@ -119,38 +123,30 @@ func verifyProject(ctx context.Context, h *helpers.H) error {
 		}
 	}
 	if !found {
-		return &helpers.ManualError{Hint: projectHint}
-	}
-	key := h.Secret(h.Key("homarr_api_key"))
-	if key == "" {
-		return &helpers.ManualError{Hint: keyHint}
-	}
-	h.Log.Secret(key)
-	response, err := readAPI(ctx, h, key, "/api/v3/checks/")
-	if err != nil {
-		return err
-	}
-	if err := validateChecks(response.Body); err != nil {
-		return err
-	}
-	permissions, err := h.HTTP(ctx, helpers.Request{Path: "/api/v3/channels/", NoRedirect: true, Header: helpers.KeyScheme{Header: "X-Api-Key"}.Headers(key)})
-	if err != nil || permissions.Status != http.StatusUnauthorized {
-		return &helpers.ManualError{Hint: "Healthchecks did not prove this key is read-only. " + keyHint}
+		return projectSelection{}, nil, &helpers.ManualError{Hint: projectHint}
 	}
 	selected, err := session.HTTP(ctx, helpers.Request{Path: "/projects/" + id + "/badges/", NoRedirect: true})
 	if err != nil || selected.Status != http.StatusOK {
-		return &helpers.ManualError{Hint: projectHint}
+		return projectSelection{}, nil, &helpers.ManualError{Hint: projectHint}
 	}
 	badge := projectBadge.FindSubmatch(selected.Body)
 	if len(badge) != 2 {
-		return errors.New("Healthchecks did not return the selected project's overall badge identity; preserve the project and retry Setup")
+		return projectSelection{}, nil, errors.New("Healthchecks did not return the selected project's overall badge identity; preserve the project and retry Setup")
 	}
 	expected := html.UnescapeString(string(badge[1]))
 	u, err := validateAddress(expected)
 	if err != nil || !badgePath.MatchString(u.Path) {
-		return errors.New("Healthchecks returned an invalid overall badge identity; preserve the project and retry Setup")
+		return projectSelection{}, nil, errors.New("Healthchecks returned an invalid overall badge identity; preserve the project and retry Setup")
 	}
-	response, err = readAPI(ctx, h, key, "/api/v3/badges/")
+	return projectSelection{Owner: strings.ToLower((App{}).AdminEmail(h.AdminUser())), ProjectID: id, Badge: expected}, session, nil
+}
+
+func verifyIdentity(ctx context.Context, h *helpers.H, selection projectSelection, key string) error {
+	if key == "" {
+		return &helpers.ManualError{Hint: keyHint}
+	}
+	h.Log.Secret(key)
+	response, err := readAPI(ctx, h, key, "/api/v3/badges/")
 	if err != nil {
 		return err
 	}
@@ -160,10 +156,50 @@ func verifyProject(ctx context.Context, h *helpers.H) error {
 		} `json:"badges"`
 		Error json.RawMessage `json:"error"`
 	}
-	if response.Decode(&result) != nil || len(result.Error) != 0 || result.Badges == nil || result.Badges["*"].SVG != expected {
+	if response.Decode(&result) != nil || len(result.Error) != 0 || result.Badges == nil || result.Badges["*"].SVG != selection.Badge {
 		return &helpers.ManualError{Hint: "Healthchecks key does not identify the selected project's overall badge. " + keyHint}
 	}
+	permissions, err := h.HTTP(ctx, helpers.Request{Path: "/api/v3/channels/", NoRedirect: true, Header: helpers.KeyScheme{Header: "X-Api-Key"}.Headers(key)})
+	if err != nil || permissions.Status != http.StatusUnauthorized {
+		return &helpers.ManualError{Hint: "Healthchecks did not prove this key is read-only. " + keyHint}
+	}
 	return nil
+}
+
+func verifyCredential(ctx context.Context, h *helpers.H, selection projectSelection, key string) error {
+	if err := verifyIdentity(ctx, h, selection, key); err != nil {
+		return err
+	}
+	response, err := readAPI(ctx, h, key, "/api/v3/checks/")
+	if err != nil {
+		return err
+	}
+	return validateChecks(response.Body)
+}
+
+func HomarrProject(ctx context.Context, h *helpers.H) (string, error) {
+	selection, _, err := selectedIdentity(ctx, h)
+	if err != nil {
+		return "", err
+	}
+	if err := credentialOwned(h, selection); err != nil {
+		return "", err
+	}
+	if err := verifyIdentity(ctx, h, selection, h.Secret(h.Key("homarr_api_key"))); err != nil {
+		return "", err
+	}
+	return selection.Badge, nil
+}
+
+func VerifyHomarr(ctx context.Context, h *helpers.H) error {
+	if _, err := HomarrProject(ctx, h); err != nil {
+		return err
+	}
+	response, err := readAPI(ctx, h, h.Secret(h.Key("homarr_api_key")), "/api/v3/checks/")
+	if err != nil {
+		return err
+	}
+	return validateChecks(response.Body)
 }
 
 func readAPI(ctx context.Context, h *helpers.H, key, path string) (helpers.Response, error) {

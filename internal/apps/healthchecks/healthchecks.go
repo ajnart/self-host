@@ -43,7 +43,9 @@ func (App) Inputs() []app.Input {
 		{Key: "ping_endpoint", Prompt: "Healthchecks ping address", Validate: validatePingEndpoint,
 			Help: "Optional absolute http or https address ending in a slash; defaults to the browser address plus /ping/. This changes displayed ping addresses, not incoming routing."},
 		{Key: "homarr_api_key", Prompt: "Existing Healthchecks project read-only API key", Private: true, RecoveryOnly: true,
-			Help: "Supply only the chosen project's known read-only key through a private file. Setup never issues or replaces keys in this initial App slice. Empty input preserves a saved key; review existing Compose before any reinstall used for private-input recovery."},
+			Help: "Supply only the chosen project's known read-only key through a private file. Empty input preserves a saved key; review existing Compose before any reinstall used for private-input recovery."},
+		{Key: "homarr_key_ownership", Prompt: "Saved Healthchecks read-only key ownership", Private: true, RecoveryOnly: true,
+			Help: "Restore only the matching saved ownership record with its known key and exact project. Never fabricate ownership, clear pending issuance or change projects to obtain another key."},
 	}
 }
 
