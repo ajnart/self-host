@@ -12,10 +12,13 @@
   ambiguous ownership needs review before mutation (`{}` preserves existing items).
   Resize owned items within each responsive grid and relocate them around user
   items and containers; reruns preserve placements and larger user-selected sizes.
-- Malformed or null App/widget ownership blocks Setup and Link changes before
-  mutation. Review the named record through the Project secret boundary; never
-  clear ownership just to bypass recovery. Missing legacy records and explicit
-  empty objects retain their existing conservative migration behavior.
+- Malformed or null App/widget/Beszel-binding ownership stops as a Manual step
+  before mutation. Setup records early recovery as `ownership`; Links retain their
+  `link-<app>`/`unlink-<app>` step identities. Board-discovered invalid ownership
+  also remains Manual. Review the named record through the Project secret boundary;
+  never clear ownership just to bypass recovery. Missing legacy records and explicit
+  empty objects retain their existing conservative migration behavior. Valid early
+  ownership checks add no step; retrying Setup clears the prior recovery step.
 - New owned Beszel System Stats widgets record their managed `systemId` separately
   from widget ownership. Re-enrollment repairs only a selection matching that prior
   binding, preserving the widget ID, layouts, time period and every chart option.

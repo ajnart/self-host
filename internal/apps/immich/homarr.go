@@ -1,7 +1,9 @@
 package immich
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,6 +23,35 @@ type apiKey struct {
 	Permissions []string `json:"permissions"`
 }
 
+type homarrKeyEvidence struct {
+	Secret   string `json:"secret"`
+	Response string `json:"response,omitempty"`
+}
+
+func issuedHomarrSecret(body []byte) string {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+		return ""
+	}
+	for decoder.More() {
+		field, err := decoder.Token()
+		if err != nil {
+			return ""
+		}
+		var value json.RawMessage
+		if decoder.Decode(&value) != nil {
+			return ""
+		}
+		if field == "secret" {
+			var secret string
+			if json.Unmarshal(value, &secret) == nil && strings.TrimSpace(secret) != "" {
+				return secret
+			}
+		}
+	}
+	return ""
+}
+
 func validateHomarrKey(key apiKey) error {
 	permissions := homarrPermissions()
 	if strings.TrimSpace(key.ID) == "" || len(key.Permissions) != len(permissions) {
@@ -35,30 +66,89 @@ func validateHomarrKey(key apiKey) error {
 }
 
 func manualHomarrKey(h *helpers.H, reason string) error {
-	h.Info(reason + " Open " + h.URL + " and review user settings > API Keys. Restore the matching IMMICH_HOMARR_API_KEY and IMMICH_HOMARR_API_KEY_ID through the Project secret boundary, then run self-host setup immich. Delete a key only after confirming it belongs to this Project, never solely by its name.")
+	h.Info(reason + " Open " + h.URL + " and review user settings > API Keys. Retain IMMICH_HOMARR_API_KEY_PENDING and the saved key/ID as recovery evidence; do not clear them to issue another key. Restore only an independently verified matching IMMICH_HOMARR_API_KEY and IMMICH_HOMARR_API_KEY_ID through the Project secret boundary, then run self-host setup immich. Delete a key only after confirming it belongs to this Project, never solely by its name.")
 	return helpers.ErrManual
 }
 
+func inspectHomarrKey(ctx context.Context, h *helpers.H, key string) (apiKey, bool, error) {
+	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/api-keys/me", NoRedirect: true, Header: map[string]string{"x-api-key": key}})
+	if err != nil {
+		return apiKey{}, false, err
+	}
+	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden {
+		return apiKey{}, false, nil
+	}
+	if resp.Status != http.StatusOK {
+		return apiKey{}, false, fmt.Errorf("Immich key verification returned HTTP %d", resp.Status)
+	}
+	var current apiKey
+	if err := resp.Decode(&current); err != nil {
+		return apiKey{}, false, err
+	}
+	if err := validateHomarrKey(current); err != nil {
+		return apiKey{}, false, err
+	}
+	return current, true, nil
+}
+
+func recoverPendingHomarrKey(ctx context.Context, h *helpers.H, pending string) (bool, error) {
+	h.Log.Secret(pending)
+	var evidence homarrKeyEvidence
+	if json.Unmarshal([]byte(pending), &evidence) != nil || strings.TrimSpace(evidence.Secret) == "" {
+		return false, manualHomarrKey(h, "Immich key issuance has unresolved pending evidence; no replacement was issued.")
+	}
+	h.Log.Secret(evidence.Secret)
+	if active := h.Secret(h.Key("homarr_api_key")); active != "" && active != evidence.Secret {
+		return false, manualHomarrKey(h, "A pending Immich key differs from the saved credential; both records were preserved.")
+	}
+	current, accepted, err := inspectHomarrKey(ctx, h, evidence.Secret)
+	if err != nil {
+		return false, err
+	}
+	if !accepted || current.Name != homarrKeyName {
+		return false, manualHomarrKey(h, "The pending Immich key was not accepted with its expected creation name; its evidence was preserved.")
+	}
+	id := h.Secret(h.Key("homarr_api_key_id"))
+	if id != "" && id != current.ID {
+		return false, manualHomarrKey(h, "The pending Immich key does not match the saved ID; neither record was changed.")
+	}
+	var created struct {
+		ID     string `json:"id"`
+		APIKey *struct {
+			ID string `json:"id"`
+		} `json:"apiKey"`
+	}
+	if json.Unmarshal([]byte(evidence.Response), &created) != nil {
+		return false, manualHomarrKey(h, "The pending Immich issuance IDs cannot be read safely; its response and secret were preserved.")
+	}
+	if created.ID != "" && created.ID != current.ID || created.APIKey != nil && created.APIKey.ID != "" && created.APIKey.ID != current.ID {
+		return false, manualHomarrKey(h, "The pending Immich key does not match its issuance IDs; its evidence was preserved.")
+	}
+	if err := verifyHomarrCredential(ctx, h, evidence.Secret); err != nil {
+		return false, err
+	}
+	if err := h.SetSecret(h.Key("homarr_api_key_id"), current.ID); err != nil {
+		return false, h.Log.RedactError(err)
+	}
+	if err := h.SetSecret(h.Key("homarr_api_key"), evidence.Secret); err != nil {
+		return false, h.Log.RedactError(err)
+	}
+	if err := h.SetSecret(h.Key("homarr_api_key_pending"), ""); err != nil {
+		return false, h.Log.RedactError(err)
+	}
+	return true, nil
+}
+
 func homarrKeyWorks(ctx context.Context, h *helpers.H) (bool, error) {
+	if pending := h.Secret(h.Key("homarr_api_key_pending")); pending != "" {
+		return recoverPendingHomarrKey(ctx, h, pending)
+	}
 	key := h.Secret(h.Key("homarr_api_key"))
 	if key == "" {
 		return false, nil
 	}
-	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/api-keys/me", NoRedirect: true, Header: map[string]string{"x-api-key": key}})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden {
-		return false, nil
-	}
-	if resp.Status != http.StatusOK {
-		return false, fmt.Errorf("Immich key verification returned HTTP %d", resp.Status)
-	}
-	var current apiKey
-	if err := resp.Decode(&current); err != nil {
-		return false, err
-	}
-	if err := validateHomarrKey(current); err != nil {
+	current, accepted, err := inspectHomarrKey(ctx, h, key)
+	if err != nil || !accepted {
 		return false, err
 	}
 	if err := VerifyHomarr(ctx, h); err != nil {
@@ -81,6 +171,10 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 	if key == "" {
 		return errors.New("Immich Homarr credential is missing; run self-host setup immich")
 	}
+	return verifyHomarrCredential(ctx, h, key)
+}
+
+func verifyHomarrCredential(ctx context.Context, h *helpers.H, key string) error {
 	header := map[string]string{"x-api-key": key}
 	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/users/me", NoRedirect: true, Header: header})
 	if err != nil {
@@ -174,6 +268,9 @@ func createHomarrKey(ctx context.Context, h *helpers.H) error {
 			return errors.New("Immich returned incomplete API-key discovery; retry self-host setup immich")
 		}
 	}
+	if err := h.SetSecret(h.Key("homarr_api_key_pending"), `{"secret":""}`); err != nil {
+		return h.Log.RedactError(err)
+	}
 	resp, err = h.HTTP(ctx, helpers.Request{
 		Method: http.MethodPost, Path: "/api/api-keys", NoRedirect: true, Header: header,
 		JSON: map[string]any{"name": homarrKeyName, "permissions": homarrPermissions()},
@@ -184,34 +281,15 @@ func createHomarrKey(ctx context.Context, h *helpers.H) error {
 	if resp.Status != http.StatusCreated {
 		return fmt.Errorf("Immich API-key creation returned HTTP %d", resp.Status)
 	}
-	var created struct {
-		apiKey
-		Secret string  `json:"secret"`
-		APIKey *apiKey `json:"apiKey"`
+	evidence := homarrKeyEvidence{Secret: issuedHomarrSecret(resp.Body), Response: string(resp.Body)}
+	h.Log.Secret(evidence.Secret, evidence.Response)
+	pending, err := json.Marshal(evidence)
+	if err != nil {
+		return h.Log.RedactError(err)
 	}
-	if resp.Decode(&created) != nil || strings.TrimSpace(created.Secret) == "" {
-		return errors.New("Immich did not return the newly created key; inspect its API keys before retrying")
+	if err := h.SetSecret(h.Key("homarr_api_key_pending"), string(pending)); err != nil {
+		return h.Log.RedactError(err)
 	}
-	metadata := created.apiKey
-	if metadata.ID == "" && created.APIKey != nil {
-		metadata = *created.APIKey
-	}
-	if err := validateHomarrKey(metadata); err != nil {
-		return err
-	}
-	if metadata.Name != homarrKeyName {
-		return errors.New("Immich returned an unexpected new API-key name; inspect its API keys before retrying")
-	}
-	if created.APIKey != nil {
-		if err := validateHomarrKey(*created.APIKey); err != nil {
-			return err
-		}
-		if created.APIKey.ID != metadata.ID || created.APIKey.Name != metadata.Name {
-			return errors.New("Immich returned inconsistent new API-key metadata; inspect its API keys before retrying")
-		}
-	}
-	if err := h.SetSecret(h.Key("homarr_api_key"), created.Secret); err != nil {
-		return err
-	}
-	return h.SetSecret(h.Key("homarr_api_key_id"), metadata.ID)
+	_, err = recoverPendingHomarrKey(ctx, h, string(pending))
+	return err
 }

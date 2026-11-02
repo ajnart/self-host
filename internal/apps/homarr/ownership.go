@@ -14,14 +14,18 @@ func readOwnership[T bool | string](h *helpers.H, key, label string) (map[string
 	if raw == "" {
 		return ids, nil
 	}
-	invalid := fmt.Errorf("invalid Homarr %s; review %s through the Project secret boundary as a JSON object of confirmed ownership, preserving existing resources, then run self-host setup homarr", label, key)
+	invalid := func() error {
+		hint := fmt.Sprintf("invalid Homarr %s; review %s through the Project secret boundary as a JSON object of confirmed ownership, preserving existing resources, then run self-host setup homarr", label, key)
+		h.Info(hint)
+		return fmt.Errorf("%s: %w", hint, helpers.ErrManual)
+	}
 	var recorded map[string]*T
 	if err := json.Unmarshal([]byte(raw), &recorded); err != nil || recorded == nil {
-		return nil, invalid
+		return nil, invalid()
 	}
 	for id, value := range recorded {
 		if strings.TrimSpace(id) == "" || value == nil || any(*value) == "" {
-			return nil, invalid
+			return nil, invalid()
 		}
 		ids[id] = *value
 	}
