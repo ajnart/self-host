@@ -1,0 +1,18 @@
+README.md
+  h_d6e478ca18e517 156,165
+site/src/content/docs/docs/getting-started.md
+  h_d6e478ca18e517 205,214
+site/src/lib/site.ts
+  h_d6e478ca18e517 26-27,34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8db91ae74caedb31f0b698375247b40b6efeb0dc",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
