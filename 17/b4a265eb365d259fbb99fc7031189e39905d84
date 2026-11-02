@@ -1,0 +1,20 @@
+docs/catalog/traps/changedetection.md
+  h_d6e478ca18e517 1-45
+internal/apps/changedetection/changedetection.go
+  h_d6e478ca18e517 1-77
+internal/apps/changedetection/changedetection_test.go
+  h_d6e478ca18e517 1-328
+internal/apps/changedetection/verify.go
+  h_d6e478ca18e517 1-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17b4a265eb365d259fbb99fc7031189e39905d84",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
