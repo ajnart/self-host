@@ -48,6 +48,17 @@ func verifyHealthchecks(ctx context.Context, from, to *helpers.H, integrationID 
 	if integrationID == "" || result["ok"] != true || result["status"] != float64(200) || integration["id"] != integrationID || integration["kind"] != "healthchecks" || bodyError || overall["svg"] != expected {
 		return &helpers.ManualError{Hint: "Homarr's recorded Healthchecks integration does not identify the selected project. Restore only its known project read-only key through Healthchecks Setup, preserve unrelated integrations and retry self-host setup homarr; equal or zero counts do not prove identity."}
 	}
+	value, err = apiKeyWrite(ctx, from, "integration.request", map[string]any{
+		"integrationId": integrationID, "method": "GET", "path": "/api/v3/channels/",
+	})
+	if err != nil {
+		return &helpers.ManualError{Hint: "Homarr could not prove that its saved Healthchecks key is read-only. Preserve the integration, restore the selected project's known read-only key through Healthchecks Setup and retry self-host setup homarr."}
+	}
+	result, _ = value.(map[string]any)
+	integration, _ = result["integration"].(map[string]any)
+	if result["ok"] != false || result["status"] != float64(401) || integration["id"] != integrationID || integration["kind"] != "healthchecks" {
+		return &helpers.ManualError{Hint: "Homarr's saved Healthchecks credential did not prove read-only scope for the selected project. Preserve its identity and restore only the known project read-only key; do not replace user integrations or weaken authentication."}
+	}
 	return nil
 }
 

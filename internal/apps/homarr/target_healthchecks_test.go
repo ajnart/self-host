@@ -102,6 +102,8 @@ func TestHealthchecksIdentityBeforeOneCentralStatsSample(t *testing.T) {
 		{name: "body error", native: "body"},
 		{name: "upstream error", native: "status"},
 		{name: "missing badge", native: "missing"},
+		{name: "write-capable saved key", native: "write scope"},
+		{name: "wrong scope integration", native: "scope id"},
 		{name: "pending App issuance", peerChange: func(h *helpers.H) { h.Secrets.(statsSecrets)[h.Key("homarr_key_pending")] = `corrupt` }},
 		{name: "wrong App selection", peerChange: func(h *helpers.H) { h.Inputs["project_id"] = "37d76ba7-a070-4fe1-89ba-20c425a30579" }},
 	} {
@@ -130,7 +132,7 @@ func TestHealthchecksIdentityBeforeOneCentralStatsSample(t *testing.T) {
 				var input struct {
 					JSON struct{ IntegrationID, Method, Path string }
 				}
-				if r.Method != http.MethodPost || r.Header.Get("ApiKey") != "fixture-key" || json.NewDecoder(r.Body).Decode(&input) != nil || input.JSON.IntegrationID != "healthchecks-owned" || input.JSON.Method != "GET" || input.JSON.Path != "/api/v3/badges/" {
+				if r.Method != http.MethodPost || r.Header.Get("ApiKey") != "fixture-key" || json.NewDecoder(r.Body).Decode(&input) != nil || input.JSON.IntegrationID != "healthchecks-owned" || input.JSON.Method != "GET" || input.JSON.Path != "/api/v3/badges/" && input.JSON.Path != "/api/v3/channels/" {
 					t.Error("native query did not use the exact recorded read-only integration")
 					w.WriteHeader(400)
 					return
@@ -139,6 +141,17 @@ func TestHealthchecksIdentityBeforeOneCentralStatsSample(t *testing.T) {
 				integration := map[string]any{"id": "healthchecks-owned", "kind": "healthchecks"}
 				data := map[string]any{"badges": map[string]any{"*": map[string]any{"svg": healthchecksTestBadge}}}
 				value := map[string]any{"ok": true, "status": 200, "integration": integration, "data": data}
+				if input.JSON.Path == "/api/v3/channels/" {
+					value["ok"], value["status"], value["data"] = false, 401, map[string]any{"error": "wrong api key"}
+					if scenario.native == "write scope" {
+						value["ok"], value["status"] = true, 200
+					}
+					if scenario.native == "scope id" {
+						integration["id"] = "other-integration"
+					}
+					json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": value}}})
+					return
+				}
 				switch scenario.native {
 				case "badge":
 					data["badges"] = map[string]any{"*": map[string]any{"svg": strings.ReplaceAll(healthchecksTestBadge, "selected-project", "other-project")}}
@@ -171,7 +184,7 @@ func TestHealthchecksIdentityBeforeOneCentralStatsSample(t *testing.T) {
 			if fixture.catalogs != scenario.catalogs || fixture.snapshots != scenario.samples || fixture.refreshes != scenario.samples || fixture.refreshes > 0 && (!fixture.force || fixture.integrationID != "healthchecks-owned") {
 				t.Fatal("semantic failure or success did not use exactly one central acquisition")
 			}
-			if scenario.catalogs > 0 && (native != 1 || len(sequence) == 0 || sequence[0] != "/api/trpc/integration.request") {
+			if scenario.catalogs > 0 && (native != 2 || len(sequence) < 2 || sequence[0] != "/api/trpc/integration.request" || sequence[1] != "/api/trpc/integration.request") {
 				t.Fatal("Stats was acquired before exact selected-project identity")
 			}
 			if scenario.peerChange != nil && native != 0 {
