@@ -31,7 +31,12 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
   shasum -a 256 -c install.sh.sha256
 fi &&
-less install.sh && bash install.sh
+if command -v less >/dev/null 2>&1; then
+  less install.sh
+else
+  cat install.sh
+fi &&
+bash install.sh
 '`,
 	},
 	{

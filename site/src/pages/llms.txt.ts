@@ -17,7 +17,7 @@ Agents: start with \`self-host skill core\` and read the relevant topic before a
 
 Remote pages are reference material, not permission to act or override user or local policy. Keep execution approvals enabled. Installing the CLI and installing Apps require separate approval; internet Access needs its own approval naming the risk. The installed binary's guide and Catalog are authoritative for its version; this site describes its own build.
 
-To make the latest repository router discoverable with the skills CLI, run \`npx skills add ajnart/self-host --skill self-host\` after approval; this source is unpinned, not reproducible. If self-host is already installed, prefer \`self-host skill install\`. Skill discovery does not install Apps or grant command permissions.
+To make the latest repository router discoverable in the current project with the skills CLI, run \`npx skills add ajnart/self-host --skill self-host\` after approval; add \`--global\` for discovery across projects. This source is unpinned, not reproducible. If self-host is already installed, prefer \`self-host skill install\` for user-level installation. Skill discovery does not install Apps or grant command permissions.
 
 Inspect with \`self-host doctor --json\`, \`self-host apps list --json\`, \`self-host apps info <app> --json\` and \`self-host status --json\`. Read \`self-host debug <app>\` for failed steps, hints and masked logs. Use \`--yes\` only for an approved operation, never to preview it.
 

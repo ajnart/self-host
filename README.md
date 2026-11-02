@@ -75,7 +75,7 @@ self-host skill install
 
 Invoke it with `$self-host` in Codex, `/self-host` in Claude Code, or ask your agent to use the self-host skill. The guide comes from `self-host skill` and matches the installed binary.
 
-Without the binary, install the latest repository version of the discoverable router with the skills CLI (requires Node.js; the source is not pinned):
+Without the binary, install the latest repository version of the discoverable router in the current project with the skills CLI (requires Node.js; the source is not pinned). Add `--global` for discovery across projects:
 
 ```bash
 npx skills add ajnart/self-host --skill self-host
@@ -161,7 +161,12 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
   shasum -a 256 -c install.sh.sha256
 fi &&
-less install.sh && bash install.sh
+if command -v less >/dev/null 2>&1; then
+  less install.sh
+else
+  cat install.sh
+fi &&
+bash install.sh
 '
 ```
 

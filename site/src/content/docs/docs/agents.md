@@ -21,7 +21,7 @@ Let the binary write the skill into `~/.agents/skills`, plus the dedicated folde
 self-host skill install
 ```
 
-Or install the latest repository version with the skills CLI (unpinned source; needs Node.js; Bun alternative below):
+Or install the latest repository version in the current project with the skills CLI (unpinned source; needs Node.js; Bun alternative below). Add `--global` for discovery across projects; unlike the default CLI scope, `self-host skill install` writes user-level agent directories:
 
 ```bash
 npx skills add ajnart/self-host --skill self-host
