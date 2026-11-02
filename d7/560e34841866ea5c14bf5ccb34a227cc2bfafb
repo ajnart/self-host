@@ -1,0 +1,26 @@
+docs/catalog/traps/mealie.md
+  h_d6e478ca18e517 13,17,20,22-29
+internal/apps/homarr/target_mealie.go
+  h_d6e478ca18e517 1-68
+internal/apps/homarr/target_mealie_test.go
+  h_d6e478ca18e517 1-204
+internal/apps/mealie/homarr.go
+  h_d6e478ca18e517 1-288
+internal/apps/mealie/homarr_test.go
+  h_d6e478ca18e517 1-219
+internal/apps/mealie/mealie.go
+  h_d6e478ca18e517 41-44,144-150,155-159,185,201,211,219-229,233-239,244
+internal/apps/mealie/mealie_test.go
+  h_d6e478ca18e517 5-6,32-35,39,41-45,59-63,73,100-104,120-141,162-163,172,179-187,213-214,248,333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7560e34841866ea5c14bf5ccb34a227cc2bfafb",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
