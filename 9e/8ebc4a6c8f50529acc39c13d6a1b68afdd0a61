@@ -1,0 +1,26 @@
+internal/host/onboarding.go
+  h_d6e478ca18e517 5,19,25,27-35,55,60,64,75-77,90-94,98,100,111-128,130
+internal/project/ports.go
+  h_d6e478ca18e517 1-122
+internal/service/doctor.go
+  h_d6e478ca18e517 90,108-111,125
+internal/service/install.go
+  h_d6e478ca18e517 637-643,652-654,661,684-686,688,690,697-704,707-708,717-718
+internal/service/onboarding_checks.go
+  h_d6e478ca18e517 14-35,38,59-66,92-93,95
+internal/service/ports.go
+  h_d6e478ca18e517 1-42
+internal/service/ports_test.go
+  h_d6e478ca18e517 1-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e8ebc4a6c8f50529acc39c13d6a1b68afdd0a61",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
