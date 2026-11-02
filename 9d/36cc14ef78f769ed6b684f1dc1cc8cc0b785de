@@ -1,0 +1,24 @@
+docs/catalog/traps/autobrr.md
+  h_d6e478ca18e517 25-27,54-56
+internal/apps/autobrr/autobrr_test.go
+  h_d6e478ca18e517 27,39,44,46,50,52,108-118,144-146,159-162,381-438
+internal/apps/autobrr/homarr.go
+  h_d6e478ca18e517 109-110,112-114,116-120,123-129,141-145,184-190,286-289
+internal/apps/autobrr/homarr_test.go
+  h_d6e478ca18e517 34,41-45,49,60,80-83,92-94,101-121
+internal/apps/homarr/target_autobrr.go
+  h_d6e478ca18e517 58-64
+internal/apps/homarr/target_autobrr_test.go
+  h_d6e478ca18e517 114-117,156-160,166-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d36cc14ef78f769ed6b684f1dc1cc8cc0b785de",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
