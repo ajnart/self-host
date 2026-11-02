@@ -32,7 +32,7 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - name: Validate CLI channel and version
         run: |
@@ -65,6 +65,10 @@ jobs:
           cd "$dir"
           for asset in self-host_${version}_{linux,darwin}_{amd64,arm64}.tar.gz self-host_${version}_linux_{amd64,arm64}.{deb,rpm,apk,pkg.tar.zst} "self-host-testkit-${version}.tgz" PKGBUILD checksums.txt; do
             test -f "$asset" || { echo "the release lacks $asset" >&2; exit 1; }
+            case "$asset" in
+              PKGBUILD|checksums.txt) continue ;;
+            esac
+            awk -v asset="$asset" '$2 == asset { if (length($1) != 64 || $1 !~ /^[[:xdigit:]]+$/) exit 1; count++ } END { if (count != 1) exit 1 }' checksums.txt || { echo "the release lacks a unique checksum for $asset" >&2; exit 1; }
           done
           sha256sum --check checksums.txt
           for archive in self-host_${version}_*.tar.gz; do

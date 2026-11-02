@@ -388,4 +388,5 @@ To turn it off, set `SELF_HOST_NO_TELEMETRY=1` or `DO_NOT_TRACK=1` (or `true`). 
 - [GitHub Issues](https://github.com/ajnart/self-host/issues): bugs and App requests.
 - Support the work: [GitHub Sponsors](https://github.com/sponsors/ajnart) · [Ko-fi](https://ko-fi.com/ajnart).
 - Contributing: read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CONTEXT.md`](CONTEXT.md), open an issue first, then send a pull request.
+- Integration tests: the [testkit](testkit/README.md) starts isolated Docker App fixtures from Go or TypeScript. The Node SDK is distributed through GitHub release tarballs, not npm.
 - New to self-hosting? [awesome-selfhosted](https://github.com/awesome-selfhosted/awesome-selfhosted).

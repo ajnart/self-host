@@ -86,10 +86,39 @@ func Cleanup(ctx context.Context, root string) error {
 	if err := inactive(ctx, runner, marker.Name, true); err != nil {
 		return err
 	}
-	if _, err := readOwnership(root); err != nil {
+	return removeOwnedRoot(ctx, root)
+}
+
+func removeOwnedRoot(ctx context.Context, root string) error {
+	marker, err := readOwnership(root)
+	if err != nil {
 		return err
 	}
-	return os.RemoveAll(root)
+	children, err := os.ReadDir(root)
+	if err != nil {
+		return errors.New("testkit private storage unavailable; ownership marker retained")
+	}
+	for _, child := range children {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if child.Name() == markerName {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(root, child.Name())); err != nil {
+			return errors.New("testkit private storage cleanup failed; ownership marker retained")
+		}
+	}
+	if err := os.Remove(filepath.Join(root, markerName)); err != nil {
+		return errors.New("testkit ownership marker cleanup failed")
+	}
+	if err := os.Remove(root); err != nil {
+		if restoreErr := writeOwnership(marker); restoreErr != nil {
+			return errors.New("testkit could not restore private recovery ownership")
+		}
+		return errors.New("testkit private root cleanup failed; ownership marker retained")
+	}
+	return nil
 }
 
 func decodeDigests(data []byte, target *[]string) error {

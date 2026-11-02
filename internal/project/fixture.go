@@ -86,6 +86,9 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 		if resources == nil {
 			continue
 		}
+		if kind == "volumes" && len(resources.Content) != 0 {
+			return out, errors.New("testkit refuses named volumes; use private bind mounts")
+		}
 		for i := 1; i < len(resources.Content); i += 2 {
 			r := resources.Content[i]
 			if r.Kind != yaml.MappingNode && r.Tag != "!!null" || len(r.Content) != 0 {
@@ -164,10 +167,7 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 					source = strings.ReplaceAll(source, "${"+key+"}", settings[key])
 				}
 				if !strings.ContainsAny(source, "/.$") {
-					if field(field(root, "volumes"), source) == nil {
-						return out, errors.New("undeclared fixture volume")
-					}
-					continue
+					return out, errors.New("testkit refuses named volumes; use private bind mounts")
 				}
 				if !filepath.IsAbs(source) {
 					source = p.Path(source)

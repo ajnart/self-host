@@ -1,17 +1,49 @@
 {
 	"name": "@self-host/testkit",
-	"version": "1.2.0",
-	"description": "Private, isolated self-host App fixtures for integration tests",
+	"version": "1.2.1",
+	"description": "Real, isolated Docker App fixtures for Node.js and TypeScript integration tests",
 	"type": "module",
 	"main": "./index.mjs",
-	"types": "./index.d.ts",
+	"types": "./index.d.mts",
 	"exports": {
 		".": {
-			"types": "./index.d.ts",
+			"types": "./index.d.mts",
 			"import": "./index.mjs"
 		}
 	},
-	"files": ["index.mjs", "index.d.ts", "README.md"],
+	"bin": { "self-host-testkit-setup": "./setup.mjs" },
+	"files": [
+		"index.mjs",
+		"index.d.mts",
+		"binary.mjs",
+		"setup.mjs",
+		"examples/sonarr.mjs",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.json && cp ../../LICENSE LICENSE",
+		"check": "tsc -p tsconfig.json --noEmit",
+		"lint": "biome check .",
+		"test": "bun test ./tests",
+		"prepack": "npm run build"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
+		"@types/node": "^26.6.4",
+		"typescript": "^6.0.3"
+	},
+	"publishConfig": { "access": "public" },
+	"keywords": [
+		"docker",
+		"compose",
+		"integration-testing",
+		"fixtures",
+		"self-hosted",
+		"typescript"
+	],
+	"homepage": "https://github.com/ajnart/self-host/tree/main/testkit",
+	"bugs": "https://github.com/ajnart/self-host/issues",
 	"engines": { "node": ">=22" },
 	"license": "Apache-2.0",
 	"repository": {

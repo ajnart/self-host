@@ -79,6 +79,18 @@
         "typescript": "^6.0.3",
       },
     },
+    "testkit/node": {
+      "name": "@self-host/testkit",
+      "version": "1.2.1",
+      "bin": {
+        "self-host-testkit-setup": "./setup.mjs",
+      },
+      "devDependencies": {
+        "@biomejs/biome": "1.9.4",
+        "@types/node": "^26.6.4",
+        "typescript": "^6.0.3",
+      },
+    },
   },
   "trustedDependencies": [
     "@biomejs/biome",
@@ -428,6 +440,8 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.2.15", "", { "os": "win32", "cpu": "x64" }, "sha512-HFZd2QNQYn1JbIi+Hpd7H+r/lkWxcfIu28nirZ6eCn2LafuvmExMlb/P96Sfx5tf7pPArw39IdhmCF8vmV+NhQ=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "@self-host/testkit": ["@self-host/testkit@workspace:testkit/node"],
 
     "@shikijs/core": ["@shikijs/core@4.5.0", "", { "dependencies": { "@shikijs/primitive": "4.5.0", "@shikijs/types": "4.5.0", "@shikijs/vscode-textmate": "^10.0.2", "@types/hast": "^3.0.5", "hast-util-to-html": "^9.0.5" } }, "sha512-6CIgwq+bt2JZ3OSjb/nBkkwEf/CfpHcbam+Mg5Pllco7HAGRQ2/EFhZrrJtbyNTgKwknfVS+llsXGygiDGwJWw=="],
 

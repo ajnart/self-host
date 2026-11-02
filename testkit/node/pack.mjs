@@ -29,9 +29,13 @@ const [artifact] = JSON.parse(packed.stdout.toString());
 const filename = `self-host-testkit-${version}.tgz`;
 const expected = [
 	"README.md",
-	"index.d.ts",
+	"LICENSE",
+	"binary.mjs",
+	"examples/sonarr.mjs",
+	"index.d.mts",
 	"index.mjs",
 	"package.json",
+	"setup.mjs",
 ].sort();
 if (
 	artifact.filename !== filename ||

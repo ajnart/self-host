@@ -236,8 +236,8 @@ func TestFixturesIsolateOwnerEnvironmentPortsAndPrivateCredentials(t *testing.T)
 		if err := fixture.Close(context.Background()); err != nil {
 			t.Fatal("Close is not idempotent")
 		}
-		if _, err := os.Stat(fixture.RecoveryPath()); err != nil {
-			t.Fatal("Close removed recovery data")
+		if _, err := os.Stat(fixture.RecoveryPath()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("successful Close retained private fixture data")
 		}
 	}
 }
@@ -270,11 +270,8 @@ func TestPartialCreationAndCancelledSetupCleanWithIndependentContext(t *testing.
 				t.Fatal("partial containers remain")
 			}
 			roots, err := os.ReadDir(parent)
-			if err != nil || len(roots) != 1 {
-				t.Fatal("recovery root not retained")
-			}
-			if _, err := readOwnership(filepath.Join(parent, roots[0].Name())); err != nil {
-				t.Fatal("private recovery marker missing")
+			if err != nil || len(roots) != 0 {
+				t.Fatal("successful failed-start cleanup retained private fixture data")
 			}
 		})
 	}
@@ -297,6 +294,28 @@ func TestCloseFallsBackToLabelsWhenProjectIsMissingAndRetainsFailedRecovery(t *t
 		t.Fatal("cleanup failure lost ownership marker")
 	}
 	f.cleanupFailure = false
+	if os.Geteuid() != 0 {
+		blocked := filepath.Join(fixture.RecoveryPath(), "blocked")
+		if err := os.Mkdir(blocked, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(blocked, "data"), []byte("synthetic"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(blocked, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(blocked, 0o700) })
+		if err := fixture.Close(context.Background()); err == nil {
+			t.Fatal("filesystem cleanup failure hidden")
+		}
+		if _, err := readOwnership(fixture.RecoveryPath()); err != nil {
+			t.Fatal("filesystem cleanup failure lost ownership marker")
+		}
+		if err := os.Chmod(blocked, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := fixture.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -310,6 +329,8 @@ func TestActualResourceCapsAreVerifiedAndFailuresCleaned(t *testing.T) {
 	f.unboundedCaps = true
 	if fixture, err := startFake(t, f, fixtureApp{}); err == nil || fixture != nil {
 		t.Fatal("unbounded actual container accepted")
+	} else if !strings.Contains(err.Error(), "could not verify resource caps or selected image") {
+		t.Fatal("safe startup cause lost")
 	}
 	if len(f.containers) != 0 {
 		t.Fatal("unbounded container not cleaned")
