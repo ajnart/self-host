@@ -1,0 +1,16 @@
+docs/catalog/traps/ntfy.md
+  h_d6e478ca18e517 7
+internal/apps/ntfy/ntfy.go
+  h_d6e478ca18e517 163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c3c729eeb18d14a8aa387e63e85690d0fda1f9ea",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
