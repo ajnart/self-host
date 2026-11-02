@@ -1,0 +1,24 @@
+internal/project/compose_environment.go
+  h_d6e478ca18e517 4,6,40-65,131-134,144-154,158-174,200,206-218,221,225,235,237-240,242,245,247-254,258-294,296
+internal/project/compose_environment_test.go
+  h_d6e478ca18e517 49-57,71-72,91-101,130-137,151-155,161-201
+internal/project/environment_multiline_test.go
+  h_d6e478ca18e517 77
+internal/service/restore.go
+  h_d6e478ca18e517 530-534,563-567
+internal/service/restore_environment_order_review_test.go
+  h_d6e478ca18e517 1-95
+internal/service/restore_followup_review_test.go
+  h_d6e478ca18e517 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58fd094c982a7c731b722844d6d42536252c564d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
