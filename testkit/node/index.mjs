@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { inspect } from "node:util";
 import { installedBinary } from "./binary.mjs";
+import { startupReasons } from "./reasons.mjs";
 const MAX_MESSAGE = 65536;
 const CLEANUP_TIMEOUT = 50000;
 const messages = new Map([
@@ -21,44 +22,22 @@ const messages = new Map([
         "Testkit helper not found. Run self-host-testkit-setup or set SELF_HOST_TESTKIT_BINARY.",
     ],
 ]);
-const startupReasons = new Map([
-    ["APP", "Choose one supported Catalog App."],
-    ["OPTIONS", "Check the selected image and lifetime options."],
-    ["DOCKER", "Check the local Unix Docker socket, daemon and Compose plugin."],
-    ["CAPABILITIES", "Docker must support memory, CPU quota and PID limits."],
-    ["PORT", "A required local port could not be reserved."],
-    ["OWNERSHIP", "Fixture ownership or isolation could not be verified."],
-    [
-        "LIMITS",
-        "Container resource caps or selected image could not be verified.",
-    ],
-    ["LOCK", "The private startup lock is unavailable."],
-    [
-        "UNSUPPORTED",
-        "This App's Compose configuration or operations are unsupported.",
-    ],
-    [
-        "STORAGE",
-        "Private fixture storage or the recovery manifest is unavailable.",
-    ],
-    ["CONTAINER", "The selected App container is absent."],
-    ["SETUP", "App Setup failed or requires a Manual step."],
-]);
 export class TestkitError extends Error {
     code;
     reason;
-    constructor(code, reason) {
+    constructor(code, reason, recoveryPath) {
         let message = messages.get(code);
         if (code === "START" && reason)
-            message = `${message} ${startupReasons.get(reason)}`;
+            message = `${message} ${startupReasons[reason]}`;
         super(message);
         this.name = "TestkitError";
         this.code = code;
         this.reason = reason;
+        Object.defineProperty(this, "recoveryPath", { value: recoveryPath });
     }
 }
-function fault(code, reason) {
-    return new TestkitError(code, reason);
+function fault(code, reason, recoveryPath) {
+    return new TestkitError(code, reason, recoveryPath);
 }
 function record(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -85,20 +64,20 @@ function privateCredentials(value) {
 function runCleanup(binary, manifest, owner) {
     return new Promise((resolve, reject) => {
         const child = spawn(binary, ["--cleanup-manifest", manifest, "--owner", owner], { stdio: "ignore" });
+        let failed = false;
         const timer = setTimeout(() => {
+            failed = true;
             child.kill("SIGKILL");
-            reject(fault("CLEANUP"));
         }, CLEANUP_TIMEOUT);
         child.once("error", () => {
-            clearTimeout(timer);
-            reject(fault("CLEANUP"));
+            failed = true;
         });
-        child.once("exit", (code) => {
+        child.once("close", (code) => {
             clearTimeout(timer);
-            if (code === 0)
+            if (!failed && code === 0)
                 resolve(undefined);
             else
-                reject(fault("CLEANUP"));
+                reject(fault("CLEANUP", undefined, manifest));
         });
     });
 }
@@ -137,12 +116,18 @@ class Bridge {
         this.#child.stdin.on("error", () => this.#fail("TRANSPORT"));
         this.#child.stdout.on("data", (chunk) => this.#receive(chunk));
     }
+    get recoveryPath() {
+        return this.#manifest;
+    }
+    #fault(code, reason) {
+        return fault(code, reason, this.#manifest);
+    }
     #fail(code) {
         this.#failed = true;
         this.#buffer = Buffer.alloc(0);
         for (const pending of this.#pending.values()) {
             clearTimeout(pending.timer);
-            pending.reject(fault(code));
+            pending.reject(this.#fault(code));
         }
         this.#pending.clear();
         this.#child.kill("SIGTERM");
@@ -167,18 +152,18 @@ class Bridge {
                     !Number.isSafeInteger(response.id) ||
                     !this.#pending.has(response.id) ||
                     Object.hasOwn(response, "error") === Object.hasOwn(response, "result")) {
-                    throw fault("PROTOCOL");
+                    throw this.#fault("PROTOCOL");
                 }
                 const pending = this.#pending.get(response.id);
                 if (!pending)
-                    throw fault("PROTOCOL");
+                    throw this.#fault("PROTOCOL");
                 this.#pending.delete(response.id);
                 clearTimeout(pending.timer);
                 if (Object.hasOwn(response, "error")) {
                     if (!record(response.error) ||
                         typeof response.error.code !== "string" ||
                         !isErrorCode(response.error.code)) {
-                        pending.reject(fault("PROTOCOL"));
+                        pending.reject(this.#fault("PROTOCOL"));
                         this.#fail("PROTOCOL");
                         return;
                     }
@@ -187,13 +172,13 @@ class Bridge {
                         if (response.error.code !== "START" ||
                             typeof response.error.reason !== "string" ||
                             !isStartupReason(response.error.reason)) {
-                            pending.reject(fault("PROTOCOL"));
+                            pending.reject(this.#fault("PROTOCOL"));
                             this.#fail("PROTOCOL");
                             return;
                         }
                         reason = response.error.reason;
                     }
-                    pending.reject(fault(response.error.code, reason));
+                    pending.reject(this.#fault(response.error.code, reason));
                 }
                 else {
                     pending.resolve(response.result);
@@ -208,7 +193,9 @@ class Bridge {
     }
     request(method, params = {}, timeout = 35000) {
         if (this.#failed)
-            return Promise.reject(fault("TRANSPORT"));
+            return Promise.reject(this.#fault("TRANSPORT"));
+        if (this.#closing)
+            return Promise.reject(this.#fault("STATE"));
         const id = ++this.#sequence;
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => this.#fail("TIMEOUT"), timeout);
@@ -225,18 +212,21 @@ class Bridge {
         });
     }
     close() {
-        if (!this.#closing)
-            this.#closing = this.#close();
+        if (!this.#closing) {
+            this.#closing = this.#close().catch((error) => {
+                this.#closing = undefined;
+                throw error;
+            });
+        }
         return this.#closing;
     }
     async #close() {
-        let failure;
         if (!this.#failed) {
             try {
                 await this.request("close", {}, CLEANUP_TIMEOUT);
             }
             catch {
-                failure = fault("CLEANUP");
+                this.#fail("TRANSPORT");
             }
         }
         this.#child.stdin.end();
@@ -245,14 +235,7 @@ class Bridge {
         clearTimeout(kill);
         if (!this.#spawned)
             return;
-        try {
-            await runCleanup(this.#binary, this.#manifest, this.#owner);
-        }
-        catch {
-            failure = fault("CLEANUP");
-        }
-        if (failure)
-            throw failure;
+        await runCleanup(this.#binary, this.#manifest, this.#owner);
     }
     [inspect.custom]() {
         return "[TestkitBridge]";
@@ -268,6 +251,9 @@ class AppHandle {
     }
     get url() {
         return this.#url;
+    }
+    get recoveryPath() {
+        return this.#bridge.recoveryPath;
     }
     async getApiKey(name = "") {
         if (this.#closed || typeof name !== "string")
@@ -299,9 +285,9 @@ class AppHandle {
             repoDigests: [...value.repoDigests],
         };
     }
-    async close() {
+    close() {
         this.#closed = true;
-        await this.#bridge.close();
+        return this.#bridge.close();
     }
     toJSON() {
         return "[App]";
@@ -350,6 +336,9 @@ class SelfHostHandle {
             }
         }
     }
+    get recoveryPath() {
+        return this.#manifest;
+    }
     async spinup(app, options) {
         const selected = options ?? {};
         if (this.#closed)
@@ -380,21 +369,29 @@ class SelfHostHandle {
             }, this.#timeout + 1000);
             if (!strings(value, ["url"]) ||
                 !/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(value.url)) {
-                throw fault("PROTOCOL");
+                throw fault("PROTOCOL", undefined, this.#manifest);
             }
             if (this.#closed)
-                throw fault("STATE");
+                throw fault("STATE", undefined, this.#manifest);
             return new AppHandle(bridge, value.url);
         }
         catch (error) {
-            await bridge.close();
+            try {
+                await bridge.close();
+            }
+            catch {
+                throw error;
+            }
             throw error;
         }
     }
     close() {
         if (!this.#closing) {
             this.#closed = true;
-            this.#closing = this.#close();
+            this.#closing = this.#close().catch((error) => {
+                this.#closing = undefined;
+                throw error;
+            });
         }
         return this.#closing;
     }
@@ -402,7 +399,7 @@ class SelfHostHandle {
         const results = await Promise.allSettled([...this.#bridges].map((bridge) => bridge.close()));
         await Promise.allSettled([...this.#starts]);
         if (results.some((result) => result.status === "rejected"))
-            throw fault("CLEANUP");
+            throw fault("CLEANUP", undefined, this.#manifest);
         if (this.#directory) {
             try {
                 try {
@@ -417,7 +414,7 @@ class SelfHostHandle {
                 rmdirSync(this.#directory);
             }
             catch {
-                throw fault("CLEANUP");
+                throw fault("CLEANUP", undefined, this.#manifest);
             }
         }
     }
@@ -432,10 +429,33 @@ function isErrorCode(value) {
     return [...messages.keys()].some((code) => code === value);
 }
 function isStartupReason(value) {
-    return [...startupReasons.keys()].some((reason) => reason === value);
+    return Object.hasOwn(startupReasons, value);
 }
 export function createSelfHost(options = {}) {
     if (!record(options))
         throw fault("PROTOCOL");
     return new SelfHostHandle(options);
+}
+export async function withApp(app, callback, options = {}) {
+    const selfHost = createSelfHost(options);
+    let result;
+    try {
+        result = {
+            ok: true,
+            value: await callback(await selfHost.spinup(app, options)),
+        };
+    }
+    catch (error) {
+        result = { ok: false, error };
+    }
+    try {
+        await selfHost.close();
+    }
+    catch (error) {
+        if (result.ok)
+            throw error;
+    }
+    if (!result.ok)
+        throw result.error;
+    return result.value;
 }

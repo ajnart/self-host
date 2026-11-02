@@ -1,29 +1,21 @@
 name: self-host integration testkit
-description: Build the matching private helper and expose the dependency-free Node SDK
+description: Install the consumer SDK's matching helper and clean up job-local fixtures
+inputs:
+  working-directory:
+    description: Consumer directory containing the installed @ajnart/self-host-testkit package
+    default: ${{ github.workspace }}
+  source:
+    description: Build the helper and use the SDK from this Action checkout instead of a release
+    default: "false"
 outputs:
   binary-path:
     description: Absolute path to the matching self-host-testkit helper
-    value: ${{ steps.build.outputs.binary-path }}
   sdk-path:
     description: Absolute path to the matching Node SDK directory
-    value: ${{ steps.build.outputs.sdk-path }}
   manifest-path:
-    description: Private job-local recovery manifest for the mandatory always-run cleanup step
-    value: ${{ steps.build.outputs.manifest-path }}
+    description: Private job-local recovery manifest used by automatic post cleanup
 runs:
-  using: composite
-  steps:
-    - id: build
-      shell: bash
-      env:
-        TESTKIT_ACTION_PATH: ${{ github.action_path }}
-      run: |
-        set -euo pipefail
-        umask 077
-        private="$(mktemp -d "$RUNNER_TEMP/self-host-testkit.XXXXXXXX")"
-        root="$(cd "$TESTKIT_ACTION_PATH/.." && pwd)"
-        cd "$root"
-        python3 "$TESTKIT_ACTION_PATH/setup-go.py" "$private"
-        CGO_ENABLED=0 GOTOOLCHAIN=local GOROOT="$private/go" "$private/go/bin/go" build -trimpath -o "$private/self-host-testkit" ./cmd/self-host-testkit
-        printf 'binary-path=%s\nsdk-path=%s\nmanifest-path=%s\n' "$private/self-host-testkit" "$root/testkit/node" "$private/manifest.jsonl" >> "$GITHUB_OUTPUT"
-        printf 'SELF_HOST_TESTKIT_BINARY=%s\nSELF_HOST_TESTKIT_SDK=%s\nSELF_HOST_TESTKIT_MANIFEST=%s\n' "$private/self-host-testkit" "$root/testkit/node" "$private/manifest.jsonl" >> "$GITHUB_ENV"
+  using: node24
+  main: node/action.mjs
+  post: node/action.mjs
+  post-if: always()

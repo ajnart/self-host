@@ -35,6 +35,8 @@ const expected = [
 	"index.d.mts",
 	"index.mjs",
 	"package.json",
+	"reasons.d.mts",
+	"reasons.mjs",
 	"setup.mjs",
 ].sort();
 if (

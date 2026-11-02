@@ -248,7 +248,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		parent, err := registerParent(ctx, b.manifest, b.owner)
 		if err != nil {
 			res.Error = failure("START")
-			res.Error.Reason = "STORAGE"
+			res.Error.Reason = string(testkit.StartupReasonStorage)
 			return res
 		}
 		timeout := 12 * time.Minute
@@ -260,7 +260,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		if err != nil {
 			cancel()
 			res.Error = failure("START")
-			res.Error.Reason = "SETUP"
+			res.Error.Reason = string(testkit.StartupReasonSetup)
 			var safe *testkit.StartupError
 			if errors.As(err, &safe) {
 				res.Error.Reason = safe.Reason()

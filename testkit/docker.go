@@ -38,7 +38,7 @@ func requireCaps(ctx context.Context, runner system.Runner) error {
 		PidsLimit   bool `json:"PidsLimit"`
 	}
 	if json.Unmarshal(data, &caps) != nil || !caps.MemoryLimit || !caps.CPUQuota || !caps.PidsLimit {
-		return startupError("CAPABILITIES", "testkit requires Docker memory, CPU quota and PID limit support")
+		return startupError(StartupReasonCapabilities, "testkit requires Docker memory, CPU quota and PID limit support")
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ func docker(ctx context.Context, runner system.Runner, args ...string) ([]byte, 
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, startupError("DOCKER", "testkit Docker operation failed")
+		return nil, startupError(StartupReasonDocker, "testkit Docker operation failed")
 	}
 	return result.Stdout, nil
 }
@@ -66,7 +66,7 @@ func resourceIDs(ctx context.Context, runner system.Runner, name, kind string) (
 	ids := strings.Fields(string(data))
 	for _, id := range ids {
 		if !dockerID.MatchString(id) {
-			return nil, startupError("OWNERSHIP", "invalid owned Docker identity")
+			return nil, startupError(StartupReasonOwnership, "invalid owned Docker identity")
 		}
 	}
 	return ids, nil
@@ -79,7 +79,7 @@ func readContainer(ctx context.Context, runner system.Runner, id, name string) (
 		return info, err
 	}
 	if json.Unmarshal(data, &info) != nil || info.Project != name || !dockerID.MatchString(info.ID) {
-		return info, startupError("OWNERSHIP", "testkit could not prove container ownership")
+		return info, startupError(StartupReasonOwnership, "testkit could not prove container ownership")
 	}
 	return info, nil
 }
@@ -90,7 +90,7 @@ func (r *guardedRunner) verify(ctx context.Context) error {
 		return err
 	}
 	if len(ids) > 5 {
-		return startupError("LIMITS", "testkit container ceiling exceeded")
+		return startupError(StartupReasonLimits, "testkit container ceiling exceeded")
 	}
 	seen := map[string]bool{}
 	for _, id := range ids {
@@ -99,7 +99,7 @@ func (r *guardedRunner) verify(ctx context.Context) error {
 			return err
 		}
 		if !slices.Contains(r.plan.Services, info.Service) || seen[info.Service] || info.Memory <= 0 || info.Memory > 1<<30 || info.NanoCPUs <= 0 || info.NanoCPUs > 1e9 || info.Pids <= 0 || info.Pids > 512 || info.ConfiguredImage != r.plan.Images[info.Service] || !imageID.MatchString(info.Image) {
-			return startupError("LIMITS", "testkit could not verify resource caps or selected image")
+			return startupError(StartupReasonLimits, "testkit could not verify resource caps or selected image")
 		}
 		seen[info.Service] = true
 		if info.Service == r.policy.Service {

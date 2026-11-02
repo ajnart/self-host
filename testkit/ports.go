@@ -22,7 +22,7 @@ func (p *portLease) reserve(ports []project.FixturePort) error {
 			continue
 		}
 		if p.released {
-			return startupError("PORT", "testkit refuses publications added after startup")
+			return startupError(StartupReasonPort, "testkit refuses publications added after startup")
 		}
 		address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port.Port))
 		var socket io.Closer
@@ -33,10 +33,10 @@ func (p *portLease) reserve(ports []project.FixturePort) error {
 		case "udp":
 			socket, err = net.ListenPacket("udp4", address)
 		default:
-			return startupError("PORT", "unsupported fixture protocol")
+			return startupError(StartupReasonPort, "unsupported fixture protocol")
 		}
 		if err != nil {
-			return startupError("PORT", "testkit publication is already occupied")
+			return startupError(StartupReasonPort, "testkit publication is already occupied")
 		}
 		p.sockets[port] = socket
 	}
@@ -47,7 +47,7 @@ func (p *portLease) random(protocols ...string) (int, error) {
 	for range 100 {
 		listener, err := net.Listen("tcp4", "127.0.0.1:0")
 		if err != nil {
-			return 0, startupError("PORT", "testkit port allocation failed")
+			return 0, startupError(StartupReasonPort, "testkit port allocation failed")
 		}
 		port := listener.Addr().(*net.TCPAddr).Port
 		listener.Close()
@@ -59,7 +59,7 @@ func (p *portLease) random(protocols ...string) (int, error) {
 			return port, nil
 		}
 	}
-	return 0, startupError("PORT", "testkit could not reserve publications")
+	return 0, startupError(StartupReasonPort, "testkit could not reserve publications")
 }
 
 func (p *portLease) handoff() {

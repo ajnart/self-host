@@ -1,2 +1,7 @@
 #!/usr/bin/env node
-export {};
+export declare class SetupError extends Error {
+}
+export declare function setup(options?: {
+    version?: string;
+    directory?: string;
+}): Promise<string>;

@@ -1,15 +1,16 @@
 # self-host testkit
 
-Start a real self-hosted App for an integration test, get its Address and API key,
-then clean it up. The testkit reuses self-host's existing App Setup; your tests
-do not need to configure Sonarr, Radarr or another supported App themselves.
+Real, isolated App fixtures for integration tests. Keep your existing API adapter;
+replace its mock Address and API key with a real App configured by self-host's Setup.
 
-```typescript
-import { createSelfHost } from "@ajnart/self-host-testkit";
+**Unreleased source:** this guide's `withApp` and automatic-cleanup JavaScript
+Action are not in published **1.2.1**. The package version has not been bumped.
+Build this checkout to try them; installing 1.2.1 does not provide these features.
 
-const selfHost = createSelfHost();
-try {
-  const sonarr = await selfHost.spinup("sonarr");
+```javascript
+import { withApp } from "@ajnart/self-host-testkit";
+
+await withApp("sonarr", async (sonarr) => {
   const response = await fetch(`${sonarr.url}/api/v3/system/status`, {
     headers: { "X-Api-Key": await sonarr.getApiKey() },
     signal: AbortSignal.timeout(10_000),
@@ -17,76 +18,88 @@ try {
   if (!response.ok) throw new Error("Sonarr rejected the request");
   const status = await response.json();
   if (status.appName !== "Sonarr") throw new Error("Unexpected App identity");
-} finally {
-  await selfHost.close();
-}
+});
 ```
 
-## Requirements
+`withApp` starts the App, awaits your callback and always attempts cleanup,
+including when the callback throws. No test-runner plugin or runtime npm dependency.
+Each fixture gets a temporary Project, loopback-only Address and private credentials;
+it never uses your normal self-host Project. See the [Node guide](node/README.md)
+for mock replacement, timeouts, recovery and CI.
 
-- **Docker Engine running locally**, with the **Docker Compose v2 plugin**
-  (`docker compose`, not the legacy `docker-compose` command).
-- Linux or macOS, x64 or arm64, with a local Unix Docker socket. Docker Desktop
-  needs to be running. Remote Docker endpoints and native Windows are unsupported.
-- Docker memory, CPU-quota and PID-limit support. Each fixture allows at most
-  five containers, each capped at 1 GiB, one CPU and 512 PIDs.
-- Node.js 22+ for the TypeScript/JavaScript SDK. Go is needed only for Go callers
-  or building the helper from source; released Node packages use a prebuilt helper.
-- Internet access and enough disk space to pull the selected App images. The
-  helper setup command also needs `tar` to extract a checksummed release archive.
+## Try this source checkout
 
-Startup can take several minutes on a cold Docker image cache. Each App gets a
-separate temporary Project, random loopback-only ports and private credentials.
-It never uses your normal self-host Project. Always close fixtures; Docker access
-is privileged, and a killed runner cannot guarantee cleanup.
+You need Node.js 22+, Bun 1.4.3+, a Go launcher able to obtain Go 1.27.3, and the
+Docker requirements below. Build the SDK and helper from the **same checkout**.
+From the repository root of this working tree containing the unreleased changes:
 
-## TypeScript install
+```bash
+bun install --frozen-lockfile
+bun run --cwd testkit/node build
+mkdir -p dist
+GOTOOLCHAIN=go1.27.3 go build -o "$PWD/dist/self-host-testkit" ./cmd/self-host-testkit
+SELF_HOST_TESTKIT_BINARY="$PWD/dist/self-host-testkit" node testkit/node/examples/sonarr.mjs
+```
 
-The package in [`node/`](node/) uses the name `@ajnart/self-host-testkit`.
-The following commands require 1.2.1 to be published to npm and the matching
-[GitHub release](https://github.com/ajnart/self-host/releases/tag/v1.2.1) to exist;
-for an unpublished checkout, use the source workflow below instead:
+The final command starts a real Sonarr App. Run it only when you intend to use
+Docker. The explicit helper path prevents mixing a released helper with source SDK.
+
+## Published 1.2.1
+
+For the existing release, use `createSelfHost()` with explicit `try/finally`
+cleanup and follow the [immutable 1.2.1 Node guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md):
 
 ```bash
 npm install --save-dev @ajnart/self-host-testkit@1.2.1
 npm exec -- self-host-testkit-setup
 ```
 
-The same package is also attached to the
-[v1.2.1 GitHub release](https://github.com/ajnart/self-host/releases/tag/v1.2.1)
-as `self-host-testkit-1.2.1.tgz`. You can install that archive instead of using the
-registry; the import path is still `@ajnart/self-host-testkit`.
+Explicit setup verifies and caches the matching released helper; **no Go required**.
+Package installation and import never download a helper or start Docker.
+The old release Action requires its documented separate cleanup step; the new
+Action's automatic post cleanup is unreleased.
 
-The older v1.2.0 tarball called itself `@self-host/testkit` and was never published
-to npm. From 1.2.1 onward, update imports to `@ajnart/self-host-testkit`; the
-maintainer owns the `@ajnart` scope. Existing v1.2.0 assets remain unchanged.
+## Headless and container requirements
 
-**Use SDK 1.2.1 and its matching helper.** The setup command, generated types,
-typed errors and cleanup fixes are not in the older v1.2.0 tarball. Its release
-assets remain unchanged. To develop from source, build the SDK and helper together:
+The **Apps run in containers; your test process runs on the Docker host**.
+No browser or terminal UI is needed.
 
-```bash
-git clone https://github.com/ajnart/self-host.git
-cd self-host
-bun install --frozen-lockfile
-bun run --cwd testkit/node build
-GOTOOLCHAIN=go1.27.3 go build -o "$PWD/dist/self-host-testkit" ./cmd/self-host-testkit
-SELF_HOST_TESTKIT_BINARY="$PWD/dist/self-host-testkit" node testkit/node/examples/sonarr.mjs
-```
+| Test environment                                                    | Fixture topology                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Linux/macOS, x64/arm64                                              | Supported with local Docker Engine and a Unix socket; Docker Desktop must be running. |
+| GitHub-hosted Ubuntu                                                | Simplest headless route: run tests directly on the runner.                            |
+| Self-hosted Linux/macOS runner                                      | Same local topology, resource limits and Docker permissions required.                 |
+| Containerized test runner, `jobs.<job>.container`, Docker-in-Docker | Unsupported.                                                                          |
+| Remote Docker/TCP endpoint or native Windows                        | Unsupported.                                                                          |
 
-This source workflow also requires Bun 1.4.3+ and a Go launcher capable of
-downloading Go 1.27.3. It starts a real Sonarr fixture; only run the demo when you
-intend to use Docker. A fresh clone follows main, so unmerged branch changes
-require checking out their branch first.
+You also need:
+
+- Docker Compose **v2** (`docker compose`), and permission to access local Docker.
+- Enforced memory, CPU and PID limits: at most five containers per fixture, each
+  capped at **1 GiB, one CPU and 512 PIDs**. Budget up to **5 GiB and five CPUs**
+  per simultaneous fixture, plus the test runner and image/storage overhead.
+- Network access and disk space for images; explicit release setup also needs
+  network access and `tar` for its checksummed helper archive.
+
+A socket mount alone does not make a containerized runner work: the returned
+`127.0.0.1` Address belongs to the Docker host, and bind-mount paths are interpreted
+on the daemon's host, not inside the test container. There is no supported
+socket-mount or privileged-container shortcut.
+
+Cold image pulls and Setup can take minutes. The helper has a **15-minute maximum
+fixture lifetime**; Node currently accepts up to **14 minutes**, reserving cleanup
+time. This is a lifetime bound, not just a startup timeout. Always close fixtures;
+SIGKILL, daemon failure or runner loss can prevent cleanup even with an Action
+post step. Prefer disposable CI runners.
+
+Apps requiring browser-only Manual steps, external accounts, hardware, host
+networking, socket mounts or named volumes fail explicitly. Not every Catalog
+App is a supported fixture. Live App acceptance and Backup/Restore caching remain
+deferred; passing transport tests does not establish either.
 
 ## Guides
 
-- [TypeScript/JavaScript: install, Vitest, API, cleanup and troubleshooting](node/README.md)
+- [Node: mock replacement, API, CI and recovery](node/README.md)
+- [GitHub Action metadata](action.yml)
 - [Go API](https://pkg.go.dev/github.com/ajnart/self-host/testkit)
-- [GitHub Action](action.yml), with a mandatory always-run cleanup step
 - [Release packaging](../docs/releasing.md)
-
-Apps needing a browser-only Manual step, external account, hardware, host
-networking, socket mounts or named volumes fail explicitly; not every Catalog
-App is a supported fixture. Backup/Restore caching is deferred and unavailable.
-Live Docker acceptance remains separate from transport and fake-system tests.
