@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, renameSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,17 +29,22 @@ const [artifact] = JSON.parse(packed.stdout.toString());
 const filename = `self-host-testkit-${version}.tgz`;
 const expected = [
 	"README.md",
-	"index.d.ts",
+	"LICENSE",
+	"binary.mjs",
+	"examples/sonarr.mjs",
+	"index.d.mts",
 	"index.mjs",
 	"package.json",
+	"setup.mjs",
 ].sort();
 if (
-	artifact.filename !== filename ||
+	artifact.filename !== `ajnart-self-host-testkit-${version}.tgz` ||
 	JSON.stringify(artifact.files.map((file) => file.path).sort()) !==
 		JSON.stringify(expected)
 ) {
 	throw new Error("Unexpected testkit package contents.");
 }
+renameSync(join(destination, artifact.filename), join(destination, filename));
 const digest = createHash("sha256")
 	.update(readFileSync(join(destination, filename)))
 	.digest("hex");

@@ -26,6 +26,7 @@ import (
 	"github.com/ajnart/self-host/internal/system"
 	"github.com/ajnart/self-host/internal/systemtest"
 	"go.yaml.in/yaml/v3"
+	"golang.org/x/sys/unix"
 )
 
 const syntheticKey = "synthetic-private-api-key"
@@ -236,8 +237,8 @@ func TestFixturesIsolateOwnerEnvironmentPortsAndPrivateCredentials(t *testing.T)
 		if err := fixture.Close(context.Background()); err != nil {
 			t.Fatal("Close is not idempotent")
 		}
-		if _, err := os.Stat(fixture.RecoveryPath()); err != nil {
-			t.Fatal("Close removed recovery data")
+		if _, err := os.Stat(fixture.RecoveryPath()); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("successful Close retained private fixture data")
 		}
 	}
 }
@@ -270,11 +271,8 @@ func TestPartialCreationAndCancelledSetupCleanWithIndependentContext(t *testing.
 				t.Fatal("partial containers remain")
 			}
 			roots, err := os.ReadDir(parent)
-			if err != nil || len(roots) != 1 {
-				t.Fatal("recovery root not retained")
-			}
-			if _, err := readOwnership(filepath.Join(parent, roots[0].Name())); err != nil {
-				t.Fatal("private recovery marker missing")
+			if err != nil || len(roots) != 0 {
+				t.Fatal("successful failed-start cleanup retained private fixture data")
 			}
 		})
 	}
@@ -289,6 +287,21 @@ func TestCloseFallsBackToLabelsWhenProjectIsMissingAndRetainsFailedRecovery(t *t
 	if err := os.Rename(fixture.guard.p.Root, fixture.guard.p.Root+"-retained"); err != nil {
 		t.Fatal(err)
 	}
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "sentinel"), []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(fixture.RecoveryPath(), "outside-link")); err != nil {
+		t.Fatal(err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := removeOwnedRoot(canceled, fixture.RecoveryPath()); !errors.Is(err, context.Canceled) {
+		t.Fatal("filesystem cleanup ignored cancellation")
+	}
+	if _, err := readOwnership(fixture.RecoveryPath()); err != nil {
+		t.Fatal("canceled cleanup lost ownership marker")
+	}
 	f.cleanupFailure = true
 	if err := fixture.Close(context.Background()); err == nil {
 		t.Fatal("cleanup failure hidden")
@@ -297,11 +310,51 @@ func TestCloseFallsBackToLabelsWhenProjectIsMissingAndRetainsFailedRecovery(t *t
 		t.Fatal("cleanup failure lost ownership marker")
 	}
 	f.cleanupFailure = false
+	if os.Geteuid() != 0 {
+		for _, kind := range []string{"fifo", "ancestor-link"} {
+			blocked := filepath.Join(fixture.RecoveryPath(), "blocked")
+			if err := os.Mkdir(blocked, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			child := filepath.Join(blocked, "child")
+			var err error
+			if kind == "fifo" {
+				err = unix.Mkfifo(child, 0o600)
+			} else {
+				err = os.Symlink("..", child)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(blocked, 0o500); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(blocked, 0o700) })
+			if err := fixture.Close(context.Background()); err == nil {
+				t.Fatal("filesystem cleanup failure hidden")
+			}
+			if _, err := readOwnership(fixture.RecoveryPath()); err != nil {
+				t.Fatal("filesystem cleanup failure lost ownership marker")
+			}
+			if err := os.Chmod(blocked, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(child); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(blocked); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	if err := fixture.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.containers) != 0 {
 		t.Fatal("label fallback failed")
+	}
+	if data, err := os.ReadFile(filepath.Join(outside, "sentinel")); err != nil || string(data) != "outside" {
+		t.Fatal("filesystem cleanup followed a link outside its owned root")
 	}
 }
 
@@ -310,6 +363,8 @@ func TestActualResourceCapsAreVerifiedAndFailuresCleaned(t *testing.T) {
 	f.unboundedCaps = true
 	if fixture, err := startFake(t, f, fixtureApp{}); err == nil || fixture != nil {
 		t.Fatal("unbounded actual container accepted")
+	} else if !strings.Contains(err.Error(), "could not verify resource caps or selected image") {
+		t.Fatal("safe startup cause lost")
 	}
 	if len(f.containers) != 0 {
 		t.Fatal("unbounded container not cleaned")

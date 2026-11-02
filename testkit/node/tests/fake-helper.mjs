@@ -50,7 +50,7 @@ input.on("line", (line) => {
 		if (app === "secret-error") {
 			process.stderr.write("private-test-raw-secret");
 			process.stdout.write(
-				`${JSON.stringify({ version: 1, id: req.id, error: { code: "START", message: "private-test-raw-secret" } })}\n`,
+				`${JSON.stringify({ version: 1, id: req.id, error: { code: "START", reason: "SETUP", message: "private-test-raw-secret" } })}\n`,
 			);
 			return;
 		}

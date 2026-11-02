@@ -56,6 +56,7 @@ func TestFixtureComposeRefusesUnprovableScopeWithoutRewriting(t *testing.T) {
 		"host network":      "services:\n  fixture:\n    image: example/app:latest\n    network_mode: host\n",
 		"fixed name":        "services:\n  fixture:\n    image: example/app:latest\n    container_name: global\n",
 		"external resource": "services:\n  fixture:\n    image: example/app:latest\nvolumes:\n  data:\n    external: true\n",
+		"named volume":      "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['data:/data']\nvolumes:\n  data: {}\n",
 		"replicas":          "services:\n  fixture:\n    image: example/app:latest\n    deploy:\n      replicas: 9\n",
 		"broad port":        "services:\n  fixture:\n    image: example/app:latest\n    ports: ['12345:80']\n",
 		"unbounded image":   "services:\n  fixture:\n    image: '${IMAGE}'\n",

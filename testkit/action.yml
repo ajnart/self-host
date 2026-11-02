@@ -13,10 +13,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-      with:
-        go-version: "1.27.2"
-        cache-dependency-path: ${{ github.action_path }}/../go.sum
     - id: build
       shell: bash
       env:
@@ -27,6 +23,7 @@ runs:
         private="$(mktemp -d "$RUNNER_TEMP/self-host-testkit.XXXXXXXX")"
         root="$(cd "$TESTKIT_ACTION_PATH/.." && pwd)"
         cd "$root"
-        CGO_ENABLED=0 go build -trimpath -o "$private/self-host-testkit" ./cmd/self-host-testkit
+        python3 "$TESTKIT_ACTION_PATH/setup-go.py" "$private"
+        CGO_ENABLED=0 GOTOOLCHAIN=local GOROOT="$private/go" "$private/go/bin/go" build -trimpath -o "$private/self-host-testkit" ./cmd/self-host-testkit
         printf 'binary-path=%s\nsdk-path=%s\nmanifest-path=%s\n' "$private/self-host-testkit" "$root/testkit/node" "$private/manifest.jsonl" >> "$GITHUB_OUTPUT"
         printf 'SELF_HOST_TESTKIT_BINARY=%s\nSELF_HOST_TESTKIT_SDK=%s\nSELF_HOST_TESTKIT_MANIFEST=%s\n' "$private/self-host-testkit" "$root/testkit/node" "$private/manifest.jsonl" >> "$GITHUB_ENV"

@@ -1,6 +1,29 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"tasks": {
+		"@ajnart/self-host-testkit#build": {
+			"inputs": [
+				"src/**",
+				"tsconfig.json",
+				"package.json",
+				"$TURBO_ROOT$/LICENSE"
+			],
+			"outputs": [
+				"index.mjs",
+				"index.d.mts",
+				"binary.mjs",
+				"binary.d.mts",
+				"setup.mjs",
+				"setup.d.mts",
+				"LICENSE"
+			]
+		},
+		"@ajnart/self-host-testkit#test": {
+			"dependsOn": ["build"]
+		},
+		"@ajnart/self-host-testkit#check": {
+			"dependsOn": ["build"]
+		},
 		"self-host-site#build": {
 			"inputs": [
 				"$TURBO_DEFAULT$",

@@ -2,7 +2,6 @@ package testkit
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,13 +20,13 @@ func startupLock(ctx context.Context) (func(), error) {
 	path := filepath.Join(os.TempDir(), "selfhost-e2e-global.lock")
 	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW, 0o600)
 	if err != nil {
-		return nil, errors.New("testkit startup lock unavailable")
+		return nil, startupError("LOCK", "testkit startup lock unavailable")
 	}
 	f := os.NewFile(uintptr(fd), path)
 	var stat unix.Stat_t
 	if err := unix.Fstat(fd, &stat); err != nil || stat.Uid != uint32(os.Getuid()) || stat.Mode&unix.S_IFMT != unix.S_IFREG || stat.Mode&0o077 != 0 {
 		f.Close()
-		return nil, errors.New("testkit startup lock is not private")
+		return nil, startupError("LOCK", "testkit startup lock is not private")
 	}
 	for {
 		err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
@@ -37,7 +36,7 @@ func startupLock(ctx context.Context) (func(), error) {
 		}
 		if err != unix.EAGAIN && err != unix.EWOULDBLOCK {
 			f.Close()
-			return nil, errors.New("testkit startup lock failed")
+			return nil, startupError("LOCK", "testkit startup lock failed")
 		}
 		select {
 		case <-ctx.Done():
@@ -79,16 +78,16 @@ func (r *guardedRunner) ComposePreparation() compose.Preparer {
 func (p fixturePreparer) PrepareCompose(ctx context.Context, root, name string, args []string) (func() error, error) {
 	r := p.runner
 	if root != r.p.Root || name != r.p.ComposeName {
-		return nil, errors.New("testkit refuses another Project")
+		return nil, startupError("OWNERSHIP", "testkit refuses another Project")
 	}
 	verb, rest := composeVerb(args)
 	if slices.Contains([]string{"run", "create", "start", "restart", "up"}, verb) {
 		if verb == "run" {
-			return nil, errors.New("testkit refuses unbounded one-off containers")
+			return nil, startupError("UNSUPPORTED", "testkit refuses unbounded one-off containers")
 		}
 		for _, arg := range rest {
 			if strings.HasPrefix(arg, "-") && !slices.Contains([]string{"-d", "--remove-orphans"}, arg) {
-				return nil, errors.New("testkit refuses creation overrides")
+				return nil, startupError("UNSUPPORTED", "testkit refuses creation overrides")
 			}
 		}
 	}
@@ -97,11 +96,11 @@ func (p fixturePreparer) PrepareCompose(ctx context.Context, root, name string, 
 	}
 	plan, err := r.p.PrepareFixtureCompose(r.policy)
 	if err != nil {
-		return nil, err
+		return nil, startupError("UNSUPPORTED", "testkit App Compose configuration is unsupported or unavailable")
 	}
 	for _, arg := range rest {
 		if !strings.HasPrefix(arg, "-") && !slices.Contains(plan.Services, arg) {
-			return nil, errors.New("testkit service outside owned Compose")
+			return nil, startupError("OWNERSHIP", "testkit service outside owned Compose")
 		}
 	}
 	r.plan = plan
@@ -123,11 +122,11 @@ func (r *guardedRunner) validate(cmd system.Cmd) error {
 	for _, entry := range cmd.Env {
 		key, _, _ := strings.Cut(entry, "=")
 		if strings.HasPrefix(key, "COMPOSE_") || strings.HasPrefix(key, "DOCKER_") || strings.HasPrefix(key, "SELF_HOST_") {
-			return errors.New("testkit refuses command scope overrides")
+			return startupError("UNSUPPORTED", "testkit refuses command scope overrides")
 		}
 	}
 	if cmd.Name != "docker" || len(cmd.Args) == 0 {
-		return errors.New("testkit refuses external command")
+		return startupError("UNSUPPORTED", "testkit refuses external command")
 	}
 	args := cmd.Args
 	if args[0] == "compose" {
@@ -135,24 +134,24 @@ func (r *guardedRunner) validate(cmd system.Cmd) error {
 			return nil
 		}
 		if len(args) < 6 || args[1] != "--project-directory" || args[2] != r.p.Root || args[3] != "-p" || args[4] != r.p.ComposeName {
-			return errors.New("testkit refuses unscoped Compose")
+			return startupError("OWNERSHIP", "testkit refuses unscoped Compose")
 		}
 		verb, _ := composeVerb(args[5:])
 		if slices.Contains([]string{"up", "create", "start", "restart"}, verb) {
 			if !r.prepared {
-				return errors.New("testkit creation requires canonical preparation")
+				return startupError("UNSUPPORTED", "testkit creation requires canonical preparation")
 			}
 			return nil
 		}
 		if slices.Contains([]string{"pull", "ps", "down", "stop", "exec", "logs", "version", "config"}, verb) {
 			return nil
 		}
-		return errors.New("testkit refuses unsupported Compose command")
+		return startupError("UNSUPPORTED", "testkit refuses unsupported Compose command")
 	}
 	if slices.Contains([]string{"info", "version"}, args[0]) || len(args) >= 2 && args[0] == "context" && args[1] == "inspect" {
 		return nil
 	}
-	return errors.New("testkit refuses direct Docker helper or unscoped command")
+	return startupError("UNSUPPORTED", "testkit refuses direct Docker helper or unscoped command")
 }
 
 func (r *guardedRunner) Run(ctx context.Context, cmd system.Cmd) (system.Result, error) {
