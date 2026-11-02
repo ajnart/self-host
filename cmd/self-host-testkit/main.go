@@ -53,11 +53,12 @@ type fixture interface {
 }
 
 type bridge struct {
-	app      fixture
-	started  bool
-	manifest string
-	owner    string
-	start    func(context.Context, testkit.Options) (fixture, error)
+	app       fixture
+	appCancel context.CancelFunc
+	started   bool
+	manifest  string
+	owner     string
+	start     func(context.Context, testkit.Options) (fixture, error)
 }
 
 type protocolWriter struct {
@@ -146,6 +147,9 @@ func (b *bridge) serve(ctx context.Context, input io.Reader, output io.Writer) (
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	defer func() {
+		if b.appCancel != nil {
+			defer b.appCancel()
+		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), cleanupTimeout)
 		defer cleanupCancel()
 		if b.app != nil {
@@ -249,20 +253,24 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		if p.TimeoutMS > 0 {
 			timeout = time.Duration(p.TimeoutMS) * time.Millisecond
 		}
-		startCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		b.app, err = b.start(startCtx, testkit.Options{App: p.App, Timeout: timeout, RootParent: parent, Image: p.Image})
+		appCtx, cancel := context.WithCancel(ctx)
+		b.app, err = b.start(appCtx, testkit.Options{App: p.App, Timeout: timeout, RootParent: parent, Image: p.Image})
 		if err != nil {
+			cancel()
 			res.Error = failure("START")
-			if errors.Is(startCtx.Err(), context.DeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				res.Error = failure("TIMEOUT")
 			}
 			return res
 		}
+		b.appCancel = cancel
 		res.Result = map[string]string{"url": b.app.URL()}
 		return res
 	}
 	if req.Method == "close" {
+		if b.appCancel != nil {
+			defer b.appCancel()
+		}
 		if b.app != nil {
 			closeCtx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
 			defer cancel()

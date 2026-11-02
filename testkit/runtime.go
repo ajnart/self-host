@@ -1,12 +1,10 @@
 package testkit
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,36 +16,6 @@ import (
 	"github.com/ajnart/self-host/internal/system"
 	"golang.org/x/sys/unix"
 )
-
-type environmentRunner struct{ env []string }
-
-func (r environmentRunner) command(ctx context.Context, cmd system.Cmd) *exec.Cmd {
-	c := exec.CommandContext(ctx, cmd.Name, cmd.Args...)
-	c.Env = append(slices.Clone(r.env), cmd.Env...)
-	c.Dir = cmd.Dir
-	c.Stdin = bytes.NewReader(cmd.Stdin)
-	return c
-}
-
-func (r environmentRunner) Run(ctx context.Context, cmd system.Cmd) (system.Result, error) {
-	c := r.command(ctx, cmd)
-	var stdout, stderr bytes.Buffer
-	c.Stdout, c.Stderr = &stdout, &stderr
-	err := c.Run()
-	result := system.Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		result.ExitCode = exit.ExitCode()
-		return result, nil
-	}
-	return result, err
-}
-
-func (r environmentRunner) Stream(ctx context.Context, cmd system.Cmd, w io.Writer) error {
-	c := r.command(ctx, cmd)
-	c.Stdout, c.Stderr = w, w
-	return c.Run()
-}
 
 func startupLock(ctx context.Context) (func(), error) {
 	path := filepath.Join(os.TempDir(), "selfhost-e2e-global.lock")

@@ -59,7 +59,7 @@ func Start(ctx context.Context, opts Options) (*App, error) {
 	env := environmentSnapshot()
 	deps := system.Real("testkit")
 	deps.Getenv = func(key string) string { return env[key] }
-	deps.Runner = environmentRunner{env: environmentList(env)}
+	deps.Runner = system.NewExecRunner(environmentList(env))
 	return start(ctx, opts, deps, catalog.Default())
 }
 
@@ -114,13 +114,13 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 		return nil, errors.New("testkit could not register private ownership")
 	}
 	base := deps.Runner
-	if production, ok := base.(environmentRunner); ok {
+	if production, ok := base.(*system.ExecRunner); ok {
 		env := map[string]string{}
-		for _, entry := range production.env {
+		for _, entry := range production.Environment() {
 			key, value, _ := strings.Cut(entry, "=")
 			env[key] = value
 		}
-		base = environmentRunner{env: environmentList(fixtureEnvironment(env, endpoint.Host))}
+		base = system.NewExecRunner(environmentList(fixtureEnvironment(env, endpoint.Host)))
 	}
 	owner.Home = root
 	getenv := func(key string) string {
@@ -344,7 +344,7 @@ func environmentSnapshot() map[string]string {
 }
 
 func environmentList(env map[string]string) []string {
-	var result []string
+	result := make([]string, 0, len(env))
 	for key, value := range env {
 		result = append(result, key+"="+value)
 	}
