@@ -1,0 +1,30 @@
+README.md
+  h_d6e478ca18e517 391
+bun.lock
+  h_d6e478ca18e517 83,102-103
+docs/releasing.md
+  h_d6e478ca18e517 20,157-161,163,174
+testkit/README.md
+  h_d6e478ca18e517 8,43,45,48,52-59
+testkit/node/README.md
+  h_d6e478ca18e517 1,16,19,26-30,63,92,162
+testkit/node/examples/sonarr.mjs
+  h_d6e478ca18e517 1
+testkit/node/pack.mjs
+  h_d6e478ca18e517 3,41,47
+testkit/node/package.json
+  h_d6e478ca18e517 2
+turbo.json
+  h_d6e478ca18e517 4,21,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd61a92737db81e66a1306f10325192b4c03fdcb",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
