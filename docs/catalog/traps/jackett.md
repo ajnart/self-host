@@ -25,7 +25,7 @@
 
 ## Deferred Homarr work
 
-Homarr's exact kind is `jackett`, credential alternative `apiKey`. Its read-only Stats metric is `configured`, unit `count`; an authenticated zero is valid. The `indexerManager` list reports unknown health, not healthy trackers. Its optional **test all** action performs tracker searches and must never be used for verification. The connector, reviewed shared count/envelope helpers, Catalog/target registration, generated metadata/counts and isolated acceptance remain coordinator-owned follow-up work, not completed coverage.
+Homarr's exact kind is `jackett`, credential alternative `apiKey`. The peer connector supplies only read-only Stats metric `configured`, unit `count`; an authenticated zero is valid. It reuses the App's accepted-key and positive capability-identity checks before any Homarr mutation and verifies one centrally acquired, advancing fresh Stats sample against the authenticated catalog, including successful numeric-zero retry metadata. Missing/null/error/stale/no-op/invalid data cannot complete it, and independently collected mutable counts are not compared for equality. The `indexerManager` list reports unknown health, not healthy trackers; it is not added by the connector. Its optional **test all** action performs tracker searches and must never be used for verification. Catalog/target registration, generated metadata/counts, independent review and isolated native/rendered/lifecycle acceptance remain coordinator-owned follow-up work, not completed coverage.
 
 ## Sources
 
