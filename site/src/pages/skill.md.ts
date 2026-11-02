@@ -1,0 +1,7 @@
+import type { APIRoute } from "astro";
+import skill from "../../../skills/self-host/SKILL.md?raw";
+
+export const GET: APIRoute = () =>
+	new Response(skill, {
+		headers: { "Content-Type": "text/markdown; charset=utf-8" },
+	});

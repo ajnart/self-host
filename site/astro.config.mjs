@@ -51,7 +51,7 @@ export default defineConfig({
         { tag: "link", attrs: { rel: "icon", href: "/icon-192.png", type: "image/png", sizes: "192x192" } },
         { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png" } },
         { tag: "link", attrs: { rel: "manifest", href: "/site.webmanifest" } },
-        { tag: "link", attrs: { rel: "alternate", type: "text/plain", href: "/llms.txt", title: "llms.txt" } },
+        { tag: "link", attrs: { rel: "describedby", type: "text/plain", href: "/llms.txt", title: "llms.txt" } },
         { tag: "script", attrs: { type: "speculationrules" }, content: SPECULATION_RULES },
       ],
       sidebar: [

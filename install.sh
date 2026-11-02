@@ -477,7 +477,8 @@ main() {
     say "Warning: Docker was not found. Install Docker with the Compose v2 plugin before deploying; self-host doctor checks it."
   fi
   say
-  say "Next: run  self-host  for the dashboard, or  self-host install media --yes  for the media server."
+  say "Next: run  self-host  to choose Apps, review the plan and approve installation."
+  say "For an AI agent: read  self-host skill  and get approval for the plan before making changes."
   say
   offer_skill "${dir}/self-host"
 }

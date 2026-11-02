@@ -36,6 +36,7 @@ func TestRouterMatchesThePublicSkillFile(t *testing.T) {
 func TestInstallWritesOnlyWhereAnAgentLives(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, ".claude"))
+	mkdir(t, filepath.Join(home, ".gemini"))
 	mkdir(t, filepath.Join(home, ".config", "opencode"))
 	mkdir(t, filepath.Join(home, ".hermes", "profiles", "work"))
 
@@ -52,7 +53,7 @@ func TestInstallWritesOnlyWhereAnAgentLives(t *testing.T) {
 		filepath.Join(home, ".hermes", "skills", "self-host"):                     skill.Written,
 		filepath.Join(home, ".hermes", "profiles", "work", "skills", "self-host"): skill.Written,
 		filepath.Join(home, ".codex", "skills", "self-host"):                      skill.Skipped,
-		filepath.Join(home, ".gemini", "config", "skills", "self-host"):           skill.Skipped,
+		filepath.Join(home, ".gemini", "skills", "self-host"):                     skill.Written,
 		filepath.Join(home, ".pi", "agent", "skills", "self-host"):                skill.Skipped,
 	} {
 		if got[path] != want {
@@ -63,7 +64,7 @@ func TestInstallWritesOnlyWhereAnAgentLives(t *testing.T) {
 	if err != nil || string(data) != string(skill.Router()) {
 		t.Errorf("SKILL.md content wrong: %v", err)
 	}
-	for _, absent := range []string{".codex", ".gemini", ".pi"} {
+	for _, absent := range []string{".codex", ".gemini/config", ".pi"} {
 		if _, err := os.Stat(filepath.Join(home, absent)); err == nil {
 			t.Errorf("created agent home %s", absent)
 		}
@@ -99,6 +100,11 @@ func TestInstallLeavesForeignEntriesAlone(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(foreignDir, "SKILL.md"), []byte("theirs"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	legacyDir := filepath.Join(home, ".gemini", "config", "skills", "self-host")
+	mkdir(t, legacyDir)
+	if err := os.WriteFile(filepath.Join(legacyDir, "SKILL.md"), []byte("theirs"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	elsewhere := t.TempDir()
 	mkdir(t, filepath.Join(home, ".claude", "skills"))
 	link := filepath.Join(home, ".claude", "skills", "self-host")
@@ -129,6 +135,12 @@ func TestInstallLeavesForeignEntriesAlone(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(foreignDir, "SKILL.md")); err != nil {
 		t.Error("remove deleted a foreign skill")
 	}
+	if statuses(results)[legacyDir] != skill.LeftAlone {
+		t.Error("remove did not preserve a foreign legacy Gemini skill")
+	}
+	if data, err := os.ReadFile(filepath.Join(legacyDir, "SKILL.md")); err != nil || string(data) != "theirs" {
+		t.Errorf("foreign legacy Gemini skill changed: %v", err)
+	}
 }
 
 func TestRemoveDeletesOnlyWhatInstallWrote(t *testing.T) {
@@ -136,6 +148,17 @@ func TestRemoveDeletesOnlyWhatInstallWrote(t *testing.T) {
 	mkdir(t, filepath.Join(home, ".codex"))
 	if _, err := skill.Install(home); err != nil {
 		t.Fatal(err)
+	}
+	legacyDir := filepath.Join(home, ".gemini", "config", "skills", "self-host")
+	mkdir(t, legacyDir)
+	for _, name := range []string{"SKILL.md", ".self-host-managed"} {
+		data, err := os.ReadFile(filepath.Join(home, ".agents", "skills", "self-host", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(legacyDir, name), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	results, err := skill.Remove(home)
@@ -152,5 +175,11 @@ func TestRemoveDeletesOnlyWhatInstallWrote(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "self-host")); err == nil {
 		t.Error("entry still present")
+	}
+	if got[legacyDir] != skill.Removed {
+		t.Errorf("legacy Gemini status: %q", got[legacyDir])
+	}
+	if _, err := os.Stat(legacyDir); !os.IsNotExist(err) {
+		t.Errorf("legacy Gemini entry still present: %v", err)
 	}
 }

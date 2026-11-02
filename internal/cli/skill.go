@@ -11,11 +11,21 @@ import (
 
 func (a *program) skillCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "skill",
+		Use:   "skill [topic]",
 		Short: "Print the agent guide that matches this binary",
-		Args:  cobra.NoArgs,
-		Run: func(*cobra.Command, []string) {
-			fmt.Fprint(a.deps.Out, skill.Guide(a.deps.Version))
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			a.document = true
+			guide := skill.Guide(a.deps.Version)
+			if len(args) > 0 {
+				var err error
+				guide, err = skill.Topic(a.deps.Version, args[0])
+				if err != nil {
+					return a.fail(err)
+				}
+			}
+			_, err := fmt.Fprint(a.deps.Out, guide)
+			return err
 		},
 	}
 	cmd.AddCommand(

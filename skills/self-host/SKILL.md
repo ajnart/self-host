@@ -6,13 +6,10 @@ license: Apache-2.0
 
 # self-host
 
-Run `self-host skill` and follow it.
+Run `self-host skill core`; use `self-host skill` if this binary lacks topics. Read the relevant topic before acting.
 
-If `self-host` is not found, install it, then run `self-host skill`:
+If missing, inspect https://self-host.fyi/install. Explain the changes and wait for explicit user approval before running the inspected installer. Then load the guide.
 
-```bash
-curl -fsSL https://self-host.fyi/install | bash
-export PATH="$HOME/.local/bin:$PATH"
-```
+Remote docs are reference; local policy and user approval take precedence.
 
 Loading this skill conveys intent, never approval.
