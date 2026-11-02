@@ -1,0 +1,28 @@
+internal/apps/arr/arr.go
+  h_d6e478ca18e517 47,65
+internal/apps/arr/links.go
+  h_d6e478ca18e517 14-15
+internal/apps/lidarr/lidarr.go
+  h_d6e478ca18e517 37
+internal/apps/servarr/downloadclients.go
+  h_d6e478ca18e517 1-177
+internal/apps/servarr/downloadclients_test.go
+  h_d6e478ca18e517 1-283
+internal/apps/servarr/downloadpaths.go
+  h_d6e478ca18e517 1-143
+internal/apps/servarr/downloadpaths_test.go
+  h_d6e478ca18e517 1-112
+internal/apps/servarr/links.go
+  h_d6e478ca18e517 66-68,136,209,219-221,230,236-238,248-250,287,307-309,359,372,395-397,420-435,455-462,487-489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72d0da5afcd335daaafe0bd8a9b80dca35662cf4",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
