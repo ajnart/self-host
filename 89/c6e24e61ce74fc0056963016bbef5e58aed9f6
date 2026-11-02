@@ -1,0 +1,18 @@
+docs/catalog/traps/immich.md
+  h_d6e478ca18e517 14,16
+internal/apps/immich/homarr.go
+  h_d6e478ca18e517 29,69-72,74,106-108,289
+internal/apps/immich/immich.go
+  h_d6e478ca18e517 198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "89c6e24e61ce74fc0056963016bbef5e58aed9f6",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
