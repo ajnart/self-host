@@ -1,0 +1,20 @@
+docs/catalog/traps/your-spotify.md
+  h_d6e478ca18e517 1-128
+internal/apps/yourspotify/account.go
+  h_d6e478ca18e517 1-80
+internal/apps/yourspotify/yourspotify.go
+  h_d6e478ca18e517 1-190
+internal/apps/yourspotify/yourspotify_test.go
+  h_d6e478ca18e517 1-352
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c46d12e23089ce460a5620277c985d0e17b07c25",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
