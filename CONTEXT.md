@@ -133,6 +133,9 @@ connect.
 `~/.self-host`, the one folder holding everything self-host knows on a host:
 the Project, its Apps' files, Unmanaged apps under `extra/`, and the Profile.
 `SELF_HOST_HOME` moves it for advanced users, who then pass it themselves.
+On Unraid, new Projects require this explicit selection; storage inspection and
+the provisional install/reboot procedure are in `docs/unraid.md`. Detection is
+not a verified support claim.
 _Avoid_: install dir, config dir
 
 **Profile**:

@@ -63,6 +63,15 @@ Loading the skill conveys intent, never approval. Every change follows the same 
 
 See [Apps and Links](/docs/apps) for how Links belong to the consuming App and how to retry unfinished Setup.
 
+Before approving App additions, `self-host doctor <app|recipe>... --set app.port=N --json`
+checks proposed ports without installing anything; add `--easy-names` only when
+planning Easy names at home. Existing Projects reserve effective Compose publications,
+including manual services and Unmanaged apps, recorded App ports and
+Easy names, and already installed targets are skipped. Review warnings even when
+Doctor exits zero. For Unraid, read the [installation prerequisites](/docs/getting-started#unraid)
+before selecting the binary and Home folder locations; detection is not verified
+support or proof of reboot persistence.
+
 ## Every conversation
 
 1. Run `self-host status --json` first. It answers "where is X?": each App's `description`, `addresses` and `state`, plus `home`, `dashboard` and `profile`. With no Project yet it exits 1 with "no Project yet"; run `self-host profile --json` instead.
@@ -113,7 +122,7 @@ After a failure, read `self-host debug <app> --json`, do what the `hint` says, t
 ## Inputs and secrets
 
 - `--set app.key=value` (repeatable) answers non-secret inputs; `--set jellyfin.port=8097` picks a port.
-- `--set-file app.key=/path` reads a private input from an owner-only file, and `=-` reads stdin. Never put a secret in a command line, a reply or a file you write. Values land only in the Project's `secrets.env`.
+- `--set-file app.key=/path` reads a private input from an owner-only file, and `=-` reads stdin. Never put a secret in a command line, a reply or a file you write. Values land in the Project's private `.env` (mode `0600`); legacy `secrets.env` remains compatible with migration and restore.
 - `self-host credentials` reveals the shared Admin login and per-App API keys. Use it privately and keep its output out of chat, logs and screenshots.
 
 ## An isolated Project

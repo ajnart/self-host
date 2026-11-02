@@ -51,12 +51,18 @@ func installDocs(goos string) string {
 // the active context, and that Compose v2 is available. Later checks are
 // skipped when an earlier one fails.
 func Docker(ctx context.Context, deps *system.Deps) []Check {
+	_, unraid := detectUnraid(deps)
 	if _, err := deps.LookPath("docker"); err != nil {
 		hint := "Install Docker Engine, then run self-host again."
+		docs := installDocs(deps.GOOS)
 		if deps.GOOS == "darwin" {
 			hint = "Install OrbStack, start it once, then run self-host again."
 		}
-		return []Check{{ID: "docker", Title: "Docker", Level: Fail, Detail: "docker command not found", Hint: hint, Docs: installDocs(deps.GOOS)}}
+		if unraid {
+			hint = "Check Docker availability in Unraid Settings before installing; self-host does not install Docker or plugins."
+			docs = unraidDocs
+		}
+		return []Check{{ID: "docker", Title: "Docker", Level: Fail, Detail: "docker command not found", Hint: hint, Docs: docs}}
 	}
 	checks := []Check{{ID: "docker", Title: "Docker", Level: OK, Detail: "docker command found"}}
 
@@ -81,6 +87,12 @@ func Docker(ctx context.Context, deps *system.Deps) []Check {
 	compose, err := deps.Runner.Run(ctx, system.Cmd{Name: "docker", Args: []string{"compose", "version", "--short"}})
 	short := strings.TrimPrefix(strings.TrimSpace(string(compose.Stdout)), "v")
 	if err != nil || compose.ExitCode != 0 || majorVersion(short) < 2 {
+		if unraid {
+			return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
+				Detail: "Docker Compose v2 plugin not available; reported version: " + short,
+				Hint:   "Use Docker Compose v2 or later, available as docker compose on this Unraid version. Check the operator's version-specific installation method; no particular third-party management plugin is required or installed by self-host.",
+				Docs:   unraidDocs})
+		}
 		return append(checks, Check{ID: "compose", Title: "Docker Compose", Level: Fail,
 			Detail: "Docker Compose v2 plugin not available",
 			Hint:   "Install the Docker Compose v2 plugin (docker compose, not docker-compose).",

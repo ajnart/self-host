@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -221,18 +222,22 @@ func NewDeps(t *testing.T, opts ...Option) *system.Deps {
 		f.resolver = &Resolver{}
 	}
 	deps := &system.Deps{
-		Version:    "test",
-		GOOS:       "linux",
-		GOARCH:     "amd64",
-		HTTP:       &http.Client{Timeout: 5 * time.Second},
-		LookPath:   func(name string) (string, error) { return "/usr/bin/" + name, nil },
-		Executable: func() (string, error) { return filepath.Join(home, "bin", "self-host"), nil },
-		Exec:       func(path string, argv []string) error { return fmt.Errorf("unexpected exec of %s", path) },
-		CacheDir:   func() (string, error) { return filepath.Join(home, ".cache"), nil },
-		ConfigDir:  func() (string, error) { return filepath.Join(home, ".config"), nil },
-		PID:        4242,
-		Out:        io.Discard,
-		Err:        io.Discard,
+		Version:       "test",
+		GOOS:          "linux",
+		GOARCH:        "amd64",
+		HTTP:          &http.Client{Timeout: 5 * time.Second},
+		LookPath:      func(name string) (string, error) { return "/usr/bin/" + name, nil },
+		Executable:    func() (string, error) { return filepath.Join(home, "bin", "self-host"), nil },
+		Exec:          func(path string, argv []string) error { return fmt.Errorf("unexpected exec of %s", path) },
+		CacheDir:      func() (string, error) { return filepath.Join(home, ".cache"), nil },
+		ConfigDir:     func() (string, error) { return filepath.Join(home, ".config"), nil },
+		UnraidRelease: func() ([]byte, error) { return nil, os.ErrNotExist },
+		Storage: func(string) (system.Storage, error) {
+			return system.Storage{}, fmt.Errorf("storage evidence unavailable")
+		},
+		PID: 4242,
+		Out: io.Discard,
+		Err: io.Discard,
 	}
 	deps.WithRunner(f.runner).
 		WithClock(f.clock).

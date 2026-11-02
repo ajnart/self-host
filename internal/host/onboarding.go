@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 
@@ -15,14 +16,23 @@ type PortRequirement struct {
 	Port       int
 	Protocols  []string
 	Automatic  bool
+	BindIP     string
 }
 
 // Onboarding checks the machine against an unapproved plan without changing it.
-func Onboarding(deps *system.Deps, projectPath string, appCount int, ports []PortRequirement) []Check {
+func Onboarding(deps *system.Deps, projectPath string, appCount int, ports []PortRequirement, existing ...PortRequirement) []Check {
 	checks := []Check{onboardingDisk(deps, projectPath, appCount)}
-	reserved := map[string]bool{}
+	reserved := slices.Clone(existing)
 	for _, requirement := range ports {
-		checks = append(checks, onboardingPort(deps, requirement, reserved))
+		if len(requirement.Protocols) == 0 {
+			requirement.Protocols = []string{"tcp"}
+		}
+		check := onboardingPort(deps, requirement, reserved)
+		checks = append(checks, check)
+		if check.Port > 0 {
+			requirement.Port = check.Port
+			reserved = append(reserved, requirement)
+		}
 	}
 	return checks
 }
@@ -42,17 +52,17 @@ func onboardingDisk(deps *system.Deps, path string, apps int) Check {
 	return check
 }
 
-func onboardingPort(deps *system.Deps, requirement PortRequirement, reserved map[string]bool) Check {
+func onboardingPort(deps *system.Deps, requirement PortRequirement, reserved []PortRequirement) Check {
 	protocols := slices.Clone(requirement.Protocols)
 	if len(protocols) == 0 {
 		protocols = []string{"tcp"}
 	}
+	requirement.Protocols = protocols
 	label := protocolLabel(protocols)
 	check := Check{ID: "port", App: requirement.App, Input: requirement.Input, Title: requirement.Title, Level: OK,
 		Detail: fmt.Sprintf("port %d %s is free", requirement.Port, label)}
-	if portUsable(deps, requirement.Port, protocols, reserved) {
+	if portUsable(deps, requirement, reserved) {
 		check.Port = requirement.Port
-		reservePort(requirement.Port, protocols, reserved)
 		return check
 	}
 	if !requirement.Automatic {
@@ -62,11 +72,12 @@ func onboardingPort(deps *system.Deps, requirement PortRequirement, reserved map
 		return check
 	}
 	for port := requirement.Port + 1; port <= 65535; port++ {
-		if portUsable(deps, port, protocols, reserved) {
+		candidate := requirement
+		candidate.Port = port
+		if portUsable(deps, candidate, reserved) {
 			check.Port = port
 			check.Level = Warn
 			check.Detail = fmt.Sprintf("port %d %s is in use; install will use %d instead", requirement.Port, label, port)
-			reservePort(port, protocols, reserved)
 			return check
 		}
 	}
@@ -76,17 +87,17 @@ func onboardingPort(deps *system.Deps, requirement PortRequirement, reserved map
 	return check
 }
 
-func portUsable(deps *system.Deps, port int, protocols []string, reserved map[string]bool) bool {
-	for _, protocol := range protocols {
-		if reserved[protocol+fmt.Sprint(port)] {
-			return false
-		}
+func portUsable(deps *system.Deps, requirement PortRequirement, reserved []PortRequirement) bool {
+	if PortReserved(requirement, reserved) {
+		return false
+	}
+	for _, protocol := range requirement.Protocols {
 		var probes []PortProbe
 		switch protocol {
 		case "tcp":
-			probes = ProbePort(deps, port)
+			probes = ProbePort(deps, requirement.Port)
 		case "udp":
-			probes = ProbeUDPPort(deps, port)
+			probes = ProbeUDPPort(deps, requirement.Port)
 		default:
 			return false
 		}
@@ -97,10 +108,26 @@ func portUsable(deps *system.Deps, port int, protocols []string, reserved map[st
 	return true
 }
 
-func reservePort(port int, protocols []string, reserved map[string]bool) {
-	for _, protocol := range protocols {
-		reserved[protocol+fmt.Sprint(port)] = true
+func PortReserved(candidate PortRequirement, reserved []PortRequirement) bool {
+	for _, existing := range reserved {
+		if candidate.Port == 0 || candidate.Port != existing.Port || !portBindingsOverlap(candidate.BindIP, existing.BindIP) {
+			continue
+		}
+		for _, protocol := range candidate.Protocols {
+			if slices.Contains(existing.Protocols, protocol) {
+				return true
+			}
+		}
 	}
+	return false
+}
+
+func portBindingsOverlap(left, right string) bool {
+	a, b := net.ParseIP(left), net.ParseIP(right)
+	if left == "" || right == "" || a == nil || b == nil || a.IsUnspecified() || b.IsUnspecified() {
+		return true
+	}
+	return a.Equal(b)
 }
 
 func protocolLabel(protocols []string) string {

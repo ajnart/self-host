@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,11 @@ import (
 // reachability checks when a Project exists.
 func (s *Service) Doctor(ctx context.Context) []host.Check {
 	checks := host.Docker(ctx, s.Deps)
+	home := ""
+	if p, err := s.Project(); err == nil {
+		home = p.Root
+	}
+	checks = append(checks, host.Unraid(s.Deps, home)...)
 	if host.Worst(checks) == host.Fail {
 		return checks
 	}
@@ -70,6 +76,53 @@ func (s *Service) Doctor(ctx context.Context) []host.Check {
 	}
 	checks = append(checks, ss.tailscaleChecks(ctx, byService)...)
 	return checks
+}
+
+func (s *Service) DoctorPlan(ctx context.Context, opts InstallOptions) []host.Check {
+	p, err := s.Project()
+	failed := func(err error) []host.Check {
+		return []host.Check{{ID: "plan", Title: "Planned ports", Level: host.Fail, Detail: err.Error()}}
+	}
+	if err != nil {
+		return failed(err)
+	}
+	if !p.Exists() {
+		return s.onboardingChecks(opts, nil)
+	}
+	apps, err := s.Resolve(opts.Targets)
+	if err != nil {
+		return failed(err)
+	}
+	installed, err := p.AppIDs()
+	if err != nil {
+		return failed(err)
+	}
+	state, err := p.LoadState()
+	if err != nil {
+		return failed(err)
+	}
+	settings, err := p.LoadSettings()
+	if err != nil {
+		return failed(err)
+	}
+	reserved, err := s.reservedPorts(p, state, settings, "")
+	if err != nil {
+		return failed(err)
+	}
+	if settings[settingNames] == namesOn {
+		opts.EasyNames = false
+	}
+	opts.Targets = nil
+	for _, a := range apps {
+		if !slices.Contains(installed, a.Info().ID) {
+			opts.Targets = append(opts.Targets, a.Info().ID)
+		}
+	}
+	if len(opts.Targets) == 0 {
+		return []host.Check{{ID: "plan", Title: "Planned Apps", Level: host.Warn,
+			Detail: "all selected Apps are already installed", Hint: "Use plain Doctor for their current ports; planned checks inspect additions only."}}
+	}
+	return s.onboardingChecks(opts, reserved)
 }
 
 func (s *Service) appChecks(ctx context.Context, app AppStatus, byService map[string]compose.Container, lan bool) []host.Check {

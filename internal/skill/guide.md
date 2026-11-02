@@ -552,8 +552,27 @@ undetermined). With a Project it adds `project-lock`, `project-userns`
 `firewall` (both only under `lan`), and per App `running`, `binding` and
 `reachable`, plus `easy-names` while Easy names at home are on.
 
-Doctor does not check unapproved App ports or free disk, so its human and JSON
-output stay unchanged. Onboarding checks free space in the Home folder and the
+On Unraid, Doctor also reports `unraid` and `unraid-home` before a Project exists,
+even when Docker fails. Detection uses `/etc/unraid-version`; Home folder checks
+read backing mounts without creating files. Persistence and database suitability
+remain unverified. Before planning an Unraid install or reboot, read
+https://github.com/ajnart/self-host/blob/main/docs/unraid.md for storage selection,
+fresh-session invocation, approval boundaries and the real-Host evidence gate.
+New Unraid Projects require explicit persistent locations; unsupported storage
+stops before Project creation. No plugin or boot configuration is changed.
+Docker Compose v2 or later is required, not `include` support: the authoritative
+root `compose.yml` contains services directly. Audit that file's mounts, not
+per-App recovery snapshots. Keep the private `.env` (mode `0600`) on the same
+persistent Home folder; legacy `secrets.env` remains compatible with recovery.
+
+Plain Doctor does not check unapproved App ports or free disk. For proposed Apps,
+`self-host doctor <app|recipe>... --set app.port=N --json` checks a proposed plan
+without applying it; `--easy-names` also checks port 80. Use the same non-secret
+inputs in the approved install. Existing Projects reserve effective Compose
+publications (including manual services and Unmanaged apps), recorded App ports and
+Easy names; planned checks skip targets already installed. Plain Doctor's
+existing-project behaviour stays intact.
+Onboarding checks free space in the Home folder and the
 selected Apps' default ports at Review, before approval. A failed check blocks
 approval and `r` rechecks it. An occupied default is a warning naming the free
 port install will select; an occupied explicitly selected primary or secondary

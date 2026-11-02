@@ -139,6 +139,8 @@ func Real(version string) *Deps {
 		Hardlink:               probeHardlink,
 		InspectDockerNamespace: inspectDockerNamespace,
 		SetNamespaceMetadata:   setNamespaceMetadata,
+		UnraidRelease:          func() ([]byte, error) { return os.ReadFile("/etc/unraid-version") },
+		Storage:                inspectStorage,
 		Resolver:               newResolver(),
 		ListFolders:            ListFolders,
 		ProcessAlive:           processAlive,
