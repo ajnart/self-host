@@ -2,7 +2,6 @@
 
   Easy names at home
 
-  When names don't work
   The names need internet name lookup. Some routers hide them, and a phone using its own name
   lookup may behave differently. Use the addresses with numbers when a name fails.
 
@@ -12,8 +11,9 @@
   this.
 
   The internet
-  self-host opens no port on your router. Do not forward port 80 to this computer; these pages are
-  meant for your home network.
+  self-host opens no port on your router. A public host address can expose Caddy and App ports
+  directly; restrict them with your host/provider firewall. Do not forward port 80 to this
+  computer; these pages are meant for your home network.
 
   Changing it later
   Everything here can be changed later in Settings, under Access.

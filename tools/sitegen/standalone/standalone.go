@@ -90,7 +90,7 @@ func AvailableLinks(ap app.App) []Link {
 }
 
 func renderContext(ap app.App) app.RenderContext {
-	rc := app.RenderContext{Port: ap.Info().Port, Inputs: renderInputs(ap), Settings: map[string]string{}}
+	rc := app.RenderContext{Port: ap.Info().Port, Inputs: renderInputs(ap), Settings: map[string]string{"MEDIA_LAYOUT": "shared"}}
 	if _, ok := ap.(app.DockerSocketMounter); ok {
 		rc.DockerSocket = "/var/run/docker.sock"
 	}

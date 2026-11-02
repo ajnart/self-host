@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -26,6 +27,7 @@ func (App) Info() app.Info {
 		Port:          8112,
 		ContainerPort: 8112,
 		Service:       "deluge",
+		UsesMedia:     true,
 	}
 }
 
@@ -33,17 +35,23 @@ func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("deluge", rc.Settings)
+	mount := "./media-data:/downloads"
+	if mediastorage.Shared(rc.Settings) {
+		mount = "${DATA_ROOT}/torrents:/data/torrents"
+	}
 	return `services:
   deluge:
     image: lscr.io/linuxserver/deluge:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
+      UMASK: ` + mask + `
     volumes:
       - ./config:/config
-      - ./media-data:/downloads
+      - ` + mount + `
     ports:
       - ${BIND_IP}:` + port + `:8112
 `
@@ -361,7 +369,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}); err != nil {
 		return err
 	}
-	return h.Step(ctx, "daemon", "verify the Deluge daemon and download queue", helpers.StepSpec{
+	if err := h.Step(ctx, "daemon", "verify the Deluge daemon and download queue", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			err := VerifyHomarr(ctx, h)
 			return err == nil, err
@@ -369,15 +377,66 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		Do:         func(ctx context.Context) error { return connectDaemon(ctx, h) },
 		Hint:       "Open " + h.URL + " and select the local daemon in Connection Manager. If more than one is listed, choose the intended daemon and enable automatic connection. Then run: self-host setup deluge",
 		Credential: "admin",
-	})
+	}); err != nil {
+		return err
+	}
+	return downloadFolder(ctx, h)
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {
-	return VerifyHomarr(ctx, h)
+	if err := VerifyHomarr(ctx, h); err != nil {
+		return err
+	}
+	if mediastorage.Shared(h.Settings) {
+		ok, err := downloadFolderMatches(ctx, h)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New("Deluge's download folders are outside /data/torrents")
+		}
+	}
+	return nil
 }
 
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return `The Web UI starts with the password "` + initialPassword + `"; change it on the first sign-in.`
+	return `The Web UI starts with the password "` + initialPassword + `"; change it on the first sign-in. Set Download to and Move completed to to /data/torrents in Preferences > Downloads.`
+}
+
+func downloadFolderMatches(ctx context.Context, h *helpers.H) (bool, error) {
+	s, err := webSession(ctx, h)
+	if err != nil {
+		return false, err
+	}
+	defer rpc(ctx, s, "auth.delete_session")
+	response, err := rpc(ctx, s, "core.get_config")
+	if err != nil {
+		return false, err
+	}
+	var config map[string]any
+	if err := json.Unmarshal(response.Result, &config); err != nil {
+		return false, err
+	}
+	return config["download_location"] == "/data/torrents" && config["move_completed_path"] == "/data/torrents", nil
+}
+
+func downloadFolder(ctx context.Context, h *helpers.H) error {
+	if !mediastorage.Shared(h.Settings) {
+		return nil
+	}
+	return h.Step(ctx, "save-path", "save torrents in /data/torrents", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) { return downloadFolderMatches(ctx, h) },
+		Do: func(ctx context.Context) error {
+			s, err := webSession(ctx, h)
+			if err != nil {
+				return err
+			}
+			defer rpc(ctx, s, "auth.delete_session")
+			_, err = rpc(ctx, s, "core.set_config", map[string]any{"download_location": "/data/torrents", "move_completed_path": "/data/torrents"})
+			return err
+		},
+		Hint: "In Deluge > Preferences > Downloads set Download to and Move completed to to /data/torrents.",
+	})
 }

@@ -80,7 +80,7 @@ func TestLinksKeepTheirStepIDsTitlesMessagesAndHints(t *testing.T) {
 			name: "seerr server", from: "seerr", to: "sonarr", port: 8989,
 			links: seerr.App{}.Links(), title: "requests go to Sonarr",
 			applyID: "link-sonarr", applyMsg: "send requests to Sonarr",
-			applyHint: "Review http://seerr.example/settings/services: Sonarr uses host sonarr, port 8989, its API key from `self-host credentials` and root folder /media/tv. For multiple profiles, run self-host install seerr --set seerr.sonarr_profile=<ID-or-exact-name> --yes. Existing defaults and search choices are preserved; unowned servers are never adopted or deleted.",
+			applyHint: "Review http://seerr.example/settings/services: Sonarr uses host sonarr, port 8989, its API key from `self-host credentials` and a root folder currently configured in Sonarr. For multiple profiles, run self-host install seerr --set seerr.sonarr_profile=<ID-or-exact-name> --yes. Existing defaults and search choices are preserved; unowned servers are never adopted or deleted.",
 			removeID:  "unlink-sonarr", removeMsg: "stop sending requests to Sonarr",
 			rmHint: "Review http://seerr.example/settings/services and remove only the intended Sonarr entry. Unowned or changed entries are left for manual review.",
 		},

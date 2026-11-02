@@ -36,7 +36,11 @@ func TestInstallAllocatesAvailableSecondaryPorts(t *testing.T) {
 				return nil
 			}
 
-			if err := h.svc.Install(context.Background(), InstallOptions{Targets: []string{tc.app.Info().ID}}); err != nil && !errors.Is(err, ErrIncomplete) {
+			opts := InstallOptions{Targets: []string{tc.app.Info().ID}}
+			if tc.app.Info().UsesMedia {
+				opts.Settings = map[string]string{"PUID": strconv.Itoa(os.Geteuid()), "PGID": strconv.Itoa(os.Getegid())}
+			}
+			if err := h.svc.Install(context.Background(), opts); err != nil && !errors.Is(err, ErrIncomplete) {
 				t.Fatal(err)
 			}
 

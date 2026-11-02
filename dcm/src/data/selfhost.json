@@ -10,7 +10,7 @@
    "port": 5006,
    "docs": "https://actualbudget.org/docs/install/docker/",
    "links": [],
-   "compose": "services:\n  actual-budget:\n    image: ghcr.io/actualbudget/actual:latest\n    container_name: ${CONTAINER_PREFIX}actual-budget\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/actual-budget/data:/data\n    ports:\n      - 5006:5006\n",
+   "compose": "services:\n  actual-budget:\n    image: ghcr.io/actualbudget/actual:latest\n    container_name: ${CONTAINER_PREFIX}actual-budget\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/actual-budget/data:/data\n    ports:\n      - 5006:5006\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -44,7 +44,7 @@
    "port": 3000,
    "docs": "https://github.com/AdguardTeam/AdGuardHome/wiki/Docker",
    "links": [],
-   "compose": "services:\n  adguard-home:\n    image: adguard/adguardhome:latest\n    container_name: ${CONTAINER_PREFIX}adguard-home\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/adguard-home/work:/opt/adguardhome/work\n      - ${CONFIG_PATH}/adguard-home/conf:/opt/adguardhome/conf\n    ports:\n      - 3000:3000\n",
+   "compose": "services:\n  adguard-home:\n    image: adguard/adguardhome:latest\n    container_name: ${CONTAINER_PREFIX}adguard-home\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/adguard-home/work:/opt/adguardhome/work\n      - ${CONFIG_PATH}/adguard-home/conf:/opt/adguardhome/conf\n    ports:\n      - 3000:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -78,7 +78,7 @@
    "port": 8001,
    "docs": "https://wiki.archiveteam.org/index.php/ArchiveTeam_Warrior",
    "links": [],
-   "compose": "services:\n  archive-team-warrior-init:\n    image: atdr.meo.ws/archiveteam/warrior-dockerfile:latest\n    container_name: ${CONTAINER_PREFIX}archive-team-warrior-init\n    user: \"0:0\"\n    network_mode: none\n    read_only: true\n    entrypoint: [\"/bin/sh\", \"-ec\"]\n    command:\n      - |\n        if [ -L /owned/data/wget-at ] && [ \"$(readlink /owned/data/wget-at)\" = /usr/local/bin/wget-lua ]; then\n          rm -- /owned/data/wget-at\n        fi\n        cp -aLn /home/warrior/data/. /owned/data/\n        chown -Rh 1000:1000 /owned/projects /owned/data\n    volumes:\n      - ${CONFIG_PATH}/archive-team-warrior/projects:/owned/projects\n      - ${CONFIG_PATH}/archive-team-warrior/data:/owned/data\n\n  archive-team-warrior:\n    image: atdr.meo.ws/archiveteam/warrior-dockerfile:latest\n    container_name: ${CONTAINER_PREFIX}archive-team-warrior\n    restart: ${RESTART_POLICY}\n    user: \"1000:1000\"\n    depends_on:\n      archive-team-warrior-init:\n        condition: service_completed_successfully\n    environment:\n      TZ: ${TZ}\n      DOWNLOADER: ${ARCHIVE_TEAM_WARRIOR_NICKNAME}\n      SELECTED_PROJECT: \"none\"\n      CONCURRENT_ITEMS: \"1\"\n      HTTP_USERNAME: ${ADMIN_USER}\n      HTTP_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/archive-team-warrior/projects:/home/warrior/projects\n      - ${CONFIG_PATH}/archive-team-warrior/data:/home/warrior/data\n    ports:\n      - 8001:8001\n",
+   "compose": "services:\n  archive-team-warrior-init:\n    image: atdr.meo.ws/archiveteam/warrior-dockerfile:latest\n    container_name: ${CONTAINER_PREFIX}archive-team-warrior-init\n    user: \"0:0\"\n    network_mode: none\n    read_only: true\n    entrypoint: [\"/bin/sh\", \"-ec\"]\n    command:\n      - |\n        if [ -L /owned/data/wget-at ] && [ \"$(readlink /owned/data/wget-at)\" = /usr/local/bin/wget-lua ]; then\n          rm -- /owned/data/wget-at\n        fi\n        cp -aLn /home/warrior/data/. /owned/data/\n        chown -Rh 1000:1000 /owned/projects /owned/data\n    volumes:\n      - ${CONFIG_PATH}/archive-team-warrior/projects:/owned/projects\n      - ${CONFIG_PATH}/archive-team-warrior/data:/owned/data\n\n  archive-team-warrior:\n    image: atdr.meo.ws/archiveteam/warrior-dockerfile:latest\n    container_name: ${CONTAINER_PREFIX}archive-team-warrior\n    restart: ${RESTART_POLICY}\n    user: \"1000:1000\"\n    depends_on:\n      archive-team-warrior-init:\n        condition: service_completed_successfully\n    environment:\n      TZ: ${TZ}\n      DOWNLOADER: ${ARCHIVE_TEAM_WARRIOR_NICKNAME}\n      SELECTED_PROJECT: \"none\"\n      CONCURRENT_ITEMS: \"1\"\n      HTTP_USERNAME: ${ADMIN_USER}\n      HTTP_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/archive-team-warrior/projects:/home/warrior/projects\n      - ${CONFIG_PATH}/archive-team-warrior/data:/home/warrior/data\n    ports:\n      - 8001:8001\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -137,7 +137,7 @@
    "port": 6800,
    "docs": "https://aria2.github.io/manual/en/html/",
    "links": [],
-   "compose": "services:\n  aria2:\n    image: snowdreamtech/aria2:debian\n    container_name: ${CONTAINER_PREFIX}aria2\n    entrypoint: [\"/usr/bin/aria2c\"]\n    command: [\"--conf-path=/run/secrets/rpc-config\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${DATA_PATH}/downloads:/var/lib/aria2/downloads\n      - ${CONFIG_PATH}/aria2/rpc-config:/run/secrets/rpc-config:ro\n    ports:\n      - 6800:6800\n",
+   "compose": "services:\n  aria2:\n    image: snowdreamtech/aria2:debian\n    container_name: ${CONTAINER_PREFIX}aria2\n    entrypoint: [\"/usr/bin/aria2c\"]\n    command: [\"--conf-path=/run/secrets/rpc-config\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${DATA_PATH}/downloads:/var/lib/aria2/downloads\n      - ${CONFIG_PATH}/aria2/rpc-config:/run/secrets/rpc-config:ro\n    ports:\n      - 6800:6800\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -177,7 +177,7 @@
    "port": 13378,
    "docs": "https://www.audiobookshelf.org/docs",
    "links": [],
-   "compose": "services:\n  audiobookshelf:\n    image: ghcr.io/advplyr/audiobookshelf:latest\n    container_name: ${CONTAINER_PREFIX}audiobookshelf\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/audiobookshelf/config:/config\n      - ${CONFIG_PATH}/audiobookshelf/metadata:/metadata\n      - ${DATA_PATH}/media:/media\n    ports:\n      - 13378:80\n",
+   "compose": "services:\n  audiobookshelf:\n    image: ghcr.io/advplyr/audiobookshelf:latest\n    container_name: ${CONTAINER_PREFIX}audiobookshelf\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/audiobookshelf/config:/config\n      - ${CONFIG_PATH}/audiobookshelf/metadata:/metadata\n      - ${DATA_PATH}/media:/data/media\n    ports:\n      - 13378:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -211,7 +211,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, create the root account on the first visit. The shared media folder is mounted at /media. Create any missing audiobook or podcast subfolders with your Host user's ownership, then select them in Settings > Libraries. Review existing libraries before adding any, without replacing their folders or importing automatically."
+   "notes": "After the first start, create the root account on the first visit. The shared media folder is mounted at /data/media. Create any missing audiobook or podcast subfolders with your Host user's ownership, then select them in Settings > Libraries. Review existing libraries before adding any, without replacing their folders or importing automatically."
   },
   {
    "id": "authelia",
@@ -223,7 +223,7 @@
    "port": 9091,
    "docs": "https://www.authelia.com/integration/deployment/docker/",
    "links": [],
-   "compose": "services:\n  authelia:\n    image: docker.io/authelia/authelia:latest\n    container_name: ${CONTAINER_PREFIX}authelia\n    restart: ${RESTART_POLICY}\n    command: [\"--config\", \"/config/configuration.yml\"]\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}\n      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_KEY}\n      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: ${AUTHELIA_RESET_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/authelia/config:/config\n    ports:\n      - 9091:9091\n",
+   "compose": "services:\n  authelia:\n    image: docker.io/authelia/authelia:latest\n    container_name: ${CONTAINER_PREFIX}authelia\n    restart: ${RESTART_POLICY}\n    command: [\"--config\", \"/config/configuration.yml\"]\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}\n      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_KEY}\n      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: ${AUTHELIA_RESET_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/authelia/config:/config\n    ports:\n      - 9091:9091\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "AUTHELIA_RESET_SECRET",
@@ -296,7 +296,7 @@
    "port": 9000,
    "docs": "https://docs.goauthentik.io/install-config/install/docker-compose/",
    "links": [],
-   "compose": "services:\n  authentik:\n    image: ghcr.io/goauthentik/server:2026.8\n    container_name: ${CONTAINER_PREFIX}authentik\n    command: server\n    restart: ${RESTART_POLICY}\n    shm_size: 536870912\n    environment:\n      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql\n      AUTHENTIK_POSTGRESQL__NAME: authentik\n      AUTHENTIK_POSTGRESQL__USER: authentik\n      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}\n      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}\n      AUTHENTIK_BOOTSTRAP_PASSWORD: ${ADMIN_PASSWORD}\n      AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_USER}@selfhost.local\n    volumes:\n      - ${CONFIG_PATH}/authentik/data:/data\n    ports:\n      - 9000:9000\n    depends_on:\n      authentik-postgresql:\n        condition: service_healthy\n\n  authentik-worker:\n    image: ghcr.io/goauthentik/server:2026.8\n    container_name: ${CONTAINER_PREFIX}authentik-worker\n    command: worker\n    restart: ${RESTART_POLICY}\n    shm_size: 536870912\n    environment:\n      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql\n      AUTHENTIK_POSTGRESQL__NAME: authentik\n      AUTHENTIK_POSTGRESQL__USER: authentik\n      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}\n      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}\n      AUTHENTIK_BOOTSTRAP_PASSWORD: ${ADMIN_PASSWORD}\n      AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_USER}@selfhost.local\n      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/authentik/data:/data\n    depends_on:\n      authentik-postgresql:\n        condition: service_healthy\n\n  authentik-postgresql:\n    image: docker.io/library/postgres:16-alpine\n    container_name: ${CONTAINER_PREFIX}authentik-postgresql\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: authentik\n      POSTGRES_USER: authentik\n      POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/authentik/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-d\", \"authentik\", \"-U\", \"authentik\"]\n      interval: 30s\n      timeout: 5s\n      start_period: 20s\n      retries: 5\n",
+   "compose": "services:\n  authentik:\n    image: ghcr.io/goauthentik/server:2026.8\n    container_name: ${CONTAINER_PREFIX}authentik\n    command: server\n    restart: ${RESTART_POLICY}\n    shm_size: 536870912\n    environment:\n      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql\n      AUTHENTIK_POSTGRESQL__NAME: authentik\n      AUTHENTIK_POSTGRESQL__USER: authentik\n      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}\n      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}\n      AUTHENTIK_BOOTSTRAP_PASSWORD: ${ADMIN_PASSWORD}\n      AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_USER}@selfhost.local\n    volumes:\n      - ${CONFIG_PATH}/authentik/data:/data\n    ports:\n      - 9000:9000\n    depends_on:\n      authentik-postgresql:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  authentik-worker:\n    image: ghcr.io/goauthentik/server:2026.8\n    container_name: ${CONTAINER_PREFIX}authentik-worker\n    command: worker\n    restart: ${RESTART_POLICY}\n    shm_size: 536870912\n    environment:\n      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql\n      AUTHENTIK_POSTGRESQL__NAME: authentik\n      AUTHENTIK_POSTGRESQL__USER: authentik\n      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}\n      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}\n      AUTHENTIK_BOOTSTRAP_PASSWORD: ${ADMIN_PASSWORD}\n      AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_USER}@selfhost.local\n      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/authentik/data:/data\n    depends_on:\n      authentik-postgresql:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  authentik-postgresql:\n    image: docker.io/library/postgres:16-alpine\n    container_name: ${CONTAINER_PREFIX}authentik-postgresql\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: authentik\n      POSTGRES_USER: authentik\n      POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/authentik/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-d\", \"authentik\", \"-U\", \"authentik\"]\n      interval: 30s\n      timeout: 5s\n      start_period: 20s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -364,7 +364,7 @@
    "port": 6767,
    "docs": "https://wiki.bazarr.media/",
    "links": [],
-   "compose": "services:\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: ${CONTAINER_PREFIX}bazarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/bazarr/config:/config\n      - ${DATA_PATH}/media:/media\n    ports:\n      - 6767:6767\n",
+   "compose": "services:\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: ${CONTAINER_PREFIX}bazarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/bazarr/config:/config\n      - ${DATA_PATH}/media:/data/media\n    ports:\n      - 6767:6767\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -428,7 +428,7 @@
    "port": 8090,
    "docs": "https://www.beszel.dev/guide/hub-installation",
    "links": [],
-   "compose": "services:\n  beszel:\n    image: henrygd/beszel:latest\n    container_name: ${CONTAINER_PREFIX}beszel\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_URL: http://${LAN_IP}:8090\n    volumes:\n      - ${CONFIG_PATH}/beszel/data:/beszel_data\n    ports:\n      - 8090:8090\n\n  beszel-agent:\n    image: henrygd/beszel-agent:latest\n    container_name: ${CONTAINER_PREFIX}beszel-agent\n    restart: ${RESTART_POLICY}\n    network_mode: host\n    depends_on:\n      - beszel-socket-proxy\n    environment:\n      HUB_URL: http://127.0.0.1:8090\n      LISTEN: 127.0.0.1:45876\n      KEY: \"${BESZEL_AGENT_KEY:-}\"\n      TOKEN: \"${BESZEL_AGENT_TOKEN:-}\"\n      SYSTEM_NAME: This machine\n      DOCKER_HOST: tcp://127.0.0.1:45877\n    volumes:\n      - ${CONFIG_PATH}/beszel/agent:/var/lib/beszel-agent\n\n  beszel-socket-proxy:\n    image: lscr.io/linuxserver/socket-proxy:latest\n    container_name: ${CONTAINER_PREFIX}beszel-socket-proxy\n    restart: ${RESTART_POLICY}\n    read_only: true\n    tmpfs:\n      - /run\n    environment:\n      CONTAINERS: \"1\"\n      POST: \"0\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n    ports:\n      - 127.0.0.1:45877:2375\n",
+   "compose": "services:\n  beszel:\n    image: henrygd/beszel:latest\n    container_name: ${CONTAINER_PREFIX}beszel\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_URL: http://${LAN_IP}:8090\n    volumes:\n      - ${CONFIG_PATH}/beszel/data:/beszel_data\n    ports:\n      - 8090:8090\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  beszel-agent:\n    image: henrygd/beszel-agent:latest\n    container_name: ${CONTAINER_PREFIX}beszel-agent\n    restart: ${RESTART_POLICY}\n    network_mode: host\n    depends_on:\n      - beszel-socket-proxy\n    environment:\n      HUB_URL: http://127.0.0.1:8090\n      LISTEN: 127.0.0.1:45876\n      KEY: \"${BESZEL_AGENT_KEY:-}\"\n      TOKEN: \"${BESZEL_AGENT_TOKEN:-}\"\n      SYSTEM_NAME: This machine\n      DOCKER_HOST: tcp://127.0.0.1:45877\n    volumes:\n      - ${CONFIG_PATH}/beszel/agent:/var/lib/beszel-agent\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  beszel-socket-proxy:\n    image: lscr.io/linuxserver/socket-proxy:latest\n    container_name: ${CONTAINER_PREFIX}beszel-socket-proxy\n    restart: ${RESTART_POLICY}\n    read_only: true\n    tmpfs:\n      - /run\n    environment:\n      CONTAINERS: \"1\"\n      POST: \"0\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n    ports:\n      - 127.0.0.1:45877:2375\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "BESZEL_AGENT_KEY",
@@ -481,7 +481,7 @@
    "port": 8080,
    "docs": "https://www.bookstackapp.com/docs/admin/installation/",
    "links": [],
-   "compose": "services:\n  bookstack:\n    image: lscr.io/linuxserver/bookstack:latest\n    container_name: ${CONTAINER_PREFIX}bookstack\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      APP_URL: http://${LAN_IP}:8080\n      DB_HOST: bookstack-db\n      DB_PORT: \"3306\"\n      DB_USERNAME: bookstack\n      DB_DATABASE: bookstack\n      DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}\n      APP_KEY: ${BOOKSTACK_APP_KEY}\n    volumes:\n      - ${CONFIG_PATH}/bookstack/config:/config\n      - ${CONFIG_PATH}/bookstack/php-fpm-run:/etc/s6-overlay/s6-rc.d/svc-php-fpm/run:ro\n    ports:\n      - 8080:80\n    depends_on:\n      - bookstack-db\n\n  bookstack-db:\n    image: docker.io/library/mariadb:12.3.3\n    container_name: ${CONTAINER_PREFIX}bookstack-db\n    restart: ${RESTART_POLICY}\n    environment:\n      MARIADB_DATABASE: bookstack\n      MARIADB_USER: bookstack\n      MARIADB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}\n      MARIADB_ROOT_PASSWORD: ${BOOKSTACK_DB_ROOT_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/bookstack/database:/var/lib/mysql\n",
+   "compose": "services:\n  bookstack:\n    image: lscr.io/linuxserver/bookstack:latest\n    container_name: ${CONTAINER_PREFIX}bookstack\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      APP_URL: http://${LAN_IP}:8080\n      DB_HOST: bookstack-db\n      DB_PORT: \"3306\"\n      DB_USERNAME: bookstack\n      DB_DATABASE: bookstack\n      DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}\n      APP_KEY: ${BOOKSTACK_APP_KEY}\n    volumes:\n      - ${CONFIG_PATH}/bookstack/config:/config\n      - ${CONFIG_PATH}/bookstack/php-fpm-run:/etc/s6-overlay/s6-rc.d/svc-php-fpm/run:ro\n    ports:\n      - 8080:80\n    depends_on:\n      - bookstack-db\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  bookstack-db:\n    image: docker.io/library/mariadb:12.3.3\n    container_name: ${CONTAINER_PREFIX}bookstack-db\n    restart: ${RESTART_POLICY}\n    environment:\n      MARIADB_DATABASE: bookstack\n      MARIADB_USER: bookstack\n      MARIADB_PASSWORD: ${BOOKSTACK_DB_PASSWORD}\n      MARIADB_ROOT_PASSWORD: ${BOOKSTACK_DB_ROOT_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/bookstack/database:/var/lib/mysql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "BOOKSTACK_APP_KEY",
@@ -595,7 +595,7 @@
    "port": 2015,
    "docs": "https://caddyserver.com/docs/",
    "links": [],
-   "compose": "services:\n  caddy:\n    image: caddy:latest\n    container_name: ${CONTAINER_PREFIX}caddy\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/caddy/caddyfile:/etc/caddy/Caddyfile\n      - ${CONFIG_PATH}/caddy/data:/data\n      - ${CONFIG_PATH}/caddy/config:/config\n    ports:\n      - 2015:2015\n",
+   "compose": "services:\n  caddy:\n    image: caddy:latest\n    container_name: ${CONTAINER_PREFIX}caddy\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/caddy/caddyfile:/etc/caddy/Caddyfile\n      - ${CONFIG_PATH}/caddy/data:/data\n      - ${CONFIG_PATH}/caddy/config:/config\n    ports:\n      - 2015:2015\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -642,7 +642,7 @@
      "title": "download client: qBittorrent"
     }
    ],
-   "compose": "services:\n  cleanuparr:\n    image: ghcr.io/cleanuparr/cleanuparr:latest\n    container_name: ${CONTAINER_PREFIX}cleanuparr\n    restart: ${RESTART_POLICY}\n    environment:\n      PORT: \"11011\"\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/cleanuparr/config:/config\n    ports:\n      - 11011:11011\n",
+   "compose": "services:\n  cleanuparr:\n    image: ghcr.io/cleanuparr/cleanuparr:latest\n    container_name: ${CONTAINER_PREFIX}cleanuparr\n    restart: ${RESTART_POLICY}\n    environment:\n      PORT: \"11011\"\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/cleanuparr/config:/config\n    ports:\n      - 11011:11011\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -700,7 +700,7 @@
    "port": 0,
    "docs": "https://developers.cloudflare.com/tunnel/",
    "links": [],
-   "compose": "services:\n  cloudflare-tunnel:\n    image: cloudflare/cloudflared:latest\n    container_name: ${CONTAINER_PREFIX}cloudflare-tunnel\n    restart: ${RESTART_POLICY}\n    command: [\"tunnel\", \"--no-autoupdate\", \"--metrics\", \"127.0.0.1:2000\", \"run\"]\n    environment:\n      TZ: ${TZ}\n      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}\n",
+   "compose": "services:\n  cloudflare-tunnel:\n    image: cloudflare/cloudflared:latest\n    container_name: ${CONTAINER_PREFIX}cloudflare-tunnel\n    restart: ${RESTART_POLICY}\n    command: [\"tunnel\", \"--no-autoupdate\", \"--metrics\", \"127.0.0.1:2000\", \"run\"]\n    environment:\n      TZ: ${TZ}\n      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CLOUDFLARE_TUNNEL_TOKEN",
@@ -741,7 +741,7 @@
    "port": 3001,
    "docs": "https://getdashdot.com/docs/",
    "links": [],
-   "compose": "services:\n  dashdot:\n    image: mauricenino/dashdot:latest\n    container_name: ${CONTAINER_PREFIX}dashdot\n    restart: ${RESTART_POLICY}\n    read_only: true\n    environment:\n      DASHDOT_RUNNING_IN_DOCKER: \"false\"\n      DASHDOT_WIDGET_LIST: cpu,ram\n      DASHDOT_DISABLE_BACKGROUND_STATS_COLLECTION: \"true\"\n      DASHDOT_DISABLE_INTEGRATIONS: \"false\"\n      DASHDOT_ENABLE_CPU_TEMPS: \"false\"\n      DASHDOT_PAGE_TITLE: Kernel CPU and RAM\n      DASHDOT_RAM_LABEL_LIST: size\n    ports:\n      - 3001:3001\n",
+   "compose": "services:\n  dashdot:\n    image: mauricenino/dashdot:latest\n    container_name: ${CONTAINER_PREFIX}dashdot\n    restart: ${RESTART_POLICY}\n    read_only: true\n    environment:\n      DASHDOT_RUNNING_IN_DOCKER: \"false\"\n      DASHDOT_WIDGET_LIST: cpu,ram\n      DASHDOT_DISABLE_BACKGROUND_STATS_COLLECTION: \"true\"\n      DASHDOT_DISABLE_INTEGRATIONS: \"false\"\n      DASHDOT_ENABLE_CPU_TEMPS: \"false\"\n      DASHDOT_PAGE_TITLE: Kernel CPU and RAM\n      DASHDOT_RAM_LABEL_LIST: size\n    ports:\n      - 3001:3001\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONTAINER_PREFIX",
@@ -768,7 +768,7 @@
    "port": 8112,
    "docs": "https://deluge.readthedocs.io/en/latest/",
    "links": [],
-   "compose": "services:\n  deluge:\n    image: lscr.io/linuxserver/deluge:latest\n    container_name: ${CONTAINER_PREFIX}deluge\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/deluge/config:/config\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 8112:8112\n",
+   "compose": "services:\n  deluge:\n    image: lscr.io/linuxserver/deluge:latest\n    container_name: ${CONTAINER_PREFIX}deluge\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/deluge/config:/config\n      - ${DATA_PATH}/torrents:/data/torrents\n    ports:\n      - 8112:8112\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -811,10 +811,16 @@
      "default": "UTC",
      "description": "Time zone, for example Europe/Paris",
      "secret": false
+    },
+    {
+     "key": "UMASK",
+     "default": "022",
+     "description": "Permission mask for files the App creates",
+     "secret": false
     }
    ],
    "standalone": true,
-   "notes": "The Web UI starts with the password \"deluge\"; change it on the first sign-in."
+   "notes": "The Web UI starts with the password \"deluge\"; change it on the first sign-in. Set Download to and Move completed to to /data/torrents in Preferences > Downloads."
   },
   {
    "id": "dockge",
@@ -826,7 +832,7 @@
    "port": 5001,
    "docs": "https://github.com/louislam/dockge#how-to-install",
    "links": [],
-   "compose": "services:\n  dockge:\n    image: docker.io/louislam/dockge:latest\n    container_name: ${CONTAINER_PREFIX}dockge\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      DOCKGE_STACKS_DIR: /app/data/stacks\n      DOCKGE_ENABLE_CONSOLE: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/dockge/data:/app/data\n    ports:\n      - 5001:5001\n",
+   "compose": "services:\n  dockge:\n    image: docker.io/louislam/dockge:latest\n    container_name: ${CONTAINER_PREFIX}dockge\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      DOCKGE_STACKS_DIR: /app/data/stacks\n      DOCKGE_ENABLE_CONSOLE: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/dockge/data:/app/data\n    ports:\n      - 5001:5001\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -866,7 +872,7 @@
    "port": 3000,
    "docs": "https://docmost.com/docs/installation",
    "links": [],
-   "compose": "services:\n  docmost:\n    image: docker.io/docmost/docmost:latest\n    container_name: ${CONTAINER_PREFIX}docmost\n    restart: ${RESTART_POLICY}\n    environment:\n      REDIS_URL: redis://docmost-redis:6379\n      APP_URL: http://${LAN_IP}:3000\n      APP_SECRET: ${DOCMOST_APP_SECRET}\n      DATABASE_URL: postgresql://docmost:${DOCMOST_DB_PASSWORD}@docmost-db:5432/docmost\n    volumes:\n      - ${CONFIG_PATH}/docmost/storage:/app/data/storage\n    ports:\n      - 3000:3000\n    depends_on:\n      - docmost-db\n      - docmost-redis\n\n  docmost-db:\n    image: docker.io/library/postgres:18\n    container_name: ${CONTAINER_PREFIX}docmost-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: docmost\n      POSTGRES_USER: docmost\n      POSTGRES_PASSWORD: ${DOCMOST_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/docmost/database:/var/lib/postgresql\n\n  docmost-redis:\n    image: docker.io/library/redis:latest\n    container_name: ${CONTAINER_PREFIX}docmost-redis\n    restart: ${RESTART_POLICY}\n    command: [\"redis-server\", \"--appendonly\", \"yes\", \"--maxmemory-policy\", \"noeviction\"]\n    volumes:\n      - ${CONFIG_PATH}/docmost/redis:/data\n",
+   "compose": "services:\n  docmost:\n    image: docker.io/docmost/docmost:latest\n    container_name: ${CONTAINER_PREFIX}docmost\n    restart: ${RESTART_POLICY}\n    environment:\n      REDIS_URL: redis://docmost-redis:6379\n      APP_URL: http://${LAN_IP}:3000\n      APP_SECRET: ${DOCMOST_APP_SECRET}\n      DATABASE_URL: postgresql://docmost:${DOCMOST_DB_PASSWORD}@docmost-db:5432/docmost\n    volumes:\n      - ${CONFIG_PATH}/docmost/storage:/app/data/storage\n    ports:\n      - 3000:3000\n    depends_on:\n      - docmost-db\n      - docmost-redis\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  docmost-db:\n    image: docker.io/library/postgres:18\n    container_name: ${CONTAINER_PREFIX}docmost-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: docmost\n      POSTGRES_USER: docmost\n      POSTGRES_PASSWORD: ${DOCMOST_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/docmost/database:/var/lib/postgresql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  docmost-redis:\n    image: docker.io/library/redis:latest\n    container_name: ${CONTAINER_PREFIX}docmost-redis\n    restart: ${RESTART_POLICY}\n    command: [\"redis-server\", \"--appendonly\", \"yes\", \"--maxmemory-policy\", \"noeviction\"]\n    volumes:\n      - ${CONFIG_PATH}/docmost/redis:/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -920,7 +926,7 @@
    "port": 8096,
    "docs": "https://emby.media/support/articles/Installation.html",
    "links": [],
-   "compose": "services:\n  emby:\n    image: emby/embyserver:latest\n    container_name: ${CONTAINER_PREFIX}emby\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/emby/config:/config\n      - ${DATA_PATH}/media:/mnt/media:ro\n    ports:\n      - 8096:8096\n",
+   "compose": "services:\n  emby:\n    image: emby/embyserver:latest\n    container_name: ${CONTAINER_PREFIX}emby\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/emby/config:/config\n      - ${DATA_PATH}/media:/mnt/media:ro\n    ports:\n      - 8096:8096\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -960,7 +966,7 @@
    "port": 8080,
    "docs": "https://docs.firefly-iii.org/how-to/firefly-iii/installation/docker/",
    "links": [],
-   "compose": "services:\n  firefly-iii:\n    image: fireflyiii/core:latest\n    container_name: ${CONTAINER_PREFIX}firefly-iii\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_ENV: production\n      APP_DEBUG: \"false\"\n      APP_URL: http://${LAN_IP}:8080\n      DB_CONNECTION: pgsql\n      DB_HOST: firefly-iii-db\n      DB_PORT: \"5432\"\n      DB_DATABASE: firefly\n      DB_USERNAME: firefly\n      DB_PASSWORD: ${FIREFLY_III_DB_PASSWORD}\n      APP_KEY: ${FIREFLY_III_APP_KEY}\n      STATIC_CRON_TOKEN: ${FIREFLY_III_CRON_TOKEN}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/firefly-iii/uploads:/var/www/html/storage/upload\n    ports:\n      - 8080:8080\n    depends_on:\n      - firefly-iii-db\n\n  firefly-iii-db:\n    image: docker.io/library/postgres:18\n    container_name: ${CONTAINER_PREFIX}firefly-iii-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: firefly\n      POSTGRES_USER: firefly\n      POSTGRES_PASSWORD: ${FIREFLY_III_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/firefly-iii/database:/var/lib/postgresql\n",
+   "compose": "services:\n  firefly-iii:\n    image: fireflyiii/core:latest\n    container_name: ${CONTAINER_PREFIX}firefly-iii\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_ENV: production\n      APP_DEBUG: \"false\"\n      APP_URL: http://${LAN_IP}:8080\n      DB_CONNECTION: pgsql\n      DB_HOST: firefly-iii-db\n      DB_PORT: \"5432\"\n      DB_DATABASE: firefly\n      DB_USERNAME: firefly\n      DB_PASSWORD: ${FIREFLY_III_DB_PASSWORD}\n      APP_KEY: ${FIREFLY_III_APP_KEY}\n      STATIC_CRON_TOKEN: ${FIREFLY_III_CRON_TOKEN}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/firefly-iii/uploads:/var/www/html/storage/upload\n    ports:\n      - 8080:8080\n    depends_on:\n      - firefly-iii-db\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  firefly-iii-db:\n    image: docker.io/library/postgres:18\n    container_name: ${CONTAINER_PREFIX}firefly-iii-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: firefly\n      POSTGRES_USER: firefly\n      POSTGRES_PASSWORD: ${FIREFLY_III_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/firefly-iii/database:/var/lib/postgresql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1027,7 +1033,7 @@
    "port": 3000,
    "docs": "https://forgejo.org/docs/latest/admin/installation-docker/",
    "links": [],
-   "compose": "services:\n  forgejo:\n    image: codeberg.org/forgejo/forgejo:16\n    container_name: ${CONTAINER_PREFIX}forgejo\n    restart: ${RESTART_POLICY}\n    environment:\n      FORGEJO__database__DB_TYPE: sqlite3\n      FORGEJO__security__INSTALL_LOCK: \"true\"\n      FORGEJO__service__DISABLE_REGISTRATION: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/forgejo/data:/data\n    ports:\n      - 3000:3000\n",
+   "compose": "services:\n  forgejo:\n    image: codeberg.org/forgejo/forgejo:16\n    container_name: ${CONTAINER_PREFIX}forgejo\n    restart: ${RESTART_POLICY}\n    environment:\n      FORGEJO__database__DB_TYPE: sqlite3\n      FORGEJO__security__INSTALL_LOCK: \"true\"\n      FORGEJO__service__DISABLE_REGISTRATION: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/forgejo/data:/data\n    ports:\n      - 3000:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1061,7 +1067,7 @@
    "port": 8080,
    "docs": "https://github.com/FreshRSS/FreshRSS/tree/edge/Docker",
    "links": [],
-   "compose": "services:\n  freshrss:\n    image: ghcr.io/freshrss/freshrss:latest\n    container_name: ${CONTAINER_PREFIX}freshrss\n    restart: ${RESTART_POLICY}\n    environment:\n      CRON_MIN: \"1,31\"\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/freshrss/data:/var/www/FreshRSS/data\n      - ${CONFIG_PATH}/freshrss/extensions:/var/www/FreshRSS/extensions\n    ports:\n      - 8080:80\n",
+   "compose": "services:\n  freshrss:\n    image: ghcr.io/freshrss/freshrss:latest\n    container_name: ${CONTAINER_PREFIX}freshrss\n    restart: ${RESTART_POLICY}\n    environment:\n      CRON_MIN: \"1,31\"\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/freshrss/data:/var/www/FreshRSS/data\n      - ${CONFIG_PATH}/freshrss/extensions:/var/www/FreshRSS/extensions\n    ports:\n      - 8080:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1101,7 +1107,7 @@
    "port": 8971,
    "docs": "https://docs.frigate.video/guides/getting_started/",
    "links": [],
-   "compose": "services:\n  frigate:\n    image: ghcr.io/blakeblackshear/frigate:stable\n    container_name: ${CONTAINER_PREFIX}frigate\n    restart: ${RESTART_POLICY}\n    shm_size: \"64mb\"\n    environment:\n      FRIGATE_JWT_SECRET: ${FRIGATE_JWT_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/frigate/config:/config\n      - ${CONFIG_PATH}/frigate/storage:/media/frigate\n      - ${CONFIG_PATH}/frigate/bootstrap-config:/config/config.yml:ro\n    ports:\n      - 8971:8971\n    tmpfs:\n      - /tmp/cache\n",
+   "compose": "services:\n  frigate:\n    image: ghcr.io/blakeblackshear/frigate:stable\n    container_name: ${CONTAINER_PREFIX}frigate\n    restart: ${RESTART_POLICY}\n    shm_size: \"64mb\"\n    environment:\n      FRIGATE_JWT_SECRET: ${FRIGATE_JWT_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/frigate/config:/config\n      - ${CONFIG_PATH}/frigate/storage:/media/frigate\n      - ${CONFIG_PATH}/frigate/bootstrap-config:/config/config.yml:ro\n    ports:\n      - 8971:8971\n    tmpfs:\n      - /tmp/cache\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1142,7 +1148,7 @@
    "port": 8080,
    "docs": "https://github.com/TwiN/gatus/blob/v5.37.0/README.md",
    "links": [],
-   "compose": "services:\n  gatus:\n    image: ghcr.io/twin/gatus:latest\n    container_name: ${CONTAINER_PREFIX}gatus\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/gatus/config:/config/config.yaml\n      - ${CONFIG_PATH}/gatus/data:/data\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  gatus:\n    image: ghcr.io/twin/gatus:latest\n    container_name: ${CONTAINER_PREFIX}gatus\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/gatus/config:/config/config.yaml\n      - ${CONFIG_PATH}/gatus/data:/data\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1176,7 +1182,7 @@
    "port": 61208,
    "docs": "https://glances.readthedocs.io/en/latest/docker.html",
    "links": [],
-   "compose": "services:\n  glances:\n    image: nicolargo/glances:latest\n    container_name: ${CONTAINER_PREFIX}glances\n    restart: ${RESTART_POLICY}\n    environment:\n      GLANCES_OPT: -w\n    ports:\n      - 61208:61208\n",
+   "compose": "services:\n  glances:\n    image: nicolargo/glances:latest\n    container_name: ${CONTAINER_PREFIX}glances\n    restart: ${RESTART_POLICY}\n    environment:\n      GLANCES_OPT: -w\n    ports:\n      - 61208:61208\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONTAINER_PREFIX",
@@ -1203,7 +1209,7 @@
    "port": 8000,
    "docs": "https://github.com/qdm12/gluetun-wiki",
    "links": [],
-   "compose": "services:\n  gluetun:\n    image: qmcgaw/gluetun:latest\n    container_name: ${CONTAINER_PREFIX}gluetun\n    restart: ${RESTART_POLICY}\n    cap_add:\n      - NET_ADMIN\n    devices:\n      - /dev/net/tun:/dev/net/tun\n    environment:\n      TZ: ${TZ}\n      VPN_SERVICE_PROVIDER: protonvpn\n      VPN_TYPE: openvpn\n      SERVER_COUNTRIES: ${GLUETUN_SERVER_COUNTRY}\n      OPENVPN_USER: ${GLUETUN_OPENVPN_USER}\n      OPENVPN_PASSWORD: ${GLUETUN_OPENVPN_PASSWORD}\n      FIREWALL_ENABLED_DISABLING_IT_SHOOTS_YOU_IN_YOUR_FOOT: \"on\"\n      HTTP_CONTROL_SERVER_ADDRESS: \":8000\"\n      HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: /run/secrets/control-auth\n    volumes:\n      - ${CONFIG_PATH}/gluetun/config:/gluetun\n      - ${CONFIG_PATH}/gluetun/control-auth.toml:/run/secrets/control-auth:ro\n    ports:\n      - 8000:8000\n",
+   "compose": "services:\n  gluetun:\n    image: qmcgaw/gluetun:latest\n    container_name: ${CONTAINER_PREFIX}gluetun\n    restart: ${RESTART_POLICY}\n    cap_add:\n      - NET_ADMIN\n    devices:\n      - /dev/net/tun:/dev/net/tun\n    environment:\n      TZ: ${TZ}\n      VPN_SERVICE_PROVIDER: protonvpn\n      VPN_TYPE: openvpn\n      SERVER_COUNTRIES: ${GLUETUN_SERVER_COUNTRY}\n      OPENVPN_USER: ${GLUETUN_OPENVPN_USER}\n      OPENVPN_PASSWORD: ${GLUETUN_OPENVPN_PASSWORD}\n      FIREWALL_ENABLED_DISABLING_IT_SHOOTS_YOU_IN_YOUR_FOOT: \"on\"\n      HTTP_CONTROL_SERVER_ADDRESS: \":8000\"\n      HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: /run/secrets/control-auth\n    volumes:\n      - ${CONFIG_PATH}/gluetun/config:/gluetun\n      - ${CONFIG_PATH}/gluetun/control-auth.toml:/run/secrets/control-auth:ro\n    ports:\n      - 8000:8000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1263,7 +1269,7 @@
    "port": 8080,
    "docs": "https://gotify.net/docs/install",
    "links": [],
-   "compose": "services:\n  gotify:\n    image: gotify/server:latest\n    container_name: ${CONTAINER_PREFIX}gotify\n    restart: ${RESTART_POLICY}\n    environment:\n      GOTIFY_DEFAULTUSER_NAME: ${ADMIN_USER}\n      GOTIFY_REGISTRATION: \"false\"\n      GOTIFY_LOCALAUTH_ENABLED: \"true\"\n      TZ: ${TZ}\n      GOTIFY_DEFAULTUSER_PASS: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/gotify/appdata:/app/data\n    ports:\n      - 8080:80\n",
+   "compose": "services:\n  gotify:\n    image: gotify/server:latest\n    container_name: ${CONTAINER_PREFIX}gotify\n    restart: ${RESTART_POLICY}\n    environment:\n      GOTIFY_DEFAULTUSER_NAME: ${ADMIN_USER}\n      GOTIFY_REGISTRATION: \"false\"\n      GOTIFY_LOCALAUTH_ENABLED: \"true\"\n      TZ: ${TZ}\n      GOTIFY_DEFAULTUSER_PASS: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/gotify/appdata:/app/data\n    ports:\n      - 8080:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -1315,7 +1321,7 @@
    "port": 3000,
    "docs": "https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/",
    "links": [],
-   "compose": "services:\n  grafana:\n    image: grafana/grafana:latest\n    container_name: ${CONTAINER_PREFIX}grafana\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      GF_SECURITY_ADMIN_USER: ${ADMIN_USER}\n      GF_SECURITY_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/grafana/data:/var/lib/grafana\n    ports:\n      - 3000:3000\n",
+   "compose": "services:\n  grafana:\n    image: grafana/grafana:latest\n    container_name: ${CONTAINER_PREFIX}grafana\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      GF_SECURITY_ADMIN_USER: ${ADMIN_USER}\n      GF_SECURITY_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/grafana/data:/var/lib/grafana\n    ports:\n      - 3000:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -1374,7 +1380,7 @@
    "port": 18081,
    "docs": "https://docs.haproxy.org/",
    "links": [],
-   "compose": "services:\n  haproxy:\n    image: haproxy:latest\n    container_name: ${CONTAINER_PREFIX}haproxy\n    restart: ${RESTART_POLICY}\n    read_only: true\n    environment:\n      TZ: ${TZ}\n      HAPROXY_ADMIN_USER: ${ADMIN_USER}\n      HAPROXY_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro\n    ports:\n      - 18081:8080\n",
+   "compose": "services:\n  haproxy:\n    image: haproxy:latest\n    container_name: ${CONTAINER_PREFIX}haproxy\n    restart: ${RESTART_POLICY}\n    read_only: true\n    environment:\n      TZ: ${TZ}\n      HAPROXY_ADMIN_USER: ${ADMIN_USER}\n      HAPROXY_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro\n    ports:\n      - 18081:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -1427,7 +1433,7 @@
    "port": 18082,
    "docs": "https://headscale.net/stable/setup/install/container/",
    "links": [],
-   "compose": "services:\n  headscale:\n    image: docker.io/headscale/headscale:latest\n    container_name: ${CONTAINER_PREFIX}headscale\n    restart: ${RESTART_POLICY}\n    command: [\"serve\"]\n    read_only: true\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/headscale/config.yaml:/etc/headscale/config.yaml:ro\n      - ${CONFIG_PATH}/headscale/data:/var/lib/headscale\n    tmpfs:\n      - /var/run/headscale\n    ports:\n      - 18082:8080\n    healthcheck:\n      test: [\"CMD\", \"/ko-app/headscale\", \"health\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  headscale:\n    image: docker.io/headscale/headscale:latest\n    container_name: ${CONTAINER_PREFIX}headscale\n    restart: ${RESTART_POLICY}\n    command: [\"serve\"]\n    read_only: true\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/headscale/config.yaml:/etc/headscale/config.yaml:ro\n      - ${CONFIG_PATH}/headscale/data:/var/lib/headscale\n    tmpfs:\n      - /var/run/headscale\n    ports:\n      - 18082:8080\n    healthcheck:\n      test: [\"CMD\", \"/ko-app/headscale\", \"health\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1660,7 +1666,7 @@
      "title": "link PatchMon"
     }
    ],
-   "compose": "services:\n  homarr:\n    image: ghcr.io/homarr-labs/homarr:latest\n    container_name: ${CONTAINER_PREFIX}homarr\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SECRET_ENCRYPTION_KEY: ${HOMARR_SECRET_ENCRYPTION_KEY}\n    volumes:\n      - ${CONFIG_PATH}/homarr/appdata:/appdata\n    ports:\n      - 7575:7575\n",
+   "compose": "services:\n  homarr:\n    image: ghcr.io/homarr-labs/homarr:latest\n    container_name: ${CONTAINER_PREFIX}homarr\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SECRET_ENCRYPTION_KEY: ${HOMARR_SECRET_ENCRYPTION_KEY}\n    volumes:\n      - ${CONFIG_PATH}/homarr/appdata:/appdata\n    ports:\n      - 7575:7575\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1707,7 +1713,7 @@
    "port": 8123,
    "docs": "https://www.home-assistant.io/installation/",
    "links": [],
-   "compose": "services:\n  home-assistant:\n    image: ghcr.io/home-assistant/home-assistant:latest\n    container_name: ${CONTAINER_PREFIX}home-assistant\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/home-assistant/config:/config\n    ports:\n      - 8123:8123\n",
+   "compose": "services:\n  home-assistant:\n    image: ghcr.io/home-assistant/home-assistant:latest\n    container_name: ${CONTAINER_PREFIX}home-assistant\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/home-assistant/config:/config\n    ports:\n      - 8123:8123\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1747,7 +1753,7 @@
    "port": 8581,
    "docs": "https://github.com/homebridge/homebridge/wiki/Install-Homebridge-on-Docker",
    "links": [],
-   "compose": "services:\n  homebridge:\n    image: homebridge/homebridge:latest\n    container_name: ${CONTAINER_PREFIX}homebridge\n    restart: ${RESTART_POLICY}\n    environment:\n      ENABLE_AVAHI: \"0\"\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/homebridge/data:/homebridge\n    ports:\n      - 8581:8581\n",
+   "compose": "services:\n  homebridge:\n    image: homebridge/homebridge:latest\n    container_name: ${CONTAINER_PREFIX}homebridge\n    restart: ${RESTART_POLICY}\n    environment:\n      ENABLE_AVAHI: \"0\"\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/homebridge/data:/homebridge\n    ports:\n      - 8581:8581\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1787,7 +1793,7 @@
    "port": 2283,
    "docs": "https://docs.immich.app/install/docker-compose/",
    "links": [],
-   "compose": "services:\n  immich:\n    image: ghcr.io/immich-app/immich-server:release\n    container_name: ${CONTAINER_PREFIX}immich\n    restart: ${RESTART_POLICY}\n    environment:\n      DB_DATABASE_NAME: immich\n      DB_HOSTNAME: immich-database\n      DB_USERNAME: postgres\n      DB_PASSWORD: ${IMMICH_DB_PASSWORD}\n      IMMICH_ALLOW_SETUP: \"true\"\n      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003\n      REDIS_HOSTNAME: immich-redis\n    volumes:\n      - ${CONFIG_PATH}/immich/uploads:/data\n    ports:\n      - 2283:2283\n    depends_on:\n      - immich-database\n      - immich-redis\n    healthcheck:\n      test: [\"CMD\", \"immich-healthcheck\"]\n      interval: 30s\n      timeout: 30s\n      retries: 3\n\n  immich-machine-learning:\n    image: ghcr.io/immich-app/immich-machine-learning:release\n    container_name: ${CONTAINER_PREFIX}immich-machine-learning\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/immich/model-cache:/cache\n    healthcheck:\n      test: [\"CMD\", \"python3\", \"healthcheck.py\"]\n      interval: 30s\n      timeout: 30s\n      retries: 3\n\n  immich-redis:\n    image: docker.io/valkey/valkey:latest\n    container_name: ${CONTAINER_PREFIX}immich-redis\n    restart: ${RESTART_POLICY}\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"ping\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n\n  immich-database:\n    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0\n    container_name: ${CONTAINER_PREFIX}immich-database\n    restart: ${RESTART_POLICY}\n    shm_size: 134217728\n    environment:\n      POSTGRES_DB: immich\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}\n      POSTGRES_INITDB_ARGS: --data-checksums\n    volumes:\n      - ${CONFIG_PATH}/immich/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"/usr/local/bin/healthcheck.sh\"]\n      interval: 300s\n      timeout: 30s\n      start_period: 300s\n      retries: 3\n",
+   "compose": "services:\n  immich:\n    image: ghcr.io/immich-app/immich-server:release\n    container_name: ${CONTAINER_PREFIX}immich\n    restart: ${RESTART_POLICY}\n    environment:\n      DB_DATABASE_NAME: immich\n      DB_HOSTNAME: immich-database\n      DB_USERNAME: postgres\n      DB_PASSWORD: ${IMMICH_DB_PASSWORD}\n      IMMICH_ALLOW_SETUP: \"true\"\n      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003\n      REDIS_HOSTNAME: immich-redis\n    volumes:\n      - ${CONFIG_PATH}/immich/uploads:/data\n    ports:\n      - 2283:2283\n    depends_on:\n      - immich-database\n      - immich-redis\n    healthcheck:\n      test: [\"CMD\", \"immich-healthcheck\"]\n      interval: 30s\n      timeout: 30s\n      retries: 3\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  immich-machine-learning:\n    image: ghcr.io/immich-app/immich-machine-learning:release\n    container_name: ${CONTAINER_PREFIX}immich-machine-learning\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/immich/model-cache:/cache\n    healthcheck:\n      test: [\"CMD\", \"python3\", \"healthcheck.py\"]\n      interval: 30s\n      timeout: 30s\n      retries: 3\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  immich-redis:\n    image: docker.io/valkey/valkey:latest\n    container_name: ${CONTAINER_PREFIX}immich-redis\n    restart: ${RESTART_POLICY}\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"ping\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  immich-database:\n    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0\n    container_name: ${CONTAINER_PREFIX}immich-database\n    restart: ${RESTART_POLICY}\n    shm_size: 134217728\n    environment:\n      POSTGRES_DB: immich\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}\n      POSTGRES_INITDB_ARGS: --data-checksums\n    volumes:\n      - ${CONFIG_PATH}/immich/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"/usr/local/bin/healthcheck.sh\"]\n      interval: 300s\n      timeout: 30s\n      start_period: 300s\n      retries: 3\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1828,7 +1834,7 @@
    "port": 8096,
    "docs": "https://jellyfin.org/docs/general/installation/container/",
    "links": [],
-   "compose": "services:\n  jellyfin:\n    image: lscr.io/linuxserver/jellyfin:latest\n    container_name: ${CONTAINER_PREFIX}jellyfin\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n      JELLYFIN_PublishedServerUrl: http://${LAN_IP}:8096\n    volumes:\n      - ${CONFIG_PATH}/jellyfin/config:/config\n      - ${DATA_PATH}/media:/media\n    ports:\n      - 8096:8096\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8096/health || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 60s\n",
+   "compose": "services:\n  jellyfin:\n    image: lscr.io/linuxserver/jellyfin:latest\n    container_name: ${CONTAINER_PREFIX}jellyfin\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n      JELLYFIN_PublishedServerUrl: http://${LAN_IP}:8096\n    volumes:\n      - ${CONFIG_PATH}/jellyfin/config:/config\n      - ${DATA_PATH}/media:/data/media\n    ports:\n      - 8096:8096\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8096/health || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 60s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -1898,7 +1904,7 @@
    "port": 8080,
    "docs": "https://www.keycloak.org/server/configuration-production",
    "links": [],
-   "compose": "services:\n  keycloak:\n    image: quay.io/keycloak/keycloak:latest\n    container_name: ${CONTAINER_PREFIX}keycloak\n    command: [\"start\", \"--http-enabled=true\", \"--hostname-strict=false\", \"--db=postgres\", \"--db-url-host=keycloak-db\", \"--db-username=keycloak\"]\n    restart: ${RESTART_POLICY}\n    environment:\n      KC_BOOTSTRAP_ADMIN_USERNAME: ${ADMIN_USER}\n      KC_BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}\n    ports:\n      - 8080:8080\n    depends_on:\n      keycloak-db:\n        condition: service_healthy\n\n  keycloak-db:\n    image: docker.io/library/postgres:17-alpine\n    container_name: ${CONTAINER_PREFIX}keycloak-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: keycloak\n      POSTGRES_USER: keycloak\n      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/keycloak/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"keycloak\", \"-d\", \"keycloak\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 10s\n      retries: 10\n",
+   "compose": "services:\n  keycloak:\n    image: quay.io/keycloak/keycloak:latest\n    container_name: ${CONTAINER_PREFIX}keycloak\n    command: [\"start\", \"--http-enabled=true\", \"--hostname-strict=false\", \"--db=postgres\", \"--db-url-host=keycloak-db\", \"--db-username=keycloak\"]\n    restart: ${RESTART_POLICY}\n    environment:\n      KC_BOOTSTRAP_ADMIN_USERNAME: ${ADMIN_USER}\n      KC_BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}\n    ports:\n      - 8080:8080\n    depends_on:\n      keycloak-db:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  keycloak-db:\n    image: docker.io/library/postgres:17-alpine\n    container_name: ${CONTAINER_PREFIX}keycloak-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: keycloak\n      POSTGRES_USER: keycloak\n      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/keycloak/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"keycloak\", \"-d\", \"keycloak\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 10s\n      retries: 10\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -1951,7 +1957,7 @@
    "port": 51515,
    "docs": "https://kopia.io/docs/getting-started/",
    "links": [],
-   "compose": "services:\n  kopia:\n    image: docker.io/kopia/kopia:latest\n    container_name: ${CONTAINER_PREFIX}kopia\n    restart: ${RESTART_POLICY}\n    command:\n      - server\n      - start\n      - --address=0.0.0.0:51515\n      - --insecure\n      - --async-repo-connect\n    environment:\n      KOPIA_SERVER_USERNAME: ${ADMIN_USER}\n      KOPIA_SERVER_PASSWORD: ${ADMIN_PASSWORD}\n      KOPIA_PASSWORD: ${KOPIA_REPOSITORY_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/kopia/config:/app/config\n      - ${CONFIG_PATH}/kopia/cache:/app/cache\n      - ${CONFIG_PATH}/kopia/logs:/app/logs\n    ports:\n      - 51515:51515\n",
+   "compose": "services:\n  kopia:\n    image: docker.io/kopia/kopia:latest\n    container_name: ${CONTAINER_PREFIX}kopia\n    restart: ${RESTART_POLICY}\n    command:\n      - server\n      - start\n      - --address=0.0.0.0:51515\n      - --insecure\n      - --async-repo-connect\n    environment:\n      KOPIA_SERVER_USERNAME: ${ADMIN_USER}\n      KOPIA_SERVER_PASSWORD: ${ADMIN_PASSWORD}\n      KOPIA_PASSWORD: ${KOPIA_REPOSITORY_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/kopia/config:/app/config\n      - ${CONFIG_PATH}/kopia/cache:/app/cache\n      - ${CONFIG_PATH}/kopia/logs:/app/logs\n    ports:\n      - 51515:51515\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2010,7 +2016,7 @@
      "title": "download client: qBittorrent"
     }
    ],
-   "compose": "services:\n  lidarr:\n    image: lscr.io/linuxserver/lidarr:latest\n    container_name: ${CONTAINER_PREFIX}lidarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/lidarr/config:/config\n      - ${DATA_PATH}/downloads:/data\n      - ${DATA_PATH}/media:/media\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 8686:8686\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8686/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  lidarr:\n    image: lscr.io/linuxserver/lidarr:latest\n    container_name: ${CONTAINER_PREFIX}lidarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/lidarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 8686:8686\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8686/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2062,7 +2068,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password). It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/music. Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "linkwarden",
@@ -2074,7 +2080,7 @@
    "port": 3000,
    "docs": "https://docs.linkwarden.app/self-hosting/setup",
    "links": [],
-   "compose": "services:\n  linkwarden:\n    image: ghcr.io/linkwarden/linkwarden:latest\n    container_name: ${CONTAINER_PREFIX}linkwarden\n    restart: ${RESTART_POLICY}\n    environment:\n      MEILI_HOST: http://linkwarden-meilisearch:7700\n      NEXT_PUBLIC_DISABLE_REGISTRATION: \"false\"\n      NEXTAUTH_URL: http://${LAN_IP}:3000/api/v1/auth\n      NEXTAUTH_SECRET: ${LINKWARDEN_AUTH_SECRET}\n      MEILI_MASTER_KEY: ${LINKWARDEN_SEARCH_KEY}\n      DATABASE_URL: postgresql://postgres:${LINKWARDEN_DB_PASSWORD}@linkwarden-postgres:5432/postgres\n    volumes:\n      - ${CONFIG_PATH}/linkwarden/archives:/data/data\n    ports:\n      - 3000:3000\n    depends_on:\n      - linkwarden-postgres\n      - linkwarden-meilisearch\n\n  linkwarden-postgres:\n    image: docker.io/library/postgres:16-alpine\n    container_name: ${CONTAINER_PREFIX}linkwarden-postgres\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_PASSWORD: ${LINKWARDEN_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/linkwarden/database:/var/lib/postgresql/data\n\n  linkwarden-meilisearch:\n    image: docker.io/getmeili/meilisearch:v1.13.3\n    container_name: ${CONTAINER_PREFIX}linkwarden-meilisearch\n    restart: ${RESTART_POLICY}\n    environment:\n      MEILI_MASTER_KEY: ${LINKWARDEN_SEARCH_KEY}\n    volumes:\n      - ${CONFIG_PATH}/linkwarden/search:/meili_data\n",
+   "compose": "services:\n  linkwarden:\n    image: ghcr.io/linkwarden/linkwarden:latest\n    container_name: ${CONTAINER_PREFIX}linkwarden\n    restart: ${RESTART_POLICY}\n    environment:\n      MEILI_HOST: http://linkwarden-meilisearch:7700\n      NEXT_PUBLIC_DISABLE_REGISTRATION: \"false\"\n      NEXTAUTH_URL: http://${LAN_IP}:3000/api/v1/auth\n      NEXTAUTH_SECRET: ${LINKWARDEN_AUTH_SECRET}\n      MEILI_MASTER_KEY: ${LINKWARDEN_SEARCH_KEY}\n      DATABASE_URL: postgresql://postgres:${LINKWARDEN_DB_PASSWORD}@linkwarden-postgres:5432/postgres\n    volumes:\n      - ${CONFIG_PATH}/linkwarden/archives:/data/data\n    ports:\n      - 3000:3000\n    depends_on:\n      - linkwarden-postgres\n      - linkwarden-meilisearch\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  linkwarden-postgres:\n    image: docker.io/library/postgres:16-alpine\n    container_name: ${CONTAINER_PREFIX}linkwarden-postgres\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_PASSWORD: ${LINKWARDEN_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/linkwarden/database:/var/lib/postgresql/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  linkwarden-meilisearch:\n    image: docker.io/getmeili/meilisearch:v1.13.3\n    container_name: ${CONTAINER_PREFIX}linkwarden-meilisearch\n    restart: ${RESTART_POLICY}\n    environment:\n      MEILI_MASTER_KEY: ${LINKWARDEN_SEARCH_KEY}\n    volumes:\n      - ${CONFIG_PATH}/linkwarden/search:/meili_data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2135,7 +2141,7 @@
    "port": 17170,
    "docs": "https://github.com/lldap/lldap/blob/main/docs/install.md",
    "links": [],
-   "compose": "services:\n  lldap:\n    image: lldap/lldap:latest\n    container_name: ${CONTAINER_PREFIX}lldap\n    restart: ${RESTART_POLICY}\n    environment:\n      UID: ${PUID}\n      GID: ${PGID}\n      LLDAP_LDAP_USER_DN: ${ADMIN_USER}\n      LLDAP_LDAP_BASE_DN: dc=example,dc=com\n      LLDAP_LDAP_USER_PASS: ${ADMIN_PASSWORD}\n      LLDAP_JWT_SECRET: ${LLDAP_JWT_SECRET}\n      LLDAP_KEY_SEED: ${LLDAP_KEY_SEED}\n    volumes:\n      - ${CONFIG_PATH}/lldap/data:/data\n    ports:\n      - 17170:17170\n",
+   "compose": "services:\n  lldap:\n    image: lldap/lldap:latest\n    container_name: ${CONTAINER_PREFIX}lldap\n    restart: ${RESTART_POLICY}\n    environment:\n      UID: ${PUID}\n      GID: ${PGID}\n      LLDAP_LDAP_USER_DN: ${ADMIN_USER}\n      LLDAP_LDAP_BASE_DN: dc=example,dc=com\n      LLDAP_LDAP_USER_PASS: ${ADMIN_PASSWORD}\n      LLDAP_JWT_SECRET: ${LLDAP_JWT_SECRET}\n      LLDAP_KEY_SEED: ${LLDAP_KEY_SEED}\n    volumes:\n      - ${CONFIG_PATH}/lldap/data:/data\n    ports:\n      - 17170:17170\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2208,7 +2214,7 @@
    "port": 3100,
    "docs": "https://grafana.com/docs/loki/latest/setup/install/docker/",
    "links": [],
-   "compose": "services:\n  loki:\n    image: grafana/loki:latest\n    container_name: ${CONTAINER_PREFIX}loki\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    volumes:\n      - ${CONFIG_PATH}/loki/data:/loki\n    ports:\n      - 3100:3100\n",
+   "compose": "services:\n  loki:\n    image: grafana/loki:latest\n    container_name: ${CONTAINER_PREFIX}loki\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    volumes:\n      - ${CONFIG_PATH}/loki/data:/loki\n    ports:\n      - 3100:3100\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2254,7 +2260,7 @@
    "port": 8080,
    "docs": "https://docs.mayan-edms.com/",
    "links": [],
-   "compose": "services:\n  mayan-edms:\n    image: mayanedms/mayanedms:latest\n    container_name: ${CONTAINER_PREFIX}mayan-edms\n    command: [\"run_all\"]\n    restart: ${RESTART_POLICY}\n    environment:\n      MAYAN_AUTOADMIN_USERNAME: ${ADMIN_USER}\n      MAYAN_AUTOADMIN_LOG_CREDENTIALS: \"false\"\n      MAYAN_LOCK_MANAGER_BACKEND: mayan.apps.lock_manager.backends.redis_lock.RedisLock\n      MAYAN_SERVER_SIDE_EVENTS_BACKEND: mayan.apps.server_side_events.sse_backends.redis.RedisServerEventStreamBackend\n      MAYAN_AUTOADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      MAYAN_DATABASES: \"{'default': {'ENGINE': 'django.db.backends.postgresql', 'NAME': 'mayan', 'USER': 'mayan', 'PASSWORD': '${MAYAN_EDMS_DB_PASSWORD}', 'HOST': 'mayan-edms-postgresql', 'PORT': '5432'}}\"\n      MAYAN_CELERY_BROKER_URL: amqp://mayan:${MAYAN_EDMS_BROKER_PASSWORD}@mayan-edms-rabbitmq:5672/mayan\n      MAYAN_CELERY_RESULT_BACKEND: redis://:${MAYAN_EDMS_REDIS_PASSWORD}@mayan-edms-redis:6379/1\n      MAYAN_LOCK_MANAGER_BACKEND_ARGUMENTS: \"{'redis_url': 'redis://:${MAYAN_EDMS_REDIS_PASSWORD}@mayan-edms-redis:6379/2'}\"\n      MAYAN_SERVER_SIDE_EVENTS_BACKEND_ARGUMENTS: \"{'url': 'redis://:${MAYAN_EDMS_REDIS_PASSWORD}@mayan-edms-redis:6379/3'}\"\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/data:/var/lib/mayan\n    ports:\n      - 8080:8000\n    depends_on:\n      mayan-edms-postgresql:\n        condition: service_healthy\n      mayan-edms-rabbitmq:\n        condition: service_healthy\n      mayan-edms-redis:\n        condition: service_healthy\n\n  mayan-edms-postgresql:\n    image: postgres:15.17\n    container_name: ${CONTAINER_PREFIX}mayan-edms-postgresql\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: mayan\n      POSTGRES_USER: mayan\n      POSTGRES_PASSWORD: ${MAYAN_EDMS_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"--dbname\", \"mayan\", \"--username\", \"mayan\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 30s\n      retries: 5\n\n  mayan-edms-rabbitmq:\n    image: rabbitmq:4.1.8-management\n    container_name: ${CONTAINER_PREFIX}mayan-edms-rabbitmq\n    restart: ${RESTART_POLICY}\n    environment:\n      RABBITMQ_DEFAULT_USER: mayan\n      RABBITMQ_DEFAULT_VHOST: mayan\n      RABBITMQ_DEFAULT_PASS: ${MAYAN_EDMS_BROKER_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/broker:/var/lib/rabbitmq\n    healthcheck:\n      test: [\"CMD\", \"rabbitmq-diagnostics\", \"ping\"]\n      interval: 30s\n      timeout: 30s\n      start_period: 20s\n      retries: 5\n\n  mayan-edms-redis:\n    image: redis:latest\n    container_name: ${CONTAINER_PREFIX}mayan-edms-redis\n    user: ${PUID}:${PGID}\n    entrypoint: [\"sh\", \"-c\", \"umask 0077; exec redis-server \\\"$$@\\\"\", \"selfhost-redis\"]\n    command: [\"/run/secrets/redis-config\"]\n    restart: ${RESTART_POLICY}\n    environment:\n      REDISCLI_AUTH: ${MAYAN_EDMS_REDIS_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/redis:/data\n      - ${CONFIG_PATH}/mayan-edms/redis-config:/run/secrets/redis-config:ro\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"-e\", \"ping\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 10s\n      retries: 5\n",
+   "compose": "services:\n  mayan-edms:\n    image: mayanedms/mayanedms:latest\n    container_name: ${CONTAINER_PREFIX}mayan-edms\n    command: [\"run_all\"]\n    restart: ${RESTART_POLICY}\n    environment:\n      MAYAN_AUTOADMIN_USERNAME: ${ADMIN_USER}\n      MAYAN_AUTOADMIN_LOG_CREDENTIALS: \"false\"\n      MAYAN_LOCK_MANAGER_BACKEND: mayan.apps.lock_manager.backends.redis_lock.RedisLock\n      MAYAN_SERVER_SIDE_EVENTS_BACKEND: mayan.apps.server_side_events.sse_backends.redis.RedisServerEventStreamBackend\n      MAYAN_AUTOADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      MAYAN_DATABASES: \"{'default': {'ENGINE': 'django.db.backends.postgresql', 'NAME': 'mayan', 'USER': 'mayan', 'PASSWORD': '${MAYAN_EDMS_DB_PASSWORD}', 'HOST': 'mayan-edms-postgresql', 'PORT': '5432'}}\"\n      MAYAN_CELERY_BROKER_URL: amqp://mayan:${MAYAN_EDMS_BROKER_PASSWORD}@mayan-edms-rabbitmq:5672/mayan\n      MAYAN_CELERY_RESULT_BACKEND: redis://:${MAYAN_EDMS_REDIS_PASSWORD}@mayan-edms-redis:6379/1\n      MAYAN_LOCK_MANAGER_BACKEND_ARGUMENTS: \"{'redis_url': 'redis://:${MAYAN_EDMS_REDIS_PASSWORD}@mayan-edms-redis:6379/2'}\"\n      MAYAN_SERVER_SIDE_EVENTS_BACKEND_ARGUMENTS: \"{'url': 'redis://:${MAYAN_EDMS_REDIS_PASSWORD}@mayan-edms-redis:6379/3'}\"\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/data:/var/lib/mayan\n    ports:\n      - 8080:8000\n    depends_on:\n      mayan-edms-postgresql:\n        condition: service_healthy\n      mayan-edms-rabbitmq:\n        condition: service_healthy\n      mayan-edms-redis:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  mayan-edms-postgresql:\n    image: postgres:15.17\n    container_name: ${CONTAINER_PREFIX}mayan-edms-postgresql\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: mayan\n      POSTGRES_USER: mayan\n      POSTGRES_PASSWORD: ${MAYAN_EDMS_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"--dbname\", \"mayan\", \"--username\", \"mayan\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 30s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  mayan-edms-rabbitmq:\n    image: rabbitmq:4.1.8-management\n    container_name: ${CONTAINER_PREFIX}mayan-edms-rabbitmq\n    restart: ${RESTART_POLICY}\n    environment:\n      RABBITMQ_DEFAULT_USER: mayan\n      RABBITMQ_DEFAULT_VHOST: mayan\n      RABBITMQ_DEFAULT_PASS: ${MAYAN_EDMS_BROKER_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/broker:/var/lib/rabbitmq\n    healthcheck:\n      test: [\"CMD\", \"rabbitmq-diagnostics\", \"ping\"]\n      interval: 30s\n      timeout: 30s\n      start_period: 20s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  mayan-edms-redis:\n    image: redis:latest\n    container_name: ${CONTAINER_PREFIX}mayan-edms-redis\n    user: ${PUID}:${PGID}\n    entrypoint: [\"sh\", \"-c\", \"umask 0077; exec redis-server \\\"$$@\\\"\", \"selfhost-redis\"]\n    command: [\"/run/secrets/redis-config\"]\n    restart: ${RESTART_POLICY}\n    environment:\n      REDISCLI_AUTH: ${MAYAN_EDMS_REDIS_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/mayan-edms/redis:/data\n      - ${CONFIG_PATH}/mayan-edms/redis-config:/run/secrets/redis-config:ro\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"-e\", \"ping\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 10s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2334,7 +2340,7 @@
    "port": 9000,
    "docs": "https://docs.min.io/aistor/installation/container/install/",
    "links": [],
-   "compose": "services:\n  minio:\n    image: quay.io/minio/aistor/minio:latest\n    container_name: ${CONTAINER_PREFIX}minio\n    restart: ${RESTART_POLICY}\n    command: [\"minio\", \"server\", \"/mnt/data\", \"--console-address\", \":9001\"]\n    environment:\n      TZ: ${TZ}\n      MINIO_ROOT_USER: ${ADMIN_USER}\n      MINIO_ROOT_PASSWORD: ${ADMIN_PASSWORD}\n      MINIO_SITE_REGION: us-east-1\n      MINIO_LICENSE: /run/secrets/aistor-license\n    volumes:\n      - ${CONFIG_PATH}/minio/data:/mnt/data\n      - ${MINIO_LICENSE_FILE}:/run/secrets/aistor-license:ro\n    ports:\n      - 9000:9000\n      - 9001:9001\n",
+   "compose": "services:\n  minio:\n    image: quay.io/minio/aistor/minio:latest\n    container_name: ${CONTAINER_PREFIX}minio\n    restart: ${RESTART_POLICY}\n    command: [\"minio\", \"server\", \"/mnt/data\", \"--console-address\", \":9001\"]\n    environment:\n      TZ: ${TZ}\n      MINIO_ROOT_USER: ${ADMIN_USER}\n      MINIO_ROOT_PASSWORD: ${ADMIN_PASSWORD}\n      MINIO_SITE_REGION: us-east-1\n      MINIO_LICENSE: /run/secrets/aistor-license\n    volumes:\n      - ${CONFIG_PATH}/minio/data:/mnt/data\n      - ${MINIO_LICENSE_FILE}:/run/secrets/aistor-license:ro\n    ports:\n      - 9000:9000\n      - 9001:9001\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2393,7 +2399,7 @@
    "port": 4533,
    "docs": "https://www.navidrome.org/docs/installation/docker/",
    "links": [],
-   "compose": "services:\n  navidrome:\n    image: deluan/navidrome:latest\n    container_name: ${CONTAINER_PREFIX}navidrome\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/navidrome/data:/data\n      - ${CONFIG_PATH}/navidrome/music:/music:ro\n    ports:\n      - 4533:4533\n",
+   "compose": "services:\n  navidrome:\n    image: deluan/navidrome:latest\n    container_name: ${CONTAINER_PREFIX}navidrome\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/navidrome/data:/data\n      - ${CONFIG_PATH}/navidrome/music:/music:ro\n    ports:\n      - 4533:4533\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2427,7 +2433,7 @@
    "port": 18080,
    "docs": "https://docs.netbird.io/selfhosted/selfhosted-quickstart",
    "links": [],
-   "compose": "services:\n  netbird:\n    image: netbirdio/dashboard:latest\n    container_name: ${CONTAINER_PREFIX}netbird\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      NETBIRD_MGMT_API_ENDPOINT: ${NETBIRD_CANONICAL_ORIGIN}\n      NETBIRD_MGMT_GRPC_API_ENDPOINT: ${NETBIRD_CANONICAL_ORIGIN}\n      AUTH_AUDIENCE: netbird-dashboard\n      AUTH_CLIENT_ID: netbird-dashboard\n      AUTH_AUTHORITY: ${NETBIRD_CANONICAL_ORIGIN}/oauth2\n      USE_AUTH0: \"false\"\n      AUTH_SUPPORTED_SCOPES: \"openid profile email groups\"\n      AUTH_REDIRECT_URI: /nb-auth\n      AUTH_SILENT_REDIRECT_URI: /nb-silent-auth\n      NGINX_SSL_PORT: \"443\"\n      LETSENCRYPT_DOMAIN: none\n    depends_on:\n      - netbird-server\n    ports:\n      - 18080:80\n\n  netbird-server:\n    image: netbirdio/netbird-server:latest\n    container_name: ${CONTAINER_PREFIX}netbird-server\n    restart: ${RESTART_POLICY}\n    command: [\"--config\", \"/run/secrets/server-config\"]\n    environment:\n      TZ: ${TZ}\n      NB_SETUP_PAT_ENABLED: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/netbird/server-config:/run/secrets/server-config:ro\n      - ${CONFIG_PATH}/netbird/state:/var/lib/netbird\n",
+   "compose": "services:\n  netbird:\n    image: netbirdio/dashboard:latest\n    container_name: ${CONTAINER_PREFIX}netbird\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      NETBIRD_MGMT_API_ENDPOINT: ${NETBIRD_CANONICAL_ORIGIN}\n      NETBIRD_MGMT_GRPC_API_ENDPOINT: ${NETBIRD_CANONICAL_ORIGIN}\n      AUTH_AUDIENCE: netbird-dashboard\n      AUTH_CLIENT_ID: netbird-dashboard\n      AUTH_AUTHORITY: ${NETBIRD_CANONICAL_ORIGIN}/oauth2\n      USE_AUTH0: \"false\"\n      AUTH_SUPPORTED_SCOPES: \"openid profile email groups\"\n      AUTH_REDIRECT_URI: /nb-auth\n      AUTH_SILENT_REDIRECT_URI: /nb-silent-auth\n      NGINX_SSL_PORT: \"443\"\n      LETSENCRYPT_DOMAIN: none\n    depends_on:\n      - netbird-server\n    ports:\n      - 18080:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  netbird-server:\n    image: netbirdio/netbird-server:latest\n    container_name: ${CONTAINER_PREFIX}netbird-server\n    restart: ${RESTART_POLICY}\n    command: [\"--config\", \"/run/secrets/server-config\"]\n    environment:\n      TZ: ${TZ}\n      NB_SETUP_PAT_ENABLED: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/netbird/server-config:/run/secrets/server-config:ro\n      - ${CONFIG_PATH}/netbird/state:/var/lib/netbird\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2473,7 +2479,7 @@
    "port": 19999,
    "docs": "https://learn.netdata.cloud/docs/netdata-agent/installation/docker",
    "links": [],
-   "compose": "services:\n  netdata:\n    image: netdata/netdata:latest\n    container_name: ${CONTAINER_PREFIX}netdata\n    restart: ${RESTART_POLICY}\n    init: true\n    entrypoint: [\"/bin/sh\", \"/run/selfhost/netdata-start.sh\"]\n    environment:\n      DISABLE_TELEMETRY: \"1\"\n    volumes:\n      - ${CONFIG_PATH}/netdata/config:/etc/netdata\n      - ${CONFIG_PATH}/netdata/lib:/var/lib/netdata\n      - ${CONFIG_PATH}/netdata/cache:/var/cache/netdata\n      - ${CONFIG_PATH}/netdata/startup.sh:/run/selfhost/netdata-start.sh:ro\n    ports:\n      - 19999:19999\n",
+   "compose": "services:\n  netdata:\n    image: netdata/netdata:latest\n    container_name: ${CONTAINER_PREFIX}netdata\n    restart: ${RESTART_POLICY}\n    init: true\n    entrypoint: [\"/bin/sh\", \"/run/selfhost/netdata-start.sh\"]\n    environment:\n      DISABLE_TELEMETRY: \"1\"\n    volumes:\n      - ${CONFIG_PATH}/netdata/config:/etc/netdata\n      - ${CONFIG_PATH}/netdata/lib:/var/lib/netdata\n      - ${CONFIG_PATH}/netdata/cache:/var/cache/netdata\n      - ${CONFIG_PATH}/netdata/startup.sh:/run/selfhost/netdata-start.sh:ro\n    ports:\n      - 19999:19999\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2507,7 +2513,7 @@
    "port": 8080,
    "docs": "https://github.com/nextcloud/docker",
    "links": [],
-   "compose": "services:\n  nextcloud:\n    image: nextcloud:latest\n    container_name: ${CONTAINER_PREFIX}nextcloud\n    restart: ${RESTART_POLICY}\n    environment:\n      MYSQL_HOST: nextcloud-db\n      MYSQL_DATABASE: nextcloud\n      MYSQL_USER: nextcloud\n      NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}\n      NEXTCLOUD_TRUSTED_DOMAINS: \"127.0.0.1 nextcloud ${LAN_IP}\"\n      REDIS_HOST: nextcloud-redis\n      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}\n      NEXTCLOUD_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/nextcloud/html:/var/www/html\n    ports:\n      - 8080:80\n    depends_on:\n      - nextcloud-db\n      - nextcloud-redis\n\n  nextcloud-db:\n    image: mariadb:12.3.3\n    container_name: ${CONTAINER_PREFIX}nextcloud-db\n    restart: ${RESTART_POLICY}\n    command: [\"--transaction-isolation=READ-COMMITTED\"]\n    environment:\n      MARIADB_DATABASE: nextcloud\n      MARIADB_USER: nextcloud\n      MARIADB_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}\n      MARIADB_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/nextcloud/db:/var/lib/mysql\n\n  nextcloud-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}nextcloud-redis\n    restart: ${RESTART_POLICY}\n\n  nextcloud-cron:\n    image: nextcloud:latest\n    container_name: ${CONTAINER_PREFIX}nextcloud-cron\n    restart: ${RESTART_POLICY}\n    entrypoint: [\"/cron.sh\"]\n    environment:\n      MYSQL_HOST: nextcloud-db\n      MYSQL_DATABASE: nextcloud\n      MYSQL_USER: nextcloud\n      REDIS_HOST: nextcloud-redis\n      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/nextcloud/html:/var/www/html\n    depends_on:\n      - nextcloud\n",
+   "compose": "services:\n  nextcloud:\n    image: nextcloud:latest\n    container_name: ${CONTAINER_PREFIX}nextcloud\n    restart: ${RESTART_POLICY}\n    environment:\n      MYSQL_HOST: nextcloud-db\n      MYSQL_DATABASE: nextcloud\n      MYSQL_USER: nextcloud\n      NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}\n      NEXTCLOUD_TRUSTED_DOMAINS: \"127.0.0.1 nextcloud ${LAN_IP}\"\n      REDIS_HOST: nextcloud-redis\n      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}\n      NEXTCLOUD_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/nextcloud/html:/var/www/html\n    ports:\n      - 8080:80\n    depends_on:\n      - nextcloud-db\n      - nextcloud-redis\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  nextcloud-db:\n    image: mariadb:12.3.3\n    container_name: ${CONTAINER_PREFIX}nextcloud-db\n    restart: ${RESTART_POLICY}\n    command: [\"--transaction-isolation=READ-COMMITTED\"]\n    environment:\n      MARIADB_DATABASE: nextcloud\n      MARIADB_USER: nextcloud\n      MARIADB_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}\n      MARIADB_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/nextcloud/db:/var/lib/mysql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  nextcloud-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}nextcloud-redis\n    restart: ${RESTART_POLICY}\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  nextcloud-cron:\n    image: nextcloud:latest\n    container_name: ${CONTAINER_PREFIX}nextcloud-cron\n    restart: ${RESTART_POLICY}\n    entrypoint: [\"/cron.sh\"]\n    environment:\n      MYSQL_HOST: nextcloud-db\n      MYSQL_DATABASE: nextcloud\n      MYSQL_USER: nextcloud\n      REDIS_HOST: nextcloud-redis\n      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/nextcloud/html:/var/www/html\n    depends_on:\n      - nextcloud\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2573,7 +2579,7 @@
    "port": 8181,
    "docs": "https://nginxproxymanager.com/guide/",
    "links": [],
-   "compose": "services:\n  nginx-proxy-manager:\n    image: jc21/nginx-proxy-manager:latest\n    container_name: ${CONTAINER_PREFIX}nginx-proxy-manager\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/nginx-proxy-manager/data:/data\n      - ${CONFIG_PATH}/nginx-proxy-manager/letsencrypt:/etc/letsencrypt\n    ports:\n      - 8181:81\n",
+   "compose": "services:\n  nginx-proxy-manager:\n    image: jc21/nginx-proxy-manager:latest\n    container_name: ${CONTAINER_PREFIX}nginx-proxy-manager\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/nginx-proxy-manager/data:/data\n      - ${CONFIG_PATH}/nginx-proxy-manager/letsencrypt:/etc/letsencrypt\n    ports:\n      - 8181:81\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2607,7 +2613,7 @@
    "port": 1880,
    "docs": "https://nodered.org/docs/getting-started/docker",
    "links": [],
-   "compose": "services:\n  node-red:\n    image: nodered/node-red:latest\n    container_name: ${CONTAINER_PREFIX}node-red\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      NODE_RED_ADMIN_AUTH_HASH: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/node-red/data:/data\n      - ${CONFIG_PATH}/node-red/settings:/data/settings.js\n    ports:\n      - 1880:1880\n",
+   "compose": "services:\n  node-red:\n    image: nodered/node-red:latest\n    container_name: ${CONTAINER_PREFIX}node-red\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      NODE_RED_ADMIN_AUTH_HASH: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/node-red/data:/data\n      - ${CONFIG_PATH}/node-red/settings:/data/settings.js\n    ports:\n      - 1880:1880\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2666,7 +2672,7 @@
    "port": 2586,
    "docs": "https://docs.ntfy.sh/install/",
    "links": [],
-   "compose": "services:\n  ntfy:\n    image: binwiederhier/ntfy:latest\n    container_name: ${CONTAINER_PREFIX}ntfy\n    command: serve\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      NTFY_BASE_URL: http://${LAN_IP}:2586\n      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db\n      NTFY_AUTH_FILE: /var/lib/ntfy/user.db\n      NTFY_AUTH_DEFAULT_ACCESS: deny-all\n      NTFY_ENABLE_LOGIN: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/ntfy/data:/var/lib/ntfy\n    ports:\n      - 2586:80\n    healthcheck:\n      test: [\"CMD-SHELL\", \"wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\\\"healthy\\\"\\\\s*:\\\\s*true' || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 20s\n",
+   "compose": "services:\n  ntfy:\n    image: binwiederhier/ntfy:latest\n    container_name: ${CONTAINER_PREFIX}ntfy\n    command: serve\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      NTFY_BASE_URL: http://${LAN_IP}:2586\n      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db\n      NTFY_AUTH_FILE: /var/lib/ntfy/user.db\n      NTFY_AUTH_DEFAULT_ACCESS: deny-all\n      NTFY_ENABLE_LOGIN: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/ntfy/data:/var/lib/ntfy\n    ports:\n      - 2586:80\n    healthcheck:\n      test: [\"CMD-SHELL\", \"wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\\\"healthy\\\"\\\\s*:\\\\s*true' || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 20s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2724,7 +2730,7 @@
    "port": 6789,
    "docs": "https://nzbget.com/documentation/",
    "links": [],
-   "compose": "services:\n  nzbget:\n    image: ghcr.io/nzbgetcom/nzbget:latest\n    container_name: ${CONTAINER_PREFIX}nzbget\n    restart: ${RESTART_POLICY}\n    environment:\n      NZBGET_USER: ${ADMIN_USER}\n      NZBGET_PASS: ${ADMIN_PASSWORD}\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/nzbget/config:/config\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 6789:6789\n",
+   "compose": "services:\n  nzbget:\n    image: ghcr.io/nzbgetcom/nzbget:latest\n    container_name: ${CONTAINER_PREFIX}nzbget\n    restart: ${RESTART_POLICY}\n    environment:\n      NZBGET_USER: ${ADMIN_USER}\n      NZBGET_PASS: ${ADMIN_PASSWORD}\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/nzbget/config:/config\n      - ${DATA_PATH}/torrents:/downloads\n      - ${DATA_PATH}/usenet:/data/usenet\n    ports:\n      - 6789:6789\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2782,7 +2788,8 @@
      "secret": false
     }
    ],
-   "standalone": true
+   "standalone": true,
+   "notes": "Set DestDir to /data/usenet/complete and InterDir to /data/usenet/incomplete in Settings > Paths. The /downloads mount retains queue/history and existing downloads; changing defaults does not move existing jobs or files."
   },
   {
    "id": "ollama",
@@ -2794,7 +2801,7 @@
    "port": 11434,
    "docs": "https://github.com/ollama/ollama/blob/main/docs/docker.md",
    "links": [],
-   "compose": "services:\n  ollama:\n    image: ollama/ollama:latest\n    container_name: ${CONTAINER_PREFIX}ollama\n    restart: ${RESTART_POLICY}\n    environment:\n      OLLAMA_MODELS: /models\n    volumes:\n      - ${CONFIG_PATH}/ollama/models:/models\n    ports:\n      - 11434:11434\n",
+   "compose": "services:\n  ollama:\n    image: ollama/ollama:latest\n    container_name: ${CONTAINER_PREFIX}ollama\n    restart: ${RESTART_POLICY}\n    environment:\n      OLLAMA_MODELS: /models\n    volumes:\n      - ${CONFIG_PATH}/ollama/models:/models\n    ports:\n      - 11434:11434\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2827,7 +2834,7 @@
    "port": 8080,
    "docs": "https://docs.openwebui.com/getting-started/quick-start/",
    "links": [],
-   "compose": "services:\n  open-webui:\n    image: ghcr.io/open-webui/open-webui:latest\n    container_name: ${CONTAINER_PREFIX}open-webui\n    restart: ${RESTART_POLICY}\n    environment:\n      WEBUI_ADMIN_EMAIL: ${ADMIN_USER}@selfhost.local\n      WEBUI_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY}\n      OLLAMA_BASE_URL: http://ollama:11434\n    volumes:\n      - ${CONFIG_PATH}/open-webui/appdata:/app/backend/data\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  open-webui:\n    image: ghcr.io/open-webui/open-webui:latest\n    container_name: ${CONTAINER_PREFIX}open-webui\n    restart: ${RESTART_POLICY}\n    environment:\n      WEBUI_ADMIN_EMAIL: ${ADMIN_USER}@selfhost.local\n      WEBUI_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY}\n      OLLAMA_BASE_URL: http://ollama:11434\n    volumes:\n      - ${CONFIG_PATH}/open-webui/appdata:/app/backend/data\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -2872,6 +2879,46 @@
    "notes": "Sign in with the email made of the ADMIN_USER value and @selfhost.local, and the ADMIN_PASSWORD value."
   },
   {
+   "id": "oxynote",
+   "name": "Oxynote",
+   "description": "Write team docs together, with live charts and queries next to the text",
+   "category": "Productivity",
+   "icon": "",
+   "image": "ghcr.io/oxynote/oxynote:latest",
+   "port": 8085,
+   "docs": "https://github.com/oxynote/oxynote/blob/main/docker/prod/README.md",
+   "links": [],
+   "compose": "services:\n  oxynote-init:\n    image: ghcr.io/oxynote/oxynote:latest\n    container_name: ${CONTAINER_PREFIX}oxynote-init\n    user: \"0:0\"\n    network_mode: none\n    read_only: true\n    entrypoint: [\"chown\", \"-R\", \"65532:65532\", \"/owned/data\"]\n    volumes:\n      - ${CONFIG_PATH}/oxynote/data:/owned/data\n\n  oxynote:\n    image: ghcr.io/oxynote/oxynote:latest\n    container_name: ${CONTAINER_PREFIX}oxynote\n    restart: ${RESTART_POLICY}\n    depends_on:\n      oxynote-init:\n        condition: service_completed_successfully\n    environment:\n      OXYNOTE_PUBLIC_URL: http://${LAN_IP}:8085\n    volumes:\n      - ${CONFIG_PATH}/oxynote/data:/oxynote/data\n    ports:\n      - 8085:8080\n    stop_grace_period: 60s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "LAN_IP",
+     "default": "localhost",
+     "description": "Address you open this App at: this machine's IP on your network (for example 192.168.1.20) or a host name. The App uses it to build links it hands out, so the default only works on this machine",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Open the exact Address configured in OXYNOTE_PUBLIC_URL. All browser API calls, WebSockets and sign-in cookies use this one origin; alternate Addresses do not work. To use a proxy, change OXYNOTE_PUBLIC_URL to its public origin and restart first. After the first start, sign in as admin@example.com with the password oxynote-admin-1234 and change it in the account settings before allowing anyone else to connect."
+  },
+  {
    "id": "pangolin",
    "name": "Pangolin",
    "description": "Reach your apps from outside your home by name, behind a login page",
@@ -2881,7 +2928,7 @@
    "port": 18086,
    "docs": "https://docs.pangolin.net/",
    "links": [],
-   "compose": "services:\n  pangolin:\n    image: traefik:latest\n    container_name: ${CONTAINER_PREFIX}pangolin\n    restart: ${RESTART_POLICY}\n    command: [\"--entryPoints.web.address=:8080\", \"--entryPoints.web.forwardedHeaders.insecure=true\", \"--providers.file.filename=/etc/traefik/dynamic.yml\", \"--api=false\"]\n    volumes:\n      - ${CONFIG_PATH}/pangolin/dynamic.yml:/etc/traefik/dynamic.yml:ro\n    depends_on:\n      - pangolin-server\n    ports:\n      - 18086:8080\n\n  pangolin-server:\n    image: fosrl/pangolin:latest\n    container_name: ${CONTAINER_PREFIX}pangolin-server\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SERVER_SECRET: ${PANGOLIN_SERVER_SECRET}\n      PANGOLIN_SETUP_TOKEN: ${PANGOLIN_SETUP_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/pangolin/config.yml:/app/config/config.yml:ro\n      - ${CONFIG_PATH}/pangolin/data:/app/config\n",
+   "compose": "services:\n  pangolin:\n    image: traefik:latest\n    container_name: ${CONTAINER_PREFIX}pangolin\n    restart: ${RESTART_POLICY}\n    command: [\"--entryPoints.web.address=:8080\", \"--entryPoints.web.forwardedHeaders.insecure=true\", \"--providers.file.filename=/etc/traefik/dynamic.yml\", \"--api=false\"]\n    volumes:\n      - ${CONFIG_PATH}/pangolin/dynamic.yml:/etc/traefik/dynamic.yml:ro\n    depends_on:\n      - pangolin-server\n    ports:\n      - 18086:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  pangolin-server:\n    image: fosrl/pangolin:latest\n    container_name: ${CONTAINER_PREFIX}pangolin-server\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SERVER_SECRET: ${PANGOLIN_SERVER_SECRET}\n      PANGOLIN_SETUP_TOKEN: ${PANGOLIN_SETUP_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/pangolin/config.yml:/app/config/config.yml:ro\n      - ${CONFIG_PATH}/pangolin/data:/app/config\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -2935,7 +2982,7 @@
    "port": 8000,
    "docs": "https://docs.paperless-ngx.com/setup/",
    "links": [],
-   "compose": "services:\n  paperless-ngx:\n    image: ghcr.io/paperless-ngx/paperless-ngx:latest\n    container_name: ${CONTAINER_PREFIX}paperless-ngx\n    restart: ${RESTART_POLICY}\n    environment:\n      PAPERLESS_REDIS: redis://paperless-ngx-broker:6379\n      PAPERLESS_DBHOST: paperless-ngx-db\n      PAPERLESS_DBENGINE: postgresql\n      PAPERLESS_ADMIN_USER: ${ADMIN_USER}\n      PAPERLESS_TIME_ZONE: ${TZ}\n      USERMAP_UID: ${PUID}\n      USERMAP_GID: ${PGID}\n      PAPERLESS_DBPASS: ${PAPERLESS_NGX_DB_PASSWORD}\n      PAPERLESS_SECRET_KEY: ${PAPERLESS_NGX_APP_KEY}\n      PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/data:/usr/src/paperless/data\n      - ${CONFIG_PATH}/paperless-ngx/media:/usr/src/paperless/media\n      - ${CONFIG_PATH}/paperless-ngx/export:/usr/src/paperless/export\n      - ${CONFIG_PATH}/paperless-ngx/consume:/usr/src/paperless/consume\n    ports:\n      - 8000:8000\n    depends_on:\n      - paperless-ngx-broker\n      - paperless-ngx-db\n\n  paperless-ngx-broker:\n    image: valkey/valkey:alpine\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-broker\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/broker:/data\n\n  paperless-ngx-db:\n    image: postgres:18\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: paperless\n      POSTGRES_USER: paperless\n      POSTGRES_PASSWORD: ${PAPERLESS_NGX_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/database:/var/lib/postgresql\n",
+   "compose": "services:\n  paperless-ngx:\n    image: ghcr.io/paperless-ngx/paperless-ngx:latest\n    container_name: ${CONTAINER_PREFIX}paperless-ngx\n    restart: ${RESTART_POLICY}\n    environment:\n      PAPERLESS_REDIS: redis://paperless-ngx-broker:6379\n      PAPERLESS_DBHOST: paperless-ngx-db\n      PAPERLESS_DBENGINE: postgresql\n      PAPERLESS_ADMIN_USER: ${ADMIN_USER}\n      PAPERLESS_TIME_ZONE: ${TZ}\n      USERMAP_UID: ${PUID}\n      USERMAP_GID: ${PGID}\n      PAPERLESS_DBPASS: ${PAPERLESS_NGX_DB_PASSWORD}\n      PAPERLESS_SECRET_KEY: ${PAPERLESS_NGX_APP_KEY}\n      PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/data:/usr/src/paperless/data\n      - ${CONFIG_PATH}/paperless-ngx/media:/usr/src/paperless/media\n      - ${CONFIG_PATH}/paperless-ngx/export:/usr/src/paperless/export\n      - ${CONFIG_PATH}/paperless-ngx/consume:/usr/src/paperless/consume\n    ports:\n      - 8000:8000\n    depends_on:\n      - paperless-ngx-broker\n      - paperless-ngx-db\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  paperless-ngx-broker:\n    image: valkey/valkey:alpine\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-broker\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/broker:/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  paperless-ngx-db:\n    image: postgres:18\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: paperless\n      POSTGRES_USER: paperless\n      POSTGRES_PASSWORD: ${PAPERLESS_NGX_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/database:/var/lib/postgresql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3014,7 +3061,7 @@
    "port": 3000,
    "docs": "https://docs.patchmon.net/",
    "links": [],
-   "compose": "services:\n  patchmon:\n    image: ghcr.io/patchmon/patchmon-server:latest\n    container_name: ${CONTAINER_PREFIX}patchmon\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_ENV: production\n      PORT: \"3000\"\n      POD_ID: patchmon-server\n      REDIS_HOST: patchmon-redis\n      REDIS_PORT: \"6379\"\n      REDIS_DB: \"0\"\n      GUACD_ADDRESS: patchmon-guacd:4822\n      CORS_ORIGIN: http://127.0.0.1:3000\n      DATABASE_URL: postgresql://patchmon_user:${PATCHMON_DB_PASSWORD}@patchmon-database:5432/patchmon_db\n      REDIS_PASSWORD: ${PATCHMON_REDIS_PASSWORD}\n      JWT_SECRET: ${PATCHMON_JWT_SECRET}\n      SESSION_SECRET: ${PATCHMON_SESSION_SECRET}\n      AI_ENCRYPTION_KEY: ${PATCHMON_AI_ENCRYPTION_KEY}\n    ports:\n      - 3000:3000\n    depends_on:\n      - patchmon-database\n      - patchmon-redis\n      - patchmon-guacd\n\n  patchmon-database:\n    image: postgres:17-alpine\n    container_name: ${CONTAINER_PREFIX}patchmon-database\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_USER: patchmon_user\n      POSTGRES_DB: patchmon_db\n      POSTGRES_PASSWORD: ${PATCHMON_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/patchmon/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"patchmon_user\", \"-d\", \"patchmon_db\"]\n      interval: 3s\n      timeout: 5s\n      start_period: 0s\n      retries: 7\n\n  patchmon-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}patchmon-redis\n    user: ${PUID}:${PGID}\n    # Keep the selected user: the image entrypoint drops container 0 to redis.\n    entrypoint: [\"/bin/sh\", \"-c\", \"umask 077; exec \\\"$$@\\\"\", \"--\"]\n    command: [\"redis-server\", \"/run/secrets/redis-config\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/patchmon/redis:/data\n      - ${CONFIG_PATH}/patchmon/redis-config:/run/secrets/redis-config:ro\n\n  patchmon-guacd:\n    image: guacamole/guacd:1.6.0\n    container_name: ${CONTAINER_PREFIX}patchmon-guacd\n    restart: ${RESTART_POLICY}\n    read_only: true\n    cap_drop: [\"ALL\"]\n    tmpfs:\n      - /tmp\n    healthcheck:\n      test: [\"CMD\", \"nc\", \"-z\", \"localhost\", \"4822\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 10s\n      retries: 3\n",
+   "compose": "services:\n  patchmon:\n    image: ghcr.io/patchmon/patchmon-server:latest\n    container_name: ${CONTAINER_PREFIX}patchmon\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_ENV: production\n      PORT: \"3000\"\n      POD_ID: patchmon-server\n      REDIS_HOST: patchmon-redis\n      REDIS_PORT: \"6379\"\n      REDIS_DB: \"0\"\n      GUACD_ADDRESS: patchmon-guacd:4822\n      CORS_ORIGIN: http://127.0.0.1:3000\n      DATABASE_URL: postgresql://patchmon_user:${PATCHMON_DB_PASSWORD}@patchmon-database:5432/patchmon_db\n      REDIS_PASSWORD: ${PATCHMON_REDIS_PASSWORD}\n      JWT_SECRET: ${PATCHMON_JWT_SECRET}\n      SESSION_SECRET: ${PATCHMON_SESSION_SECRET}\n      AI_ENCRYPTION_KEY: ${PATCHMON_AI_ENCRYPTION_KEY}\n    ports:\n      - 3000:3000\n    depends_on:\n      - patchmon-database\n      - patchmon-redis\n      - patchmon-guacd\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  patchmon-database:\n    image: postgres:17-alpine\n    container_name: ${CONTAINER_PREFIX}patchmon-database\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_USER: patchmon_user\n      POSTGRES_DB: patchmon_db\n      POSTGRES_PASSWORD: ${PATCHMON_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/patchmon/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"patchmon_user\", \"-d\", \"patchmon_db\"]\n      interval: 3s\n      timeout: 5s\n      start_period: 0s\n      retries: 7\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  patchmon-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}patchmon-redis\n    user: ${PUID}:${PGID}\n    # Keep the selected user: the image entrypoint drops container 0 to redis.\n    entrypoint: [\"/bin/sh\", \"-c\", \"umask 077; exec \\\"$$@\\\"\", \"--\"]\n    command: [\"redis-server\", \"/run/secrets/redis-config\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/patchmon/redis:/data\n      - ${CONFIG_PATH}/patchmon/redis-config:/run/secrets/redis-config:ro\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  patchmon-guacd:\n    image: guacamole/guacd:1.6.0\n    container_name: ${CONTAINER_PREFIX}patchmon-guacd\n    restart: ${RESTART_POLICY}\n    read_only: true\n    cap_drop: [\"ALL\"]\n    tmpfs:\n      - /tmp\n    healthcheck:\n      test: [\"CMD\", \"nc\", \"-z\", \"localhost\", \"4822\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 10s\n      retries: 3\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3095,7 +3142,7 @@
    "port": 8080,
    "docs": "https://github.com/Brandawg93/PeaNUT#readme",
    "links": [],
-   "compose": "services:\n  peanut:\n    image: brandawg93/peanut:latest\n    container_name: ${CONTAINER_PREFIX}peanut\n    restart: ${RESTART_POLICY}\n    environment:\n      WEB_HOST: 0.0.0.0\n      WEB_PORT: \"8080\"\n      WEB_USERNAME: ${ADMIN_USER}\n      WEB_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/peanut/config:/config\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  peanut:\n    image: brandawg93/peanut:latest\n    container_name: ${CONTAINER_PREFIX}peanut\n    restart: ${RESTART_POLICY}\n    environment:\n      WEB_HOST: 0.0.0.0\n      WEB_PORT: \"8080\"\n      WEB_USERNAME: ${ADMIN_USER}\n      WEB_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/peanut/config:/config\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3141,7 +3188,7 @@
    "port": 2342,
    "docs": "https://docs.photoprism.app/getting-started/docker-compose/",
    "links": [],
-   "compose": "services:\n  photoprism:\n    image: docker.io/photoprism/photoprism:latest\n    container_name: ${CONTAINER_PREFIX}photoprism\n    restart: ${RESTART_POLICY}\n    environment:\n      PHOTOPRISM_ADMIN_USER: ${ADMIN_USER}\n      PHOTOPRISM_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      PHOTOPRISM_DATABASE_DRIVER: sqlite\n    volumes:\n      - ${CONFIG_PATH}/photoprism/originals:/photoprism/originals\n      - ${CONFIG_PATH}/photoprism/storage:/photoprism/storage\n    ports:\n      - 2342:2342\n",
+   "compose": "services:\n  photoprism:\n    image: docker.io/photoprism/photoprism:latest\n    container_name: ${CONTAINER_PREFIX}photoprism\n    restart: ${RESTART_POLICY}\n    environment:\n      PHOTOPRISM_ADMIN_USER: ${ADMIN_USER}\n      PHOTOPRISM_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      PHOTOPRISM_DATABASE_DRIVER: sqlite\n    volumes:\n      - ${CONFIG_PATH}/photoprism/originals:/photoprism/originals\n      - ${CONFIG_PATH}/photoprism/storage:/photoprism/storage\n    ports:\n      - 2342:2342\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3187,7 +3234,7 @@
    "port": 8080,
    "docs": "https://docs.pi-hole.net/docker/",
    "links": [],
-   "compose": "services:\n  pihole:\n    image: pihole/pihole:latest\n    container_name: ${CONTAINER_PREFIX}pihole\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      FTLCONF_dns_listeningMode: ALL\n      FTLCONF_webserver_api_password: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/pihole/config:/etc/pihole\n    ports:\n      - 53:53/udp\n      - 53:53/tcp\n      - 8080:80\n",
+   "compose": "services:\n  pihole:\n    image: pihole/pihole:latest\n    container_name: ${CONTAINER_PREFIX}pihole\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      FTLCONF_dns_listeningMode: ALL\n      FTLCONF_webserver_api_password: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/pihole/config:/etc/pihole\n    ports:\n      - 53:53/udp\n      - 53:53/tcp\n      - 8080:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3234,7 +3281,7 @@
    "port": 32400,
    "docs": "https://support.plex.tv/articles/200288586-installation/",
    "links": [],
-   "compose": "services:\n  plex:\n    image: plexinc/pms-docker:latest\n    container_name: ${CONTAINER_PREFIX}plex\n    restart: ${RESTART_POLICY}\n    environment:\n      DEBUG: \"false\"\n      TZ: ${TZ}\n      ADVERTISE_IP: http://${LAN_IP}:32400\n      PLEX_CLAIM: ${PLEX_CLAIM_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/plex/config:/config\n      - ${CONFIG_PATH}/plex/transcode:/transcode\n      - ${DATA_PATH}/media:/data:ro\n    ports:\n      - 32400:32400\n",
+   "compose": "services:\n  plex:\n    image: plexinc/pms-docker:latest\n    container_name: ${CONTAINER_PREFIX}plex\n    restart: ${RESTART_POLICY}\n    environment:\n      DEBUG: \"false\"\n      TZ: ${TZ}\n      ADVERTISE_IP: http://${LAN_IP}:32400\n      PLEX_CLAIM: ${PLEX_CLAIM_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/plex/config:/config\n      - ${CONFIG_PATH}/plex/transcode:/transcode\n      - ${DATA_PATH}/media:/data:ro\n    ports:\n      - 32400:32400\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3293,7 +3340,7 @@
    "port": 9000,
    "docs": "https://docs.portainer.io/start/install-ce/server/docker/linux",
    "links": [],
-   "compose": "services:\n  portainer:\n    image: docker.io/portainer/portainer-ce:latest\n    container_name: ${CONTAINER_PREFIX}portainer\n    command: [\"--http-enabled\", \"--bind\", \":9000\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/portainer/data:/data\n    ports:\n      - 9000:9000\n",
+   "compose": "services:\n  portainer:\n    image: docker.io/portainer/portainer-ce:latest\n    container_name: ${CONTAINER_PREFIX}portainer\n    command: [\"--http-enabled\", \"--bind\", \":9000\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/portainer/data:/data\n    ports:\n      - 9000:9000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3327,7 +3374,7 @@
    "port": 5432,
    "docs": "https://www.postgresql.org/docs/current/",
    "links": [],
-   "compose": "services:\n  postgresql:\n    image: docker.io/library/postgres:18.6\n    container_name: ${CONTAINER_PREFIX}postgresql\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_USER: ${ADMIN_USER}\n      POSTGRES_DB: postgres\n      POSTGRES_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/postgresql/database:/var/lib/postgresql\n    ports:\n      - 5432:5432\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-h\", \"127.0.0.1\", \"-U\", \"${ADMIN_USER}\", \"-d\", \"postgres\"]\n      interval: 10s\n      timeout: 5s\n      retries: 5\n      start_period: 30s\n",
+   "compose": "services:\n  postgresql:\n    image: docker.io/library/postgres:18.6\n    container_name: ${CONTAINER_PREFIX}postgresql\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_USER: ${ADMIN_USER}\n      POSTGRES_DB: postgres\n      POSTGRES_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/postgresql/database:/var/lib/postgresql\n    ports:\n      - 5432:5432\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-h\", \"127.0.0.1\", \"-U\", \"${ADMIN_USER}\", \"-d\", \"postgres\"]\n      interval: 10s\n      timeout: 5s\n      retries: 5\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3373,7 +3420,7 @@
    "port": 9090,
    "docs": "https://prometheus.io/docs/prometheus/latest/installation/",
    "links": [],
-   "compose": "services:\n  prometheus:\n    image: prom/prometheus:latest\n    container_name: ${CONTAINER_PREFIX}prometheus\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    volumes:\n      - ${CONFIG_PATH}/prometheus/data:/prometheus\n    ports:\n      - 9090:9090\n",
+   "compose": "services:\n  prometheus:\n    image: prom/prometheus:latest\n    container_name: ${CONTAINER_PREFIX}prometheus\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    volumes:\n      - ${CONFIG_PATH}/prometheus/data:/prometheus\n    ports:\n      - 9090:9090\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3432,7 +3479,7 @@
      "title": "sync indexers to Lidarr"
     }
    ],
-   "compose": "services:\n  prowlarr:\n    image: lscr.io/linuxserver/prowlarr:latest\n    container_name: ${CONTAINER_PREFIX}prowlarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/prowlarr/config:/config\n    ports:\n      - 9696:9696\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:9696/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  prowlarr:\n    image: lscr.io/linuxserver/prowlarr:latest\n    container_name: ${CONTAINER_PREFIX}prowlarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/prowlarr/config:/config\n    ports:\n      - 9696:9696\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:9696/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3490,7 +3537,7 @@
    "port": 8080,
    "docs": "https://github.com/qbittorrent/qBittorrent/wiki",
    "links": [],
-   "compose": "services:\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    container_name: ${CONTAINER_PREFIX}qbittorrent\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n      WEBUI_PORT: \"8080\"\n      TORRENTING_PORT: \"6881\"\n    volumes:\n      - ${CONFIG_PATH}/qbittorrent/config:/config\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 8080:8080\n      - 6881:6881\n      - 6881:6881/udp\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8080/ || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    container_name: ${CONTAINER_PREFIX}qbittorrent\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n      WEBUI_PORT: \"8080\"\n      TORRENTING_PORT: \"6881\"\n    volumes:\n      - ${CONFIG_PATH}/qbittorrent/config:/config\n      - ${DATA_PATH}/torrents:/data/torrents\n    ports:\n      - 8080:8080\n      - 6881:6881\n      - 6881:6881/udp\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8080/ || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3542,7 +3589,7 @@
     }
    ],
    "standalone": true,
-   "notes": "The WebUI starts with a temporary administrator password printed in the container logs; sign in with it, set your own and set the default save path to /downloads."
+   "notes": "The WebUI starts with a temporary administrator password printed in the container logs; sign in with it, set your own and set the default save path to /data/torrents."
   },
   {
    "id": "radarr",
@@ -3559,7 +3606,7 @@
      "title": "download client: qBittorrent"
     }
    ],
-   "compose": "services:\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    container_name: ${CONTAINER_PREFIX}radarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/radarr/config:/config\n      - ${DATA_PATH}/media:/media\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 7878:7878\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:7878/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    container_name: ${CONTAINER_PREFIX}radarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/radarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 7878:7878\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:7878/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3611,7 +3658,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /media/movies. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/movies. Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "renovate",
@@ -3693,7 +3740,7 @@
    "port": 8080,
    "docs": "https://sabnzbd.org/wiki/",
    "links": [],
-   "compose": "services:\n  sabnzbd:\n    image: linuxserver/sabnzbd:latest\n    container_name: ${CONTAINER_PREFIX}sabnzbd\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/sabnzbd/config:/config\n      - ${DATA_PATH}/downloads:/data\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  sabnzbd:\n    image: linuxserver/sabnzbd:latest\n    container_name: ${CONTAINER_PREFIX}sabnzbd\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/sabnzbd/config:/config\n      - ${DATA_PATH}/usenet:/data/usenet\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3745,7 +3792,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. For new downloads, choose separate Temporary and Completed Download Folders under /downloads, such as /downloads/incomplete and /downloads/complete. In Config > Categories, use relative folders tv, movies and music beneath the completed folder. The legacy /data mount remains available; review existing paths and categories before changing them."
+   "notes": "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. Set Temporary Download Folder to /data/usenet/incomplete and Completed Download Folder to /data/usenet/complete in Config > Folders. In Config > Categories, use relative folders tv, movies and music beneath the completed folder, matching your import App's category. Review existing paths and categories before changing them."
   },
   {
    "id": "scrypted",
@@ -3757,7 +3804,7 @@
    "port": 11080,
    "docs": "https://docs.scrypted.app/",
    "links": [],
-   "compose": "services:\n  scrypted:\n    image: ghcr.io/koush/scrypted:lite\n    container_name: ${CONTAINER_PREFIX}scrypted\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/scrypted/data:/server/volume\n    ports:\n      - 11080:11080\n",
+   "compose": "services:\n  scrypted:\n    image: ghcr.io/koush/scrypted:lite\n    container_name: ${CONTAINER_PREFIX}scrypted\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/scrypted/data:/server/volume\n    ports:\n      - 11080:11080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3791,7 +3838,7 @@
    "port": 8080,
    "docs": "https://manual.seafile.com/13.0/setup/setup_ce_by_docker/",
    "links": [],
-   "compose": "services:\n  seafile:\n    image: seafileltd/seafile-mc:13.0-latest\n    container_name: ${CONTAINER_PREFIX}seafile\n    restart: ${RESTART_POLICY}\n    environment:\n      SEAFILE_MYSQL_DB_HOST: seafile-db\n      SEAFILE_MYSQL_DB_PORT: \"3306\"\n      SEAFILE_MYSQL_DB_USER: seafile\n      SEAFILE_MYSQL_DB_CCNET_DB_NAME: ccnet_db\n      SEAFILE_MYSQL_DB_SEAFILE_DB_NAME: seafile_db\n      SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db\n      INIT_SEAFILE_ADMIN_EMAIL: ${ADMIN_USER}@selfhost.local\n      SEAFILE_SERVER_PROTOCOL: http\n      SEAFILE_SERVER_HOSTNAME: ${LAN_IP}:8080\n      CACHE_PROVIDER: redis\n      REDIS_HOST: seafile-redis\n      REDIS_PORT: \"6379\"\n      ENABLE_SEADOC: \"false\"\n      ENABLE_NOTIFICATION_SERVER: \"false\"\n      ENABLE_SEAFILE_AI: \"false\"\n      ENABLE_FACE_RECOGNITION: \"false\"\n      SEAFILE_MYSQL_DB_PASSWORD: ${SEAFILE_DB_PASSWORD}\n      INIT_SEAFILE_MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ROOT_PASSWORD}\n      INIT_SEAFILE_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      JWT_PRIVATE_KEY: ${SEAFILE_JWT_PRIVATE_KEY}\n    volumes:\n      - ${CONFIG_PATH}/seafile/data:/shared\n    ports:\n      - 8080:80\n    depends_on:\n      - seafile-db\n      - seafile-redis\n\n  seafile-db:\n    image: mariadb:10.11.19\n    container_name: ${CONTAINER_PREFIX}seafile-db\n    restart: ${RESTART_POLICY}\n    environment:\n      MYSQL_LOG_CONSOLE: \"true\"\n      MARIADB_AUTO_UPGRADE: \"1\"\n      MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ROOT_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/seafile/database:/var/lib/mysql\n    healthcheck:\n      test: [\"CMD\", \"/usr/local/bin/healthcheck.sh\", \"--connect\", \"--mariadbupgrade\", \"--innodb_initialized\"]\n      interval: 20s\n      timeout: 5s\n      start_period: 30s\n      retries: 10\n\n  seafile-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}seafile-redis\n    restart: ${RESTART_POLICY}\n",
+   "compose": "services:\n  seafile:\n    image: seafileltd/seafile-mc:13.0-latest\n    container_name: ${CONTAINER_PREFIX}seafile\n    restart: ${RESTART_POLICY}\n    environment:\n      SEAFILE_MYSQL_DB_HOST: seafile-db\n      SEAFILE_MYSQL_DB_PORT: \"3306\"\n      SEAFILE_MYSQL_DB_USER: seafile\n      SEAFILE_MYSQL_DB_CCNET_DB_NAME: ccnet_db\n      SEAFILE_MYSQL_DB_SEAFILE_DB_NAME: seafile_db\n      SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db\n      INIT_SEAFILE_ADMIN_EMAIL: ${ADMIN_USER}@selfhost.local\n      SEAFILE_SERVER_PROTOCOL: http\n      SEAFILE_SERVER_HOSTNAME: ${LAN_IP}:8080\n      CACHE_PROVIDER: redis\n      REDIS_HOST: seafile-redis\n      REDIS_PORT: \"6379\"\n      ENABLE_SEADOC: \"false\"\n      ENABLE_NOTIFICATION_SERVER: \"false\"\n      ENABLE_SEAFILE_AI: \"false\"\n      ENABLE_FACE_RECOGNITION: \"false\"\n      SEAFILE_MYSQL_DB_PASSWORD: ${SEAFILE_DB_PASSWORD}\n      INIT_SEAFILE_MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ROOT_PASSWORD}\n      INIT_SEAFILE_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      JWT_PRIVATE_KEY: ${SEAFILE_JWT_PRIVATE_KEY}\n    volumes:\n      - ${CONFIG_PATH}/seafile/data:/shared\n    ports:\n      - 8080:80\n    depends_on:\n      - seafile-db\n      - seafile-redis\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  seafile-db:\n    image: mariadb:10.11.19\n    container_name: ${CONTAINER_PREFIX}seafile-db\n    restart: ${RESTART_POLICY}\n    environment:\n      MYSQL_LOG_CONSOLE: \"true\"\n      MARIADB_AUTO_UPGRADE: \"1\"\n      MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ROOT_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/seafile/database:/var/lib/mysql\n    healthcheck:\n      test: [\"CMD\", \"/usr/local/bin/healthcheck.sh\", \"--connect\", \"--mariadbupgrade\", \"--innodb_initialized\"]\n      interval: 20s\n      timeout: 5s\n      start_period: 30s\n      retries: 10\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  seafile-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}seafile-redis\n    restart: ${RESTART_POLICY}\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3878,7 +3925,7 @@
      "title": "requests go to Radarr"
     }
    ],
-   "compose": "services:\n  seerr:\n    image: ghcr.io/seerr-team/seerr:latest\n    container_name: ${CONTAINER_PREFIX}seerr\n    init: true\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      LOG_LEVEL: info\n      API_KEY: ${SEERR_API_KEY}\n    volumes:\n      - ${CONFIG_PATH}/seerr/config:/app/config\n    ports:\n      - 5055:5055\n    healthcheck:\n      test: [\"CMD-SHELL\", \"wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  seerr:\n    image: ghcr.io/seerr-team/seerr:latest\n    container_name: ${CONTAINER_PREFIX}seerr\n    init: true\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      LOG_LEVEL: info\n      API_KEY: ${SEERR_API_KEY}\n    volumes:\n      - ${CONFIG_PATH}/seerr/config:/app/config\n    ports:\n      - 5055:5055\n    healthcheck:\n      test: [\"CMD-SHELL\", \"wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -3937,7 +3984,7 @@
    "port": 5030,
    "docs": "https://github.com/slskd/slskd/tree/master/docs",
    "links": [],
-   "compose": "services:\n  slskd:\n    image: ghcr.io/slskd/slskd:latest\n    container_name: ${CONTAINER_PREFIX}slskd\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      SLSKD_USERNAME: ${ADMIN_USER}\n      SLSKD_PASSWORD: ${ADMIN_PASSWORD}\n      SLSKD_API_KEY: role=ReadOnly;${SLSKD_API_KEY}\n      SLSKD_DOWNLOADS_DIR: /downloads\n      SLSKD_SLSK_USERNAME: ${SLSKD_SOULSEEK_USERNAME}\n      SLSKD_SLSK_PASSWORD: ${SLSKD_SOULSEEK_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/slskd/app:/app\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 5030:5030\n",
+   "compose": "services:\n  slskd:\n    image: ghcr.io/slskd/slskd:latest\n    container_name: ${CONTAINER_PREFIX}slskd\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      SLSKD_USERNAME: ${ADMIN_USER}\n      SLSKD_PASSWORD: ${ADMIN_PASSWORD}\n      SLSKD_API_KEY: role=ReadOnly;${SLSKD_API_KEY}\n      SLSKD_DOWNLOADS_DIR: /downloads\n      SLSKD_SLSK_USERNAME: ${SLSKD_SOULSEEK_USERNAME}\n      SLSKD_SLSK_PASSWORD: ${SLSKD_SOULSEEK_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/slskd/app:/app\n      - ${DATA_PATH}/torrents:/downloads\n    ports:\n      - 5030:5030\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -4011,7 +4058,7 @@
     }
    ],
    "standalone": true,
-   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/slskd/app, ${DATA_PATH}/downloads) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them."
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/slskd/app, ${DATA_PATH}/torrents) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them."
   },
   {
    "id": "sonarr",
@@ -4028,7 +4075,7 @@
      "title": "download client: qBittorrent"
     }
    ],
-   "compose": "services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:latest\n    container_name: ${CONTAINER_PREFIX}sonarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/sonarr/config:/config\n      - ${DATA_PATH}/media:/media\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 8989:8989\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8989/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n",
+   "compose": "services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:latest\n    container_name: ${CONTAINER_PREFIX}sonarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/sonarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 8989:8989\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8989/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4080,7 +4127,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /media/tv. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/tv. Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "speedtest-tracker",
@@ -4092,7 +4139,7 @@
    "port": 8080,
    "docs": "https://docs.speedtest-tracker.dev/getting-started/installation/using-docker-compose",
    "links": [],
-   "compose": "services:\n  speedtest-tracker:\n    image: lscr.io/linuxserver/speedtest-tracker:latest\n    container_name: ${CONTAINER_PREFIX}speedtest-tracker\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      DB_CONNECTION: sqlite\n      APP_URL: http://${LAN_IP}:8080\n      ADMIN_EMAIL: ${ADMIN_USER}@selfhost.local\n      ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      PUBLIC_DASHBOARD: \"false\"\n      FILE__APP_KEY: /config/app.key\n    volumes:\n      - ${CONFIG_PATH}/speedtest-tracker/config:/config\n      - ${CONFIG_PATH}/speedtest-tracker/php-fpm-run:/etc/s6-overlay/s6-rc.d/svc-php-fpm/run:ro\n    ports:\n      - 8080:80\n",
+   "compose": "services:\n  speedtest-tracker:\n    image: lscr.io/linuxserver/speedtest-tracker:latest\n    container_name: ${CONTAINER_PREFIX}speedtest-tracker\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      DB_CONNECTION: sqlite\n      APP_URL: http://${LAN_IP}:8080\n      ADMIN_EMAIL: ${ADMIN_USER}@selfhost.local\n      ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      PUBLIC_DASHBOARD: \"false\"\n      FILE__APP_KEY: /config/app.key\n    volumes:\n      - ${CONFIG_PATH}/speedtest-tracker/config:/config\n      - ${CONFIG_PATH}/speedtest-tracker/php-fpm-run:/etc/s6-overlay/s6-rc.d/svc-php-fpm/run:ro\n    ports:\n      - 8080:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -4157,7 +4204,7 @@
    "port": 8080,
    "docs": "https://stalw.art/docs/install/platform/docker",
    "links": [],
-   "compose": "services:\n  stalwart-mail:\n    image: stalwartlabs/stalwart:latest\n    container_name: ${CONTAINER_PREFIX}stalwart-mail\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      STALWART_HOSTNAME: ${STALWART_HOSTNAME}\n      STALWART_RECOVERY_ADMIN: ${STALWART_MAIL_RECOVERY_ADMIN:-}\n    volumes:\n      - ${CONFIG_PATH}/stalwart-mail/configuration:/etc/stalwart\n      - ${CONFIG_PATH}/stalwart-mail/data:/var/lib/stalwart\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  stalwart-mail:\n    image: stalwartlabs/stalwart:latest\n    container_name: ${CONTAINER_PREFIX}stalwart-mail\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      STALWART_HOSTNAME: ${STALWART_HOSTNAME}\n      STALWART_RECOVERY_ADMIN: ${STALWART_MAIL_RECOVERY_ADMIN:-}\n    volumes:\n      - ${CONFIG_PATH}/stalwart-mail/configuration:/etc/stalwart\n      - ${CONFIG_PATH}/stalwart-mail/data:/var/lib/stalwart\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4222,7 +4269,7 @@
    "port": 8080,
    "docs": "https://docs.stirlingpdf.com/",
    "links": [],
-   "compose": "services:\n  stirling-pdf:\n    image: ghcr.io/stirling-tools/stirling-pdf:latest\n    container_name: ${CONTAINER_PREFIX}stirling-pdf\n    restart: ${RESTART_POLICY}\n    environment:\n      SECURITY_ENABLELOGIN: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/stirling-pdf/configs:/configs\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  stirling-pdf:\n    image: ghcr.io/stirling-tools/stirling-pdf:latest\n    container_name: ${CONTAINER_PREFIX}stirling-pdf\n    restart: ${RESTART_POLICY}\n    environment:\n      SECURITY_ENABLELOGIN: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/stirling-pdf/configs:/configs\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4256,7 +4303,7 @@
    "port": 8384,
    "docs": "https://docs.syncthing.net/",
    "links": [],
-   "compose": "services:\n  syncthing:\n    image: syncthing/syncthing:latest\n    container_name: ${CONTAINER_PREFIX}syncthing\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n    volumes:\n      - ${CONFIG_PATH}/syncthing/syncthing-data:/var/syncthing\n    ports:\n      - 8384:8384\n",
+   "compose": "services:\n  syncthing:\n    image: syncthing/syncthing:latest\n    container_name: ${CONTAINER_PREFIX}syncthing\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n    volumes:\n      - ${CONFIG_PATH}/syncthing/syncthing-data:/var/syncthing\n    ports:\n      - 8384:8384\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4302,7 +4349,7 @@
    "port": 0,
    "docs": "https://tailscale.com/docs/",
    "links": [],
-   "compose": "services:\n  tailscale:\n    image: ghcr.io/tailscale/tailscale:latest\n    container_name: ${CONTAINER_PREFIX}tailscale\n    hostname: self-host\n    entrypoint: [\"/usr/local/bin/tailscaled\"]\n    command: [\"--tun=userspace-networking\", \"--state=/var/lib/tailscale/tailscaled.state\", \"--socket=/tmp/tailscaled.sock\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/tailscale/state:/var/lib/tailscale\n      - ${CONFIG_PATH}/tailscale/keys:/run/secrets:ro\n",
+   "compose": "services:\n  tailscale:\n    image: ghcr.io/tailscale/tailscale:latest\n    container_name: ${CONTAINER_PREFIX}tailscale\n    hostname: self-host\n    entrypoint: [\"/usr/local/bin/tailscaled\"]\n    command: [\"--tun=userspace-networking\", \"--state=/var/lib/tailscale/tailscaled.state\", \"--socket=/tmp/tailscaled.sock\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/tailscale/state:/var/lib/tailscale\n      - ${CONFIG_PATH}/tailscale/keys:/run/secrets:ro\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4336,7 +4383,7 @@
    "port": 8265,
    "docs": "https://docs.tdarr.io/",
    "links": [],
-   "compose": "services:\n  tdarr:\n    image: ghcr.io/haveagitgat/tdarr:latest\n    container_name: ${CONTAINER_PREFIX}tdarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      serverIP: 0.0.0.0\n      serverPort: \"8266\"\n      webUIPort: \"8265\"\n      internalNode: \"true\"\n      inContainer: \"true\"\n      auth: \"true\"\n      seededApiKey: tapi_${TDARR_API_KEY_SEED}\n      apiKey: tapi_${TDARR_API_KEY_SEED}\n      openBrowser: \"false\"\n      transcodecpuWorkers: \"0\"\n      transcodegpuWorkers: \"0\"\n      healthcheckcpuWorkers: \"0\"\n      healthcheckgpuWorkers: \"0\"\n    volumes:\n      - ${CONFIG_PATH}/tdarr/server:/app/server\n      - ${CONFIG_PATH}/tdarr/configs:/app/configs\n      - ${CONFIG_PATH}/tdarr/logs:/app/logs\n      - ${DATA_PATH}/media:/media:ro\n      - ${CONFIG_PATH}/tdarr/transcode-cache:/temp\n    ports:\n      - 8265:8265\n",
+   "compose": "services:\n  tdarr:\n    image: ghcr.io/haveagitgat/tdarr:latest\n    container_name: ${CONTAINER_PREFIX}tdarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      serverIP: 0.0.0.0\n      serverPort: \"8266\"\n      webUIPort: \"8265\"\n      internalNode: \"true\"\n      inContainer: \"true\"\n      auth: \"true\"\n      seededApiKey: tapi_${TDARR_API_KEY_SEED}\n      apiKey: tapi_${TDARR_API_KEY_SEED}\n      openBrowser: \"false\"\n      transcodecpuWorkers: \"0\"\n      transcodegpuWorkers: \"0\"\n      healthcheckcpuWorkers: \"0\"\n      healthcheckgpuWorkers: \"0\"\n    volumes:\n      - ${CONFIG_PATH}/tdarr/server:/app/server\n      - ${CONFIG_PATH}/tdarr/configs:/app/configs\n      - ${CONFIG_PATH}/tdarr/logs:/app/logs\n      - ${DATA_PATH}/media:/media:ro\n      - ${CONFIG_PATH}/tdarr/transcode-cache:/temp\n    ports:\n      - 8265:8265\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4401,7 +4448,7 @@
    "port": 5380,
    "docs": "https://github.com/TechnitiumSoftware/DnsServer/blob/master/docker-compose.yml",
    "links": [],
-   "compose": "services:\n  technitium-dns:\n    image: technitium/dns-server:latest\n    container_name: ${CONTAINER_PREFIX}technitium-dns\n    restart: ${RESTART_POLICY}\n    environment:\n      DNS_SERVER_DOMAIN: dns-server\n      DNS_SERVER_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/technitium-dns/config:/etc/dns\n      - ${CONFIG_PATH}/technitium-dns/logs:/var/log/technitium/dns\n    ports:\n      - 53:53/udp\n      - 53:53/tcp\n      - 5380:5380\n",
+   "compose": "services:\n  technitium-dns:\n    image: technitium/dns-server:latest\n    container_name: ${CONTAINER_PREFIX}technitium-dns\n    restart: ${RESTART_POLICY}\n    environment:\n      DNS_SERVER_DOMAIN: dns-server\n      DNS_SERVER_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/technitium-dns/config:/etc/dns\n      - ${CONFIG_PATH}/technitium-dns/logs:/var/log/technitium/dns\n    ports:\n      - 53:53/udp\n      - 53:53/tcp\n      - 5380:5380\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -4442,7 +4489,7 @@
    "port": 3000,
    "docs": "https://docs.tracearr.com/getting-started/installation",
    "links": [],
-   "compose": "services:\n  tracearr:\n    image: ghcr.io/connorgallopo/tracearr:latest\n    container_name: ${CONTAINER_PREFIX}tracearr\n    restart: ${RESTART_POLICY}\n    environment:\n      NODE_ENV: production\n      HOST: 0.0.0.0\n      REDIS_URL: redis://tracearr-redis:6379\n      LOG_LEVEL: info\n      TZ: ${TZ}\n      CORS_ORIGIN: http://127.0.0.1:3000\n      DATABASE_URL: postgresql://tracearr:${TRACEARR_DB_PASSWORD}@tracearr-timescale:5432/tracearr\n      JWT_SECRET: ${TRACEARR_JWT_SECRET}\n      COOKIE_SECRET: ${TRACEARR_COOKIE_SECRET}\n      BETTER_AUTH_SECRET: ${TRACEARR_AUTH_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/tracearr/backups:/data/backup\n      - ${CONFIG_PATH}/tracearr/images:/data/tracearr/image-cache\n    ports:\n      - 3000:3000\n    depends_on:\n      - tracearr-timescale\n      - tracearr-redis\n\n  tracearr-timescale:\n    image: timescale/timescaledb-ha:pg18.4-ts2.29.1\n    container_name: ${CONTAINER_PREFIX}tracearr-timescale\n    # This pinned image defaults to postgres UID 1000. Enter its official\n    # root ownership preparation for the bind, then it drops to postgres.\n    user: \"0:0\"\n    restart: ${RESTART_POLICY}\n    shm_size: 512mb\n    ulimits:\n      nofile:\n        soft: 65536\n        hard: 65536\n    command:\n      - postgres\n      - -c\n      - timescaledb.license=timescale\n      - -c\n      - timescaledb.max_tuples_decompressed_per_dml_transaction=100000\n      - -c\n      - max_locks_per_transaction=4096\n      - -c\n      - timescaledb.telemetry_level=off\n      - -c\n      - max_connections=150\n    environment:\n      POSTGRES_USER: tracearr\n      POSTGRES_DB: tracearr\n      POSTGRES_PASSWORD: ${TRACEARR_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/tracearr/database:/home/postgres/pgdata/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"tracearr\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 0s\n      retries: 5\n\n  tracearr-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}tracearr-redis\n    restart: ${RESTART_POLICY}\n    command: [\"redis-server\", \"--appendonly\", \"yes\"]\n    volumes:\n      - ${CONFIG_PATH}/tracearr/redis:/data\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"ping\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 0s\n      retries: 5\n",
+   "compose": "services:\n  tracearr:\n    image: ghcr.io/connorgallopo/tracearr:latest\n    container_name: ${CONTAINER_PREFIX}tracearr\n    restart: ${RESTART_POLICY}\n    environment:\n      NODE_ENV: production\n      HOST: 0.0.0.0\n      REDIS_URL: redis://tracearr-redis:6379\n      LOG_LEVEL: info\n      TZ: ${TZ}\n      CORS_ORIGIN: http://127.0.0.1:3000\n      DATABASE_URL: postgresql://tracearr:${TRACEARR_DB_PASSWORD}@tracearr-timescale:5432/tracearr\n      JWT_SECRET: ${TRACEARR_JWT_SECRET}\n      COOKIE_SECRET: ${TRACEARR_COOKIE_SECRET}\n      BETTER_AUTH_SECRET: ${TRACEARR_AUTH_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/tracearr/backups:/data/backup\n      - ${CONFIG_PATH}/tracearr/images:/data/tracearr/image-cache\n    ports:\n      - 3000:3000\n    depends_on:\n      - tracearr-timescale\n      - tracearr-redis\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  tracearr-timescale:\n    image: timescale/timescaledb-ha:pg18.4-ts2.29.1\n    container_name: ${CONTAINER_PREFIX}tracearr-timescale\n    # This pinned image defaults to postgres UID 1000. Enter its official\n    # root ownership preparation for the bind, then it drops to postgres.\n    user: \"0:0\"\n    restart: ${RESTART_POLICY}\n    shm_size: 512mb\n    ulimits:\n      nofile:\n        soft: 65536\n        hard: 65536\n    command:\n      - postgres\n      - -c\n      - timescaledb.license=timescale\n      - -c\n      - timescaledb.max_tuples_decompressed_per_dml_transaction=100000\n      - -c\n      - max_locks_per_transaction=4096\n      - -c\n      - timescaledb.telemetry_level=off\n      - -c\n      - max_connections=150\n    environment:\n      POSTGRES_USER: tracearr\n      POSTGRES_DB: tracearr\n      POSTGRES_PASSWORD: ${TRACEARR_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/tracearr/database:/home/postgres/pgdata/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"tracearr\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 0s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  tracearr-redis:\n    image: redis:alpine\n    container_name: ${CONTAINER_PREFIX}tracearr-redis\n    restart: ${RESTART_POLICY}\n    command: [\"redis-server\", \"--appendonly\", \"yes\"]\n    volumes:\n      - ${CONFIG_PATH}/tracearr/redis:/data\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"ping\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 0s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4510,7 +4557,7 @@
    "port": 8080,
    "docs": "https://doc.traefik.io/traefik/",
    "links": [],
-   "compose": "services:\n  traefik:\n    image: traefik:latest\n    container_name: ${CONTAINER_PREFIX}traefik\n    restart: ${RESTART_POLICY}\n    command:\n      - --entryPoints.health.address=:8080\n      - --ping=true\n      - --ping.entryPoint=health\n      - --api=true\n      - --api.dashboard=false\n      - --api.insecure=false\n      - --providers.file.filename=/etc/traefik/dynamic.yml\n      - --providers.file.watch=false\n      - --log.level=ERROR\n    environment:\n      TRAEFIK_ADMIN_AUTH_HASH: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/traefik/management-api:/etc/traefik/dynamic.yml\n    ports:\n      - 8080:8080\n",
+   "compose": "services:\n  traefik:\n    image: traefik:latest\n    container_name: ${CONTAINER_PREFIX}traefik\n    restart: ${RESTART_POLICY}\n    command:\n      - --entryPoints.health.address=:8080\n      - --ping=true\n      - --ping.entryPoint=health\n      - --api=true\n      - --api.dashboard=false\n      - --api.insecure=false\n      - --providers.file.filename=/etc/traefik/dynamic.yml\n      - --providers.file.watch=false\n      - --log.level=ERROR\n    environment:\n      TRAEFIK_ADMIN_AUTH_HASH: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/traefik/management-api:/etc/traefik/dynamic.yml\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -4551,7 +4598,7 @@
    "port": 9091,
    "docs": "https://github.com/transmission/transmission/tree/main/docs",
    "links": [],
-   "compose": "services:\n  transmission:\n    image: linuxserver/transmission:latest\n    container_name: ${CONTAINER_PREFIX}transmission\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      USER: ${ADMIN_USER}\n      PASS: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/transmission/config:/config\n      - ${DATA_PATH}/downloads:/downloads\n    ports:\n      - 9091:9091\n",
+   "compose": "services:\n  transmission:\n    image: linuxserver/transmission:latest\n    container_name: ${CONTAINER_PREFIX}transmission\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n      USER: ${ADMIN_USER}\n      PASS: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/transmission/config:/config\n      - ${DATA_PATH}/torrents:/data/torrents\n    ports:\n      - 9091:9091\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -4607,10 +4654,16 @@
      "default": "UTC",
      "description": "Time zone, for example Europe/Paris",
      "secret": false
+    },
+    {
+     "key": "UMASK",
+     "default": "022",
+     "description": "Permission mask for files the App creates",
+     "secret": false
     }
    ],
    "standalone": true,
-   "notes": "Peers cannot connect in until you publish 51413 (tcp and udp) as well as the web port."
+   "notes": "Set the default download folder to /data/torrents. Peers cannot connect in until you publish 51413 (tcp and udp) as well as the web port."
   },
   {
    "id": "umami",
@@ -4622,7 +4675,7 @@
    "port": 3000,
    "docs": "https://umami.is/docs/install",
    "links": [],
-   "compose": "services:\n  umami:\n    image: ghcr.io/umami-software/umami:latest\n    container_name: ${CONTAINER_PREFIX}umami\n    init: true\n    restart: ${RESTART_POLICY}\n    environment:\n      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami\n      APP_SECRET: ${UMAMI_APP_SECRET}\n      TWO_FACTOR_ENCRYPTION_KEY: ${UMAMI_TWO_FACTOR_KEY}\n    ports:\n      - 3000:3000\n    depends_on:\n      - umami-db\n\n  umami-db:\n    image: postgres:15-alpine\n    container_name: ${CONTAINER_PREFIX}umami-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: umami\n      POSTGRES_USER: umami\n      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/umami/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"umami\", \"-d\", \"umami\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 0s\n      retries: 5\n",
+   "compose": "services:\n  umami:\n    image: ghcr.io/umami-software/umami:latest\n    container_name: ${CONTAINER_PREFIX}umami\n    init: true\n    restart: ${RESTART_POLICY}\n    environment:\n      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@umami-db:5432/umami\n      APP_SECRET: ${UMAMI_APP_SECRET}\n      TWO_FACTOR_ENCRYPTION_KEY: ${UMAMI_TWO_FACTOR_KEY}\n    ports:\n      - 3000:3000\n    depends_on:\n      - umami-db\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  umami-db:\n    image: postgres:15-alpine\n    container_name: ${CONTAINER_PREFIX}umami-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: umami\n      POSTGRES_USER: umami\n      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/umami/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"umami\", \"-d\", \"umami\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 0s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4677,7 +4730,7 @@
    "port": 5335,
    "docs": "https://unbound.docs.nlnetlabs.nl/",
    "links": [],
-   "compose": "services:\n  unbound:\n    image: madnuttah/unbound:latest\n    container_name: ${CONTAINER_PREFIX}unbound\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    ports:\n      - 5335:5335\n      - 5335:5335/udp\n    healthcheck:\n      test: [\"CMD\", \"/usr/local/unbound/sbin/healthcheck.sh\"]\n      interval: 60s\n      timeout: 15s\n      retries: 3\n      start_period: 5s\n",
+   "compose": "services:\n  unbound:\n    image: madnuttah/unbound:latest\n    container_name: ${CONTAINER_PREFIX}unbound\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    ports:\n      - 5335:5335\n      - 5335:5335/udp\n    healthcheck:\n      test: [\"CMD\", \"/usr/local/unbound/sbin/healthcheck.sh\"]\n      interval: 60s\n      timeout: 15s\n      retries: 3\n      start_period: 5s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONTAINER_PREFIX",
@@ -4710,7 +4763,7 @@
    "port": 3001,
    "docs": "https://github.com/louislam/uptime-kuma/wiki/%F0%9F%94%A7-How-to-Install",
    "links": [],
-   "compose": "services:\n  uptime-kuma:\n    image: louislam/uptime-kuma:latest\n    container_name: ${CONTAINER_PREFIX}uptime-kuma\n    restart: ${RESTART_POLICY}\n    environment:\n      UPTIME_KUMA_DB_TYPE: sqlite\n    volumes:\n      - ${CONFIG_PATH}/uptime-kuma/appdata:/app/data\n    ports:\n      - 3001:3001\n",
+   "compose": "services:\n  uptime-kuma:\n    image: louislam/uptime-kuma:latest\n    container_name: ${CONTAINER_PREFIX}uptime-kuma\n    restart: ${RESTART_POLICY}\n    environment:\n      UPTIME_KUMA_DB_TYPE: sqlite\n    volumes:\n      - ${CONFIG_PATH}/uptime-kuma/appdata:/app/data\n    ports:\n      - 3001:3001\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4744,7 +4797,7 @@
    "port": 6379,
    "docs": "https://valkey.io/topics/installation/",
    "links": [],
-   "compose": "services:\n  valkey:\n    image: valkey/valkey:latest\n    container_name: ${CONTAINER_PREFIX}valkey\n    entrypoint: [\"tini\", \"--\", \"sh\", \"-c\", \"umask 0077; exec /usr/local/bin/valkey-server \\\"$$@\\\"\", \"selfhost-valkey\"]\n    command: [\"/usr/local/etc/valkey/valkey.conf\"]\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    volumes:\n      - ${CONFIG_PATH}/valkey/data:/data\n      - ${CONFIG_PATH}/valkey/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro\n    ports:\n      - 6379:6379\n",
+   "compose": "services:\n  valkey:\n    image: valkey/valkey:latest\n    container_name: ${CONTAINER_PREFIX}valkey\n    entrypoint: [\"tini\", \"--\", \"sh\", \"-c\", \"umask 0077; exec /usr/local/bin/valkey-server \\\"$$@\\\"\", \"selfhost-valkey\"]\n    command: [\"/usr/local/etc/valkey/valkey.conf\"]\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    volumes:\n      - ${CONFIG_PATH}/valkey/data:/data\n      - ${CONFIG_PATH}/valkey/valkey.conf:/usr/local/etc/valkey/valkey.conf:ro\n    ports:\n      - 6379:6379\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4790,7 +4843,7 @@
    "port": 8222,
    "docs": "https://github.com/dani-garcia/vaultwarden/wiki",
    "links": [],
-   "compose": "services:\n  vaultwarden:\n    image: vaultwarden/server:latest\n    container_name: ${CONTAINER_PREFIX}vaultwarden\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      DOMAIN: http://${LAN_IP}:8222\n      SIGNUPS_ALLOWED: \"false\"\n      INVITATIONS_ALLOWED: \"false\"\n      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/vaultwarden/data:/data\n    ports:\n      - 8222:80\n    healthcheck:\n      test: [\"CMD\", \"/healthcheck.sh\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 20s\n",
+   "compose": "services:\n  vaultwarden:\n    image: vaultwarden/server:latest\n    container_name: ${CONTAINER_PREFIX}vaultwarden\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      DOMAIN: http://${LAN_IP}:8222\n      SIGNUPS_ALLOWED: \"false\"\n      INVITATIONS_ALLOWED: \"false\"\n      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}\n    volumes:\n      - ${CONFIG_PATH}/vaultwarden/data:/data\n    ports:\n      - 8222:80\n    healthcheck:\n      test: [\"CMD\", \"/healthcheck.sh\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 20s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4855,7 +4908,7 @@
    "port": 8686,
    "docs": "https://vector.dev/docs/setup/installation/platforms/docker/",
    "links": [],
-   "compose": "services:\n  vector:\n    image: ghcr.io/vectordotdev/vector:latest-debian\n    container_name: ${CONTAINER_PREFIX}vector\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/vector/config:/etc/vector/vector.yaml\n    ports:\n      - 8686:8686\n",
+   "compose": "services:\n  vector:\n    image: ghcr.io/vectordotdev/vector:latest-debian\n    container_name: ${CONTAINER_PREFIX}vector\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/vector/config:/etc/vector/vector.yaml\n    ports:\n      - 8686:8686\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4889,7 +4942,7 @@
    "port": 8428,
    "docs": "https://docs.victoriametrics.com/quick-start/",
    "links": [],
-   "compose": "services:\n  victoria-metrics:\n    image: victoriametrics/victoria-metrics:latest\n    container_name: ${CONTAINER_PREFIX}victoria-metrics\n    command: [\"-storageDataPath=/victoria-metrics-data\", \"-selfScrapeInterval=5s\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/victoria-metrics/data:/victoria-metrics-data\n    ports:\n      - 8428:8428\n",
+   "compose": "services:\n  victoria-metrics:\n    image: victoriametrics/victoria-metrics:latest\n    container_name: ${CONTAINER_PREFIX}victoria-metrics\n    command: [\"-storageDataPath=/victoria-metrics-data\", \"-selfScrapeInterval=5s\"]\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/victoria-metrics/data:/victoria-metrics-data\n    ports:\n      - 8428:8428\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -4922,7 +4975,7 @@
    "port": 18083,
    "docs": "https://getwud.app/docs/",
    "links": [],
-   "compose": "services:\n  wud:\n    image: getwud/wud:latest\n    container_name: ${CONTAINER_PREFIX}wud\n    restart: ${RESTART_POLICY}\n    read_only: true\n    environment:\n      TZ: ${TZ}\n      WUD_AUTH_ADMIN_USER: ${ADMIN_USER}\n      WUD_AUTH_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      WUD_SERVER_FEATURE_DELETE: \"false\"\n      WUD_WATCHER_DOCKER_APPROVED_HOST: \"${WUD_DOCKER_HOST}\"\n      WUD_WATCHER_DOCKER_APPROVED_PORT: \"2376\"\n      WUD_WATCHER_DOCKER_APPROVED_CAFILE: /tls/ca.pem\n      WUD_WATCHER_DOCKER_APPROVED_WATCHBYDEFAULT: \"false\"\n      WUD_WATCHER_DOCKER_APPROVED_WATCHEVENTS: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/wud/store:/store\n      - ${CONFIG_PATH}/wud/tls/ca.pem:/tls/ca.pem:ro\n    ports:\n      - 18083:3000\n",
+   "compose": "services:\n  wud:\n    image: getwud/wud:latest\n    container_name: ${CONTAINER_PREFIX}wud\n    restart: ${RESTART_POLICY}\n    read_only: true\n    environment:\n      TZ: ${TZ}\n      WUD_AUTH_ADMIN_USER: ${ADMIN_USER}\n      WUD_AUTH_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      WUD_SERVER_FEATURE_DELETE: \"false\"\n      WUD_WATCHER_DOCKER_APPROVED_HOST: \"${WUD_DOCKER_HOST}\"\n      WUD_WATCHER_DOCKER_APPROVED_PORT: \"2376\"\n      WUD_WATCHER_DOCKER_APPROVED_CAFILE: /tls/ca.pem\n      WUD_WATCHER_DOCKER_APPROVED_WATCHBYDEFAULT: \"false\"\n      WUD_WATCHER_DOCKER_APPROVED_WATCHEVENTS: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/wud/store:/store\n      - ${CONFIG_PATH}/wud/tls/ca.pem:/tls/ca.pem:ro\n    ports:\n      - 18083:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -4981,7 +5034,7 @@
    "port": 0,
    "docs": "https://docs.zerotier.com/",
    "links": [],
-   "compose": "services:\n  zerotier:\n    image: zerotier/zerotier:latest\n    container_name: ${CONTAINER_PREFIX}zerotier\n    restart: ${RESTART_POLICY}\n    cap_add:\n      - NET_ADMIN\n    devices:\n      - /dev/net/tun\n    environment:\n      ZEROTIER_API_SECRET: ${ZEROTIER_API_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/zerotier/identity:/var/lib/zerotier-one\n      - ${CONFIG_PATH}/zerotier/local-policy:/var/lib/zerotier-one/local.conf\n",
+   "compose": "services:\n  zerotier:\n    image: zerotier/zerotier:latest\n    container_name: ${CONTAINER_PREFIX}zerotier\n    restart: ${RESTART_POLICY}\n    cap_add:\n      - NET_ADMIN\n    devices:\n      - /dev/net/tun\n    environment:\n      ZEROTIER_API_SECRET: ${ZEROTIER_API_SECRET}\n    volumes:\n      - ${CONFIG_PATH}/zerotier/identity:/var/lib/zerotier-one\n      - ${CONFIG_PATH}/zerotier/local-policy:/var/lib/zerotier-one/local.conf\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",

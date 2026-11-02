@@ -87,7 +87,7 @@ func TestPrivateInputPublicFileTransportAndRerun(t *testing.T) {
 	if err != nil || secrets["ONE_TOKEN"] != payload {
 		t.Fatal("private input absent from secret store")
 	}
-	stat, _ := os.Stat(filepath.Join(root, "secrets.env"))
+	stat, _ := os.Stat(filepath.Join(root, ".env"))
 	if stat.Mode().Perm() != 0o600 {
 		t.Fatal("secret store is not private")
 	}

@@ -367,7 +367,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	err = h.Step(ctx, "api-key", "create and store a Homarr API key", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return apiKeyWorks(ctx, h) },
 		Do:    func(ctx context.Context) error { return s.createAPIKey(ctx, h) },
-		Hint: "Open " + h.URL + "/manage/api, create an API key and save it in secrets.env as " +
+		Hint: "Open " + h.URL + "/manage/api, create an API key and save it in .env as " +
 			h.Key("api_key") + ".",
 		Credential: "admin",
 	})

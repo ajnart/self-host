@@ -14,6 +14,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/qbittorrent"
 	"github.com/ajnart/self-host/internal/catalog"
 	"github.com/ajnart/self-host/internal/clitest"
+	"github.com/ajnart/self-host/internal/system"
 	"github.com/ajnart/self-host/internal/systemtest"
 )
 
@@ -33,7 +34,7 @@ func adminLogin(t *testing.T, e *arrtest.Env) (string, string) {
 }
 
 func secrets(t *testing.T, e *arrtest.Env) string {
-	return clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "secrets.env"))
+	return clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), ".env"))
 }
 
 func TestSonarrInstallSetsUpFormsLoginApiKeyAndRootFolder(t *testing.T) {
@@ -50,10 +51,10 @@ func TestSonarrInstallSetsUpFormsLoginApiKeyAndRootFolder(t *testing.T) {
 		t.Errorf("auth is %s/%s, want forms with the Admin login %s", method, gotUser, user)
 	}
 	if !strings.Contains(secrets(t, e), "SONARR_API_KEY="+e.Sonarr.Key) {
-		t.Errorf("secrets.env lacks the Sonarr API key:\n%s", secrets(t, e))
+		t.Errorf(".env lacks the Sonarr API key:\n%s", secrets(t, e))
 	}
-	if folders := e.Sonarr.RootFolders(); len(folders) != 1 || folders[0] != "/media/tv" {
-		t.Errorf("root folders %v, want [/media/tv]", folders)
+	if folders := e.Sonarr.RootFolders(); len(folders) != 1 || folders[0] != "/data/media/tv" {
+		t.Errorf("root folders %v, want [/data/media/tv]", folders)
 	}
 	for _, step := range []string{"api-key", "auth", "root-folder", "check"} {
 		if r.StepEvent("sonarr", step) != "step.ok" {
@@ -66,15 +67,14 @@ func TestSonarrFragmentUsesLinuxserverImageAndHostSettings(t *testing.T) {
 	e := newEnv(t, arr.Sonarr())
 	e.Run("install", "sonarr", "--yes")
 
-	fragment := clitest.Read(t, filepath.Join(e.AppDir("sonarr"), "compose.yml"))
+	fragment := clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))
 
 	for _, want := range []string{
 		"image: lscr.io/linuxserver/sonarr:latest",
 		"PUID: ${PUID}", "PGID: ${PGID}", "TZ: ${TZ}", "UMASK: ${UMASK}",
 		"${BIND_IP}:" + e.Port("sonarr") + ":8989",
-		"./config:/config",
-		"${MEDIA_ROOT}:/media",
-		"${DOWNLOADS_ROOT}:/downloads",
+		"./apps/sonarr/config:/config",
+		"${DATA_ROOT}:/data",
 	} {
 		if !strings.Contains(fragment, want) {
 			t.Errorf("fragment lacks %q:\n%s", want, fragment)
@@ -210,7 +210,7 @@ func TestMediaRecipeInstallsAndWiresEverything(t *testing.T) {
 		}
 	}
 	for _, image := range []string{"prowlarr", "radarr", "sonarr", "qbittorrent"} {
-		fragment := clitest.Read(t, filepath.Join(e.AppDir(image), "compose.yml"))
+		fragment := clitest.Read(t, filepath.Join(clitest.Root(t, e.Deps), "compose.yml"))
 		if !strings.Contains(fragment, "image: lscr.io/linuxserver/"+image+":latest") {
 			t.Errorf("%s fragment:\n%s", image, fragment)
 		}
@@ -229,7 +229,7 @@ func TestSecondSetupSkipsEveryStepExceptWaitAndCheck(t *testing.T) {
 	steps := 0
 	for _, event := range r.Events {
 		step, _ := event["step"].(string)
-		if event["app"] == nil || event["event"] == "step.start" || step == "ready" || step == "check" {
+		if step == "" || event["app"] == nil || event["event"] == "step.start" || step == "ready" || step == "check" {
 			continue
 		}
 		steps++
@@ -334,5 +334,33 @@ func TestAPIKeysNeverAppearInEvents(t *testing.T) {
 	}
 	if _, pass := adminLogin(t, e); strings.Contains(r.Out, pass) {
 		t.Fatal("Admin password leaked into events")
+	}
+}
+
+func TestSharedStoragePreservesLegacyMountsAndRequiresExplicitCopyFallback(t *testing.T) {
+	for _, ap := range []app.App{arr.Sonarr(), arr.Radarr()} {
+		legacy := ap.Compose(app.RenderContext{Port: ap.Info().Port})
+		if !strings.Contains(legacy, "${MEDIA_ROOT}:/media") || !strings.Contains(legacy, "${DOWNLOADS_ROOT}:/downloads") {
+			t.Fatalf("%s changed legacy mount paths", ap.Info().ID)
+		}
+		shared := ap.Compose(app.RenderContext{Port: ap.Info().Port, Settings: map[string]string{"MEDIA_LAYOUT": "shared", "MEDIA_SEPARATE_USERS": "on"}})
+		if !strings.Contains(shared, "${DATA_ROOT}:/data") || strings.Contains(shared, ":/downloads") || !strings.Contains(shared, "${"+strings.ToUpper(ap.Info().ID)+"_PUID}") {
+			t.Fatalf("%s lacks shared storage or its optional identity", ap.Info().ID)
+		}
+	}
+	e := newEnv(t, arr.Sonarr())
+	if r := e.Run("install", "sonarr", "--yes"); r.Code != 0 {
+		t.Fatal(r.Out)
+	}
+	root := clitest.Root(t, e.Deps)
+	e.Deps.Runner.(*systemtest.Runner).On("docker compose --project-directory "+root+" -p selfhost exec -T sonarr s6-setuidgid abc sh", system.Result{ExitCode: 1})
+	if r := e.Run("setup", "sonarr", "--json"); r.Code != 2 || !strings.Contains(r.Out, "MEDIA_COPY_FALLBACK=on") {
+		t.Fatalf("an unverified hardlink must require explicit copy fallback, exit %d\n%s", r.Code, r.Out)
+	}
+	if r := e.Run("config", "set", "MEDIA_COPY_FALLBACK=on"); r.Code != 0 {
+		t.Fatal(r.Out)
+	}
+	if r := e.Run("setup", "sonarr", "--json"); r.Code != 0 || !strings.Contains(r.Out, "copying is explicitly allowed") {
+		t.Fatalf("explicit copy fallback was not retained, exit %d\n%s", r.Code, r.Out)
 	}
 }

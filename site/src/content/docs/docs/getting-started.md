@@ -33,10 +33,37 @@ Each status is a dated launch run on a real host or VM, linked to its issue. Not
 | Intel macOS                  | Not yet verified on a real host | Not run ([#502](https://github.com/ajnart/self-host/issues/502)).                                                                                                                                                                                     |
 | WSL2                         | Verified 2026-10-26             | v0.6.2 on Windows Server 2025 with WSL2 (Ubuntu 24.04, Docker Engine): Photos and cloud files Recipe, This computer only Access, opened from Windows ([#502](https://github.com/ajnart/self-host/issues/502)).                                        |
 | Native Windows               | Unsupported                     | Not supported.                                                                                                                                                                                                                                        |
+| Unraid                       | Unverified on real hardware     | Detection and storage guards are available; installation and reboot persistence remain unverified. Read [Unraid prerequisites](#unraid) before using the installer.                                                                                   |
 
 Known issues from these runs, both fixed in v0.6.0: a newcomer saw Nextcloud's Homarr credential-recovery inputs and Review listed port 7575 ([#589](https://github.com/ajnart/self-host/issues/589)); removing the last App left its network and `down` refused ([#590](https://github.com/ajnart/self-host/issues/590)). Passbolt failed on real hosts and is hidden from new installs ([#493](https://github.com/ajnart/self-host/issues/493)).
 
 ## Install
+
+### Unraid
+
+Unraid is not yet a verified platform. Doctor identifies it and inspects the
+resolved Home folder's backing storage without creating files, but that does not
+prove persistence or database suitability.
+
+Before installing, select persistent, executable storage for the binary with
+`SELF_HOST_INSTALL_DIR` and an explicit absolute `SELF_HOST_HOME` on storage that
+meets each selected App's database requirements. New Projects reject known
+memory-backed or read-only storage, unsupported Home folder filesystems and a
+binary on `noexec` storage. Reuse the same Home folder and full binary path in
+every fresh session after checking the mount is available.
+
+Docker Compose v2 or later must be available as `docker compose`; `include`
+support is not required. Audit the authoritative root `compose.yml` for storage
+and ports; per-App Compose files are recovery snapshots. Keep the Project's
+private `.env` (mode `0600`) with the persistent Home folder.
+
+Follow the [provisional Unraid installation and reboot procedure](https://github.com/ajnart/self-host/blob/main/docs/unraid.md)
+for the plan, separate approvals, storage checks and limitations. No plugin,
+boot configuration, existing Project or unrelated container is changed
+automatically. Real installation and reboot acceptance remain blocked; no tested
+Unraid version/storage combination is claimed.
+
+### Standard installation
 
 ```bash
 curl -fsSL https://self-host.fyi/install | bash
@@ -235,7 +262,7 @@ On start, when it is idle, the Dashboard asks once about what it found: a change
 
 ## Where things live
 
-Everything self-host knows on a host lives in the Home folder, `~/.self-host`: the Project, its Apps' files, Unmanaged apps under `extra/`, and the Profile. `SELF_HOST_HOME` moves it. Secrets live only in the Project's `secrets.env`; read them with `self-host credentials`.
+Everything self-host knows on a host lives in the Home folder, `~/.self-host`: the Project, its Apps' files, Unmanaged apps under `extra/`, and the Profile. `SELF_HOST_HOME` moves it. Secrets live in the Project's private `.env` (mode `0600`); legacy `secrets.env` remains compatible with migration and restore. Read credentials with `self-host credentials`.
 
 ## Share your setup
 

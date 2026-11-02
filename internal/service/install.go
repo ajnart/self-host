@@ -33,12 +33,15 @@ type InstallOptions struct {
 	// PrivateInputs carries interactive values only in memory.
 	PrivateInputs map[string]map[string]string
 	// Exposure, MediaRoot and DownloadsRoot apply when the Project is created.
-	Exposure      string
-	EasyNames     bool
-	MediaRoot     string
-	DownloadsRoot string
-	AdminUser     string
-	AdminPassword string
+	Exposure           string
+	EasyNames          bool
+	MediaRoot          string
+	DownloadsRoot      string
+	DataRoot           string
+	SeparateMediaUsers bool
+	MediaCopyFallback  bool
+	AdminUser          string
+	AdminPassword      string
 	// Settings overrides detected Host settings for a new Project.
 	Settings map[string]string
 }
@@ -274,6 +277,11 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	}
 	var previous map[string]map[string]string
 	existed := p.Exists()
+	if !existed {
+		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
+			return err
+		}
+	}
 	if existed {
 		state, err := p.LoadState()
 		if err != nil {
@@ -347,6 +355,9 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			if existed {
 				warnIgnoredProjectFlags(s.Log, opts)
 			}
+			if err := ss.prepareMedia(ctx, apps); err != nil {
+				return err
+			}
 			var containers []compose.Container
 			if ss.tailscaleOn() && !slices.Contains(names, tailscaleID) {
 				var err error
@@ -371,6 +382,9 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			}
 			for _, a := range apps {
 				info := a.Info()
+				if info.HomeAddressOnly {
+					s.Log.Emit(events.Event{Event: events.StepWarn, App: info.ID, Step: "access", Msg: homeAddressRestriction(info)})
+				}
 				st := ss.state.Apps[info.ID]
 				if st == nil {
 					st = &project.AppState{Setup: stepstatus.SetupPending, Recipe: recipes[info.ID]}
@@ -411,9 +425,9 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err := ss.writeFragment(info.ID, fragment); err != nil {
 					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
 				}
-				wrote := fmt.Sprintf("wrote apps/%s/compose.yml (%s)", info.ID, info.Image)
+				wrote := fmt.Sprintf("wrote %s in compose.yml (%s)", info.ID, info.Image)
 				if port > 0 {
-					wrote = fmt.Sprintf("wrote apps/%s/compose.yml (%s on port %d)", info.ID, info.Image, port)
+					wrote = fmt.Sprintf("wrote %s in compose.yml (%s on port %d)", info.ID, info.Image, port)
 				}
 				if err := ss.recordStage([]string{info.ID}, events.Event{Event: events.StepOK, App: info.ID, Step: StageRender, Msg: wrote}); err != nil {
 					return err
@@ -426,7 +440,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			if !slices.Contains(names, tailscaleID) {
 				nodes = ss.pendingTailscaleServices(names, containers)
 			}
-			return ss.ensureMediaFolders(apps)
+			return nil
 		},
 		targets: func(*session) ([]string, error) { return names, nil },
 		compose: composePullUp,
@@ -454,6 +468,18 @@ func warnIgnoredProjectFlags(log *events.Logger, opts InstallOptions) {
 		flags = append(flags, "--downloads-root")
 		fixes = append(fixes, "DOWNLOADS_ROOT="+opts.DownloadsRoot)
 	}
+	if opts.DataRoot != "" {
+		flags = append(flags, "--data-root")
+		fixes = append(fixes, "DATA_ROOT="+opts.DataRoot)
+	}
+	if opts.SeparateMediaUsers {
+		flags = append(flags, "--separate-media-users")
+		fixes = append(fixes, "MEDIA_SEPARATE_USERS=on")
+	}
+	if opts.MediaCopyFallback {
+		flags = append(flags, "--media-copy-fallback")
+		fixes = append(fixes, "MEDIA_COPY_FALLBACK=on")
+	}
 	if len(flags) == 0 {
 		return
 	}
@@ -464,6 +490,24 @@ func warnIgnoredProjectFlags(log *events.Logger, opts InstallOptions) {
 
 func (s *Service) createProject(ctx context.Context, p *project.Project, opts InstallOptions) error {
 	settings := s.detectSettings(ctx, p.Owner, opts.Exposure)
+	applyInstallSettings(settings, opts)
+	if err := s.initializeMediaSettings(ctx, settings); err != nil {
+		return err
+	}
+	if err := p.MkdirAll(); err != nil {
+		return err
+	}
+	if err := p.SaveSettings(settings); err != nil {
+		return err
+	}
+	s.Log.Emit(events.Event{Event: events.StepOK, Step: "project",
+		Msg: fmt.Sprintf("created %s (exposure %s, LAN IP %s, TZ %s, PUID %s, PGID %s)", p.Root,
+			settings["EXPOSURE"], settings["LAN_IP"], settings["TZ"], settings["PUID"], settings["PGID"])})
+	return nil
+}
+
+// Keep Onboarding's storage preview consistent with the approved install.
+func applyInstallSettings(settings map[string]string, opts InstallOptions) {
 	if opts.EasyNames {
 		settings[settingNames] = namesOn
 	}
@@ -478,16 +522,20 @@ func (s *Service) createProject(ctx context.Context, p *project.Project, opts In
 	if opts.DownloadsRoot != "" {
 		settings["DOWNLOADS_ROOT"] = opts.DownloadsRoot
 	}
-	if err := p.MkdirAll(); err != nil {
-		return err
+	if opts.DataRoot != "" {
+		settings["DATA_ROOT"] = opts.DataRoot
 	}
-	if err := p.SaveSettings(settings); err != nil {
-		return err
+	if opts.SeparateMediaUsers {
+		settings["MEDIA_SEPARATE_USERS"] = "on"
 	}
-	s.Log.Emit(events.Event{Event: events.StepOK, Step: "project",
-		Msg: fmt.Sprintf("created %s (exposure %s, LAN IP %s, TZ %s, PUID %s, PGID %s)", p.Root,
-			settings["EXPOSURE"], settings["LAN_IP"], settings["TZ"], settings["PUID"], settings["PGID"])})
-	return nil
+	if opts.MediaCopyFallback {
+		settings["MEDIA_COPY_FALLBACK"] = "on"
+	}
+	// Existing path flags keep their explicit folders instead of silently
+	// moving them beneath the new shared root.
+	if (opts.MediaRoot != "" || opts.DownloadsRoot != "") && opts.DataRoot == "" && opts.Settings["MEDIA_LAYOUT"] == "" {
+		settings["MEDIA_LAYOUT"] = "legacy"
+	}
 }
 
 func (ss *session) ensureAdmin(opts InstallOptions) error {
@@ -589,6 +637,13 @@ func (ss *session) ensureSecrets(a app.App) error {
 // allocatePort keeps an App's existing port, honours an explicit one, and
 // otherwise takes the first free port from the App's default.
 func (ss *session) allocatePort(info app.Info, requested string, current int) (int, error) {
+	reserved, err := ss.s.reservedPorts(ss.p, ss.state, ss.settings, info.ID)
+	if err != nil {
+		return 0, err
+	}
+	conflicts := func(port int) bool {
+		return host.PortReserved(host.PortRequirement{Port: port, BindIP: ss.settings["BIND_IP"], Protocols: []string{"tcp"}}, reserved)
+	}
 	if requested != "" {
 		port, err := strconv.Atoi(requested)
 		if err != nil || port < 1 || port > 65535 {
@@ -597,19 +652,16 @@ func (ss *session) allocatePort(info app.Info, requested string, current int) (i
 		if port == 80 && ss.namesOn() {
 			return 0, fmt.Errorf("port 80 belongs to Easy names; choose another App port")
 		}
+		if conflicts(port) {
+			return 0, fmt.Errorf("%s.port: selected port %d tcp is already reserved by the Project", info.ID, port)
+		}
 		return port, nil
 	}
 	if current != 0 {
 		return current, nil
 	}
-	used := map[int]bool{}
-	for id, st := range ss.state.Apps {
-		if id != info.ID {
-			used[st.Port] = true
-		}
-	}
 	for port := info.Port; port <= 65535; port++ {
-		if !used[port] && !(port == 80 && ss.namesOn()) && host.PortAvailable(host.ProbePort(ss.s.Deps, port)) {
+		if !conflicts(port) && host.PortAvailable(host.ProbePort(ss.s.Deps, port)) {
 			if port != info.Port {
 				ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: info.ID, Step: "port",
 					Msg: fmt.Sprintf("port %d is taken, using %d", info.Port, port)})
@@ -632,31 +684,31 @@ func inputWasSet(sets []string, id, key string) bool {
 
 func (ss *session) allocateInputPorts(a app.App, values map[string]string, sets []string, previous map[string]string, primaryPort int) error {
 	id := a.Info().ID
-	used := map[int]bool{primaryPort: true}
-	for installedID, st := range ss.state.Apps {
-		used[st.Port] = true
-		installed, found := ss.s.Catalog.App(installedID)
-		if !found || installedID == id {
-			continue
-		}
-		for _, input := range installed.Inputs() {
-			if len(input.HostPortProtocols) > 0 {
-				port, _ := strconv.Atoi(st.Inputs[input.Key])
-				used[port] = true
-			}
-		}
+	reserved, err := ss.s.reservedPorts(ss.p, ss.state, ss.settings, id)
+	if err != nil {
+		return err
 	}
+	reserved = append(reserved, host.PortRequirement{Port: primaryPort, BindIP: ss.settings["BIND_IP"], Protocols: []string{"tcp"}})
 	for _, input := range a.Inputs() {
-		if len(input.HostPortProtocols) == 0 || previous[input.Key] != "" || inputWasSet(sets, id, input.Key) {
+		if len(input.HostPortProtocols) == 0 {
 			continue
 		}
 		start, err := strconv.Atoi(values[input.Key])
 		if err != nil {
 			return fmt.Errorf("%s.%s: %q is not a port", id, input.Key, values[input.Key])
 		}
+		requirement := host.PortRequirement{Port: start, BindIP: ss.settings["BIND_IP"], Protocols: input.HostPortProtocols}
+		if previous[input.Key] != "" || inputWasSet(sets, id, input.Key) {
+			if host.PortReserved(requirement, reserved) {
+				return fmt.Errorf("%s.%s: selected port %d is already reserved by the Project", id, input.Key, start)
+			}
+			reserved = append(reserved, requirement)
+			continue
+		}
 		selected := 0
 		for port := start; port <= 65535; port++ {
-			if !used[port] && portProtocolsAvailable(ss.s.Deps, port, input.HostPortProtocols) {
+			requirement.Port = port
+			if !host.PortReserved(requirement, reserved) && portProtocolsAvailable(ss.s.Deps, port, input.HostPortProtocols) {
 				selected = port
 				break
 			}
@@ -665,7 +717,8 @@ func (ss *session) allocateInputPorts(a app.App, values map[string]string, sets 
 			return fmt.Errorf("%s.%s: no free port from %d", id, input.Key, start)
 		}
 		values[input.Key] = strconv.Itoa(selected)
-		used[selected] = true
+		requirement.Port = selected
+		reserved = append(reserved, requirement)
 		if selected != start {
 			ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: id, Step: "port",
 				Msg: fmt.Sprintf("port %d is taken, using %d", start, selected)})

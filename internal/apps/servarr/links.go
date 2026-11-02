@@ -130,7 +130,7 @@ func (p providerLink) ownershipKey(h *helpers.H) string {
 }
 
 func (p providerLink) manual(h *helpers.H, reason string) error {
-	h.Info("Review " + h.URL + " > Settings and " + p.ownershipKey(h) + " in the Project's secrets.env: " + reason + ". Preserve person-owned entries; never claim an ID by matching its name or endpoint. Remove only a confirmed failed self-host creation manually. Clear an uncertain ownership record only after confirming that creation is absent, then run self-host setup " + h.App + ".")
+	h.Info("Review " + h.URL + " > Settings and " + p.ownershipKey(h) + " in the Project's private .env: " + reason + ". Preserve person-owned entries; never claim an ID by matching its name or endpoint. Remove only a confirmed failed self-host creation manually. Clear an uncertain ownership record only after confirming that creation is absent, then run self-host setup " + h.App + ".")
 	return fmt.Errorf("%w: %s Link ownership needs review: %s", helpers.ErrManual, p.name, reason)
 }
 

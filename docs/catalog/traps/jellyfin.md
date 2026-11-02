@@ -3,7 +3,7 @@
 ## Pitfalls
 
 - Hardware acceleration depends on matching host drivers and devices.
-- Setup recognizes existing libraries by their expected /media folder and CollectionType, not their display names, and leaves their options unchanged. Renaming Movies or Shows therefore does not create duplicate libraries.
+- Setup recognizes existing libraries by their expected folder and CollectionType, not their display names, and leaves their options unchanged. The media parent is `/data/media` for shared layouts and `/media` for legacy layouts. Renaming Movies or Shows therefore does not create duplicate libraries; changing storage layout requires explicit migration rather than a library rename.
 - A matching display name with a different folder/type, or an expected folder with a different or missing CollectionType, requires Manual review in Dashboard > Libraries. Setup does not rename, replace or duplicate the conflicting library. Resolve the conflict explicitly, then run self-host setup jellyfin; a missing type is not inferred from a name or folder.
 
 ## Security

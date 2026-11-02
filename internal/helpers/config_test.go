@@ -72,3 +72,20 @@ func TestConfigValuePollsUntilTheExtractorFindsAValue(t *testing.T) {
 		t.Errorf("extractor called %d times, want at least 3", calls)
 	}
 }
+
+func TestConfigValueUsesThePrivateReader(t *testing.T) {
+	h := newH(t, nil, nil, nil)
+	h.Dir = t.TempDir() // No local config exists for the invoking host user.
+	called := false
+	h.ReadConfig = func(_ context.Context, rel string) ([]byte, error) {
+		if rel != "config/config.xml" {
+			t.Fatal("unexpected configuration path")
+		}
+		called = true
+		return []byte("<Config><ApiKey>fixture-key</ApiKey></Config>"), nil
+	}
+	value, err := h.ConfigValue(context.Background(), "config/config.xml", helpers.XMLElement("ApiKey"), time.Second)
+	if err != nil || value != "fixture-key" || !called {
+		t.Fatalf("private configuration reader was not used: %v", err)
+	}
+}

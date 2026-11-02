@@ -109,7 +109,8 @@ authorization, never a preview flag.
    Without `--yes` a non-terminal run refuses. Answer an App's inputs with
    `--set <app>.<key>=value` (repeatable; `--set jellyfin.port=8097` picks a port);
    private inputs use `--set-file` (see "Secrets"). Host choices for a new
-   Project: `--exposure`, `--easy-names`, `--media-root`, `--downloads-root`, `--admin-user`.
+   Project: `--exposure`, `--easy-names`, `--data-root`, `--media-root`,
+   `--downloads-root`, `--separate-media-users`, `--media-copy-fallback`, `--admin-user`.
    The Admin password comes from `SELF_HOST_ADMIN_PASSWORD` or is generated.
 4. Read the events (below). The run ends with `run.end`.
 5. When a step fails, finish it (see "When a step fails"), then rerun
@@ -129,7 +130,8 @@ authorization, never a preview flag.
 ### Advanced
 
 Expose every knob: specific Apps, `--set`, `--set-file`, `--exposure local`,
-`--media-root`, `--downloads-root`, `--admin-user`, `self-host config set` and
+`--data-root`, `--media-root`, `--downloads-root`, `--separate-media-users`,
+`--media-copy-fallback`, `--admin-user`, `self-host config set` and
 `self-host config review`, Unmanaged apps, `self-host logs <app> --follow`,
 `self-host update`, encrypted and partial backups, and an isolated Project with
 `SELF_HOST_HOME` plus `SELF_HOST_COMPOSE_PROJECT` (see "Project folder").
@@ -177,8 +179,8 @@ JSON document), `--verbose` or `-v` (also print every command and step start).
 
 Command flags:
 
-- install: `--yes`, `--set`, `--set-file`, `--exposure`, `--easy-names`, `--media-root`, `--downloads-root`,
-  `--admin-user`
+- install: `--yes`, `--set`, `--set-file`, `--exposure`, `--easy-names`, `--data-root`,
+  `--media-root`, `--downloads-root`, `--separate-media-users`, `--media-copy-fallback`, `--admin-user`
 - status: `--updates`
 - access export: `--format caddy|nginx|traefik|json` (default `json`)
 - remove: `--purge` (also deletes the App's data folder), `--yes`
@@ -237,7 +239,8 @@ Document commands (`status`, `share`, `profile`, `debug`, `credentials`, `apps l
 print one result on stdout and only errors on stderr with `--json`. `logs --json` prints one `log` event per
 line (`app`, `msg`).
 
-New-Project options (`--exposure`, `--easy-names`, `--media-root`, `--downloads-root`) are ignored on an existing
+New-Project options (`--exposure`, `--easy-names`, `--data-root`, `--media-root`,
+`--downloads-root`, `--separate-media-users`, `--media-copy-fallback`) are ignored on an existing
 Project; install then emits a `step.warn` (step `project`) whose hint names `self-host config set`.
 
 ## Exit codes
@@ -554,8 +557,27 @@ undetermined). With a Project it adds `project-lock`, `project-userns`
 `firewall` (both only under `lan`), and per App `running`, `binding` and
 `reachable`, plus `easy-names` while Easy names at home are on.
 
-Doctor does not check unapproved App ports or free disk, so its human and JSON
-output stay unchanged. Onboarding checks free space in the Home folder and the
+On Unraid, Doctor also reports `unraid` and `unraid-home` before a Project exists,
+even when Docker fails. Detection uses `/etc/unraid-version`; Home folder checks
+read backing mounts without creating files. Persistence and database suitability
+remain unverified. Before planning an Unraid install or reboot, read
+https://github.com/ajnart/self-host/blob/main/docs/unraid.md for storage selection,
+fresh-session invocation, approval boundaries and the real-Host evidence gate.
+New Unraid Projects require explicit persistent locations; unsupported storage
+stops before Project creation. No plugin or boot configuration is changed.
+Docker Compose v2 or later is required, not `include` support: the authoritative
+root `compose.yml` contains services directly. Audit that file's mounts, not
+per-App recovery snapshots. Keep the private `.env` (mode `0600`) on the same
+persistent Home folder; legacy `secrets.env` remains compatible with recovery.
+
+Plain Doctor does not check unapproved App ports or free disk. For proposed Apps,
+`self-host doctor <app|recipe>... --set app.port=N --json` checks a proposed plan
+without applying it; `--easy-names` also checks port 80. Use the same non-secret
+inputs in the approved install. Existing Projects reserve effective Compose
+publications (including manual services and Unmanaged apps), recorded App ports and
+Easy names; planned checks skip targets already installed. Plain Doctor's
+existing-project behaviour stays intact.
+Onboarding checks free space in the Home folder and the
 selected Apps' default ports at Review, before approval. A failed check blocks
 approval and `r` rechecks it. An occupied default is a warning naming the free
 port install will select; an occupied explicitly selected primary or secondary
@@ -571,37 +593,71 @@ recreated.
 
 ## Unmanaged apps
 
-For software outside the Catalog, add an Unmanaged app in the Home folder's
-`extra/`. The CLI discovers it on its own: it shows in `status` with its
+For software outside the Catalog, add an Unmanaged app to the Project's root
+`compose.yml`. The CLI discovers it on its own: it shows in `status` with its
 Address, `start`, `stop`, `update` and `backup` work on it, and the Dashboard
 (Homarr) gets a tile for it once it runs. No Setup runs for it, so you do the
 configuring.
 
-1. Write `~/.self-host/extra/<name>/compose.yml` with one service. The folder
-   name is the App's ID. Do not publish ports with a bare `"8080:80"`. Use the
+1. Add a service to `~/.self-host/compose.yml`, preserving existing services,
+   comments and `x-self-host` ownership metadata. Its service name is the App's
+   ID. Do not publish ports with a bare `"8080:80"`. Use the
    shared settings, which Compose reads from the Project's `.env`:
    - `${BIND_IP}` for the published address, for example
      `"${BIND_IP}:8099:80"`
    - `${TZ}`, `${PUID}`, `${PGID}`, `${UMASK}`
-   - `${MEDIA_ROOT}`, `${DOWNLOADS_ROOT}`
-2. Keep persistent data in the same folder, with relative bind mounts such as
-   `./data:/data`, so backups include it. Do not use named volumes.
+   - `${DATA_ROOT}` for new shared media storage; `${MEDIA_ROOT}` and
+     `${DOWNLOADS_ROOT}` retain their configured meaning on existing Projects.
+2. Keep persistent data under `extra/<name>/`, with a root-relative bind such
+   as `./extra/<name>/data:/data`, so backups include it. Named volumes and
+   arbitrary external folders are not automatically included in App backups.
 3. Pick a name no Catalog App uses, and service names no other App uses.
 4. Run `self-host start <name>`, then `self-host status --json`: the App shows
    with setup `unmanaged` and its `url`.
 
-An Unmanaged app joins the same Compose Project as every other App; the root
-`compose.yml` includes it. Its folder is under `self-host backup <name>`, and
+An Unmanaged app joins the same Compose Project as every other App. Its
+`extra/<name>/` folder is under `self-host backup <name>`, and
 `self-host remove <name>` keeps the folder unless you add `--purge`.
 
-Apps added before `extra/` existed, in `~/.self-host/apps/<id>/compose.yml`,
-keep working where they are. Leave them there, or move the folder into
-`extra/` while the App is stopped.
+Legacy per-App definitions are imported into the root file without moving
+their configuration or media. The root file is authoritative afterward;
+per-App Compose snapshots are for recovery, not future editing.
 
 Never mount the Docker socket in an Unmanaged app.
 
-Never run `docker compose` or `docker` against the Project by hand when a
-`self-host` command exists; the Project is the single mutation boundary.
+Ordinary `docker compose up -d`, `down`, `logs` and other lifecycle commands
+work from the Home folder against that same root file. Prefer self-host for
+API Setup, Links and App-aware backup/restore. Keep changes within the approved
+Project and avoid concurrent edits while a self-host Action runs.
+
+## Shared media storage
+
+New Projects default to one `DATA_ROOT` containing `torrents/`, `usenet/` and
+`media/`. Sonarr, Radarr and Lidarr see that parent at `/data`; cooperating
+downloaders see narrower folders at matching internal paths. Sonarr/Radarr
+Setup enables hardlink imports and probes temporary links as the App user.
+That capability probe does not establish that an actual import used hardlinks.
+
+Use `--data-root PATH` for a new Project (`~/data` by default). Existing
+Projects without a shared layout retain their paths. Explicit `--media-root`
+or `--downloads-root` without `--data-root` selects the legacy layout for a
+new Project. Separate `/downloads` and `/media` mounts cannot provide cross-mount
+hardlinks or atomic moves; imports can occupy duplicate space while seeding.
+Check the authoritative root Compose and App paths, not recovery snapshots.
+
+Hardlinks depend on the filesystem, mount boundaries and permissions; nested
+mounts or datasets can prevent them, and Arr can fall back to copies. If the
+person accepts extra disk usage and writes after a failed capability probe, use
+`--media-copy-fallback` or `self-host config set MEDIA_COPY_FALLBACK=on`.
+
+The default media identity is shared, with umask `022`. Separate supported media
+App file owners are optional and off by default; Onboarding and Settings expose
+the same choice, and new CLI installs accept `--separate-media-users`. They use
+distinct UIDs, shared PGID, media umask `002` and setgid media directories while
+App configuration stays private. Supported Docker identity mappings are required.
+This concerns Unix file ownership, not App login accounts. Existing media paths
+or ownership are not moved or rewritten by a settings toggle; they need an
+explicit migration.
 
 ## Beszel
 
@@ -616,12 +672,11 @@ follow its recovery hint, preserve the recorded identity and retry
 
 ## Media configuration
 
-Sonarr and Radarr see the same `/downloads` as qBittorrent and separate library
-roots under `/media`. Imports can copy while torrents keep seeding; these
-separate bind mounts do not provide cross-mount hardlinks or atomic moves.
-Changing to a common-parent layout requires an explicitly reviewed migration.
 Preserve existing roots, categories, quality profiles and naming choices;
 TRaSH recommendations are choices to review, not permission for bulk rewrites.
+Setup does not import quality/custom-format bundles, bulk rename libraries or
+acquire content. Review in-place music tagging before hardlinking: edits to a
+linked file can also change its seeding source.
 When Seerr finds multiple profiles, ask which existing profile to use and pass
 its ID or exact name with `--set seerr.sonarr_profile=<choice>` and/or
 `--set seerr.radarr_profile=<choice>` on install. Existing connections keep
@@ -667,8 +722,10 @@ Test a backup by restoring one App, not by assuming it works.
 Never print, log or paste a password or API key into your reply, a command line
 or a file you write. The only way to read them is `self-host credentials`; use
 its output where needed (a login form, an API header) and say only where it
-came from. Secrets live in `~/.self-host/secrets.env` with mode 0600; do not
-read that file directly.
+came from. Secrets live in the private `~/.self-host/.env` with mode 0600;
+legacy `secrets.env` remains readable for compatible migration and restore.
+Do not read either file directly. Public Host settings are filtered before
+status/config output.
 
 For inputs marked `private` by `self-host apps info <app> --json`, pass
 `--set-file app.key=/owned/private/credential-file` during install. Use an

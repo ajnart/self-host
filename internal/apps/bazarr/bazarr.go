@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -38,22 +39,23 @@ func (App) StandaloneGuide() string {
 	return "After the first start, turn on authentication in Settings > General > Authentication (Basic, with a username and password)."
 }
 
-// Compose mounts the shared media root at /media, the path Sonarr and
-// Radarr file into, so subtitles need no remote path mapping.
+// Compose uses the same library paths as Sonarr and Radarr, preserving the
+// legacy path until an explicit storage migration.
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("bazarr", rc.Settings)
 	return `services:
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: ${UMASK}
+      UMASK: ` + mask + `
     volumes:
       - ./config:/config
-      - ${MEDIA_ROOT}:/media
+      - ${MEDIA_ROOT}:` + mediastorage.Media(rc.Settings) + `
     ports:
       - ${BIND_IP}:` + port + `:6767
 `

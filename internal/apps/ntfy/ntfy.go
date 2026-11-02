@@ -188,7 +188,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		},
 		Do: func(ctx context.Context) error { return createHomarrToken(ctx, h) },
 		Hint: "Inspect Homarr's saved ntfy token privately with self-host credentials. Restore the existing token for " + user +
-			" and its topic through the Project secret boundary, then retry self-host setup ntfy. Setup preserves valid tokens and their expiry; " +
+			" and its topic through the Project's private .env, then retry self-host setup ntfy. Setup preserves valid tokens and their expiry; " +
 			"it does not rotate rejected tokens. If replacement is necessary, explicitly approve it before changing " + h.Key("homarr_token") + ".",
 		Credential: "admin",
 	})

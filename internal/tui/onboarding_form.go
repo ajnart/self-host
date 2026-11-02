@@ -42,7 +42,7 @@ func (o *onboarding) buildForm(ctx *viewContext, s step) *huh.Form {
 	v := o.answers
 	cat := ctx.backend.Catalog()
 	folders := o.folders
-	media, downloads := folders.input(&v.media), folders.input(&v.downloads)
+	media, downloads, data := folders.input(&v.media), folders.input(&v.downloads), folders.input(&v.dataRoot)
 	var groups []*huh.Group
 	height := o.formHeight(ctx, s)
 	switch s {
@@ -50,6 +50,17 @@ func (o *onboarding) buildForm(ctx *viewContext, s step) *huh.Form {
 		groups = o.inputGroups(cat)
 		height-- // huh adds a line for its error
 	case stepWhere:
+		folderFields := []huh.Field{
+			media.Key(whereMedia).Title("Media folder"),
+			downloads.Key(whereDownloads).Title("Downloads folder"),
+		}
+		if v.mediaLayout == "shared" {
+			folderFields = []huh.Field{
+				data.Key(whereData).Title("Data folder (media and downloads)"),
+				huh.NewConfirm().Key(whereMediaUsers).Title("Separate Linux file owners?").Affirmative("Yes (y)").Negative("No (n)").Accessor(onOffAccessor{&v.separateMediaUsers}),
+				huh.NewConfirm().Key(whereCopyFallback).Title("Allow copying when hardlinks fail?").Affirmative("Yes (y)").Negative("No (n)").Accessor(onOffAccessor{&v.mediaCopyFallback}),
+			}
+		}
 		groups = append(groups,
 			huh.NewGroup(
 				huh.NewInput().Key(whereLAN).Title("LAN address").Value(&v.lan),
@@ -57,10 +68,7 @@ func (o *onboarding) buildForm(ctx *viewContext, s step) *huh.Form {
 				huh.NewInput().Key(wherePUID).Title("User ID (PUID)").Value(&v.puid).Validate(numeric),
 				huh.NewInput().Key(wherePGID).Title("Group ID (PGID)").Value(&v.pgid).Validate(numeric),
 			).Title("Host settings").Description("Detected from this machine."),
-			huh.NewGroup(
-				media.Key(whereMedia).Title("Media folder"),
-				downloads.Key(whereDownloads).Title("Downloads folder"),
-			).Title("Folders").WithHideFunc(func() bool { return len(mediaApps(cat, v.picks)) == 0 }))
+			huh.NewGroup(folderFields...).Title("Folders").WithHideFunc(func() bool { return len(mediaApps(cat, v.picks)) == 0 }))
 		groups[1].Description("Used by " + strings.Join(mediaApps(cat, v.picks), ", ") + ".")
 	case stepWho:
 		groups = append(groups, huh.NewGroup(
@@ -81,6 +89,7 @@ func (o *onboarding) buildForm(ctx *viewContext, s step) *huh.Form {
 	}
 	media.WithKeyMap(folderKeyMap())
 	downloads.WithKeyMap(folderKeyMap())
+	data.WithKeyMap(folderKeyMap())
 	// Where's pages are as tall as their own fields, so the explanation of
 	// the focused field sits right under them, and scroll only past height.
 	for _, g := range groups {
@@ -140,12 +149,15 @@ func (o *onboarding) stepIntro(ctx *viewContext, s step) []string {
 
 // The Where fields, by the key each answers to.
 const (
-	whereLAN       = "lan"
-	whereTZ        = "tz"
-	wherePUID      = "puid"
-	wherePGID      = "pgid"
-	whereMedia     = "media"
-	whereDownloads = "downloads"
+	whereLAN          = "lan"
+	whereTZ           = "tz"
+	wherePUID         = "puid"
+	wherePGID         = "pgid"
+	whereMedia        = "media"
+	whereDownloads    = "downloads"
+	whereData         = "data"
+	whereMediaUsers   = "media-users"
+	whereCopyFallback = "copy-fallback"
 )
 
 // whereExplainLines is the room Where keeps under its form for the
@@ -160,12 +172,15 @@ const folderListLines = 2
 // whereExplanations are the one-line explanations of the Where fields that
 // do not change with the answers.
 var whereExplanations = map[string]string{
-	whereLAN:       "App links use this address, so TVs and phones can open them. It only builds links: the Access step decides who can connect.",
-	whereTZ:        "The clock your Apps use for schedules and logs, for example Europe/Paris.",
-	wherePUID:      "The user ID that owns the files your Apps write, so you can open them. Detected from this machine.",
-	wherePGID:      "The group ID that owns those files. Detected from this machine.",
-	whereMedia:     "Where movies, shows and music live. The folder must exist or sit inside one that does. " + folderKeysHint,
-	whereDownloads: "Where downloads land before they move to media. The folder must exist or sit inside one that does. " + folderKeysHint,
+	whereLAN:          "App links use this address, so TVs and phones can open them. It only builds links: the Access step decides who can connect.",
+	whereTZ:           "The clock your Apps use for schedules and logs, for example Europe/Paris.",
+	wherePUID:         "The user ID that owns the files your Apps write, so you can open them. Detected from this machine.",
+	wherePGID:         "The group ID that owns those files. Detected from this machine.",
+	whereMedia:        "Where movies, shows and music live. The folder must exist or sit inside one that does. " + folderKeysHint,
+	whereDownloads:    "Where downloads land before they move to media. The folder must exist or sit inside one that does. " + folderKeysHint,
+	whereData:         "One folder contains media, torrents and Usenet downloads for hardlink-friendly storage. Capability is checked inside importing Apps. " + folderKeysHint,
+	whereMediaUsers:   "No by default. Yes gives supported media Apps distinct Linux file owners, a shared group and umask 002; these are not App logins. Creating private config folders needs ownership permissions.",
+	whereCopyFallback: "No requires a successful hardlink capability check. Yes acknowledges extra disk space and writes when files must be copied. Hardlinks also depend on the filesystem and permissions.",
 }
 
 // inputGroups ask each chosen App's own inputs; an answer survives the
@@ -218,4 +233,18 @@ func numeric(s string) error {
 		return errors.New("a number")
 	}
 	return nil
+}
+
+// onOffAccessor lets Yes/No controls keep the existing persisted on/off values.
+type onOffAccessor struct {
+	value *string
+}
+
+func (a onOffAccessor) Get() bool { return *a.value == "on" }
+
+func (a onOffAccessor) Set(value bool) {
+	*a.value = "off"
+	if value {
+		*a.value = "on"
+	}
 }

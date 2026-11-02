@@ -7,8 +7,10 @@ package arr
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/apps/servarr"
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -84,24 +86,45 @@ func (a App) Info() app.Info    { return a.info }
 func (App) Inputs() []app.Input { return nil }
 func (a App) Links() []app.Link { return a.links }
 
-func (a App) StandaloneGuide() string { return a.servarr().StandaloneGuide(a.rootFolder) }
+func (a App) StandaloneGuide() string {
+	root := strings.Replace(a.rootFolder, "/media/", "/data/media/", 1)
+	guide := a.servarr().StandaloneGuide(root)
+	if root != "" {
+		guide += " Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks."
+	}
+	return guide
+}
+
+func (a App) libraryPath(settings map[string]string) string {
+	if a.rootFolder == "" {
+		return ""
+	}
+	return mediastorage.Media(settings) + strings.TrimPrefix(a.rootFolder, "/media")
+}
 
 func (a App) Compose(rc app.RenderContext) string {
 	id := a.info.ID
 	inner := strconv.Itoa(a.info.ContainerPort)
+	uid, mask := "${PUID}", "${UMASK}"
+	if a.rootFolder != "" {
+		uid, mask = mediastorage.Identity(id, rc.Settings)
+	}
 	mounts := ""
 	if a.rootFolder != "" {
 		mounts = "      - ${MEDIA_ROOT}:/media\n      - ${DOWNLOADS_ROOT}:/downloads\n"
+		if mediastorage.Shared(rc.Settings) {
+			mounts = "      - ${DATA_ROOT}:/data\n"
+		}
 	}
 	return `services:
   ` + id + `:
     image: ` + a.info.Image + `
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: ${UMASK}
+      UMASK: ` + mask + `
     volumes:
       - ./config:/config
 ` + mounts + `    ports:
@@ -137,7 +160,7 @@ func (a App) hasRootFolder(ctx context.Context, h *helpers.H) (bool, error) {
 		return false, err
 	}
 	for _, folder := range folders {
-		if folder.Path == a.rootFolder {
+		if folder.Path == a.libraryPath(h.Settings) {
 			return true, nil
 		}
 	}
@@ -148,20 +171,27 @@ func (a App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := a.servarr().Setup(ctx, h); err != nil || a.rootFolder == "" {
 		return err
 	}
-	return h.Step(ctx, "root-folder", "add the root folder "+a.rootFolder, helpers.StepSpec{
+	root := a.libraryPath(h.Settings)
+	if err := h.Step(ctx, "root-folder", "add the root folder "+root, helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return a.hasRootFolder(ctx, h) },
 		Do: func(ctx context.Context) error {
-			if _, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "mkdir", "-p", a.rootFolder); err != nil {
+			if _, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "mkdir", "-p", root); err != nil {
 				return err
 			}
-			_, err := h.Expect(ctx, a.request(h, helpers.Request{Method: "POST", Path: "/rootfolder", JSON: rootFolder{Path: a.rootFolder}}))
+			_, err := h.Expect(ctx, a.request(h, helpers.Request{Method: "POST", Path: "/rootfolder", JSON: rootFolder{Path: root}}))
 			return err
 		},
-		Hint:       "Open " + a.info.Name + " > Settings > Media Management > Add Root Folder and choose " + a.rootFolder + ".",
+		Hint:       "Open " + a.info.Name + " > Settings > Media Management > Add Root Folder and choose " + root + ".",
 		Credential: "admin",
-	})
+	}); err != nil {
+		return err
+	}
+	return a.configureHardlinks(ctx, h)
 }
 
 func (a App) Check(ctx context.Context, h *helpers.H) error {
-	return a.servarr().Check(ctx, h)
+	if err := a.servarr().Check(ctx, h); err != nil {
+		return err
+	}
+	return a.checkHardlinks(ctx, h)
 }

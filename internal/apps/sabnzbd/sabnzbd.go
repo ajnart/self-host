@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -37,19 +38,23 @@ func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
+	uid, mask := mediastorage.Identity("sabnzbd", rc.Settings)
+	mount := "./media-data:/data"
+	if mediastorage.Shared(rc.Settings) {
+		mount = "${DATA_ROOT}/usenet:/data/usenet"
+	}
 	return `services:
   sabnzbd:
     image: linuxserver/sabnzbd:latest
     restart: unless-stopped
     environment:
-      PUID: ${PUID}
+      PUID: ` + uid + `
       PGID: ${PGID}
       TZ: ${TZ}
-      UMASK: ${UMASK}
+      UMASK: ` + mask + `
     volumes:
       - ./config:/config
-      - ./media-data:/data
-      - ${DOWNLOADS_ROOT}:/downloads
+      - ` + mount + `
     ports:
       - ${BIND_IP}:` + port + `:8080
 `
@@ -58,7 +63,7 @@ func (App) Compose(rc app.RenderContext) string {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. For new downloads, choose separate Temporary and Completed Download Folders under /downloads, such as /downloads/incomplete and /downloads/complete. In Config > Categories, use relative folders tv, movies and music beneath the completed folder. The legacy /data mount remains available; review existing paths and categories before changing them."
+	return "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. Set Temporary Download Folder to /data/usenet/incomplete and Completed Download Folder to /data/usenet/complete in Config > Folders. In Config > Categories, use relative folders tv, movies and music beneath the completed folder, matching your import App's category. Review existing paths and categories before changing them."
 }
 
 // readAPIKey waits for the key SABnzbd writes to its config on first start.
@@ -210,7 +215,10 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}); err != nil {
 		return err
 	}
-	h.Info("For new downloads, choose separate Temporary and Completed Download Folders in SABnzbd > Config > Folders, such as /downloads/incomplete and /downloads/complete. In Config > Categories, use relative folders tv, movies and music beneath the completed folder, matching your import App's category. The shared /downloads mount is available and legacy /data is retained; Setup does not rewrite existing paths or categories.")
+	if err := downloadFolders(ctx, h); err != nil {
+		return err
+	}
+	h.Info("In SABnzbd > Config > Categories, use relative folders tv, movies and music beneath your completed download folder, matching your import App's category. Existing legacy download paths and categories are preserved.")
 	if configured, err := providerConfigured(ctx, h); err == nil && !configured {
 		h.Info("SABnzbd is secured and ready; add your own Usenet provider in SABnzbd > Config > Servers to start downloading. Setup creates no provider account and makes no provider request.")
 		h.Skip("provider", "no Usenet provider yet; add one when you are ready")
@@ -236,4 +244,27 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	_, err := providerConfigured(ctx, h)
 	return err
+}
+
+// downloadFolders changes defaults only for the shared layout. Existing queues
+// and file locations in legacy Projects remain untouched.
+func downloadFolders(ctx context.Context, h *helpers.H) error {
+	if !mediastorage.Shared(h.Settings) {
+		return nil
+	}
+	for _, folder := range []struct{ key, path string }{{"download_dir", "/data/usenet/incomplete"}, {"complete_dir", "/data/usenet/complete"}} {
+		if err := h.Step(ctx, folder.key, "save Usenet downloads in "+folder.path, helpers.StepSpec{
+			Check: func(ctx context.Context) (bool, error) {
+				path, err := readSetting(ctx, h, h.Secret(h.Key("api_key")), folder.key)
+				return path == folder.path, err
+			},
+			Do: func(ctx context.Context) error {
+				return setSetting(ctx, h, h.Secret(h.Key("api_key")), folder.key, folder.path)
+			},
+			Hint: "Open SABnzbd > Config > Folders and set " + folder.key + " to " + folder.path + ".",
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

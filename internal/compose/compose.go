@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -44,19 +43,34 @@ type Compose struct {
 	name string
 }
 
+type Preparer interface {
+	PrepareCompose(context.Context, string, string, []string) (func() error, error)
+}
+
+func (c *Compose) prepare(ctx context.Context, args []string) (func() error, error) {
+	if provider, ok := c.deps.Runner.(interface{ ComposePreparation() Preparer }); ok {
+		return provider.ComposePreparation().PrepareCompose(ctx, c.root, c.name, args)
+	}
+	return func() error { return nil }, nil
+}
+
 func New(deps *system.Deps, log *events.Logger, root, name string) *Compose {
 	return &Compose{deps: deps, log: log, root: root, name: name}
 }
 
 func (c *Compose) args(extra ...string) []string {
-	base := []string{"compose", "--project-directory", c.root, "-p", c.name,
-		"--env-file", filepath.Join(c.root, ".env"), "--env-file", filepath.Join(c.root, "secrets.env")}
+	base := []string{"compose", "--project-directory", c.root, "-p", c.name}
 	return append(base, extra...)
 }
 
 // Run executes `docker compose <args>` and fails on a non-zero exit.
 // env values are passed through the process environment, never argv.
-func (c *Compose) Run(ctx context.Context, env map[string]string, args ...string) (system.Result, error) {
+func (c *Compose) Run(ctx context.Context, env map[string]string, args ...string) (result system.Result, err error) {
+	finish, err := c.prepare(ctx, args)
+	if err != nil {
+		return result, err
+	}
+	defer func() { err = errors.Join(err, finish()) }()
 	cmd := system.Cmd{Name: "docker", Args: c.args(args...), Dir: c.root}
 	keys := make([]string, 0, len(env))
 	for key := range env {
@@ -67,7 +81,7 @@ func (c *Compose) Run(ctx context.Context, env map[string]string, args ...string
 		cmd.Env = append(cmd.Env, key+"="+env[key])
 	}
 	c.log.Emit(events.Event{Event: events.Command, Command: "docker " + strings.Join(cmd.Args, " ")})
-	result, err := c.deps.Runner.Run(ctx, cmd)
+	result, err = c.deps.Runner.Run(ctx, cmd)
 	if err != nil {
 		return result, err
 	}
@@ -136,13 +150,18 @@ func (c *Compose) PullProgress(ctx context.Context, services ...string) error {
 	return err
 }
 
-func (c *Compose) pullProgress(ctx context.Context, mode string, services ...string) error {
+func (c *Compose) pullProgress(ctx context.Context, mode string, services ...string) (err error) {
 	args := append([]string{"--progress", mode, "pull"}, services...)
+	finish, err := c.prepare(ctx, args)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, finish()) }()
 	cmd := system.Cmd{Name: "docker", Args: c.args(args...), Dir: c.root}
 	c.log.Emit(events.Event{Event: events.Command, Command: "docker " + strings.Join(cmd.Args, " ")})
 	parser := newPullParser(c.log, c.deps.Now)
 	w := &lineWriter{onLine: parser.line}
-	err := c.deps.Runner.Stream(ctx, cmd, w)
+	err = c.deps.Runner.Stream(ctx, cmd, w)
 	w.flush()
 	if err != nil {
 		image := parser.failed

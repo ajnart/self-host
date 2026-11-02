@@ -232,7 +232,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return errors.New("the administrator is seeded from the environment when the container starts")
 		},
 		Hint: func(*helpers.H, string) string {
-			return "Recreate the container so it reads the Admin login from secrets.env: self-host start wud"
+			return "Recreate the container so it reads the Admin login from .env: self-host start wud"
 		},
 	}).Admin(ctx, h); err != nil {
 		return err

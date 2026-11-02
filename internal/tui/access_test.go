@@ -44,9 +44,9 @@ func TestEveryOptionDrawsItsWayFromYourDevicesToThisComputerInBothSizes(t *testi
 		id   string
 		want []string
 	}{
-		{"home", []string{"phones", "router", "this computer", "192.168.1.20", "internet ✗"}},
-		{"names", []string{"phones", "router", "Caddy", "internet ✗"}},
-		{"tailscale", []string{"anywhere", "Tailscale", "this computer", "internet ✗"}},
+		{"home", []string{"phones", "router", "this computer", "192.168.1.20", "firewall"}},
+		{"names", []string{"phones", "router", "Caddy", "firewall"}},
+		{"tailscale", []string{"anywhere", "Tailscale", "this computer", "private names"}},
 		{"cloudflare", []string{"anyone", "Cloudflare", "login first", "this computer"}},
 		{"custom", []string{"your devices", "your proxy", "this computer"}},
 	} {
@@ -157,7 +157,7 @@ func TestTheHomeNetworkHelpPageExplainsTheLANAddressTheInternetAndTheFirewall(t 
 
 	for _, want := range []string{
 		"What is a LAN address?",
-		"Nobody on the internet can open your Apps unless your router forwards ports",
+		"A public address may expose Apps directly to the internet",
 		"firewall",
 	} {
 		if !strings.Contains(text, want) {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,11 @@ import (
 // reachability checks when a Project exists.
 func (s *Service) Doctor(ctx context.Context) []host.Check {
 	checks := host.Docker(ctx, s.Deps)
+	home := ""
+	if p, err := s.Project(); err == nil {
+		home = p.Root
+	}
+	checks = append(checks, host.Unraid(s.Deps, home)...)
 	if host.Worst(checks) == host.Fail {
 		return checks
 	}
@@ -24,6 +30,7 @@ func (s *Service) Doctor(ctx context.Context) []host.Check {
 	if err := ss.p.LockError(); err != nil {
 		checks = append(checks, host.Check{ID: "project-lock", Title: "Project lock", Level: host.Fail, Detail: err.Error()})
 	}
+	checks = append(checks, ss.mediaHardlinkChecks(ctx, nil)...)
 	if rootless, err := host.Rootless(ctx, s.Deps); err == nil && rootless && (ss.settings["PUID"] != "0" || ss.settings["PGID"] != "0") {
 		checks = append(checks, host.Check{ID: "project-userns", Title: "Project container IDs", Level: host.Warn,
 			Detail: fmt.Sprintf("rootless Docker maps host-user-owned folders to container 0:0, but this Project uses PUID=%s PGID=%s; Apps using these IDs may be unable to write bind mounts", ss.settings["PUID"], ss.settings["PGID"]),
@@ -47,13 +54,9 @@ func (s *Service) Doctor(ctx context.Context) []host.Check {
 	}
 
 	lan := status.Exposure != ExposureLocal
+	checks = append(checks, accessCheck(ss.settings))
 	if lan {
-		checks = append(checks, host.Check{ID: "exposure", Title: "Access", Level: host.OK,
-			Detail: "Home network: other devices connect to " + status.LANIP}, s.lanCheck(ss.settings))
-	} else {
-		checks = append(checks, host.Check{ID: "exposure", Title: "Access", Level: host.Warn,
-			Detail: "this machine only: other devices cannot connect (TVs, phones, other computers)",
-			Hint:   "To reach Apps from other devices run: self-host config set EXPOSURE=lan"})
+		checks = append(checks, s.lanCheck(ss.settings))
 	}
 	var ports []string
 	if ss.namesOn() {
@@ -73,6 +76,53 @@ func (s *Service) Doctor(ctx context.Context) []host.Check {
 	}
 	checks = append(checks, ss.tailscaleChecks(ctx, byService)...)
 	return checks
+}
+
+func (s *Service) DoctorPlan(ctx context.Context, opts InstallOptions) []host.Check {
+	p, err := s.Project()
+	failed := func(err error) []host.Check {
+		return []host.Check{{ID: "plan", Title: "Planned ports", Level: host.Fail, Detail: err.Error()}}
+	}
+	if err != nil {
+		return failed(err)
+	}
+	if !p.Exists() {
+		return s.onboardingChecks(opts, nil)
+	}
+	apps, err := s.Resolve(opts.Targets)
+	if err != nil {
+		return failed(err)
+	}
+	installed, err := p.AppIDs()
+	if err != nil {
+		return failed(err)
+	}
+	state, err := p.LoadState()
+	if err != nil {
+		return failed(err)
+	}
+	settings, err := p.LoadSettings()
+	if err != nil {
+		return failed(err)
+	}
+	reserved, err := s.reservedPorts(p, state, settings, "")
+	if err != nil {
+		return failed(err)
+	}
+	if settings[settingNames] == namesOn {
+		opts.EasyNames = false
+	}
+	opts.Targets = nil
+	for _, a := range apps {
+		if !slices.Contains(installed, a.Info().ID) {
+			opts.Targets = append(opts.Targets, a.Info().ID)
+		}
+	}
+	if len(opts.Targets) == 0 {
+		return []host.Check{{ID: "plan", Title: "Planned Apps", Level: host.Warn,
+			Detail: "all selected Apps are already installed", Hint: "Use plain Doctor for their current ports; planned checks inspect additions only."}}
+	}
+	return s.onboardingChecks(opts, reserved)
 }
 
 func (s *Service) appChecks(ctx context.Context, app AppStatus, byService map[string]compose.Container, lan bool) []host.Check {
@@ -102,7 +152,7 @@ func (s *Service) appChecks(ctx context.Context, app AppStatus, byService map[st
 	switch {
 	case bind == "":
 		checks = append(checks, host.Check{ID: "binding", App: id, Title: "Port", Level: host.Warn,
-			Detail: "no published port found", Hint: "The App is not reachable from outside Docker; check apps/" + id + "/compose.yml ports."})
+			Detail: "no published port found", Hint: "The App is not reachable from outside Docker; check " + id + "'s ports in compose.yml."})
 	case lan && loopback:
 		checks = append(checks, host.Check{ID: "binding", App: id, Title: "Port", Level: host.Fail,
 			Detail: fmt.Sprintf("port %d is bound to %s, so other devices cannot connect", app.Port, bind),

@@ -11,6 +11,7 @@
 
 Adding an App or its Links? Start with the [App extension checklist](docs/catalog/adding-apps.md).
 Media defaults and TRaSH references are in [Media Setup](docs/catalog/media-setup.md).
+Installed Apps share one editable root `compose.yml`; per-App files are legacy recovery snapshots, not active definitions. Preserve manual edits and private `.env` handling as specified in [ADR 0014](docs/adr/0014-one-editable-compose-file.md).
 
 ## Gate
 

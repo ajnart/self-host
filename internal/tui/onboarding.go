@@ -50,6 +50,9 @@ type answers struct {
 	picks                    picks
 	tz, lan, puid, pgid      string
 	media, downloads         string
+	dataRoot, mediaLayout    string
+	separateMediaUsers       string
+	mediaCopyFallback        string
 	adminUser, adminPassword string
 	inputs                   map[string]*string
 }
@@ -113,10 +116,16 @@ func (a *answers) fill(defaults map[string]string) {
 	for _, f := range []struct {
 		value *string
 		key   string
-	}{{&a.tz, "TZ"}, {&a.lan, "LAN_IP"}, {&a.puid, "PUID"}, {&a.pgid, "PGID"}, {&a.media, "MEDIA_ROOT"}, {&a.downloads, "DOWNLOADS_ROOT"}} {
+	}{{&a.tz, "TZ"}, {&a.lan, "LAN_IP"}, {&a.puid, "PUID"}, {&a.pgid, "PGID"}, {&a.media, "MEDIA_ROOT"}, {&a.downloads, "DOWNLOADS_ROOT"}, {&a.dataRoot, "DATA_ROOT"}, {&a.mediaLayout, "MEDIA_LAYOUT"}, {&a.separateMediaUsers, "MEDIA_SEPARATE_USERS"}, {&a.mediaCopyFallback, "MEDIA_COPY_FALLBACK"}} {
 		if *f.value == "" {
 			*f.value = defaults[f.key]
 		}
+	}
+	if a.separateMediaUsers == "" {
+		a.separateMediaUsers = "off"
+	}
+	if a.mediaCopyFallback == "" {
+		a.mediaCopyFallback = "off"
 	}
 }
 
@@ -180,6 +189,8 @@ func (o *onboarding) tabAsEnter(msg tea.Msg) tea.Msg {
 	}
 	typed := o.answers.media
 	switch o.focusedKey() {
+	case whereData:
+		typed = o.answers.dataRoot
 	case whereMedia:
 	case whereDownloads:
 		typed = o.answers.downloads

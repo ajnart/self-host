@@ -9,13 +9,43 @@ import (
 	"github.com/ajnart/self-host/internal/host"
 )
 
-// OnboardingChecks prepares the approved non-secret App inputs for Host-owned
-// disk and port inspection. Doctor is deliberately unchanged.
-func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []host.Check {
+// OnboardingChecks inspects the proposed App inputs and storage before approval.
+func (s *Service) OnboardingChecks(ctx context.Context, opts InstallOptions) []host.Check {
+	checks := s.onboardingChecks(opts, nil)
+	p, err := s.Project()
+	if err != nil || host.Worst(checks) == host.Fail {
+		return checks
+	}
+	apps, err := s.Resolve(opts.Targets)
+	if err != nil {
+		return checks
+	}
+	settings := s.detectSettings(ctx, p.Owner, opts.Exposure)
+	applyInstallSettings(settings, opts)
+	if check := accessCheck(settings); check.Level == host.Warn && settings["EXPOSURE"] != ExposureLocal {
+		checks = append(checks, check)
+	}
+	if err := normalizeMediaSettings(settings); err != nil {
+		return append(checks, host.Check{ID: "media-storage", Title: "Media storage", Level: host.Fail, Detail: err.Error()})
+	}
+	if err := s.ensureMediaIdentities(ctx, settings); err != nil {
+		return append(checks, host.Check{ID: "media-users", Title: "Media file owners", Level: host.Fail,
+			Detail: err.Error(), Hint: "Review separate Linux file owners in Where; existing files have not been changed."})
+	}
+	return append(checks, s.mediaHardlinkChecks(ctx, settings, apps)...)
+}
+
+func (s *Service) onboardingChecks(opts InstallOptions, reserved []host.PortRequirement) []host.Check {
 	p, err := s.Project()
 	if err != nil {
 		return []host.Check{{ID: "disk", Title: "Disk space", Level: host.Fail,
 			Detail: err.Error(), Hint: "Fix the Home folder, then press r to recheck."}}
+	}
+	var checks []host.Check
+	if !p.Exists() {
+		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
+			checks = append(checks, host.Check{ID: "unraid-install", Title: "Unraid installation locations", Level: host.Fail, Detail: err.Error()})
+		}
 	}
 	apps, err := s.Resolve(opts.Targets)
 	if err != nil {
@@ -26,6 +56,17 @@ func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []hos
 		return []host.Check{{ID: "plan", Title: "Selected ports", Level: host.Fail, Detail: err.Error()}}
 	}
 	var ports []host.PortRequirement
+	bind := BindIP(opts.Exposure)
+	if p.Exists() {
+		settings, err := p.LoadSettings()
+		if err != nil {
+			return []host.Check{{ID: "plan", Title: "Selected ports", Level: host.Fail, Detail: err.Error()}}
+		}
+		bind = settings["BIND_IP"]
+	}
+	if opts.EasyNames {
+		ports = append(ports, host.PortRequirement{Title: "Easy names at home port", Port: 80, Protocols: []string{"tcp"}})
+	}
 	for _, a := range apps {
 		info, values := a.Info(), inputs[a.Info().ID]
 		if info.Port > 0 {
@@ -48,7 +89,10 @@ func (s *Service) OnboardingChecks(_ context.Context, opts InstallOptions) []hos
 				Input: input.Key, Protocols: input.HostPortProtocols, Automatic: !inputWasSet(opts.Sets, info.ID, input.Key)})
 		}
 	}
-	return host.Onboarding(s.Deps, p.Root, len(apps), ports)
+	for i := range ports {
+		ports[i].BindIP = bind
+	}
+	return append(checks, host.Onboarding(s.Deps, p.Root, len(apps), ports, reserved...)...)
 }
 
 func plannedPort(value string, fallback int) (int, error) {

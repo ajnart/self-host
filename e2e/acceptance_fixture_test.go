@@ -21,7 +21,7 @@ func TestAcceptanceInventory(t *testing.T) {
 	if err := json.Unmarshal(data, &want); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 102 || !reflect.DeepEqual(got, want) {
+	if len(got) != 103 || !reflect.DeepEqual(got, want) {
 		t.Fatalf("inventory differs: got %d targets, want %d", len(got), len(want))
 	}
 }
@@ -80,7 +80,7 @@ func TestReadyRequiresExpectedAppsAndHealthyContainers(t *testing.T) {
 
 func TestLoopbackPortsAndEvidenceNames(t *testing.T) {
 	args := installArguments(targetSpec{ID: "ntfy", Apps: []string{"ntfy"}}, "/tmp/project", map[string]int{"ntfy": 30001})
-	if !containsPair(args, "--exposure", "local") || !containsPair(args, "--set", "ntfy.port=30001") {
+	if !containsPair(args, "--exposure", "local") || !containsPair(args, "--set", "ntfy.port=30001") || !containsPair(args, "--data-root", "/tmp/project/data") {
 		t.Fatal(args)
 	}
 	if evidenceName(targetSpec{Kind: "app", ID: "media"}) == evidenceName(targetSpec{Kind: "recipe", ID: "media"}) {

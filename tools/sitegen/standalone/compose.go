@@ -15,7 +15,7 @@ const secretsDir = "/run/secrets/"
 
 var (
 	secretRead = regexp.MustCompile(`/run/secrets/([A-Za-z0-9._-]+)`)
-	rootVars   = strings.NewReplacer("${MEDIA_ROOT}", "${DATA_PATH}/media", "${DOWNLOADS_ROOT}", "${DATA_PATH}/downloads")
+	rootVars   = strings.NewReplacer("${DATA_ROOT}", "${DATA_PATH}", "${MEDIA_ROOT}", "${DATA_PATH}/media", "${DOWNLOADS_ROOT}", "${DATA_PATH}/torrents")
 	// fileKeys name files on the machine that plain Compose cannot supply.
 	fileKeys = []string{"env_file", "build", "configs", "extends"}
 )
@@ -160,6 +160,14 @@ func (c *converter) service(name string, svc *yaml.Node) error {
 	}
 	remove(svc, "secrets")
 	restart(lookup(svc, "restart"))
+	policy := lookup(svc, "restart")
+	if lookup(svc, "logging") == nil && policy != nil && policy.Value != "" && policy.Value != "no" {
+		var defaults yaml.Node
+		if err := yaml.Unmarshal([]byte("driver: local\noptions:\n  max-size: \"10m\"\n  max-file: \"3\"\n"), &defaults); err != nil {
+			return err
+		}
+		svc.Content = append(svc.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "logging"}, defaults.Content[0])
+	}
 	ports(lookup(svc, "ports"))
 	if err := c.volumes(svc, pure, runsAsOwner(lookup(svc, "user"))); err != nil {
 		return err

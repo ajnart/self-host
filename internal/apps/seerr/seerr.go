@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -277,6 +278,10 @@ var (
 	}}
 )
 
+func (s server) libraryPath(to *helpers.H) string {
+	return mediastorage.Media(to.Settings) + strings.TrimPrefix(s.rootFolder, "/media")
+}
+
 func (s server) points(item map[string]any, to *helpers.H) bool {
 	port, valid := item["port"].(json.Number)
 	parsed, err := port.Int64()
@@ -343,6 +348,26 @@ func (s server) selectProfile(h *helpers.H, profiles []qualityProfile) (qualityP
 	return matches[0], nil
 }
 
+func (s server) selectRoot(from, to *helpers.H, result testResult) (string, error) {
+	folders := map[string]bool{}
+	for _, folder := range result.RootFolders {
+		if !strings.HasPrefix(folder.Path, "/") || folder.Path == "/" {
+			return "", fmt.Errorf("%s returned an invalid root folder; no connection was added", s.name)
+		}
+		folders[folder.Path] = true
+	}
+	if folders[s.libraryPath(to)] {
+		return s.libraryPath(to), nil
+	}
+	if len(folders) == 1 {
+		for folder := range folders {
+			return folder, nil
+		}
+	}
+	from.Info("Review " + s.name + " > Settings > Media Management and Seerr > Settings > Services: choose an existing target root folder explicitly. No unique root folder could be selected and no connection was added.")
+	return "", helpers.ErrManual
+}
+
 func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	p, err := readPublic(ctx, from)
 	if err != nil {
@@ -378,14 +403,9 @@ func (s server) add(ctx context.Context, from, to *helpers.H) error {
 	if err != nil {
 		return err
 	}
-	folder := ""
-	for _, f := range test.RootFolders {
-		if f.Path == s.rootFolder {
-			folder = f.Path
-		}
-	}
-	if folder == "" {
-		return fmt.Errorf("%s has no root folder %s", s.name, s.rootFolder)
+	folder, err := s.selectRoot(from, to, test)
+	if err != nil {
+		return err
 	}
 	existing, err := s.list(ctx, from)
 	if err != nil {
@@ -426,7 +446,7 @@ func serverLink(s server) app.Link {
 			Do:      func(ctx context.Context, from, to *helpers.H) error { return s.add(ctx, from, to) },
 			Hint: func(from, to *helpers.H) string {
 				return "Review " + from.URL + "/settings/services: " + s.name + " uses host " + to.Service + ", port " + strconv.Itoa(to.ContainerPort) +
-					", its API key from `self-host credentials` and root folder " + s.rootFolder + ". For multiple profiles, run self-host install seerr --set seerr." + s.id + "_profile=<ID-or-exact-name> --yes. Existing defaults and search choices are preserved; unowned servers are never adopted or deleted."
+					", its API key from `self-host credentials` and a root folder currently configured in " + s.name + ". For multiple profiles, run self-host install seerr --set seerr." + s.id + "_profile=<ID-or-exact-name> --yes. Existing defaults and search choices are preserved; unowned servers are never adopted or deleted."
 			},
 		},
 		app.LinkStep{

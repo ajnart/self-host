@@ -4,8 +4,8 @@
 
 - Mismatched downloader and library paths break imports and hardlinks.
 - Setup creates a qBittorrent download client with category `tv` when that App is ready. Later retries repair only its recorded ID's endpoint and Admin login; categories, tags, enabled state and other settings are preserved. SABnzbd Links are not configured.
-- Person-owned or legacy entries matching the qBittorrent host or name remain Manual, not adopted or duplicated. Review `SONARR_LINK_QBITTORRENT_RESOURCE` in the Project's `secrets.env`; uncertain creation or missing recorded resources require inspection. Never assign ownership by name or endpoint. Unlink deletes only the verified recorded ID.
-- `/media` and `/downloads` are separate mounts. Imports can copy instead of hardlinking even when the Host folders share a filesystem. A single shared mount would require an explicit path/data migration; Setup does not move libraries or change naming and quality choices.
+- Person-owned or legacy entries matching the qBittorrent host or name remain Manual, not adopted or duplicated. Ownership is recorded as `SONARR_LINK_QBITTORRENT_RESOURCE` through the Project secret boundary; uncertain creation or missing resources require review through `self-host debug sonarr`, not direct env-file inspection. Never assign ownership by name or endpoint. Unlink deletes only the verified recorded ID.
+- Shared layouts mount one parent at `/data`, with `/data/torrents` and `/data/media/tv`. Setup enables hardlink imports and probes temporary links as the App user; this is capability evidence, not proof of an import. Legacy `/media` and `/downloads` mounts remain separate and cannot provide cross-mount hardlinks. Existing paths, naming and quality choices stay unchanged; migration requires explicit review. See [Media Setup](../media-setup.md).
 
 ## Security
 

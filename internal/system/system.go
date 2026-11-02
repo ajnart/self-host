@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -46,6 +47,15 @@ type FileLimits struct {
 type FileSystem struct {
 	Type          string
 	CaseSensitive bool
+}
+
+type Storage struct {
+	Path       string
+	Existing   string
+	MountPoint string
+	Type       string
+	ReadOnly   bool
+	NoExec     bool
 }
 
 // Resolver looks names up for the Easy names check.
@@ -122,7 +132,18 @@ type Deps struct {
 	MachineResources func() (MachineResources, error)
 	FileLimits       func() (FileLimits, error)
 	FileSystem       func(path string) (FileSystem, error)
-	Resolver         Resolver
+	UnraidRelease    func() ([]byte, error)
+	Storage          func(path string) (Storage, error)
+	// Hardlink creates, verifies and removes a temporary file/link pair in the
+	// exact existing folders, using this process's host identity.
+	Hardlink func(sourceDir, targetDir string) error
+	// InspectDockerNamespace resolves a local Unix socket's daemon identity and
+	// verifies that its user namespace can be entered without elevated access.
+	InspectDockerNamespace func(context.Context, string) (*UserNamespace, error)
+	// SetNamespaceMetadata changes one newly created path in that verified user
+	// namespace. IDs are relative to the namespace; the mount view stays local.
+	SetNamespaceMetadata func(context.Context, *UserNamespace, string, int, int, os.FileMode) error
+	Resolver             Resolver
 	// ListFolders returns the names of the folders inside dir.
 	ListFolders func(dir string) ([]string, error)
 	// ProcessAlive reports whether a PID belongs to a running process.

@@ -4,7 +4,7 @@
 
 - The publisher documents daily scheduling by default and CRON=false to disable it; do not start a backup schedule before separate source, destination, and write approval.
 - The recipe's managed source and repository folders are empty staging placeholders, not selected production data or an independent off-host copy.
-- The version-only container exits and cannot accept `docker compose exec`. After separate source, destination and write approval and repository preparation, run a one-off job from the Project folder using its existing Compose project name: `docker compose -p PROJECT_NAME -f compose.yml --env-file .env --env-file secrets.env run --rm --no-deps -T borgmatic borgmatic create --verbosity 1`. Replace `PROJECT_NAME`; do not create another Project or enable cron. Setup initializes no repository and runs no backup.
+- The version-only container exits and cannot accept `docker compose exec`. After separate source, destination and write approval and repository preparation, run a one-off job from the Home folder against its canonical `compose.yml`: `docker compose run --rm --no-deps -T borgmatic borgmatic create --verbosity 1`. Ordinary Compose reads the private `.env` and existing Project identity there; `secrets.env` is a legacy compatibility input, not a required second env file. Preserve the Project name and keep cron disabled. Setup initializes no repository and runs no backup.
 - Hooks must fail closed when a database dump or quiesce step fails; a successful archive still requires an isolated restore drill.
 
 ## Security

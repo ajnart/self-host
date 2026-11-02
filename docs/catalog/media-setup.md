@@ -4,24 +4,30 @@ Use this guide when reviewing media folders, downloader categories or quality/na
 It describes boundaries, not an automatic TRaSH profile import or storage migration.
 For App implementation, see [Adding an App](adding-apps.md); product-specific recovery lives in [traps/](traps/).
 
-## Shared paths, not hardlinks
+## Shared storage is the default
 
-The shared layout uses Host settings `${MEDIA_ROOT}` and `${DOWNLOADS_ROOT}`:
+New Projects default to `MEDIA_LAYOUT=shared` with one `DATA_ROOT` (`~/data`, configurable with `--data-root`):
 
-| Host folder         | Container path | Purpose                                                                      |
-| ------------------- | -------------- | ---------------------------------------------------------------------------- |
-| `${MEDIA_ROOT}`     | `/media`       | Organized libraries, including Sonarr `/media/tv` and Radarr `/media/movies` |
-| `${DOWNLOADS_ROOT}` | `/downloads`   | Downloader output, visible at the same path to consuming Apps                |
+| Host folder                            | Container path                                  | Purpose                                         |
+| -------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| `${DATA_ROOT}`                         | `/data` in Sonarr, Radarr and Lidarr            | Common parent for downloads and libraries       |
+| `${DATA_ROOT}/torrents`                | `/data/torrents` in cooperating torrent clients | Torrent output at the importers' matching path  |
+| `${DATA_ROOT}/usenet`                  | `/data/usenet` in SABnzbd and NZBGet            | Separate `incomplete` and `complete` folders    |
+| `${MEDIA_ROOT}` (`${DATA_ROOT}/media`) | `/data/media` in Jellyfin and Bazarr            | Libraries, including `tv`, `movies` and `music` |
 
-These are separate bind mounts. Matching `/downloads` across Apps permits imports without a remote-path translation; it does **not** enable hardlinks across `/downloads` and `/media`.
-Imports across these mounts copy data; torrent imports retain the source for seeding and can consume duplicate space.
-Enabling Sonarr/Radarr's hardlink setting alone cannot change that mount boundary.
+Check the root `compose.yml` and each App's configured paths; not every media App uses the same internal mount. Audiobookshelf uses `/data/media` in shared Projects and `/media` in legacy Projects.
+Sonarr/Radarr Setup enables hardlink imports and probes temporary links across selected download/library pairs as the App user. Compatible filesystems, mount boundaries and permissions are still required: nested mounts, datasets or subvolumes can prevent links. A host-side probe or successful temporary container link is not proof that an App import used hardlinks; Arr can fall back to copying.
 
-- Keep completed downloads separate from library roots; check the downloader's reported final path, category override and permissions when imports fail.
-- Use shared PUID/PGID/UMASK consistently; do not repair permissions by recursively changing a person's library without review.
-- Check each App's actual Compose and existing library settings: mounts alone do not create or import libraries, and legacy App-local paths may still be in use.
-- A common-parent layout can support hardlinks/atomic moves only with compatible mounts and filesystem support. It requires an explicitly reviewed migration plan, backup/recovery, and coordinated downloader/library paths.
-- Preserve existing paths and user libraries by default. Do not silently replace `/media`, `/downloads` or legacy mounts with `/data`, move files, or add remote-path mappings to disguise a mismatch.
+If the person accepts extra writes and disk usage, `--media-copy-fallback` for a new Project or `self-host config set MEDIA_COPY_FALLBACK=on` acknowledges a failed capability probe. Neither option repairs storage or proves an import. Review in-place music tagging before using hardlinks: changing a linked file can also change its seeding source.
+
+## Legacy layouts and ownership
+
+Existing Projects without `MEDIA_LAYOUT=shared` retain their paths. Explicit `--media-root` or `--downloads-root` without `--data-root` also selects the legacy layout for a new Project. Some Apps use separate `${MEDIA_ROOT}:/media` and `${DOWNLOADS_ROOT}:/downloads` mounts; others retain App-local `/data`. Matching downloader paths avoids remote-path translation, but separate download/library mounts cannot provide cross-mount hardlinks or atomic moves, even on one host filesystem. Torrent imports can then occupy duplicate space while seeding.
+
+- Preserve existing libraries, pending jobs and paths. Moving to shared storage requires an explicitly reviewed migration covering files, App records, mounts and recovery; Setup does not perform it or deduplicate old copies.
+- Keep completed downloads outside library roots; check the downloader's final path, category override and permissions when imports fail. Avoid remote-path mappings that merely disguise a mismatch.
+- The default uses shared effective media UID/GID and umask `022`. Optional separate supported media App users use distinct UIDs, shared PGID and media umask `002`; this is off by default and independent of hardlink capability or the Admin login.
+- Separate users rely on selected images' documented identity mechanisms, shared group writes and setgid media directories, while App configuration stays private. Existing ownership, ACLs and Docker namespace mappings need explicit migration; a toggle is not migration, and unsupported mappings are refused. Never apply blanket recursive ownership changes.
 
 ## Categories and completion
 
@@ -36,7 +42,7 @@ Enabling Sonarr/Radarr's hardlink setting alone cannot change that mount boundar
 - Preserve existing profiles, custom formats, defaults and per-series/movie assignments. Selecting the first returned profile is not a preference decision.
 - Consult current primary guides rather than copying score tables, screenshots or mutable custom-format bundles into Setup.
 - Naming should retain useful release/quality information. Preview representative names before approval; changing a naming rule is not approval for a bulk rename.
-- Keep guide synchronization or automated imports outside routine Setup unless separately reviewed and explicitly requested.
+- Setup imports no quality/custom-format bundles and performs no bulk renames or content acquisition. Any external synchronization or migration needs separately reviewed scope and approval.
 
 ## Primary references
 

@@ -43,8 +43,9 @@ person's disabled libraries.
   without a unique selection remain Manual without creating an entry. Recover with
   `self-host install seerr --set seerr.sonarr_profile=4 --set seerr.radarr_profile=4 --yes`
   using the actual upstream choices; no manual server creation or adoption is needed.
-  The registered `/media/tv` or `/media/movies` root must exist; no quality or path
-  migration runs.
+  The registered root must exist: `/data/media/tv` or `/data/media/movies` for
+  shared layouts, `/media/tv` or `/media/movies` for legacy layouts. No quality or
+  path migration runs.
 - New request services retain Seerr's normal request-search behavior and do not
   replace an existing non-4K default. Setup itself submits no acquisition request.
   Existing connection fields, profiles, defaults and search choices are not rewritten.
@@ -61,8 +62,8 @@ person's disabled libraries.
 - API setup is safe to resume only when the existing Jellyfin, Radarr, and
   Sonarr identities match the managed topology. It rejects conflicts rather
   than replacing another server.
-- The API key grants admin access. Source it from the session file, never copy it
-  into Markdown or screenshots.
+- The API key grants admin access. Use `self-host credentials` privately when
+  needed; never read session/env files or copy credentials into Markdown or screenshots.
 
 Sources: [Docker](https://docs.seerr.dev/getting-started/docker/),
 [media server settings](https://docs.seerr.dev/using-seerr/settings/mediaserver/),

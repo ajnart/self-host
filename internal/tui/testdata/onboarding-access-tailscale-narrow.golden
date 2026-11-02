@@ -14,11 +14,11 @@
     ○ This computer only
 
   Tailscale lets you open each App with its own private HTTPS name from your
-  phone, laptop or TV, wherever you are. Your Home network Addresses keep
-  working.
+  phone, laptop or TV, wherever you are. Existing IP:port Addresses and
+  firewall rules stay unchanged.
 
   your phone, anywhere ──── Tailscale ──── this computer private name
                                 │
-                           internet ✗
+                          private names
 
  q quit      ↑/↓  focus   space  select   enter  continue   esc  back   ?  more

@@ -20,6 +20,7 @@ type Arr struct {
 	Key string
 
 	host            map[string]any
+	mediaManagement map[string]any
 	password        string
 	rootFolders     []string
 	downloadClients []map[string]any
@@ -65,6 +66,7 @@ func NewArr(kind string) *Arr {
 	if kind == "prowlarr" {
 		a.version = "v1"
 	}
+	a.mediaManagement = map[string]any{"id": 1, "copyUsingHardlinks": false, "renameEpisodes": false}
 	a.host = map[string]any{
 		"id": 1, "bindAddress": "*", "port": 8989,
 		"authenticationMethod": "none", "authenticationRequired": "enabled",
@@ -228,6 +230,18 @@ func (a *Arr) putHost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Arr) rootFolderRoutes(mux *http.ServeMux, api string) {
+	mux.HandleFunc("GET "+api+"/config/mediamanagement", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(a.mediaManagement)
+	}))
+	mux.HandleFunc("PUT "+api+"/config/mediamanagement/{id}", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		var config map[string]any
+		if json.NewDecoder(r.Body).Decode(&config) != nil || config["renameEpisodes"] != a.mediaManagement["renameEpisodes"] {
+			fail(w, "unrelated media management configuration changed")
+			return
+		}
+		a.mediaManagement = config
+		json.NewEncoder(w).Encode(config)
+	}))
 	mux.HandleFunc("GET "+api+"/rootfolder", a.keyed(func(w http.ResponseWriter, r *http.Request) {
 		folders := []map[string]any{}
 		for i, path := range a.rootFolders {

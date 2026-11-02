@@ -69,7 +69,7 @@ func bootstrap(ctx context.Context, h *helpers.H, user, password string) error {
 	}
 	recovery := h.Secret(h.Key("recovery_password"))
 	if recovery == "" {
-		return errors.New("the Stalwart recovery password is missing from secrets.env; reinstall the App to generate it")
+		return errors.New("the Stalwart recovery password is missing from .env; reinstall the App to generate it")
 	}
 	tempUserKey, tempSecretKey, pinKey := h.Key("bootstrap_login"), h.Key("bootstrap_secret"), h.Key("recovery_admin")
 	if h.Secret(tempSecretKey) == "" {

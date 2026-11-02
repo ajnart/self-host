@@ -189,7 +189,7 @@ func (ss *session) webApps() []string {
 	ids, _ := ss.p.AppIDs()
 	var web []string
 	for _, id := range ids {
-		if _, ok := ss.webApp(id); ok {
+		if info, ok := ss.webApp(id); ok && !info.HomeAddressOnly {
 			web = append(web, id)
 		}
 	}
@@ -284,7 +284,7 @@ func (ss *session) nameHosts(ids []string) map[string]string {
 		return hosts
 	}
 	for _, id := range ids {
-		if _, ok := ss.webApp(id); !ok {
+		if info, ok := ss.webApp(id); !ok || info.HomeAddressOnly {
 			continue
 		}
 		if host, ok := names.Host(id, ss.settings["LAN_IP"]); ok {

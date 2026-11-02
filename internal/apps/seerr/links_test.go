@@ -41,7 +41,7 @@ func TestSeerrReachesItsTargetsAtTheirContainerPorts(t *testing.T) {
 	fake.JellyfinLibraries = func() []arrtest.JellyfinLibrary { return []arrtest.JellyfinLibrary{{ItemID: "1", Name: "Shows"}} }
 	fake.Servarr = func(_, host string, port int, _ string) ([]string, bool) {
 		servarrSeen = fmt.Sprintf("%s:%d", host, port)
-		return []string{"/media/tv"}, true
+		return []string{"/custom/tv"}, true
 	}
 	server := httptest.NewServer(fake.Handler())
 	t.Cleanup(server.Close)
@@ -56,7 +56,8 @@ func TestSeerrReachesItsTargetsAtTheirContainerPorts(t *testing.T) {
 	t.Cleanup(jellyfinServer.Close)
 	jellyfin := helpers.New(helpers.Config{App: "jellyfin", Service: "jellyfin", ContainerPort: 18096,
 		BaseURL: jellyfinServer.URL, HTTP: jellyfinServer.Client(), Secrets: secrets, Log: events.Discard()})
-	sonarr := helpers.New(helpers.Config{App: "sonarr", Service: "sonarr", ContainerPort: 18989, Secrets: secrets, Log: events.Discard()})
+	sonarr := helpers.New(helpers.Config{App: "sonarr", Service: "sonarr", ContainerPort: 18989,
+		Settings: map[string]string{"MEDIA_LAYOUT": "shared"}, Secrets: secrets, Log: events.Discard()})
 
 	if err := linkTo(t, "jellyfin").Apply(context.Background(), from, jellyfin); err != nil {
 		t.Fatalf("jellyfin: %v", err)
@@ -67,5 +68,8 @@ func TestSeerrReachesItsTargetsAtTheirContainerPorts(t *testing.T) {
 
 	if jellyfinSeen != "jellyfin:18096" || servarrSeen != "sonarr:18989" {
 		t.Fatalf("Seerr reached Jellyfin at %q and Sonarr at %q, want jellyfin:18096 and sonarr:18989", jellyfinSeen, servarrSeen)
+	}
+	if servers := fake.Servers("sonarr"); len(servers) != 1 || servers[0]["activeDirectory"] != "/custom/tv" {
+		t.Fatalf("Seerr did not select the target's configured root folder: %v", servers)
 	}
 }

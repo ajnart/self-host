@@ -15,12 +15,16 @@ For media paths and user choices, read [Media Setup](media-setup.md).
 
 ## Compose and optional interfaces
 
+- `App.Compose` supplies a definition for the Project boundary to merge into the one editable root `compose.yml`. Installed definitions, including manual edits and ownership metadata, live there; per-App Compose files are legacy recovery snapshots, not active truth. Use `internal/project` and `internal/compose` rather than writing YAML or running Compose around them ([ADR 0014](../adr/0014-one-editable-compose-file.md)).
+- Keep App-local relative data paths and distinct App-owned service names. The Project boundary rebases those paths into the root file while preserving storage identity, unrelated services and comments.
 - Declare Host settings through Compose; set `UsesMedia` when mounting media/download folders.
+- Reuse `internal/apps/mediastorage` for cooperating media paths and supported identities. New Projects default to shared storage; an absent layout preserves legacy paths. `UsesMedia` alone does not establish support for separate media App users.
 - Use the contract's container-port rules for internal Addresses, separately from browser Addresses.
 - Consult optional interfaces in [`app.go`](../../internal/app/app.go) only as needed:
   `SecretDeclarer` for first-start secrets, `FileDeclarer` for configuration and `File.Keep` for person/App-owned files;
   `StandaloneGuide` for plain Compose instructions, `PreflightChecker` for read-only prerequisites, `DeferredStarter` for delayed services.
 - A standalone guide may name only variables/folders its exported Compose actually supplies.
+- The Project's private `.env` supplies Compose interpolation; legacy `secrets.env` is a compatibility input. Keep public settings allowlisted and grant each App only its required secrets, never the whole Project environment.
 
 ## Setup, verification and Links
 

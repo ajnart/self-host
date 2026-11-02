@@ -134,10 +134,10 @@ func TestInstallCreatesAdminAndDeniesAnonymousReads(t *testing.T) {
 	if fake.users["admin"] == "" || fake.users["admin"] != parsed.Admin.Password {
 		t.Fatalf("ntfy admin not created with the Admin login: %v", fake.users)
 	}
-	secrets := clitest.Read(t, filepath.Join(clitest.Root(t, deps), "secrets.env"))
+	secrets := clitest.Read(t, filepath.Join(clitest.Root(t, deps), ".env"))
 	for _, want := range []string{"NTFY_TOPIC=", "NTFY_HOMARR_TOKEN="} {
 		if !strings.Contains(secrets, want) {
-			t.Errorf("secrets.env lacks %s:\n%s", want, secrets)
+			t.Errorf(".env lacks %s:\n%s", want, secrets)
 		}
 	}
 	if r.StepEvent("ntfy", "admin-user") != "step.ok" || r.StepEvent("ntfy", "topic-token") != "step.ok" || r.StepEvent("ntfy", "check") != "step.ok" {
