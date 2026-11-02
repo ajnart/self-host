@@ -1,0 +1,18 @@
+docs/catalog/traps/healthchecks.md
+  h_d6e478ca18e517 24
+internal/apps/homarr/target_healthchecks.go
+  h_d6e478ca18e517 51-61
+internal/apps/homarr/target_healthchecks_test.go
+  h_d6e478ca18e517 105-106,135,144-154,187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2dbc8cdad315214ef9f9ea8c468c6691e79e08f",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
