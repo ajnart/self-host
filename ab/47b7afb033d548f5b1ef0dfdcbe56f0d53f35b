@@ -1,0 +1,18 @@
+docs/catalog/traps/miniflux.md
+  h_d6e478ca18e517 1-112
+internal/apps/miniflux/miniflux.go
+  h_d6e478ca18e517 1-184
+internal/apps/miniflux/miniflux_test.go
+  h_d6e478ca18e517 1-364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab47b7afb033d548f5b1ef0dfdcbe56f0d53f35b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
