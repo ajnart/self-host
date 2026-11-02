@@ -26,6 +26,23 @@ jobs:
           cache-dependency-path: go.sum
       - name: Format
         run: test -z "$(gofmt -l .)"
+      - name: Record caller Go environment
+        id: caller-go
+        run: |
+          printf 'command=%s\nversion=%s\ntoolchain=%s\n' "$(command -v go)" "$(go version)" "${GOTOOLCHAIN-}" >> "$GITHUB_OUTPUT"
+      - name: Build testkit with a private toolchain
+        uses: ./testkit
+        env:
+          GOSUMDB: "off"
+      - name: Verify caller Go environment is unchanged
+        env:
+          CALLER_GO_COMMAND: ${{ steps.caller-go.outputs.command }}
+          CALLER_GO_VERSION: ${{ steps.caller-go.outputs.version }}
+          CALLER_GO_TOOLCHAIN: ${{ steps.caller-go.outputs.toolchain }}
+        run: |
+          test "$(command -v go)" = "$CALLER_GO_COMMAND"
+          test "$(go version)" = "$CALLER_GO_VERSION"
+          test "${GOTOOLCHAIN-}" = "$CALLER_GO_TOOLCHAIN"
       - name: Build and vet
         run: go build ./... && go vet ./... && go vet -tags e2e ./e2e/
       - name: Generated data is current

@@ -169,6 +169,7 @@ With npm authentication configured securely, publish the exact reviewed release
 tarball, not a second build:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 npm whoami
 npm publish ./dist/self-host-testkit-X.Y.Z.tgz --access public --ignore-scripts
 npm view @ajnart/self-host-testkit@X.Y.Z version dist.integrity

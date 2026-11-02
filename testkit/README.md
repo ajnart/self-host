@@ -42,7 +42,10 @@ is privileged, and a killed runner cannot guarantee cleanup.
 
 ## TypeScript install
 
-The package in [`node/`](node/) is published as `@ajnart/self-host-testkit`:
+The package in [`node/`](node/) uses the name `@ajnart/self-host-testkit`.
+The following commands require 1.2.1 to be published to npm and the matching
+[GitHub release](https://github.com/ajnart/self-host/releases/tag/v1.2.1) to exist;
+for an unpublished checkout, use the source workflow below instead:
 
 ```bash
 npm install --save-dev @ajnart/self-host-testkit@1.2.1

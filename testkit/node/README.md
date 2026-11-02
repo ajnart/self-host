@@ -13,7 +13,9 @@ supported; Docker must use a local Unix socket and enforce memory, CPU and PID
 limits. Allow up to 5 GiB RAM and five CPUs per fixture, plus image/storage space.
 First startup pulls images and can take several minutes.
 
-Install the SDK as a dev dependency:
+For a published release, install the SDK as a dev dependency. Version 1.2.1 must
+exist on npm and GitHub before using these commands; for an unpublished source
+checkout, use the source workflow linked below instead:
 
 ```bash
 npm install --save-dev @ajnart/self-host-testkit@1.2.1
@@ -217,9 +219,11 @@ jobs:
 ```
 
 Pin the Action to a full commit SHA and install the SDK from the same source or
-release. The Action requires Bash and an existing Go launcher; it downloads a
-patched Go toolchain for its own build without changing the caller's PATH or
-`GOTOOLCHAIN`. Standard GitHub-hosted Ubuntu runners supply these prerequisites.
+release. The Action requires Bash, Python 3 and tar; it verifies and extracts a
+patched Go toolchain privately for its own build without changing the caller's
+PATH or `GOTOOLCHAIN`. It does not require a preinstalled Go launcher and works
+when the caller sets `GOSUMDB=off`. Standard GitHub-hosted Ubuntu runners supply
+these prerequisites.
 The original v1.2.0 Action does not yet preserve the caller's Go environment.
 
 Outputs: `binary-path`, `sdk-path`, `manifest-path`. Job environment:
