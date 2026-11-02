@@ -1,0 +1,20 @@
+docs/catalog/traps/jellystat.md
+  h_d6e478ca18e517 1-86
+internal/apps/jellystat/jellystat.go
+  h_d6e478ca18e517 1-126
+internal/apps/jellystat/jellystat_test.go
+  h_d6e478ca18e517 1-335
+internal/apps/jellystat/verify.go
+  h_d6e478ca18e517 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "69fa4cb2b4e0a7929619f0efbf1646807671dc8b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
