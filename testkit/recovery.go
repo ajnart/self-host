@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -86,10 +87,96 @@ func Cleanup(ctx context.Context, root string) error {
 	if err := inactive(ctx, runner, marker.Name, true); err != nil {
 		return err
 	}
-	if _, err := readOwnership(root); err != nil {
+	return removeOwnedRoot(ctx, root)
+}
+
+func removeOwnedRoot(ctx context.Context, root string) error {
+	marker, err := readOwnership(root)
+	if err != nil {
 		return err
 	}
-	return os.RemoveAll(root)
+	owned, err := os.OpenRoot(root)
+	if err != nil {
+		return errors.New("testkit private storage unavailable; ownership marker retained")
+	}
+	defer owned.Close()
+	directory, err := owned.Open(".")
+	if err != nil {
+		return errors.New("testkit private storage unavailable; ownership marker retained")
+	}
+	defer directory.Close()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		children, readErr := directory.ReadDir(128)
+		for _, child := range children {
+			if child.Name() == markerName {
+				continue
+			}
+			if err := removeOwnedTree(ctx, directory, child.Name()); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return errors.New("testkit private storage cleanup failed; ownership marker retained")
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return errors.New("testkit private storage enumeration failed; ownership marker retained")
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := owned.Remove(markerName); err != nil {
+		return errors.New("testkit ownership marker cleanup failed")
+	}
+	if err := os.Remove(root); err != nil {
+		if restoreErr := writeOwnership(marker); restoreErr != nil {
+			return errors.New("testkit could not restore private recovery ownership")
+		}
+		return errors.New("testkit private root cleanup failed; ownership marker retained")
+	}
+	return nil
+}
+
+func removeOwnedTree(ctx context.Context, parent *os.File, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := unix.Unlinkat(int(parent.Fd()), name, 0); err == nil || errors.Is(err, unix.ENOENT) {
+		return nil
+	}
+	fd, err := unix.Openat(int(parent.Fd()), name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return err
+	}
+	directory := os.NewFile(uintptr(fd), name)
+	defer directory.Close()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		children, readErr := directory.ReadDir(128)
+		for _, child := range children {
+			if err := removeOwnedTree(ctx, directory, child.Name()); err != nil {
+				return err
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return unix.Unlinkat(int(parent.Fd()), name, unix.AT_REMOVEDIR)
 }
 
 func decodeDigests(data []byte, target *[]string) error {

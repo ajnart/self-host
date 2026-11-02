@@ -9,8 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspect } from "node:util";
-import type { SelfHost } from "../index";
-import { createSelfHost } from "../index.mjs";
+import { type SelfHost, TestkitError, createSelfHost } from "../index.mjs";
 
 const directories: string[] = [];
 const handles: SelfHost[] = [];
@@ -105,6 +104,9 @@ for (const app of [
 		}
 		expect(caught).toBeInstanceOf(Error);
 		expect(inspect(caught)).not.toContain("private-test-raw-secret");
+		if (app === "secret-error") {
+			expect(caught instanceof TestkitError && caught.reason).toBe("SETUP");
+		}
 		await selfHost.close();
 		expect(
 			events(manifest).filter((event) => event.method === "cleanup"),
@@ -139,7 +141,7 @@ test("missing helper and invalid options do not expose executable paths", async 
 	});
 	handles.push(selfHost);
 	await expect(selfHost.spinup("sonarr")).rejects.toThrow(
-		"Fixture cleanup failed; run manifest cleanup.",
+		"Testkit helper not found.",
 	);
 	expect(() => createSelfHost({ timeoutMs: 900001 })).toThrow(
 		"Invalid testkit protocol.",

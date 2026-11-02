@@ -394,4 +394,5 @@ For Apps and Links, use the [extension checklist](docs/catalog/adding-apps.md).
 - [GitHub Issues](https://github.com/ajnart/self-host/issues): bugs and App requests.
 - Support the work: [GitHub Sponsors](https://github.com/sponsors/ajnart) · [Ko-fi](https://ko-fi.com/ajnart).
 - Contributing: read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CONTEXT.md`](CONTEXT.md), open an issue first, then send a pull request.
+- Integration tests: the [testkit](testkit/README.md) starts isolated Docker App fixtures from Go or TypeScript. Its guide covers SDK installation and release availability.
 - New to self-hosting? [awesome-selfhosted](https://github.com/awesome-selfhosted/awesome-selfhosted).

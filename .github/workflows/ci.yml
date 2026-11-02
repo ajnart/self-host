@@ -22,10 +22,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - name: Format
         run: test -z "$(gofmt -l .)"
+      - name: Record caller Go environment
+        id: caller-go
+        run: |
+          printf 'command=%s\nversion=%s\ntoolchain=%s\n' "$(command -v go)" "$(go version)" "${GOTOOLCHAIN-}" >> "$GITHUB_OUTPUT"
+      - name: Build testkit with a private toolchain
+        uses: ./testkit
+        env:
+          GOSUMDB: "off"
+      - name: Verify caller Go environment is unchanged
+        env:
+          CALLER_GO_COMMAND: ${{ steps.caller-go.outputs.command }}
+          CALLER_GO_VERSION: ${{ steps.caller-go.outputs.version }}
+          CALLER_GO_TOOLCHAIN: ${{ steps.caller-go.outputs.toolchain }}
+        run: |
+          test "$(command -v go)" = "$CALLER_GO_COMMAND"
+          test "$(go version)" = "$CALLER_GO_VERSION"
+          test "${GOTOOLCHAIN-}" = "$CALLER_GO_TOOLCHAIN"
       - name: Build and vet
         run: go build ./... && go vet ./... && go vet -tags e2e ./e2e/
       - name: Generated data is current
@@ -58,8 +75,10 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - name: Install
         run: bun install --frozen-lockfile
-      - name: SDK transport regressions
-        run: bun test testkit/node/tests
+      - name: Generated SDK exports and types are current
+        run: |
+          bun run --cwd testkit/node build
+          git diff --exit-code -- testkit/node/index.mjs testkit/node/index.d.mts testkit/node/binary.mjs testkit/node/setup.mjs
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo/cache
@@ -105,7 +124,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache-dependency-path: go.sum
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:

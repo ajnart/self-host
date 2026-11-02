@@ -35,6 +35,7 @@ type params struct {
 type protocolError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	Reason  string `json:"reason,omitempty"`
 }
 
 type response struct {
@@ -247,6 +248,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		parent, err := registerParent(ctx, b.manifest, b.owner)
 		if err != nil {
 			res.Error = failure("START")
+			res.Error.Reason = "STORAGE"
 			return res
 		}
 		timeout := 12 * time.Minute
@@ -258,6 +260,11 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		if err != nil {
 			cancel()
 			res.Error = failure("START")
+			res.Error.Reason = "SETUP"
+			var safe *testkit.StartupError
+			if errors.As(err, &safe) {
+				res.Error.Reason = safe.Reason()
+			}
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				res.Error = failure("TIMEOUT")
 			}

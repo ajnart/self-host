@@ -1,0 +1,16 @@
+{
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"files": {
+		"ignoreUnknown": true,
+		"include": [
+			"src/**",
+			"examples/**",
+			"tests/**",
+			"package.json",
+			"tsconfig.json",
+			"biome.json",
+			"pack.mjs"
+		]
+	},
+	"linter": { "enabled": true, "rules": { "recommended": true } }
+}

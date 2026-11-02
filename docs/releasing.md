@@ -17,7 +17,9 @@ self-host-testkit-X.Y.Z.tgz
 The four existing archives also contain `self-host-testkit`; their names and
 CLI Telemetry checks stay unchanged. Native packages still install only
 `self-host`. The dependency-free Node SDK is a separate checksummed release
-asset, not an npm publication; see [testkit usage](../testkit/node/README.md).
+asset and is published to npm as `@ajnart/self-host-testkit`; see the [testkit overview](../testkit/README.md)
+and [Node guide](../testkit/node/README.md). Version 1.2.1 adds the helper setup
+command and cleanup fixes without replacing the immutable v1.2.0 assets.
 
 The installer and `self-host self-update` pick the highest semver among
 non-draft, non-prerelease releases that carry `checksums.txt` and a
@@ -80,15 +82,29 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 
 ## Release locally
 
-Build the same archives with the same pinned goreleaser (v2.18.3 needs Go 1.27.1 or newer; Go downloads that toolchain on first use):
+Build with the patched Go 1.27.3 toolchain and the pinned goreleaser v2.18.3:
 
 ```bash
-SELF_HOST_RELEASE_VERSION=X.Y.Z go run github.com/goreleaser/goreleaser/v2@v2.18.3 release --snapshot --clean
+GOTOOLCHAIN=go1.27.3 SELF_HOST_RELEASE_VERSION=X.Y.Z go run github.com/goreleaser/goreleaser/v2@v2.18.3 release --snapshot --clean
+bun install --frozen-lockfile
+bun run --cwd testkit/node build
+bun run --cwd testkit/node check
+bun run --cwd testkit/node lint
 SELF_HOST_RELEASE_VERSION=X.Y.Z node testkit/node/pack.mjs
 ```
 
 Keep `testkit/node/package.json` at the release version. The packing command
 checks the package allowlist and adds the SDK tarball to `dist/checksums.txt`.
+Generated runtime exports and types are committed so the source-pinned Action
+does not need to install Node build dependencies. CI rebuilds them and rejects
+drift. Never hand-edit the `.mjs` or `.d.mts` outputs. The SDK setup command
+downloads the helper from its own exact release version; publish matching CLI
+archives before telling people to run it.
+
+The fixed Go toolchain includes the
+[October 20 x509 mitigation](https://groups.google.com/g/golang-announce/c/66pojueaQek).
+The composite testkit Action selects it for its build only, without modifying
+the consuming job's Go environment.
 
 Then follow what the workflow does: draft, download, compare, publish.
 
@@ -138,12 +154,30 @@ from the published one. Each component script also runs alone.
 
 ### npm
 
-The CLI and SDK are not published to the npm registry. The SDK's npm-compatible
-tarball is attached to the GitHub release instead. npm only allows unattended publishing through trusted
-publishing (OIDC) from GitHub Actions or GitLab; 2FA-bypass tokens last at most
-90 days and lose direct publishing in January 2027. Now that the repository is
-public, a trusted-publishing job in `release.yml` could publish from the release
-archives.
+The CLI is not an npm package. From 1.2.1, the SDK is published as
+`@ajnart/self-host-testkit`, using the same npm-compatible tarball attached to
+the GitHub release. Version 1.2.0's archive used `@self-host/testkit` and was not
+published on npm; do not replace it. The package includes generated TypeScript
+declarations, a checksummed helper setup command and a small runnable demo.
+
+Registry publication requires explicit approval, control of the `@ajnart`
+npm scope, and either an authorized publishing token or a configured trusted
+publisher. A token must permit publishing this package and satisfy the account's
+2FA policy. Never put it in a command argument, Git file or public log.
+
+With npm authentication configured securely, publish the exact reviewed release
+tarball, not a second build:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+npm whoami
+npm publish ./dist/self-host-testkit-X.Y.Z.tgz --access public --ignore-scripts
+npm view @ajnart/self-host-testkit@X.Y.Z version dist.integrity
+```
+
+Only advertise a bare registry install after publication succeeds and its
+downloaded tarball matches the checksummed GitHub release asset. For ongoing
+releases, prefer npm trusted publishing from GitHub Actions over a stored token.
 
 ### Docker image
 

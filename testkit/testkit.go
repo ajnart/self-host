@@ -69,17 +69,17 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	}
 	selected, ok := cat.App(opts.App)
 	if !ok {
-		return nil, errors.New("testkit requires one Catalog App")
+		return nil, startupError("APP", "testkit requires one Catalog App")
 	}
 	if opts.Image != "" && !project.ValidFixtureImage(opts.Image) {
-		return nil, errors.New("invalid selected image")
+		return nil, startupError("OPTIONS", "invalid selected image")
 	}
 	total := opts.Timeout
 	if total == 0 {
 		total = 15 * time.Minute
 	}
 	if total <= 0 || total > 15*time.Minute {
-		return nil, errors.New("testkit timeout must be positive and at most 15 minutes")
+		return nil, startupError("OPTIONS", "testkit timeout must be positive and at most 15 minutes")
 	}
 	reserve := min(time.Minute, total/4)
 	deadline := time.Now().Add(total)
@@ -89,29 +89,32 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	deps := *original
 	owner, err := deps.CurrentUser()
 	if err != nil || owner.UID != os.Geteuid() {
-		return nil, errors.New("testkit requires the current local user")
+		return nil, startupError("OWNERSHIP", "testkit requires the current local user")
 	}
 	endpoint, err := host.ActiveDockerEndpoint(work, &deps)
 	if err != nil || endpoint.Kind != "unix" || !strings.HasPrefix(endpoint.Host, "unix:///") {
-		return nil, errors.New("testkit requires a local Unix Docker endpoint")
+		if work.Err() != nil {
+			return nil, work.Err()
+		}
+		return nil, startupError("DOCKER", "testkit requires a local Unix Docker endpoint")
 	}
 	root, err := os.MkdirTemp(opts.RootParent, "selfhost-testkit-")
 	if err != nil {
-		return nil, errors.New("testkit private root unavailable")
+		return nil, startupError("STORAGE", "testkit private root unavailable")
 	}
 	root, err = filepath.Abs(root)
 	if err != nil {
-		return nil, errors.New("testkit private root resolution failed")
+		return nil, startupError("STORAGE", "testkit private root resolution failed")
 	}
 	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
-		return nil, errors.New("testkit private root resolution failed")
+		return nil, startupError("STORAGE", "testkit private root resolution failed")
 	}
 	name := "testkit-" + service.GenerateHex(24)
 	meta := ownership{Version: 1, Root: root, Name: name, App: opts.App, Endpoint: endpoint.Host, PID: os.Getpid()}
 	if err := writeOwnership(meta); err != nil {
 		os.Remove(root)
-		return nil, errors.New("testkit could not register private ownership")
+		return nil, startupError("STORAGE", "testkit could not register private ownership")
 	}
 	base := deps.Runner
 	if production, ok := base.(*system.ExecRunner); ok {
@@ -151,16 +154,24 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	a := &App{service: svc, runner: base, guard: guard, marker: meta, deadline: deadline, done: make(chan struct{})}
 	defer func() {
 		if err != nil {
+			cause := err
+			var safe *StartupError
+			safeCause := errors.As(cause, &safe)
 			cleanupCtx, stop := context.WithDeadline(context.Background(), deadline)
 			defer stop()
 			cleanupErr := a.Close(cleanupCtx)
 			if cleanupErr != nil {
 				err = fmt.Errorf("testkit start failed; cleanup incomplete; recovery: %s", root)
 			} else {
-				err = fmt.Errorf("testkit start failed; preserved private recovery: %s", root)
+				err = errors.New("testkit start failed; owned resources and storage cleaned")
 			}
-			if ctx.Err() != nil {
-				err = errors.Join(ctx.Err(), err)
+			if safeCause {
+				err = errors.Join(safe, err)
+			}
+			if errors.Is(cause, context.DeadlineExceeded) || errors.Is(work.Err(), context.DeadlineExceeded) {
+				err = errors.Join(context.DeadlineExceeded, err)
+			} else if errors.Is(cause, context.Canceled) || ctx.Err() != nil {
+				err = errors.Join(context.Canceled, err)
 			}
 		}
 	}()
@@ -201,13 +212,17 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 		sets = append(sets, opts.App+"."+input.Key+"="+strconv.Itoa(port))
 	}
 	if err := svc.Install(work, service.InstallOptions{Targets: []string{opts.App}, Sets: sets, Exposure: service.ExposureLocal, DataRoot: filepath.Join(root, "data"), MediaRoot: filepath.Join(root, "data", "media"), DownloadsRoot: filepath.Join(root, "data", "torrents"), AdminUser: "testkit", AdminPassword: service.GeneratePassword(32), Settings: map[string]string{"LAN_IP": "127.0.0.1", "TZ": "UTC"}}); err != nil {
-		return nil, err
+		var safe *StartupError
+		if errors.As(err, &safe) || work.Err() != nil {
+			return nil, err
+		}
+		return nil, startupError("SETUP", "testkit App Setup failed or requires a Manual step")
 	}
 	if err := guard.verify(work); err != nil {
 		return nil, err
 	}
 	if guard.main.ID == "" || guard.main.Image == "" {
-		return nil, errors.New("testkit selected container absent")
+		return nil, startupError("CONTAINER", "testkit selected container absent")
 	}
 	digests, err := docker(work, base, "image", "inspect", "--format", `{{json .RepoDigests}}`, guard.main.Image)
 	if err != nil {
@@ -314,13 +329,11 @@ func (a *App) Close(ctx context.Context) error {
 	}
 	cleanup, stop := context.WithDeadline(ctx, minTime(a.deadline, time.Now().Add(time.Minute)))
 	defer stop()
-	if a.service != nil && a.guard != nil {
-		if _, err := a.guard.p.PrepareFixtureCompose(a.guard.policy); err == nil {
-			_ = a.service.Down(cleanup)
-		}
-	}
 	if err := inactive(cleanup, a.runner, a.marker.Name, true); err != nil {
 		return errors.New("testkit cleanup incomplete; private recovery marker retained")
+	}
+	if err := removeOwnedRoot(cleanup, a.marker.Root); err != nil {
+		return err
 	}
 	a.closed = true
 	close(a.done)
