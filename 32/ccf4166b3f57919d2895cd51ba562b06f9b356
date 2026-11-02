@@ -1,0 +1,152 @@
+.gitignore
+  h_d6e478ca18e517 19
+.ignore
+  h_d6e478ca18e517 6-7
+CONTRIBUTING.md
+  h_d6e478ca18e517 12-15
+README.md
+  h_d6e478ca18e517 294,296,313-319,323-326,416-417
+dcm/src/data/selfhost.json
+  h_d6e478ca18e517 180,194-199,214,2013-2018,2071,2985,3043-3048,3051-3052,3331,3462,3476-3479,3528,3795,4933
+docs/catalog/adding-apps.md
+  h_d6e478ca18e517 1-55
+docs/catalog/media-setup.md
+  h_d6e478ca18e517 1-55
+docs/catalog/traps/audiobookshelf.md
+  h_d6e478ca18e517 6-9
+docs/catalog/traps/bazarr.md
+  h_d6e478ca18e517 5,8,13,15-19
+docs/catalog/traps/beszel.md
+  h_d6e478ca18e517 5-6,9,11-12
+docs/catalog/traps/borgmatic.md
+  h_d6e478ca18e517 7,14-18
+docs/catalog/traps/gatus.md
+  h_d6e478ca18e517 6,14-17
+docs/catalog/traps/homarr.md
+  h_d6e478ca18e517 15-33,68-72
+docs/catalog/traps/immich.md
+  h_d6e478ca18e517 12-18
+docs/catalog/traps/jellyfin.md
+  h_d6e478ca18e517 6-7,35-38
+docs/catalog/traps/lidarr.md
+  h_d6e478ca18e517 6-8,16-20
+docs/catalog/traps/ntfy.md
+  h_d6e478ca18e517 6-10,17-21
+docs/catalog/traps/paperless-ngx.md
+  h_d6e478ca18e517 13-15
+docs/catalog/traps/plex.md
+  h_d6e478ca18e517 17-25,65-67
+docs/catalog/traps/prowlarr.md
+  h_d6e478ca18e517 6-10,26-29
+docs/catalog/traps/radarr.md
+  h_d6e478ca18e517 6-8,18,23-25
+docs/catalog/traps/sabnzbd.md
+  h_d6e478ca18e517 10-13
+docs/catalog/traps/seerr.md
+  h_d6e478ca18e517 3-8,36-61,65-66,71-75
+docs/catalog/traps/sonarr.md
+  h_d6e478ca18e517 6-8,26-29
+docs/catalog/traps/unbound.md
+  h_d6e478ca18e517 6,11-14
+docs/catalog/traps/vector.md
+  h_d6e478ca18e517 7,13-16
+internal/app/link_pins_test.go
+  h_d6e478ca18e517 83,85,90-91
+internal/apps/arr/arr.go
+  h_d6e478ca18e517 73,81
+internal/apps/arr/arr_test.go
+  h_d6e478ca18e517 192,222,270,290,328
+internal/apps/arr/links.go
+  h_d6e478ca18e517 11-15,19
+internal/apps/arrtest/arr.go
+  h_d6e478ca18e517 64-65
+internal/apps/arrtest/jellyfin.go
+  h_d6e478ca18e517 154
+internal/apps/arrtest/seerr.go
+  h_d6e478ca18e517 24-34,97-101,169
+internal/apps/audiobookshelf/audiobookshelf.go
+  h_d6e478ca18e517 11,28,36,50,126
+internal/apps/bazarr/bazarr.go
+  h_d6e478ca18e517 81-107,148-150
+internal/apps/beszel/beszel.go
+  h_d6e478ca18e517 38-40,260-264,266-268,270,273-278,281,368-370,388,392,443,455-465
+internal/apps/beszel/beszel_test.go
+  h_d6e478ca18e517 6,495,512-513,515-516
+internal/apps/borgmatic/borgmatic.go
+  h_d6e478ca18e517 86-90
+internal/apps/gatus/gatus.go
+  h_d6e478ca18e517 48,67
+internal/apps/homarr/homarr.go
+  h_d6e478ca18e517 333-341,396-398
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 8,2131-2132
+internal/apps/homarr/installed.go
+  h_d6e478ca18e517 33-39,96
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 111,136-144,237-240,245,334-336,465,540-543,702-711,746-750,803-805,854-859,870-871,875-879,894-900,913-917,924,1019-1026,1081,1108-1111,1169-1175,1181,1205-1208
+internal/apps/homarr/ownership.go
+  h_d6e478ca18e517 1-78
+internal/apps/homarr/shared_widgets.go
+  h_d6e478ca18e517 54,58-65,71,74-78,91,105,108,110,132-134,149-152,245-248,270-284,327-330,386-389
+internal/apps/homarr/target_beszel.go
+  h_d6e478ca18e517 1-118
+internal/apps/homarr/target_home_assistant.go
+  h_d6e478ca18e517 65-68
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 4-44
+internal/apps/immich/homarr.go
+  h_d6e478ca18e517 4,6,11,26-59,61-78,81,84,87,91-113,116-117,119-160,165-173,182-185,237-239,268-270,272-273,275-276,279-281,289-293,295-296,298-299
+internal/apps/immich/immich.go
+  h_d6e478ca18e517 198
+internal/apps/immich/immich_test.go
+  h_d6e478ca18e517 64-65,72
+internal/apps/jellyfin/jellyfin.go
+  h_d6e478ca18e517 12,15,302-304,321,323-335,338,342-344,398-399
+internal/apps/lidarr/lidarr.go
+  h_d6e478ca18e517 36-38
+internal/apps/ntfy/ntfy.go
+  h_d6e478ca18e517 7,96-114,120-126,130-132,137-144,150-156,159-160,163-164,167-175,177-178,180,214-215,221-223
+internal/apps/ntfy/ntfy_test.go
+  h_d6e478ca18e517 64
+internal/apps/paperlessngx/paperlessngx.go
+  h_d6e478ca18e517 36-39,72,161,166
+internal/apps/plex/plex.go
+  h_d6e478ca18e517 270,340
+internal/apps/sabnzbd/sabnzbd.go
+  h_d6e478ca18e517 66,221
+internal/apps/seerr/links_test.go
+  h_d6e478ca18e517 44,52,55-60,72-74
+internal/apps/seerr/ownership.go
+  h_d6e478ca18e517 1-174
+internal/apps/seerr/seerr.go
+  h_d6e478ca18e517 5,42-47,157-158,160,162-190,193,198-199,208-219,250-252,256-257,286-288,297-314,319-320,324-328,330,336-370,377-385,402-404,406-426,429-430,439,448-449,455
+internal/apps/seerr/seerr_test.go
+  h_d6e478ca18e517 27,60,77,98,112
+internal/apps/servarr/links.go
+  h_d6e478ca18e517 1-459
+internal/apps/unbound/unbound.go
+  h_d6e478ca18e517 28
+internal/apps/vector/vector.go
+  h_d6e478ca18e517 65-72,76-79
+internal/service/fragments.go
+  h_d6e478ca18e517 230-232
+internal/service/lifecycle.go
+  h_d6e478ca18e517 187,201-203,208-212,215
+internal/service/mutation.go
+  h_d6e478ca18e517 324,339,387-407,645-647
+internal/skill/guide.md
+  h_d6e478ca18e517 165-166,188-189,310-311,524-526,713-728,731-738,746-761
+site/src/data/catalog.json
+  h_d6e478ca18e517 523-528,825,831-832,836-837
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32ccf4166b3f57919d2895cd51ba562b06f9b356",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
