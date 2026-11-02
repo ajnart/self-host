@@ -1,0 +1,16 @@
+internal/service/install.go
+  h_d6e478ca18e517 614-621
+internal/service/unraid_test.go
+  h_d6e478ca18e517 116-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "015bbfe552f0e5b5889f07e333bff4de7a16111a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
