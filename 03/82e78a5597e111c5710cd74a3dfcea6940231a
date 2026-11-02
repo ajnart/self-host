@@ -1,0 +1,14 @@
+testkit/node/README.md
+  h_d6e478ca18e517 254-255,257-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0382e78a5597e111c5710cd74a3dfcea6940231a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
