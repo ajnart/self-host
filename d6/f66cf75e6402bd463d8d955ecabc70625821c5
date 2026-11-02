@@ -1,0 +1,28 @@
+README.md
+  h_d6e478ca18e517 158-162
+docs/research/agent-skill-audit.md
+  h_d6e478ca18e517 71-77
+internal/skill/install.go
+  h_d6e478ca18e517 11,166,177-214
+site/src/content/docs/docs/apps.md
+  h_d6e478ca18e517 24
+site/src/content/docs/docs/getting-started.md
+  h_d6e478ca18e517 207-211
+site/src/lib/recipe-md.ts
+  h_d6e478ca18e517 42
+site/src/lib/site.ts
+  h_d6e478ca18e517 28-32,40-44
+site/src/pages/docs/recipes/[id].astro
+  h_d6e478ca18e517 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d6f66cf75e6402bd463d8d955ecabc70625821c5",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
