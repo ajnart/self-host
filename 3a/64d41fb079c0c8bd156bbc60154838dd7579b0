@@ -1,0 +1,18 @@
+internal/app/app.go
+  h_d6e478ca18e517 148-153
+internal/service/link_applicability_test.go
+  h_d6e478ca18e517 1-127
+internal/service/service.go
+  h_d6e478ca18e517 473-486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a64d41fb079c0c8bd156bbc60154838dd7579b0",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
