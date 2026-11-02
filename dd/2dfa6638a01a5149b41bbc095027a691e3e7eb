@@ -1,0 +1,20 @@
+docs/arr-sabnzbd-contract.md
+  h_d6e478ca18e517 23-24
+internal/apps/arr/sabnzbd_links_test.go
+  h_d6e478ca18e517 155-159,418-422
+internal/apps/servarr/downloadpaths.go
+  h_d6e478ca18e517 19-24,31,83,85,91,94-95,99,104-129,131-149,151,172,176-177,186,190-191
+internal/apps/servarr/downloadpaths_test.go
+  h_d6e478ca18e517 19-22,34-42,54,69-77,83-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd2dfa6638a01a5149b41bbc095027a691e3e7eb",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
