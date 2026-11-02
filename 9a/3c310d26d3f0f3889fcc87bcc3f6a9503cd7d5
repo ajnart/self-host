@@ -1,0 +1,14 @@
+docs/agents/generated-data.md
+  h_d6e478ca18e517 45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a3c310d26d3f0f3889fcc87bcc3f6a9503cd7d5",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
