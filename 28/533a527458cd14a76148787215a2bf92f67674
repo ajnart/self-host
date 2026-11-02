@@ -1,0 +1,22 @@
+README.md
+  h_d6e478ca18e517 78,164-169
+site/src/content/docs/docs/agents.md
+  h_d6e478ca18e517 24
+site/src/content/docs/docs/getting-started.md
+  h_d6e478ca18e517 213-218
+site/src/lib/site.ts
+  h_d6e478ca18e517 34-39
+site/src/pages/llms.txt.ts
+  h_d6e478ca18e517 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28533a527458cd14a76148787215a2bf92f67674",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
