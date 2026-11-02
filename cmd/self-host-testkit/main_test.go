@@ -16,8 +16,9 @@ import (
 )
 
 type fakeFixture struct {
-	err    error
-	closed int
+	err             error
+	closed          int
+	closeContextErr error
 }
 
 func (f *fakeFixture) URL() string { return "http://127.0.0.1:12345" }
@@ -30,8 +31,9 @@ func (f *fakeFixture) Credentials(context.Context) (testkit.Credentials, error) 
 func (f *fakeFixture) Info(context.Context) (testkit.Info, error) {
 	return testkit.Info{ID: "sonarr", URL: f.URL(), Image: "peer:latest", ImageID: "sha256:test"}, f.err
 }
-func (f *fakeFixture) Close(context.Context) error {
+func (f *fakeFixture) Close(ctx context.Context) error {
 	f.closed++
+	f.closeContextErr = ctx.Err()
 	return f.err
 }
 
@@ -98,6 +100,53 @@ func TestBridgeStartsOnceWithPrivateParent(t *testing.T) {
 	}
 }
 
+func TestBridgeKeepsFixtureContextAliveUntilClose(t *testing.T) {
+	manifest := ownedManifest(t)
+	f := &fakeFixture{}
+	var lifetime context.Context
+	b := &bridge{manifest: manifest, owner: strings.Repeat("a", 32)}
+	b.start = func(ctx context.Context, options testkit.Options) (fixture, error) {
+		lifetime = ctx
+		if options.Timeout != time.Second {
+			t.Error("fixture lost its total time budget")
+		}
+		return f, nil
+	}
+	t.Cleanup(func() {
+		b.handle(t.Context(), request{Version: 1, ID: 4, Method: "close"})
+	})
+	res := b.handle(t.Context(), request{Version: 1, ID: 1, Method: "spinup", Params: json.RawMessage(`{"app":"sonarr","timeoutMs":1000}`)})
+	if res.Error != nil || lifetime == nil || lifetime.Err() != nil {
+		t.Fatal("successful startup canceled the fixture lifetime")
+	}
+	if b.handle(t.Context(), request{Version: 1, ID: 2, Method: "getApiKey"}).Error != nil || lifetime.Err() != nil {
+		t.Fatal("fixture was unavailable after startup returned")
+	}
+	if b.handle(t.Context(), request{Version: 1, ID: 3, Method: "close"}).Error != nil || !errors.Is(lifetime.Err(), context.Canceled) || f.closed != 1 || f.closeContextErr != nil {
+		t.Fatal("close did not release the lifetime with an independent cleanup context")
+	}
+	if err := cleanupManifest(t.Context(), manifest, func(context.Context, string) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBridgeCancelsFixtureContextAfterFailedStartup(t *testing.T) {
+	manifest := ownedManifest(t)
+	var lifetime context.Context
+	b := &bridge{manifest: manifest, owner: strings.Repeat("a", 32)}
+	b.start = func(ctx context.Context, _ testkit.Options) (fixture, error) {
+		lifetime = ctx
+		return nil, errors.New("startup failed")
+	}
+	res := b.handle(t.Context(), request{Version: 1, ID: 1, Method: "spinup", Params: json.RawMessage(`{"app":"sonarr"}`)})
+	if res.Error == nil || lifetime == nil || !errors.Is(lifetime.Err(), context.Canceled) {
+		t.Fatal("failed startup retained its fixture context")
+	}
+	if err := cleanupManifest(t.Context(), manifest, func(context.Context, string) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestProtocolRejectsVersionDuplicateAndOversizedMessages(t *testing.T) {
 	for _, input := range []string{
 		`{"version":2,"id":1,"method":"info"}`,
@@ -135,11 +184,13 @@ func TestProtocolRejectsVersionDuplicateAndOversizedMessages(t *testing.T) {
 func TestBridgeEOFCleansWithIndependentContext(t *testing.T) {
 	reader, writer := io.Pipe()
 	f := &fakeFixture{}
-	b := &bridge{app: f}
+	lifetime, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	b := &bridge{app: f, appCancel: cancel}
 	done := make(chan error, 1)
 	go func() { done <- b.serve(t.Context(), reader, io.Discard) }()
 	writer.Close()
-	if err := <-done; err != nil || f.closed != 1 {
+	if err := <-done; err != nil || f.closed != 1 || f.closeContextErr != nil || !errors.Is(lifetime.Err(), context.Canceled) {
 		t.Fatal("EOF did not close the fixture")
 	}
 }

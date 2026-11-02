@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ajnart/self-host/internal/project"
+	"github.com/ajnart/self-host/internal/system"
 	"golang.org/x/sys/unix"
 )
 
@@ -81,7 +82,7 @@ func Cleanup(ctx context.Context, root string) error {
 	}
 	defer unlock()
 	env := fixtureEnvironment(environmentSnapshot(), marker.Endpoint)
-	runner := environmentRunner{env: environmentList(env)}
+	runner := system.NewExecRunner(environmentList(env))
 	if err := inactive(ctx, runner, marker.Name, true); err != nil {
 		return err
 	}
