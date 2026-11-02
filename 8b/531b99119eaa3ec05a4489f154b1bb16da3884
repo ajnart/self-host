@@ -1,0 +1,26 @@
+docs/catalog/traps/uptime-kuma.md
+  h_d6e478ca18e517 14,16,20-26,38-42
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 794-796,953-954,959-963
+internal/apps/homarr/stats_test.go
+  h_d6e478ca18e517 31,78
+internal/apps/homarr/target_uptime_kuma.go
+  h_d6e478ca18e517 8-9,11-12,19-36,41-44,46-47,49,51-55,58-111,114,116-120,122-125,127-130,132-135,150,159,161-164,167,187-194,207-381,383-386,393-395,399
+internal/apps/homarr/target_uptime_kuma_common_test.go
+  h_d6e478ca18e517 46
+internal/apps/homarr/target_uptime_kuma_native_test.go
+  h_d6e478ca18e517 1-481
+internal/apps/homarr/target_uptime_kuma_test.go
+  h_d6e478ca18e517 33,112,144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b531b99119eaa3ec05a4489f154b1bb16da3884",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
