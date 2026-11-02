@@ -1,0 +1,16 @@
+internal/apps/homarr/target_sonarr.go
+  h_d6e478ca18e517 48,54,75-88,110-132
+internal/apps/homarr/target_sonarr_test.go
+  h_d6e478ca18e517 89,128,133-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0e22f888a856e4f0bbcad30100561872bb8194a8",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
