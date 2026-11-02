@@ -321,7 +321,7 @@ func (s *Service) runCompose(ctx context.Context, ss *session, c change, ids []s
 // removeApps unlinks each App from the others, removes its containers and
 // fragment, and keeps its data unless purge is set.
 func (s *Service) removeApps(ctx context.Context, ss *session, ids []string, purge bool) error {
-	var unlinkFailed []string
+	var unlinkBlocked []string
 	for _, id := range ids {
 		if err := ss.p.WriteRoot(); err != nil {
 			return err
@@ -336,7 +336,7 @@ func (s *Service) removeApps(ctx context.Context, ss *session, ids []string, pur
 			}
 			continue
 		}
-		unlinkFailed = append(unlinkFailed, ss.unlink(ctx, id)...)
+		unlinkBlocked = append(unlinkBlocked, ss.unlink(ctx, id)...)
 		if err := ss.retireNode(ctx, id); err != nil {
 			return err
 		}
@@ -384,9 +384,27 @@ func (s *Service) removeApps(ctx context.Context, ss *session, ids []string, pur
 	if _, err := ss.renderTailscale(); err != nil {
 		return err
 	}
-	if len(unlinkFailed) > 0 {
-		return fmt.Errorf("%w: removed, but %s still point at it; fix them using the hints above, then run: self-host setup %s",
-			ErrIncomplete, strings.Join(unlinkFailed, ", "), strings.Join(unlinkFailed, " "))
+	var needsCleanup []string
+	result := ErrManual
+	for _, id := range unlinkBlocked {
+		st := ss.state.Apps[id]
+		if st == nil {
+			continue
+		}
+		switch st.Setup {
+		case stepstatus.SetupIncomplete:
+			result = ErrIncomplete
+		case stepstatus.SetupManual:
+		default:
+			continue
+		}
+		if !slices.Contains(needsCleanup, id) {
+			needsCleanup = append(needsCleanup, id)
+		}
+	}
+	if len(needsCleanup) > 0 {
+		return fmt.Errorf("%w: removed, but %s still need Link cleanup; follow their hints, then run: self-host setup %s",
+			result, strings.Join(needsCleanup, ", "), strings.Join(needsCleanup, " "))
 	}
 	return nil
 }
