@@ -87,14 +87,21 @@ Homarr's exact `spoolman` kind advertises only the empty-secret alternative.
 Its Stats provider reads `/api/v1/spool`, filters archived rows, and exposes
 `spools` (`count`) and `remainingWeight` (`grams`). Empty inventory produces
 real numeric zero values; any active spool with unknown weight makes the
-aggregate weight null. The planned first managed surface is the spool count,
+aggregate weight null. The descriptor selects only the spool count,
 without forcing unknown weights into zeros or modifying inventory.
 
-This App-only slice does not add a Homarr descriptor, central registration,
-shared Stats envelope, generated data or an acceptance claim. The connector
-must use the reviewed shared mechanism, preserve existing authentication and
-ownership, and prove fresh native/rendered/lifecycle data separately in an
-approved isolated attempt. No printer hardware is required for that proof.
+The Homarr descriptor reuses the App's read-only identity/inventory verifier
+before mutation and during data verification. It uses the reviewed shared
+count validator and the central single catalog/snapshot/forced-refresh sample,
+requiring a nonnegative integral `spools` value with unit `count` and successful
+retry metadata. Unselected unknown weight remains null; no extra Stats request
+or independently cached count comparison is added. Existing ownership and
+shared-widget reconciliation own stable IDs, user collisions and removal.
+
+The descriptor is not yet assembled into the central registry. Catalog/site
+generation and independent App/connector review remain separate work. Source
+and fake tests are not native/rendered/lifecycle acceptance: those need their
+own approved isolated attempt. No printer hardware is required for that proof.
 
 ## Primary sources
 
