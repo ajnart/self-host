@@ -1,0 +1,28 @@
+internal/apps/emby/libraries.go
+  h_d6e478ca18e517 18,27,31,50
+internal/apps/emby/libraries_test.go
+  h_d6e478ca18e517 81-122
+internal/apps/plex/libraries.go
+  h_d6e478ca18e517 17,30-31
+internal/apps/plex/libraries_test.go
+  h_d6e478ca18e517 9,57-97
+internal/apps/seerr/backend.go
+  h_d6e478ca18e517 130,133,135-144,169-179,203-206,237,246-251,254-259
+internal/apps/seerr/backend_test.go
+  h_d6e478ca18e517 12,20,23-24,271-348,386-412
+internal/service/link_applicability_test.go
+  h_d6e478ca18e517 128-188
+internal/service/service.go
+  h_d6e478ca18e517 453-459,478-479,489-506
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c4d594e627a11debb2a0c2934ec62c0603bdbc1",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
