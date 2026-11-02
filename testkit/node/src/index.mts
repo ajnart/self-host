@@ -41,6 +41,54 @@ export interface SpinupOptions {
 export interface SelfHost {
 	readonly recoveryPath?: string;
 	spinup(app: string, options?: SpinupOptions): Promise<App>;
+	spinupPair(
+		consumer: string,
+		target: string,
+		options: PairOptions,
+	): Promise<Pair>;
+	close(): Promise<void>;
+}
+
+export interface PairOptions {
+	order: "consumer-first" | "target-first";
+	images?: Readonly<Record<string, string>>;
+}
+
+export interface PairAppStatus {
+	readonly id: string;
+	readonly url: string;
+	readonly installed: boolean;
+	readonly state: string;
+	readonly setup: "ok" | "manual" | "incomplete" | "pending";
+	readonly steps: ReadonlyArray<{
+		readonly id: string;
+		readonly status: "ok" | "manual" | "fail" | "skip";
+	}>;
+}
+
+export type PairInspection = {
+	readonly link: string;
+	readonly apps: readonly PairAppStatus[];
+} & (
+	| { readonly outcome: "complete"; readonly reason: "verified" }
+	| { readonly outcome: "manual" | "failed"; readonly reason: "setup" }
+	| {
+			readonly outcome: "prerequisite";
+			readonly reason: "absent" | "unready" | "not-run";
+	  }
+);
+
+export type PairApp = Omit<App, "close">;
+
+export interface Pair {
+	readonly consumer: PairApp;
+	readonly target: PairApp;
+	readonly initial: PairInspection;
+	readonly recoveryPath?: string;
+	inspect(): Promise<PairInspection>;
+	setup(app?: string): Promise<PairInspection>;
+	remove(app: string): Promise<PairInspection>;
+	install(app: string): Promise<PairInspection>;
 	close(): Promise<void>;
 }
 
@@ -59,6 +107,7 @@ export type TestkitErrorCode =
 	| "CLEANUP"
 	| "TIMEOUT"
 	| "TRANSPORT"
+	| "OPERATION"
 	| "BINARY";
 
 const MAX_MESSAGE = 65536;
@@ -72,6 +121,7 @@ const messages = new Map<TestkitErrorCode, string>([
 	["CLEANUP", "Fixture cleanup failed; run manifest cleanup."],
 	["TIMEOUT", "Fixture operation timed out."],
 	["TRANSPORT", "Testkit helper transport failed."],
+	["OPERATION", "Fixture pair action or inspection failed."],
 	[
 		"BINARY",
 		"Testkit helper not found. Run self-host-testkit-setup or set SELF_HOST_TESTKIT_BINARY.",
@@ -349,10 +399,12 @@ class AppHandle {
 	#bridge: Bridge;
 	#url: string;
 	#closed = false;
+	#app?: string;
 
-	constructor(bridge: Bridge, url: string) {
+	constructor(bridge: Bridge, url: string, app?: string) {
 		this.#bridge = bridge;
 		this.#url = url;
+		this.#app = app;
 	}
 
 	get url() {
@@ -365,19 +417,24 @@ class AppHandle {
 
 	async getApiKey(name = "") {
 		if (this.#closed || typeof name !== "string") throw fault("STATE");
-		const value = await this.#bridge.request("getApiKey", { name });
+		const value = await this.#bridge.request("getApiKey", {
+			name,
+			app: this.#app,
+		});
 		if (!strings(value, ["apiKey"])) throw fault("PROTOCOL");
 		return value.apiKey;
 	}
 
 	async credentials() {
 		if (this.#closed) throw fault("STATE");
-		return privateCredentials(await this.#bridge.request("credentials"));
+		return privateCredentials(
+			await this.#bridge.request("credentials", { app: this.#app }),
+		);
 	}
 
 	async info() {
 		if (this.#closed) throw fault("STATE");
-		const value = await this.#bridge.request("info");
+		const value = await this.#bridge.request("info", { app: this.#app });
 		if (
 			!strings(value, ["id", "url", "image", "imageId"]) ||
 			!Array.isArray(value.repoDigests) ||
@@ -408,13 +465,223 @@ class AppHandle {
 	}
 }
 
+function appID(value: unknown): value is string {
+	return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
+}
+
+function loopback(value: string): boolean {
+	try {
+		const address = new URL(value);
+		return (
+			address.protocol === "http:" &&
+			address.hostname === "127.0.0.1" &&
+			address.port !== "" &&
+			address.username === "" &&
+			address.password === "" &&
+			address.search === "" &&
+			address.hash === ""
+		);
+	} catch {
+		return false;
+	}
+}
+
+function pairAppStatus(value: unknown, id: string): PairAppStatus {
+	if (
+		!strings(value, ["id", "url", "state", "setup"]) ||
+		value.id !== id ||
+		!loopback(value.url) ||
+		typeof value.installed !== "boolean" ||
+		![
+			"running",
+			"exited",
+			"created",
+			"restarting",
+			"paused",
+			"missing",
+			"unknown",
+			"dead",
+			"removing",
+		].includes(value.state) ||
+		(value.setup !== "ok" &&
+			value.setup !== "manual" &&
+			value.setup !== "incomplete" &&
+			value.setup !== "pending") ||
+		!Array.isArray(value.steps)
+	)
+		throw fault("PROTOCOL");
+	const steps = value.steps.map(
+		(step: unknown): PairAppStatus["steps"][number] => {
+			if (
+				!strings(step, ["id", "status"]) ||
+				!appID(step.id) ||
+				(step.status !== "ok" &&
+					step.status !== "manual" &&
+					step.status !== "fail" &&
+					step.status !== "skip")
+			)
+				throw fault("PROTOCOL");
+			return { id: step.id, status: step.status };
+		},
+	);
+	return {
+		id,
+		url: value.url,
+		installed: value.installed,
+		state: value.state,
+		setup: value.setup,
+		steps,
+	};
+}
+
+function pairInspection(
+	value: unknown,
+	ids: readonly string[],
+): PairInspection {
+	if (
+		!strings(value, ["link", "outcome", "reason"]) ||
+		!appID(value.link) ||
+		!Array.isArray(value.apps) ||
+		value.apps.length !== 2
+	)
+		throw fault("PROTOCOL");
+	const rawApps = value.apps;
+	const apps = ids.map((id, index) => pairAppStatus(rawApps[index], id));
+	const base = { link: value.link, apps };
+	if (value.outcome === "complete" && value.reason === "verified") {
+		if (
+			apps.some(
+				(app) =>
+					!app.installed ||
+					app.setup !== "ok" ||
+					app.steps.some(
+						(step) => step.status === "fail" || step.status === "manual",
+					),
+			) ||
+			!apps[0]?.steps.some(
+				(step) => step.id === base.link && step.status === "ok",
+			)
+		)
+			throw fault("PROTOCOL");
+		return { ...base, outcome: "complete", reason: "verified" };
+	}
+	if (
+		(value.outcome === "manual" || value.outcome === "failed") &&
+		value.reason === "setup"
+	)
+		return { ...base, outcome: value.outcome, reason: "setup" };
+	if (
+		value.outcome === "prerequisite" &&
+		(value.reason === "absent" ||
+			value.reason === "unready" ||
+			value.reason === "not-run")
+	)
+		return { ...base, outcome: "prerequisite", reason: value.reason };
+	throw fault("PROTOCOL");
+}
+
+class PairAppHandle implements PairApp {
+	#view: AppHandle;
+	constructor(bridge: Bridge, id: string, url: string) {
+		this.#view = new AppHandle(bridge, url, id);
+	}
+	get url() {
+		return this.#view.url;
+	}
+	get recoveryPath() {
+		return this.#view.recoveryPath;
+	}
+	getApiKey(name?: string) {
+		return this.#view.getApiKey(name);
+	}
+	credentials() {
+		return this.#view.credentials();
+	}
+	info() {
+		return this.#view.info();
+	}
+	toJSON() {
+		return "[PairApp]";
+	}
+	[inspect.custom]() {
+		return "[PairApp]";
+	}
+}
+
+class PairHandle implements Pair {
+	#bridge: Bridge;
+	#ids: readonly string[];
+	#initial: PairInspection;
+	#timeout: number;
+	#consumer: PairApp;
+	#target: PairApp;
+	constructor(
+		bridge: Bridge,
+		consumer: string,
+		target: string,
+		consumerURL: string,
+		targetURL: string,
+		initial: PairInspection,
+		timeout: number,
+	) {
+		this.#bridge = bridge;
+		this.#ids = [consumer, target];
+		this.#initial = initial;
+		this.#timeout = timeout;
+		this.#consumer = new PairAppHandle(bridge, consumer, consumerURL);
+		this.#target = new PairAppHandle(bridge, target, targetURL);
+	}
+	get consumer() {
+		return this.#consumer;
+	}
+	get target() {
+		return this.#target;
+	}
+	get initial() {
+		return pairInspection(this.#initial, this.#ids);
+	}
+	get recoveryPath() {
+		return this.#bridge.recoveryPath;
+	}
+	async #action(method: string, app?: string): Promise<PairInspection> {
+		if (app !== undefined && !this.#ids.includes(app)) throw fault("STATE");
+		return pairInspection(
+			await this.#bridge.request(method, { app }, this.#timeout + 1000),
+			this.#ids,
+		);
+	}
+	inspect() {
+		return this.#action("inspect");
+	}
+	setup(app?: string) {
+		return this.#action("setup", app);
+	}
+	remove(app: string) {
+		if (!this.#ids.includes(app)) return Promise.reject(fault("STATE"));
+		return this.#action("remove", app);
+	}
+	install(app: string) {
+		if (!this.#ids.includes(app)) return Promise.reject(fault("STATE"));
+		return this.#action("install", app);
+	}
+	close() {
+		return this.#bridge.close();
+	}
+	toJSON() {
+		return "[Pair]";
+	}
+	[inspect.custom]() {
+		return "[Pair]";
+	}
+}
+
 class SelfHostHandle {
 	#binary: string;
 	#timeout: number;
 	#manifest: string;
 	#directory?: string;
 	#bridges = new Set<Bridge>();
-	#starts = new Set<Promise<App>>();
+	#starts = new Set<Promise<App | Pair>>();
 	#closed = false;
 	#closing?: Promise<void>;
 
@@ -511,6 +778,90 @@ class SelfHostHandle {
 		}
 	}
 
+	async spinupPair(
+		consumer: string,
+		target: string,
+		options: PairOptions,
+	): Promise<Pair> {
+		if (this.#closed) throw fault("STATE");
+		if (
+			!appID(consumer) ||
+			!appID(target) ||
+			consumer === target ||
+			!record(options) ||
+			(options.order !== "consumer-first" && options.order !== "target-first")
+		)
+			throw fault("PROTOCOL");
+		if (
+			options.images !== undefined &&
+			(!record(options.images) ||
+				Object.entries(options.images).some(
+					([id, image]) =>
+						(id !== consumer && id !== target) || typeof image !== "string",
+				))
+		)
+			throw fault("PROTOCOL");
+		const bridge = new Bridge(this.#binary, this.#manifest);
+		this.#bridges.add(bridge);
+		const start = this.#spinupPair(bridge, consumer, target, options);
+		this.#starts.add(start);
+		try {
+			return await start;
+		} finally {
+			this.#starts.delete(start);
+		}
+	}
+
+	async #spinupPair(
+		bridge: Bridge,
+		consumer: string,
+		target: string,
+		options: PairOptions,
+	): Promise<Pair> {
+		try {
+			const value = await bridge.request(
+				"spinupPair",
+				{
+					consumer,
+					target,
+					order: options.order,
+					images: options.images,
+					timeoutMs: this.#timeout,
+				},
+				this.#timeout + 1000,
+			);
+			if (
+				!record(value) ||
+				!strings(value.consumer, ["id", "url"]) ||
+				!strings(value.target, ["id", "url"]) ||
+				value.consumer.id !== consumer ||
+				value.target.id !== target ||
+				!loopback(value.consumer.url) ||
+				!loopback(value.target.url) ||
+				value.consumer.url === value.target.url
+			)
+				throw fault("PROTOCOL", undefined, this.#manifest);
+			const initial = pairInspection(value.initial, [consumer, target]);
+			if (this.#closed) throw fault("STATE", undefined, this.#manifest);
+			return new PairHandle(
+				bridge,
+				consumer,
+				target,
+				value.consumer.url,
+				value.target.url,
+				initial,
+				this.#timeout,
+			);
+		} catch (error) {
+			try {
+				await bridge.close();
+			} catch {
+				throw error;
+			}
+			throw error;
+		}
+	}
+
 	close() {
 		if (!this.#closing) {
 			this.#closed = true;
@@ -589,6 +940,40 @@ export async function withApp<T>(
 		await selfHost.close();
 	} catch (error) {
 		if (result.ok) throw error;
+	}
+	if (!result.ok) throw result.error;
+	return result.value;
+}
+
+export async function withPair<T>(
+	consumer: string,
+	target: string,
+	callback: (pair: Pair) => T | Promise<T>,
+	options: SelfHostOptions &
+		PairOptions & {
+			onCleanupError?: (error: TestkitError) => void | Promise<void>;
+		},
+): Promise<T> {
+	const selfHost = createSelfHost(options);
+	let result: { ok: true; value: T } | { ok: false; error: unknown };
+	try {
+		result = {
+			ok: true,
+			value: await callback(
+				await selfHost.spinupPair(consumer, target, options),
+			),
+		};
+	} catch (error) {
+		result = { ok: false, error };
+	}
+	try {
+		await selfHost.close();
+	} catch (error) {
+		if (result.ok) throw error;
+		if (options.onCleanupError && error instanceof TestkitError)
+			await Promise.allSettled([
+				Promise.resolve().then(() => options.onCleanupError?.(error)),
+			]);
 	}
 	if (!result.ok) throw result.error;
 	return result.value;

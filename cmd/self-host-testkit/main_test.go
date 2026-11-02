@@ -213,3 +213,79 @@ func TestStartupFailureAndOversizedResultsNeverExposeProviderData(t *testing.T) 
 		t.Fatal(err)
 	}
 }
+
+type fakePairFixture struct {
+	fakeFixture
+	view     fakeFixture
+	selected string
+}
+
+func (f *fakePairFixture) View(id string) (fixtureView, error) {
+	if id != "homarr" && id != "sonarr" {
+		return nil, errors.New("private-test-password")
+	}
+	f.selected = id
+	return &f.view, nil
+}
+func (f *fakePairFixture) Initial() testkit.PairInspection {
+	return testkit.PairInspection{Outcome: testkit.PairPrerequisite, Reason: "absent"}
+}
+func (f *fakePairFixture) Inspect(context.Context) (testkit.PairInspection, error) {
+	return testkit.PairInspection{Outcome: testkit.PairComplete, Reason: "verified"}, f.err
+}
+func (f *fakePairFixture) Setup(ctx context.Context, id string) (testkit.PairInspection, error) {
+	return f.Inspect(ctx)
+}
+func (f *fakePairFixture) Remove(ctx context.Context, id string) (testkit.PairInspection, error) {
+	return f.Inspect(ctx)
+}
+func (f *fakePairFixture) Install(ctx context.Context, id string) (testkit.PairInspection, error) {
+	return f.Inspect(ctx)
+}
+
+func TestPairBridgeAdditiveScopeActionsAndCleanup(t *testing.T) {
+	manifest := ownedManifest(t)
+	f := &fakePairFixture{}
+	var lifetime context.Context
+	b := &bridge{manifest: manifest, owner: strings.Repeat("a", 32), startPair: func(ctx context.Context, options testkit.PairOptions) (pairFixture, error) {
+		lifetime = ctx
+		if options.Consumer != "homarr" || options.Target != "sonarr" || options.Order != testkit.TargetFirst || options.Timeout != time.Second {
+			t.Error("pair options changed")
+		}
+		return f, nil
+	}}
+	start := request{Version: 1, ID: 1, Method: "spinupPair", Params: json.RawMessage(`{"consumer":"homarr","target":"sonarr","order":"target-first","timeoutMs":1000}`)}
+	if b.handle(t.Context(), start).Error != nil || lifetime.Err() != nil {
+		t.Fatal("pair start failed or canceled")
+	}
+	if b.handle(t.Context(), request{Method: "spinup", Params: json.RawMessage(`{"app":"sonarr"}`)}).Error == nil {
+		t.Fatal("mixed single/pair startup accepted")
+	}
+	for _, method := range []string{"getApiKey", "credentials", "info"} {
+		res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
+		if res.Error != nil || f.selected != "sonarr" {
+			t.Fatal("selected App access failed")
+		}
+		if b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"outside"}`)}).Error == nil {
+			t.Fatal("unselected App accepted")
+		}
+	}
+	for _, method := range []string{"inspect", "setup", "remove", "install"} {
+		if b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)}).Error != nil {
+			t.Fatal("pair action failed")
+		}
+		f.err = errors.New("private-test-password")
+		res := b.handle(t.Context(), request{Method: method})
+		data, _ := json.Marshal(res)
+		if res.Error == nil || strings.Contains(string(data), "private-test-password") {
+			t.Fatal("pair action error not sanitized")
+		}
+		f.err = nil
+	}
+	if b.handle(t.Context(), request{Method: "close"}).Error != nil || f.closed != 1 || f.closeContextErr != nil || lifetime.Err() != context.Canceled {
+		t.Fatal("pair cleanup did not preserve independent context")
+	}
+	if err := cleanupManifest(t.Context(), manifest, func(context.Context, string) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
