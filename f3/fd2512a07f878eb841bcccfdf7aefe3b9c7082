@@ -1,0 +1,18 @@
+docs/catalog/traps/thingport.md
+  h_d6e478ca18e517 29-44
+internal/apps/thingport/preflight_test.go
+  h_d6e478ca18e517 1-428
+internal/apps/thingport/thingport.go
+  h_d6e478ca18e517 4,11,49-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3fd2512a07f878eb841bcccfdf7aefe3b9c7082",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
