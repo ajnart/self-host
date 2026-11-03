@@ -1,0 +1,40 @@
+docs/catalog/traps/karakeep.md
+  h_d6e478ca18e517 1-195
+internal/apps/homarr/target_karakeep.go
+  h_d6e478ca18e517 1-71
+internal/apps/homarr/target_karakeep_lifecycle_test.go
+  h_d6e478ca18e517 1-230
+internal/apps/homarr/target_karakeep_test.go
+  h_d6e478ca18e517 1-319
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 22
+internal/apps/karakeep/homarr.go
+  h_d6e478ca18e517 1-288
+internal/apps/karakeep/homarr_capture.go
+  h_d6e478ca18e517 1-101
+internal/apps/karakeep/homarr_test.go
+  h_d6e478ca18e517 1-302
+internal/apps/karakeep/karakeep.go
+  h_d6e478ca18e517 1-150
+internal/apps/karakeep/karakeep_test.go
+  h_d6e478ca18e517 1-518
+internal/apps/karakeep/owner.go
+  h_d6e478ca18e517 1-166
+internal/catalog/batch_multi1.go
+  h_d6e478ca18e517 11,27
+tools/sitegen/icons.go
+  h_d6e478ca18e517 54
+tools/sitegen/stars.go
+  h_d6e478ca18e517 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5822b27a95b793137b43c5dc7605b0fd3a14c101",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
