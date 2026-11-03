@@ -12,7 +12,13 @@ import (
 )
 
 func DownloadClientLinks(api, categoryField, category string) []app.Link {
-	return []app.Link{QBittorrentLink(api, categoryField, category), SABnzbdLink(api, categoryField, category)}
+	return []app.Link{
+		QBittorrentLink(api, categoryField, category),
+		SABnzbdLink(api, categoryField, category),
+		NZBGetLink(api, categoryField, category),
+		DelugeLink(api, categoryField, category),
+		TransmissionLink(api, categoryField, category),
+	}
 }
 
 type downloadProtocolFamily uint8

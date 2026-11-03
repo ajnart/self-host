@@ -17,15 +17,6 @@ import (
 	"github.com/ajnart/self-host/internal/system"
 )
 
-type nzbgetScheduledConsumer struct {
-	app.App
-	nzbgetLink app.Link
-}
-
-func (a nzbgetScheduledConsumer) Links() []app.Link {
-	return append(a.App.Links(), a.nzbgetLink)
-}
-
 type nzbgetScheduledRunner struct {
 	system.Runner
 	paths *nzbgetImageIdentityFixture
@@ -56,9 +47,10 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 				f := newNZBGetLinkFixture(t, source)
 				f.pathProbe.supported = true
 				id := consumer.Info().ID
-				assembled := nzbgetScheduledConsumer{App: consumer, nzbgetLink: f.link}
-				e := arrtest.New(t, catalog.New([]app.App{assembled, nzbget.App{}}, nil))
+				e := arrtest.New(t, catalog.New([]app.App{consumer, nzbget.App{}}, nil))
 				e.Serve(id, f.handler)
+				f.config("Category2.Name", "movies")
+				f.config("Category3.Name", "music")
 				f.config("InterDir", "/data/usenet/incomplete")
 				f.config("UMask", "022")
 				active, _ := f.targetSettings.Load("config")

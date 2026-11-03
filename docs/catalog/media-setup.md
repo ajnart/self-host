@@ -36,6 +36,8 @@ Existing Projects without `MEDIA_LAYOUT=shared` retain their paths. Explicit `--
 - Preserve existing categories, seed goals and cleanup choices. Post-import category changes can affect completed-download removal; removing torrents/data needs explicit intent.
 - Provider connection success is narrower than a successful import; neither proves hardlinks or populated-library acceptance.
 
+Sonarr, Radarr and Lidarr expose guarded Links to qBittorrent, SABnzbd, NZBGet, Deluge and Transmission through one shared downloader aggregate. They reuse accepted credentials and existing configuration; registration does not initialize categories, plugins, labels, folders or libraries. Review the product-specific prerequisites before retrying: [SABnzbd](traps/sabnzbd.md), [NZBGet](traps/nzbget.md), [Deluge](traps/deluge.md), [Transmission](traps/transmission.md) and [qBittorrent](traps/qbittorrent.md). NZBGet's category matching is case-sensitive, and sanitizer-sensitive appended category names remain Manual rather than verifying the wrong folder. Source/fake connection checks do not establish native imports or lifecycle acceptance.
+
 ## Quality and naming are user choices
 
 - Review playback hardware, language, storage budget, allowed qualities and upgrade limits before changing a quality profile.
