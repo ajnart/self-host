@@ -5,6 +5,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/bookstack"
 	"github.com/ajnart/self-host/internal/apps/docmost"
 	"github.com/ajnart/self-host/internal/apps/fireflyiii"
+	"github.com/ajnart/self-host/internal/apps/healthchecks"
 	"github.com/ajnart/self-host/internal/apps/immich"
 	"github.com/ajnart/self-host/internal/apps/keycloak"
 	"github.com/ajnart/self-host/internal/apps/linkwarden"
@@ -16,6 +17,7 @@ func init() {
 		bookstack.App{},
 		docmost.App{},
 		fireflyiii.App{},
+		healthchecks.App{},
 		immich.App{},
 		keycloak.App{},
 		linkwarden.App{},

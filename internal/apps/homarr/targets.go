@@ -42,5 +42,6 @@ func targets() []target {
 		wudTarget(),
 		patchmonTarget(),
 		jackettTarget(),
+		healthchecksTarget(),
 	)
 }

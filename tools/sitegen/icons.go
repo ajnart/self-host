@@ -35,6 +35,7 @@ var icons = map[string]string{
 	"freshrss":             "svg/freshrss.svg",
 	"frigate":              "svg/frigate.svg",
 	"gatus":                "svg/gatus.svg",
+	"healthchecks":         "svg/healthchecks.svg",
 	"glances":              "svg/glances.svg",
 	"gluetun":              "svg/gluetun.svg",
 	"gotify":               "svg/gotify.svg",
