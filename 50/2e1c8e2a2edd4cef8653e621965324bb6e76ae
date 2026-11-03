@@ -1,0 +1,39 @@
+internal/apps/homarr/calendar_events.go
+  s_55b5a31b8144fe::t_01ed94f6e62eb6 1-50
+internal/apps/homarr/target_sportarr.go
+  s_55b5a31b8144fe::t_651e392c28860f 70-71
+internal/apps/homarr/target_sportarr_test.go
+  s_121da8e8a6b256::t_834b86c271f343 26-28,110-122,223,408-438
+internal/apps/homarr/targets.go
+  s_55b5a31b8144fe::t_87e410db990006 20
+internal/catalog/batch_mfa2.go
+  s_55b5a31b8144fe::t_c905eb77fd292d 9,23
+tools/sitegen/icons.go
+  s_121da8e8a6b256::t_bd84b612cb1409 90
+tools/sitegen/stars.go
+  s_121da8e8a6b256::t_cf3637440a78c5 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "502e1c8e2a2edd4cef8653e621965324bb6e76ae",
+  "prompts": {},
+  "sessions": {
+    "s_121da8e8a6b256": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9cc6833-5f1d-42a9-aa64-89128db02c15",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_55b5a31b8144fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a22d04dd-7d16-4c46-98f1-b94d3e92ce32",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
