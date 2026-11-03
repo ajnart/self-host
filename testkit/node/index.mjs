@@ -222,6 +222,21 @@ class Bridge {
             });
         });
     }
+    async failAndClose(primary) {
+        let code = "PROTOCOL";
+        if (primary instanceof TestkitError)
+            code = primary.code;
+        this.#fail(code);
+        try {
+            await this.close();
+        }
+        catch {
+            if (primary instanceof TestkitError)
+                throw this.#fault(primary.code, primary.reason, true);
+            throw primary;
+        }
+        throw primary;
+    }
     close() {
         if (!this.#closing) {
             this.#closing = this.#close().catch((error) => {
@@ -495,7 +510,13 @@ class PairHandle {
     async #sonarrWitness(method) {
         if (!this.#witnessEnabled)
             throw fault("STATE");
-        return sonarrFilterWitness(await this.#bridge.request(method));
+        const value = await this.#bridge.request(method);
+        try {
+            return sonarrFilterWitness(value);
+        }
+        catch (error) {
+            return this.#bridge.failAndClose(error);
+        }
     }
     createSonarrFilterWitness() {
         return this.#sonarrWitness("createSonarrFilterWitness");
@@ -668,13 +689,7 @@ class SelfHostHandle {
             return new PairHandle(bridge, consumer, target, value.consumer.url, value.target.url, initial, this.#timeout, options.sonarrFilterWitness === true);
         }
         catch (error) {
-            try {
-                await bridge.close();
-            }
-            catch {
-                throw error;
-            }
-            throw error;
+            return bridge.failAndClose(error);
         }
     }
     close() {

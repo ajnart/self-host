@@ -398,6 +398,20 @@ class Bridge {
 		});
 	}
 
+	async failAndClose(primary: unknown): Promise<never> {
+		let code: TestkitErrorCode = "PROTOCOL";
+		if (primary instanceof TestkitError) code = primary.code;
+		this.#fail(code);
+		try {
+			await this.close();
+		} catch {
+			if (primary instanceof TestkitError)
+				throw this.#fault(primary.code, primary.reason, true);
+			throw primary;
+		}
+		throw primary;
+	}
+
 	close() {
 		if (!this.#closing) {
 			this.#closing = this.#close().catch((error: unknown) => {
@@ -725,7 +739,12 @@ class PairHandle implements Pair {
 		method: "createSonarrFilterWitness" | "readSonarrFilterWitness",
 	) {
 		if (!this.#witnessEnabled) throw fault("STATE");
-		return sonarrFilterWitness(await this.#bridge.request(method));
+		const value = await this.#bridge.request(method);
+		try {
+			return sonarrFilterWitness(value);
+		} catch (error) {
+			return this.#bridge.failAndClose(error);
+		}
 	}
 	createSonarrFilterWitness() {
 		return this.#sonarrWitness("createSonarrFilterWitness");
@@ -951,12 +970,7 @@ class SelfHostHandle {
 				options.sonarrFilterWitness === true,
 			);
 		} catch (error) {
-			try {
-				await bridge.close();
-			} catch {
-				throw error;
-			}
-			throw error;
+			return bridge.failAndClose(error);
 		}
 	}
 

@@ -15,31 +15,32 @@ const event = (method) =>
 
 if (cleanup) {
 	event("cleanup");
+	event("cleanup-complete");
 	process.exit(existsSync(`${manifest}.${owner}.failed`) ? 1 : 0);
 }
 
 const input = createInterface({ input: process.stdin });
 const witnessMode = "valid";
+const cleanupFails = false;
 let app;
 let pair;
 let installed;
 let pairFailed = false;
 let witnessCreated = false;
-const witnessReceipt = () => {
+const witnessReceipt = (mode = witnessMode) => {
 	const value = {
 		kind: "sonarr-custom-filter-v1",
 		objectId: 17,
 		contentSha256: "a".repeat(64),
 	};
-	if (witnessMode === "bad-kind") value.kind = "other";
-	if (witnessMode === "bad-id-zero") value.objectId = 0;
-	if (witnessMode === "bad-id-fraction") value.objectId = 1.5;
-	if (witnessMode === "bad-id-range") value.objectId = 2147483648;
-	if (witnessMode === "bad-hash") value.contentSha256 = "private-witness-body";
-	if (witnessMode === "extra-receipt-field")
-		value.label = "private-witness-body";
-	if (witnessMode === "missing-receipt-field") value.contentSha256 = undefined;
-	if (witnessMode === "null-receipt") return null;
+	if (mode === "bad-kind") value.kind = "other";
+	if (mode === "bad-id-zero") value.objectId = 0;
+	if (mode === "bad-id-fraction") value.objectId = 1.5;
+	if (mode === "bad-id-range") value.objectId = 2147483648;
+	if (mode === "bad-hash") value.contentSha256 = "private-witness-body";
+	if (mode === "extra-receipt-field") value.label = "private-witness-body";
+	if (mode === "missing-receipt-field") value.contentSha256 = undefined;
+	if (mode === "null-receipt") return null;
 	return value;
 };
 const inspection = () => ({
@@ -121,9 +122,9 @@ input.on("line", (line) => {
 		reply(req, { url: "http://127.0.0.1:12345" });
 	} else if (req.method === "spinupPair") {
 		pair = req.params;
-		if (pair.consumer === "slow") return;
-		if (pair.consumer === "cleanup-failure")
+		if (pair.consumer === "cleanup-failure" || cleanupFails)
 			writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+		if (pair.consumer === "slow") return;
 		installed = new Set([pair.consumer]);
 		if (pair.order === "target-first") installed = new Set([pair.target]);
 		const initial = inspection();
@@ -170,7 +171,12 @@ input.on("line", (line) => {
 			return;
 		}
 		if (req.method === "createSonarrFilterWitness") witnessCreated = true;
-		reply(req, witnessReceipt());
+		let mode = witnessMode;
+		if (mode.startsWith("read-")) {
+			mode = mode.slice(5);
+			if (req.method === "createSonarrFilterWitness") mode = "valid";
+		}
+		reply(req, witnessReceipt(mode));
 	} else if (["inspect", "setup", "remove", "install"].includes(req.method)) {
 		if (req.method === "install" && pair.consumer.startsWith("action-")) {
 			pairFailed = true;
