@@ -205,7 +205,7 @@ func TestOfficialComposeAndPrivateRecoveryContract(t *testing.T) {
 		}
 	}
 	inputs := a.Inputs()
-	if len(inputs) != 2 || inputs[0].Key != "admin_email" || inputs[1].Key != "admin_identity" {
+	if len(inputs) != 4 || inputs[0].Key != "admin_email" || inputs[1].Key != "homarr_api_key" || inputs[2].Key != "homarr_token_ownership" || inputs[3].Key != "admin_identity" {
 		t.Fatal("unexpected recovery inputs")
 	}
 	for _, input := range inputs {

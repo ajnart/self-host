@@ -211,7 +211,11 @@ func checkNotes(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
-	response, err := h.HTTP(ctx, helpers.Request{Path: "/api/notes?limit=1", NoRedirect: true, Header: map[string]string{"Authorization": "Bearer " + session.Token}})
+	return readNotes(ctx, h, session.Token)
+}
+
+func readNotes(ctx context.Context, h *helpers.H, token string) error {
+	response, err := h.HTTP(ctx, helpers.Request{Path: "/api/notes?limit=1", NoRedirect: true, Header: map[string]string{"Authorization": "Bearer " + token}})
 	if err != nil || response.Status != http.StatusOK {
 		return &helpers.ManualError{Hint: "Anchor's verified administrator could not read notes. Preserve existing notes and authentication, inspect the account's read access, then run: self-host setup anchor"}
 	}

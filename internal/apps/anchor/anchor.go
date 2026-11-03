@@ -33,6 +33,10 @@ func (App) Inputs() []app.Input {
 	return []app.Input{
 		{Key: "admin_email", Prompt: "Intended existing Anchor administrator email", Private: true, RecoveryOnly: true,
 			Help: "Optional explicit selection of the intended existing administrator using the shared Admin password. Empty private inputs preserve saved values. Restore the matching saved identity too when recovering a selection; never rename another account to match it. Installing replaces Compose, so preserve existing settings and separately approve replacement before using install --set-file."},
+		{Key: "homarr_api_key", Prompt: "Saved self-host Homarr Anchor token", Private: true, RecoveryOnly: true,
+			Help: "Restore only the known permanent token self-host issued for the selected administrator, together with its matching ownership record. Empty private inputs preserve saved values."},
+		{Key: "homarr_token_ownership", Prompt: "Saved self-host Homarr Anchor token ownership", Private: true, RecoveryOnly: true,
+			Help: "Restore only the known matching JSON record with accountId, email and fingerprint. Empty private inputs preserve saved values."},
 		{Key: "admin_identity", Prompt: "Saved Anchor administrator identity", Private: true, RecoveryOnly: true,
 			Help: "Restore only the known matching JSON selection with id and email, never guessed IDs or another account. This records a selected existing account, not ownership of an account self-host created. Empty private inputs preserve saved values."},
 	}
@@ -64,14 +68,17 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := rememberAdministrator(ctx, h); err != nil {
 		return err
 	}
-	return h.Step(ctx, "notes", "verify authenticated Anchor note access", helpers.StepSpec{
+	if err := h.Step(ctx, "notes", "verify authenticated Anchor note access", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
 			err := checkNotes(ctx, h)
 			return err == nil, err
 		},
 		Do:   func(ctx context.Context) error { return checkNotes(ctx, h) },
 		Hint: "Preserve existing notes and verify the intended Anchor account's read access, then run: self-host setup anchor",
-	})
+	}); err != nil {
+		return err
+	}
+	return prepareHomarr(ctx, h)
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {

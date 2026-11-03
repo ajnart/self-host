@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"github.com/ajnart/self-host/internal/apps/actualbudget"
+	"github.com/ajnart/self-host/internal/apps/anchor"
 	"github.com/ajnart/self-host/internal/apps/aria2"
 	"github.com/ajnart/self-host/internal/apps/beszel"
 	"github.com/ajnart/self-host/internal/apps/cleanuparr"
@@ -18,6 +19,7 @@ import (
 func init() {
 	register(
 		actualbudget.App{},
+		anchor.App{},
 		aria2.App{},
 		beszel.App{},
 		cleanuparr.App{},
