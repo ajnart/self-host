@@ -87,6 +87,12 @@ func CompletedDownloadPath(ctx context.Context, h *helpers.H, category string) (
 		}
 		switch config["AppendCategoryDir"] {
 		case "yes":
+			stem, _, _ := strings.Cut(category, ".")
+			stem = strings.ToUpper(stem)
+			reserved := stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || len(stem) == 4 && (strings.HasPrefix(stem, "COM") || strings.HasPrefix(stem, "LPT")) && stem[3] >= '1' && stem[3] <= '9'
+			if reserved || strings.HasSuffix(category, ".") || strings.ContainsAny(category, `":<>|`) || strings.ContainsFunc(category, func(char rune) bool { return char < 32 }) {
+				return "", nzbgetDownloadManual("NZBGet sanitizes the selected category's appended directory name, so its actual completed path needs explicit review")
+			}
 			completed = path.Join(completed, category)
 		case "no":
 		default:

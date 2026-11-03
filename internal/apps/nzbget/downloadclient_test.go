@@ -121,6 +121,53 @@ func TestNZBGetCompletedDownloadPathUsesActiveCategoryWithoutMutation(t *testing
 	}
 }
 
+func TestNZBGetCompletedDownloadPathCategorySanitizerBranches(t *testing.T) {
+	for _, tc := range []struct {
+		category string
+		manual   bool
+	}{
+		{"tv", false}, {"TV-HD", false}, {"Tv_HD", false}, {"tv.hd", false}, {"Kids TV (HD)+", false}, {"tv&hd!", false}, {"Café", false}, {".hidden", false},
+		{"CONsole", false}, {"_CON", false}, {"COM0", false}, {"COM10", false}, {"LPT0", false}, {"LPT10", false}, {"x.CON", false},
+		{"tv:hd", true}, {"tv.", true}, {"tv...", true}, {"tv|hd", true}, {"tv\"hd", true}, {"tv<hd", true}, {"tv>hd", true}, {"tv\thd", true}, {"tv\x01hd", true},
+		{"CON", true}, {"pRn", true}, {"Aux", true}, {"NuL.txt", true}, {"CoN.hd", true},
+		{"cOm1", true}, {"COM2", true}, {"COM3", true}, {"COM4", true}, {"COM5", true}, {"COM6", true}, {"COM7", true}, {"COM8", true}, {"com9.hd", true},
+		{"lPt1", true}, {"LPT2", true}, {"LPT3", true}, {"LPT4", true}, {"LPT5", true}, {"LPT6", true}, {"LPT7", true}, {"LPT8", true}, {"lpt9.nzb", true},
+	} {
+		for _, branch := range []string{"append", "no-append", "explicit-destination"} {
+			t.Run(branch+"/"+tc.category, func(t *testing.T) {
+				entries := nzbgetDownloadSet(nzbgetDownloadSettings(), "Category1.Name", tc.category)
+				want := "/data/usenet/complete/" + tc.category
+				switch branch {
+				case "no-append":
+					entries = nzbgetDownloadSet(entries, "AppendCategoryDir", "no")
+					want = "/data/usenet/complete"
+				case "explicit-destination":
+					entries = nzbgetDownloadSet(entries, "Category1.DestDir", "/data/usenet/complete/chosen/")
+					want = "/data/usenet/complete/chosen"
+				}
+				h, settings := nzbgetDownloadTarget(t, entries)
+				before, err := json.Marshal(entries)
+				if err != nil {
+					t.Fatal(err)
+				}
+				completed, err := nzbget.CompletedDownloadPath(context.Background(), h, tc.category)
+				if tc.manual && branch == "append" {
+					if !errors.Is(err, helpers.ErrManual) || completed != "" {
+						t.Fatalf("sanitizer-sensitive appended category returned %q instead of Manual: %v", completed, err)
+					}
+				} else if err != nil || completed != want {
+					t.Fatalf("unchanged branch returned %q, want %q: %v", completed, want, err)
+				}
+				active, _ := settings.Load("config")
+				after, err := json.Marshal(active)
+				if err != nil || string(after) != string(before) || h.Secret("ADMIN_PASSWORD") != password {
+					t.Fatal("category/path resolution changed active settings or credentials", err)
+				}
+			})
+		}
+	}
+}
+
 func TestNZBGetCompletedDownloadPathKeepsUnsafeChoicesManual(t *testing.T) {
 	for _, tc := range []struct{ name, category, setting, value string }{
 		{name: "missing category", category: "missing"},

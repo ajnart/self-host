@@ -151,7 +151,8 @@ func (f *nzbgetImageIdentityFixture) Exec(_ context.Context, service string, _ m
 			backing = "/fixture/library"
 		}
 	}
-	return system.Result{Stdout: []byte(prefix + directory + "\n" + identity + "\n1 0 0:5 " + backing + " " + directory + " rw - ext4 /dev/fixture rw\n")}, nil
+	mountEscape := strings.NewReplacer("\\", `\134`, " ", `\040`, "\t", `\011`, "\n", `\012`)
+	return system.Result{Stdout: []byte(prefix + directory + "\n" + identity + "\n1 0 0:5 " + mountEscape.Replace(backing) + " " + mountEscape.Replace(directory) + " rw - ext4 /dev/fixture rw\n")}, nil
 }
 
 func newNZBGetLinkFixture(t *testing.T, consumer nzbgetConsumerCase) *nzbgetLinkFixture {

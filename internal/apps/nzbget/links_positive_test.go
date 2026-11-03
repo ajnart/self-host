@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/arrtest"
+	"github.com/ajnart/self-host/internal/apps/servarr"
 	"github.com/ajnart/self-host/internal/helpers"
 	stepstatus "github.com/ajnart/self-host/internal/status"
 )
@@ -228,6 +229,81 @@ func TestNZBGetLeafManualPathPrerequisitesPrecedeNativeTests(t *testing.T) {
 					t.Fatal("unsafe path prerequisite reached native testing or ownership writes")
 				}
 			})
+		}
+	}
+}
+
+func TestNZBGetCategorySanitizerBranchGuards(t *testing.T) {
+	for _, consumer := range nzbgetConsumerCases {
+		for _, owned := range []bool{false, true} {
+			operation := "create"
+			if owned {
+				operation = "owned"
+			}
+			for _, branch := range []string{"append", "no-append", "explicit-destination"} {
+				for _, tc := range []struct {
+					category string
+					manual   bool
+				}{
+					{"tv:hd", true}, {"tv.", true}, {"CoN.hd", true}, {"lPt9", true}, {"TV-HD", false}, {"Tv+HD (1080p)", false},
+				} {
+					t.Run(consumer.id+"/"+consumer.version+"/"+operation+"/"+branch+"/"+tc.category, func(t *testing.T) {
+						f := newNZBGetLinkFixture(t, consumer)
+						f.pathProbe.supported = true
+						f.link = servarr.NZBGetLink(consumer.api, consumer.categoryField, tc.category)
+						f.config("Category1.Name", tc.category)
+						want := "/data/usenet/complete/" + tc.category
+						switch branch {
+						case "no-append":
+							f.config("AppendCategoryDir", "no")
+							want = "/data/usenet/complete"
+						case "explicit-destination":
+							f.config("Category1.DestDir", "/data/usenet/complete/chosen/")
+							want = "/data/usenet/complete/chosen"
+						}
+						if owned {
+							f.seedOwned(t)
+							item := f.backend.DownloadClients()[0]
+							nzbgetSetClientField(item, consumer.categoryField, tc.category)
+							nzbgetSetClientField(item, "addPaused", true)
+							item["priority"] = float64(17)
+						}
+						record, writes := f.ownership(), f.consumerSecrets.writes
+						before, err := json.Marshal(f.backend.DownloadClients())
+						if err != nil {
+							t.Fatal(err)
+						}
+						active, _ := f.targetSettings.Load("config")
+						settingsBefore, err := json.Marshal(active)
+						if err != nil {
+							t.Fatal(err)
+						}
+						err = f.link.Apply(context.Background(), f.from, f.to)
+						if tc.manual && branch == "append" {
+							if !errors.Is(err, helpers.ErrManual) {
+								t.Fatalf("sanitizer-sensitive category passed decoy verbatim folder: native=%d target-probes=%d consumer-probes=%d error=%v", f.nativeTests, f.pathProbe.targets, f.pathProbe.consumers, err)
+							}
+							after, marshalErr := json.Marshal(f.backend.DownloadClients())
+							if marshalErr != nil || string(after) != string(before) || f.ownership() != record || f.consumerSecrets.writes != writes || f.targetSecrets.writes != 0 || f.creates != 0 || f.updates != 0 || f.deletes != 0 || f.nativeTests != 0 || len(f.pathProbe.observed) != 0 || f.pathProbe.wrongIdentity != 0 || f.recorder.Status("link-nzbget") != stepstatus.StepManual {
+								t.Fatal("sanitizer hold reached path/native probes or changed an owned resource/settings", marshalErr)
+							}
+						} else {
+							if err != nil || f.pathProbe.directory != want || f.nativeTests == 0 {
+								t.Fatal("source-supported branch failed guarded native verification", err)
+							}
+							item := f.backend.DownloadClients()[0]
+							if item["protocol"] != consumer.protocol || arrtest.Field(item, consumer.categoryField) != tc.category || owned && (f.ownership() != record || f.creates != 0 || f.updates != 0 || item["priority"] != float64(17) || arrtest.Field(item, "addPaused") != true) {
+								t.Fatal("accepted category branch changed the literal, ownership or user options")
+							}
+						}
+						active, _ = f.targetSettings.Load("config")
+						settingsAfter, err := json.Marshal(active)
+						if err != nil || string(settingsAfter) != string(settingsBefore) || f.targetSecrets.writes != 0 {
+							t.Fatal("Link changed active category/path settings or target credentials", err)
+						}
+					})
+				}
+			}
 		}
 	}
 }
