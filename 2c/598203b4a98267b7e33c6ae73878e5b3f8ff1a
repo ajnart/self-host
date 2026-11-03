@@ -1,0 +1,20 @@
+internal/apps/nzbget/links_positive_test.go
+  h_d6e478ca18e517 46,80,87-152
+internal/apps/nzbget/links_scheduler_test.go
+  h_d6e478ca18e517 122-126
+internal/apps/nzbget/links_test.go
+  h_d6e478ca18e517 23,27-29,142,159
+internal/apps/servarr/nzbget.go
+  h_d6e478ca18e517 14-18,27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c598203b4a98267b7e33c6ae73878e5b3f8ff1a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
