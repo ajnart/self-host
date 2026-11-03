@@ -1,0 +1,22 @@
+docs/homarr-unraid.md
+  h_d6e478ca18e517 1-71
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 23-24
+internal/apps/homarr/target_unraid.go
+  h_d6e478ca18e517 1-102
+internal/apps/homarr/target_unraid_external_test.go
+  h_d6e478ca18e517 1-89
+internal/apps/homarr/target_unraid_test.go
+  h_d6e478ca18e517 1-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc64c8682c3909753ff520506e53715a9aa4609b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
