@@ -94,6 +94,7 @@ var repos = map[string]string{
 	"tailscale":            "tailscale/tailscale",
 	"tdarr":                "HaveAGitGat/Tdarr",
 	"technitium-dns":       "TechnitiumSoftware/DnsServer",
+	"stash":                "stashapp/stash",
 	"tracearr":             "connorgallopo/Tracearr",
 	"traefik":              "traefik/traefik",
 	"transmission":         "transmission/transmission",

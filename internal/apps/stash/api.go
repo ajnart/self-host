@@ -102,3 +102,7 @@ func identityRequest(ctx context.Context, h *helpers.H, key string) (helpers.Res
 	}
 	return response, nil
 }
+
+func VerifyHomarr(ctx context.Context, h *helpers.H) error {
+	return verify(ctx, h)
+}

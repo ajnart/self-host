@@ -94,6 +94,7 @@ var icons = map[string]string{
 	"tailscale":            "svg/tailscale.svg",
 	"tdarr":                "svg/tdarr.svg",
 	"technitium-dns":       "svg/technitium.svg",
+	"stash":                "svg/stash.svg",
 	"tracearr":             "svg/tracearr.svg",
 	"traefik":              "svg/traefik.svg",
 	"transmission":         "svg/transmission.svg",
