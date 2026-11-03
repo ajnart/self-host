@@ -1,0 +1,23 @@
+dcm/src/data/selfhost.json
+  s_0812986ae533ff::t_d670c9ad9df87b 580
+site/src/data/catalog.json
+  s_0812986ae533ff::t_3c9966edc1ca57 138-139
+tools/sitegen/icons.go
+  s_0812986ae533ff::t_8432f6d35ed639 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e78bb56a10b3161f7d2b91de999bff023e6bf5e3",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
