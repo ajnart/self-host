@@ -354,14 +354,28 @@ func TestJellystatHomarrMalformedTrailingIssuanceCapturesOnlySelectedKey(t *test
 		{"duplicate selected record", prefix + selected + `},` + selected + `}]`, "", false, true, false},
 		{"duplicate key field", prefix + selected + `,"key":"private-new-other"}]`, "", true, true, true},
 		{"duplicate name field", prefix + selected + `,"name":"another"}]`, "", true, true, true},
+		{"duplicate unrelated field after identity", prefix + selected + `,"extra":1,"extra":2}]`, "synthetic-key", false, true, false},
+		{"duplicate unrelated field before identity", prefix + `{"extra":1,"extra":2,"name":"self-host Homarr statistics","key":"synthetic-key"}]`, "synthetic-key", false, true, false},
+		{"duplicate unrelated field between identity fields", prefix + `{"name":"self-host Homarr statistics","extra":1,"extra":2,"key":"synthetic-key"}]`, "synthetic-key", false, true, false},
+		{"duplicate unrelated field with malformed tail", prefix + selected + `,"extra":1,"extra":`, "synthetic-key", true, true, true},
+		{"duplicate unrelated then duplicate key", prefix + selected + `,"extra":1,"extra":2,"key":"synthetic-key"}]`, "", true, true, true},
+		{"duplicate unrelated then duplicate name", prefix + `{"extra":1,"extra":2,"name":"self-host Homarr statistics","key":"synthetic-key","name":"self-host Homarr statistics"}]`, "", true, true, true},
 		{"byte bound", prefix + selected + `,"extra":"` + strings.Repeat("x", keyInventoryByteLimit) + `"}]`, "synthetic-key", true, false, true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			h, fixture, store := newJellystatKeyHarness(t)
 			fixture.response = []byte(scenario.body)
-			for range 2 {
+			checkpoint := ""
+			for attempt := range 2 {
+				store.reopen()
 				if err := (App{}).Setup(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
 					t.Fatalf("malformed or duplicate response did not remain held: %v", err)
+				}
+				current := store.Get("JELLYSTAT_HOMARR_PENDING")
+				if attempt == 0 {
+					checkpoint = current
+				} else if current != checkpoint {
+					t.Fatal("durable retry changed captured uncertainty evidence")
 				}
 			}
 			pending, exists, err := homarrJournal.Pending(h)
@@ -377,6 +391,9 @@ func TestJellystatHomarrMalformedTrailingIssuanceCapturesOnlySelectedKey(t *test
 			}
 			if len(store.Get("JELLYSTAT_HOMARR_PENDING")) > 2048 {
 				t.Fatal("projection persisted more than minimal selected evidence")
+			}
+			if strings.Contains(checkpoint, `"extra"`) {
+				t.Fatal("unrelated duplicate fields were persisted instead of projected away")
 			}
 			jellystatAssertNoOtherKeysPersisted(t, store)
 			for _, raw := range []string{"private-other-one", "private-other-two", "synthetic-key"} {
@@ -399,6 +416,10 @@ func TestJellystatHomarrKeyProjectionBoundsRecordsAndFields(t *testing.T) {
 	projection := projectKeyInventory(h, []byte(fields.String()))
 	if !projection.Incomplete || !projection.Error || projection.Duplicate || len(projection.Records) != 1 || projection.Records[0].Key != "synthetic-key" {
 		t.Fatal("bounded field projection lost the minimal recoverable key")
+	}
+	projection = projectKeyInventory(h, []byte(`[{"key":"synthetic-key","name":"self-host Homarr statistics",`+strings.Repeat(`"extra":0,`, keyInventoryFieldLimit)+`"last":0}]`))
+	if !projection.Incomplete || !projection.Error || !projection.Duplicate || len(projection.Records) != 1 || projection.Records[0].Key != "synthetic-key" {
+		t.Fatal("duplicate unrelated fields bypassed the total field bound or lost the selected key")
 	}
 	var records strings.Builder
 	records.WriteByte('[')

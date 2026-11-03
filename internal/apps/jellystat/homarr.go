@@ -152,30 +152,34 @@ func projectKeyRecord(h *helpers.H, decoder *json.Decoder) (keyRecord, bool, boo
 		return record, false, false, err
 	}
 	seen := map[string]bool{}
-	for decoder.More() {
-		if len(seen) == keyInventoryFieldLimit {
-			return record, false, false, nil
+	duplicate := false
+	for count := 0; decoder.More(); count++ {
+		if count == keyInventoryFieldLimit {
+			return record, false, duplicate, nil
 		}
 		token, err := decoder.Token()
 		name, ok := token.(string)
 		if err != nil || !ok {
-			return record, false, false, err
+			return record, false, duplicate, err
 		}
 		if seen[name] {
-			return keyRecord{}, false, true, nil
+			duplicate = true
+			if name == "name" || name == "key" {
+				return keyRecord{}, false, true, nil
+			}
 		}
 		seen[name] = true
 		if name != "name" && name != "key" {
 			var ignored json.RawMessage
 			if err := decoder.Decode(&ignored); err != nil {
-				return record, false, false, err
+				return record, false, duplicate, err
 			}
 			continue
 		}
 		token, err = decoder.Token()
 		value, ok := token.(string)
 		if err != nil || !ok {
-			return record, false, false, err
+			return record, false, duplicate, err
 		}
 		if name == "name" {
 			record.Name = value
@@ -185,7 +189,7 @@ func projectKeyRecord(h *helpers.H, decoder *json.Decoder) (keyRecord, bool, boo
 		}
 	}
 	token, err = decoder.Token()
-	return record, token == json.Delim('}'), false, err
+	return record, token == json.Delim('}'), duplicate, err
 }
 
 func RegisterKeySecrets(h *helpers.H, raw []byte) {
