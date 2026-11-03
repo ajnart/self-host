@@ -1,47 +1,47 @@
 {
  "actualbudget": {
   "repo": "actualbudget/actual",
-  "stars": 29868
+  "stars": 29917
  },
  "adguardhome": {
   "repo": "AdguardTeam/AdGuardHome",
-  "stars": 37939
+  "stars": 38066
  },
  "airsonic-advanced": {
   "repo": "airsonic-advanced/airsonic-advanced",
-  "stars": 1403
+  "stars": 1404
  },
  "arcane": {
   "repo": "ofkm/arcane",
-  "stars": 8115
+  "stars": 8153
  },
  "audiobookshelf": {
   "repo": "advplyr/audiobookshelf",
-  "stars": 14856
+  "stars": 14890
  },
  "authentik": {
   "repo": "goauthentik/authentik",
-  "stars": 26177
+  "stars": 26205
  },
  "authentik-proxy": {
   "repo": "goauthentik/authentik",
-  "stars": 26177
+  "stars": 26205
  },
  "authentik-worker": {
   "repo": "goauthentik/authentik",
-  "stars": 26177
+  "stars": 26205
  },
  "autoxpose": {
   "repo": "mostafa-wahied/autoxpose",
-  "stars": 149
+  "stars": 150
  },
  "bazarr": {
   "repo": "morpheus65535/bazarr",
-  "stars": 4390
+  "stars": 4398
  },
  "betterbahn": {
   "repo": "l2xu/betterbahn",
-  "stars": 2545
+  "stars": 2546
  },
  "borgmatic": {
   "repo": "borgmatic-collective/docker-borgmatic",
@@ -49,15 +49,15 @@
  },
  "caddy": {
   "repo": "caddyserver/caddy",
-  "stars": 78562
+  "stars": 78652
  },
  "calibreweb": {
   "repo": "janeczku/calibre-web",
-  "stars": 18497
+  "stars": 18523
  },
  "calibrewebautomated": {
   "repo": "crocodilestick/Calibre-Web-Automated",
-  "stars": 6515
+  "stars": 6536
  },
  "candlr": {
   "repo": "ellite/candlr",
@@ -65,23 +65,23 @@
  },
  "cloudflare-ddns": {
   "repo": "favonia/cloudflare-ddns",
-  "stars": 2964
+  "stars": 2967
  },
  "cloudflared-web": {
   "repo": "WisdomSky/Cloudflared-web",
-  "stars": 475
+  "stars": 476
  },
  "code-server": {
   "repo": "coder/code-server",
-  "stars": 79729
+  "stars": 79757
  },
  "dockge": {
   "repo": "louislam/dockge",
-  "stars": 24712
+  "stars": 24744
  },
  "dockpeek": {
   "repo": "dockpeek/dockpeek",
-  "stars": 2114
+  "stars": 2113
  },
  "doplarr": {
   "repo": "kiranshila/Doplarr",
@@ -93,47 +93,47 @@
  },
  "elasticsearch": {
   "repo": "elastic/elasticsearch",
-  "stars": 78417
+  "stars": 78459
  },
  "emby": {
   "repo": "MediaBrowser/Emby",
-  "stars": 5007
+  "stars": 5008
  },
  "erugo": {
   "repo": "ErugoOSS/Erugo",
-  "stars": 1173
+  "stars": 1177
  },
  "filebrowser": {
   "repo": "filebrowser/filebrowser",
-  "stars": 35881
+  "stars": 35878
  },
  "firefly": {
   "repo": "firefly-iii/firefly-iii",
-  "stars": 25040
+  "stars": 25060
  },
  "flaresolverr": {
   "repo": "FlareSolverr/FlareSolverr",
-  "stars": 16076
+  "stars": 16115
  },
  "freshrss": {
   "repo": "FreshRSS/FreshRSS",
-  "stars": 16456
+  "stars": 16491
  },
  "gitea": {
   "repo": "go-gitea/gitea",
-  "stars": 58783
+  "stars": 58825
  },
  "glances": {
   "repo": "nicolargo/glances",
-  "stars": 33873
+  "stars": 33892
  },
  "gluetun": {
   "repo": "qdm12/gluetun",
-  "stars": 15923
+  "stars": 15956
  },
  "grafana-alloy": {
   "repo": "grafana/alloy",
-  "stars": 3658
+  "stars": 3661
  },
  "healarr": {
   "repo": "mescon/healarr",
@@ -141,15 +141,15 @@
  },
  "heimdall": {
   "repo": "linuxserver/Heimdall",
-  "stars": 9375
+  "stars": 9385
  },
  "homarr": {
   "repo": "homarr-labs/homarr",
-  "stars": 5242
+  "stars": 5274
  },
  "homeassistant": {
   "repo": "home-assistant/core",
-  "stars": 91845
+  "stars": 91915
  },
  "homepage": {
   "repo": "benphelps/homepage",
@@ -157,59 +157,59 @@
  },
  "immich": {
   "repo": "immich-app/immich",
-  "stars": 117678
+  "stars": 117980
  },
  "isponsorblocktv": {
   "repo": "dmunozv04/iSponsorBlockTV",
-  "stars": 6586
+  "stars": 6601
  },
  "it-tools": {
   "repo": "corentinth/it-tools",
-  "stars": 41066
+  "stars": 41096
  },
  "jackett": {
   "repo": "Jackett/Jackett",
-  "stars": 16284
+  "stars": 16306
  },
  "jellyfin": {
   "repo": "jellyfin/jellyfin",
-  "stars": 58812
+  "stars": 58927
  },
  "jellyseerr": {
   "repo": "Fallenbagel/jellyseerr",
-  "stars": 13064
+  "stars": 13089
  },
  "kavita": {
   "repo": "Kareadita/Kavita",
-  "stars": 11974
+  "stars": 11996
  },
  "librenms": {
   "repo": "librenms/librenms",
-  "stars": 4980
+  "stars": 4984
  },
  "librephotos": {
   "repo": "LibrePhotos/librephotos",
-  "stars": 8121
+  "stars": 8125
  },
  "lidarr": {
   "repo": "Lidarr/Lidarr",
-  "stars": 5790
+  "stars": 5797
  },
  "mariadb": {
   "repo": "MariaDB/server",
-  "stars": 8482
+  "stars": 8505
  },
  "maxun": {
   "repo": "getmaxun/maxun",
-  "stars": 18088
+  "stars": 18134
  },
  "mealie": {
   "repo": "hay-kot/mealie",
-  "stars": 13733
+  "stars": 13777
  },
  "mediacms": {
   "repo": "mediacms-io/mediacms",
-  "stars": 5175
+  "stars": 5176
  },
  "mergerfs": {
   "repo": "trapexit/mergerfs",
@@ -217,23 +217,23 @@
  },
  "metube": {
   "repo": "alexta69/metube",
-  "stars": 15139
+  "stars": 15164
  },
  "mongodb": {
   "repo": "mongodb/mongo",
-  "stars": 28666
+  "stars": 28670
  },
  "mosquitto": {
   "repo": "eclipse/mosquitto",
-  "stars": 11316
+  "stars": 11322
  },
  "mysql": {
   "repo": "mysql/mysql-server",
-  "stars": 12491
+  "stars": 12492
  },
  "navidrome": {
   "repo": "navidrome/navidrome",
-  "stars": 24440
+  "stars": 24488
  },
  "nebula-sync": {
   "repo": "lovelaze/nebula-sync",
@@ -241,23 +241,23 @@
  },
  "netalertx": {
   "repo": "jokob-sk/NetAlertX",
-  "stars": 7342
+  "stars": 7348
  },
  "netdata": {
   "repo": "netdata/netdata",
-  "stars": 81221
+  "stars": 81253
  },
  "nextcloud": {
   "repo": "nextcloud/server",
-  "stars": 37356
+  "stars": 37397
  },
  "nginx": {
   "repo": "nginx/nginx",
-  "stars": 32012
+  "stars": 32033
  },
  "node-red": {
   "repo": "node-red/node-red",
-  "stars": 23795
+  "stars": 23805
  },
  "nowasp": {
   "repo": "citizen-stig/dockermutillidae",
@@ -269,7 +269,7 @@
  },
  "nzbhydra2": {
   "repo": "theotherp/nzbhydra2",
-  "stars": 1742
+  "stars": 1743
  },
  "octoeverywhere-elegoo-connect": {
   "repo": "QuinnDamerell/OctoPrint-OctoEverywhere",
@@ -277,23 +277,23 @@
  },
  "ombi": {
   "repo": "Ombi-app/Ombi",
-  "stars": 4109
+  "stars": 4110
  },
  "omni-tools": {
   "repo": "iib0011/omni-tools",
-  "stars": 10540
+  "stars": 10588
  },
  "openvscode": {
   "repo": "gitpod-io/openvscode-server",
-  "stars": 6199
+  "stars": 6201
  },
  "overseerr": {
   "repo": "sct/overseerr",
-  "stars": 4964
+  "stars": 4963
  },
  "pairdrop": {
   "repo": "schlagmichdoch/PairDrop",
-  "stars": 11726
+  "stars": 11738
  },
  "panelio": {
   "repo": "Vellis59/panelio",
@@ -301,19 +301,19 @@
  },
  "photoprism": {
   "repo": "photoprism/photoprism",
-  "stars": 40377
+  "stars": 40394
  },
  "phpmyadmin": {
   "repo": "phpmyadmin/phpmyadmin",
-  "stars": 7968
+  "stars": 7971
  },
  "pihole": {
   "repo": "pi-hole/pi-hole",
-  "stars": 61571
+  "stars": 61632
  },
  "pinchflat": {
   "repo": "kieraneglin/pinchflat",
-  "stars": 5433
+  "stars": 5440
  },
  "plex": {
   "repo": "plexinc/pms-docker",
@@ -321,51 +321,51 @@
  },
  "portainer": {
   "repo": "portainer/portainer",
-  "stars": 38750
+  "stars": 38766
  },
  "portracker": {
   "repo": "mostafa-wahied/portracker",
-  "stars": 2492
+  "stars": 2500
  },
  "postgres": {
   "repo": "postgres/postgres",
-  "stars": 22636
+  "stars": 22674
  },
  "profilarr": {
   "repo": "Dictionarry-Hub/profilarr",
-  "stars": 2750
+  "stars": 2757
  },
  "prometheus": {
   "repo": "prometheus/prometheus",
-  "stars": 66856
+  "stars": 66902
  },
  "prowlarr": {
   "repo": "Prowlarr/Prowlarr",
-  "stars": 7468
+  "stars": 7486
  },
  "qbitmanage": {
   "repo": "StuffAnThings/qbit_manage",
-  "stars": 1659
+  "stars": 1661
  },
  "qbittorrent": {
   "repo": "qbittorrent/qBittorrent",
-  "stars": 41231
+  "stars": 41309
  },
  "radarr": {
   "repo": "Radarr/Radarr",
-  "stars": 14678
+  "stars": 14700
  },
  "readarr": {
   "repo": "Readarr/Readarr",
-  "stars": 3459
+  "stars": 3458
  },
  "redis": {
   "repo": "redis/redis",
-  "stars": 77097
+  "stars": 77142
  },
  "redisinsight": {
   "repo": "RedisInsight/RedisInsight",
-  "stars": 8927
+  "stars": 8930
  },
  "requestrr": {
   "repo": "darkalfx/requestrr",
@@ -373,47 +373,47 @@
  },
  "rflood": {
   "repo": "jesec/flood",
-  "stars": 2861
+  "stars": 2863
  },
  "romm": {
   "repo": "rommapp/romm",
-  "stars": 14165
+  "stars": 14201
  },
  "sabnzbd": {
   "repo": "sabnzbd/sabnzbd",
-  "stars": 3159
+  "stars": 3160
  },
  "scrutiny": {
   "repo": "AnalogJ/scrutiny",
-  "stars": 8377
+  "stars": 8392
  },
  "shadowbroker": {
   "repo": "BigBodyCobain/Shadowbroker",
-  "stars": 11409
+  "stars": 11433
  },
  "sonarr": {
   "repo": "Sonarr/Sonarr",
-  "stars": 17491
+  "stars": 17529
  },
  "speedtest-tracker": {
   "repo": "alexjustesen/speedtest-tracker",
-  "stars": 6046
+  "stars": 6051
  },
  "stash": {
   "repo": "stashapp/stash",
-  "stars": 13323
+  "stars": 13341
  },
  "statping-ng": {
   "repo": "statping-ng/statping-ng",
-  "stars": 1994
+  "stars": 1995
  },
  "tandoorrecipes": {
   "repo": "vabene1111/recipes",
-  "stars": 8704
+  "stars": 8710
  },
  "tautulli": {
   "repo": "Tautulli/Tautulli",
-  "stars": 6623
+  "stars": 6626
  },
  "tigergraph": {
   "repo": "tigergraph/ecosys",
@@ -421,15 +421,15 @@
  },
  "tinyfeed": {
   "repo": "TheBigRoomXXL/tinyfeed",
-  "stars": 387
+  "stars": 386
  },
  "traefik": {
   "repo": "traefik/traefik",
-  "stars": 65418
+  "stars": 65441
  },
  "transmission": {
   "repo": "transmission/transmission",
-  "stars": 15361
+  "stars": 15371
  },
  "unifi": {
   "repo": "jacobalberty/unifi-docker",
@@ -437,38 +437,38 @@
  },
  "unpackerr": {
   "repo": "davidnewhall/unpackerr",
-  "stars": 1509
+  "stars": 1518
  },
  "uptime-kuma": {
   "repo": "louislam/uptime-kuma",
-  "stars": 93097
+  "stars": 93182
  },
  "vaultwarden": {
   "repo": "dani-garcia/vaultwarden",
-  "stars": 69936
+  "stars": 70113
  },
  "wallabag": {
   "repo": "wallabag/wallabag",
-  "stars": 13034
+  "stars": 13039
  },
  "watchtower": {
   "repo": "containrrr/watchtower",
-  "stars": 24599
+  "stars": 24594
  },
  "wg-easy": {
   "repo": "wg-easy/wg-easy",
-  "stars": 27336
+  "stars": 27374
  },
  "whisparr": {
   "repo": "whisparr/whisparr",
-  "stars": 1108
+  "stars": 1109
  },
  "zigbee2mqtt": {
   "repo": "Koenkk/zigbee2mqtt",
-  "stars": 15764
+  "stars": 15780
  },
  "zoraxy": {
   "repo": "tobychui/zoraxy",
-  "stars": 5552
+  "stars": 5554
  }
 }
