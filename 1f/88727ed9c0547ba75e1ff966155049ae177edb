@@ -1,0 +1,20 @@
+docs/catalog/traps/sabnzbd.md
+  h_d6e478ca18e517 12-13
+internal/apps/arr/sabnzbd_links_test.go
+  h_d6e478ca18e517 11,14,148,152,196-198,203,205,217-219,224,228-235,243-244,248,251-259,268,271-273,285-288,292,298-301,308-318,322,395,397-398,404,428,447,449-450,455,479,523,525-527,536,559,598,602-603,606-608,614,617-629
+internal/apps/arr/sabnzbd_protocol_test.go
+  h_d6e478ca18e517 4,8,12,15-16,18,24-137,139-155,158-159,161,165-187,204,206-208,211-215,219,230-231,236-333
+internal/apps/servarr/sabnzbd.go
+  h_d6e478ca18e517 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f88727ed9c0547ba75e1ff966155049ae177edb",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
