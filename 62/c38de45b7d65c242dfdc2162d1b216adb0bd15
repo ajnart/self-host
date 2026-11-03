@@ -1,0 +1,40 @@
+cmd/self-host-testkit/main.go
+  h_d6e478ca18e517 29-37,76-77,86-95,287-294,335-338,351,372-377,405-429,520-527
+cmd/self-host-testkit/main_test.go
+  h_d6e478ca18e517 219-223,249-258,265,305-393
+testkit/README.md
+  h_d6e478ca18e517 116-141
+testkit/node/README.md
+  h_d6e478ca18e517 285-343
+testkit/node/index.d.mts
+  h_d6e478ca18e517 36-41,77-78
+testkit/node/index.mjs
+  h_d6e478ca18e517 401-417,452-453,458,495-505,614-621,639-645,652,664-665,668
+testkit/node/src/index.mts
+  h_d6e478ca18e517 55-61,99-100,617-636,672,681,687,724-735,864-875,903-915,924,940-941,951
+testkit/node/tests/fake-helper.mjs
+  h_d6e478ca18e517 22,27-44,70-93,135-138,144-173
+testkit/node/tests/pair-types.mts
+  h_d6e478ca18e517 1-8,26-48
+testkit/node/tests/transport.test.ts
+  h_d6e478ca18e517 4,24,34-38,59-247
+testkit/pair.go
+  h_d6e478ca18e517 35-41,73-80,100-102
+testkit/pair_test.go
+  h_d6e478ca18e517 24,41-45
+testkit/sonarr_filter_witness.go
+  h_d6e478ca18e517 1-295
+testkit/sonarr_filter_witness_test.go
+  h_d6e478ca18e517 1-435
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "62c38de45b7d65c242dfdc2162d1b216adb0bd15",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
