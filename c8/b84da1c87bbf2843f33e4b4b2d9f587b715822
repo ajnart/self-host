@@ -1,0 +1,22 @@
+docs/catalog/traps/jellystat.md
+  h_d6e478ca18e517 58-70,82-85,91-94,97-104
+internal/apps/homarr/target_jellystat.go
+  h_d6e478ca18e517 29-31,46-49,59,62-64
+internal/apps/homarr/target_jellystat_test.go
+  h_d6e478ca18e517 8-9,23-47,121,135-151,264-340
+internal/apps/jellystat/homarr.go
+  h_d6e478ca18e517 4,9,44-46,60-74,98-105,107-110,112-115,118-121,123-142,144-188,238-241,327-329,341,344-347,353,355,372,383
+internal/apps/jellystat/homarr_test.go
+  h_d6e478ca18e517 16,65-74,130-133,150,209-226,300-301,303-322,340-421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8b84da1c87bbf2843f33e4b4b2d9f587b715822",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
