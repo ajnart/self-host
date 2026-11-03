@@ -1,0 +1,41 @@
+docs/homarr-synology.md
+  s_24f5d99ae33652::t_4a507e43d98675 1-64
+internal/apps/homarr/external_targets.go
+  s_ba131a80713c58::t_a87ec99a701bef 13-14
+internal/apps/homarr/target_synology.go
+  s_ba131a80713c58::t_4ff16e812907e0 1-120
+internal/apps/homarr/target_synology_test.go
+  s_2150b21c54582b::t_a9dcd3e87190c3 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c22951c193eb39fb9f2f9c1be93e78cd0ed64653",
+  "prompts": {},
+  "sessions": {
+    "s_2150b21c54582b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00f45e9d-1d2b-4fb4-8df0-e795e80b5f26",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_24f5d99ae33652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a6ee58b-155d-442c-bbc3-c476e21a9a21",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_ba131a80713c58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "121b85d1-cd18-478c-85ef-57f67eee4d67",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
