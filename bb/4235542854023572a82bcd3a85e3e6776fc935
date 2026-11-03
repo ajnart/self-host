@@ -1,0 +1,20 @@
+docs/catalog/traps/maintainerr.md
+  h_d6e478ca18e517 6,8-10
+internal/apps/maintainerr/maintainerr.go
+  h_d6e478ca18e517 64
+internal/apps/maintainerr/maintainerr_test.go
+  h_d6e478ca18e517 119-120,137-139
+internal/service/maintainerr_directories_test.go
+  h_d6e478ca18e517 11,21,26,28,30,33,40,46,49-52,54,56,58-59,65-116,122,169,195,268-273,275-276,278-379,381-390,392-481,486-524
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bb4235542854023572a82bcd3a85e3e6776fc935",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
