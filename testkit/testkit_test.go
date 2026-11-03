@@ -276,7 +276,7 @@ func TestFixturesIsolateOwnerEnvironmentPortsAndPrivateCredentials(t *testing.T)
 }
 
 func TestSingleAppCredentialFailuresKeepLegacySemantics(t *testing.T) {
-	for _, method := range []string{"key", "credentials"} {
+	for _, method := range []string{"key", "credentials", "info"} {
 		for _, mode := range []string{"deadline", "cancel", "storage"} {
 			t.Run(method+"/"+mode, func(t *testing.T) {
 				f := newFakeDocker(t)
@@ -302,10 +302,16 @@ func TestSingleAppCredentialFailuresKeepLegacySemantics(t *testing.T) {
 				}
 				if method == "key" {
 					_, err = a.GetAPIKey(ctx, "")
+				} else if method == "info" {
+					_, err = a.Info(ctx)
 				} else {
 					_, err = a.Credentials(ctx)
 				}
-				if (err == nil) != (mode == "deadline") || a.closed || len(f.containers) != 1 {
+				wantError := mode != "deadline"
+				if method == "info" && mode == "storage" {
+					wantError = false
+				}
+				if (err != nil) != wantError || a.closed || len(f.containers) != 1 {
 					t.Fatal("legacy credential lifetime or cleanup changed")
 				}
 				var operation *OperationError

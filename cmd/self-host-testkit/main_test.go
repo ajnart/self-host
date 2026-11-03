@@ -428,7 +428,7 @@ func TestPairBridgeInfrastructureFailureClosesAndDisablesOwner(t *testing.T) {
 }
 
 func TestPairBridgeSelectedCredentialTypedFailures(t *testing.T) {
-	for _, method := range []string{"getApiKey", "credentials"} {
+	for _, method := range []string{"getApiKey", "credentials", "info"} {
 		for _, cause := range []error{nil, context.Canceled, context.DeadlineExceeded} {
 			operation := &testkit.OperationError{}
 			f := &fakePairFixture{view: fakeFixture{err: errors.Join(operation, cause)}}
@@ -461,7 +461,7 @@ func TestPairBridgeSelectedCredentialTypedFailures(t *testing.T) {
 
 func TestCredentialOrdinaryErrorsKeepLegacyDispatch(t *testing.T) {
 	for _, pair := range []bool{false, true} {
-		for _, method := range []string{"getApiKey", "credentials"} {
+		for _, method := range []string{"getApiKey", "credentials", "info"} {
 			f := &fakeFixture{err: errors.New("private-test-password")}
 			b := &bridge{app: f}
 			if pair {
@@ -470,7 +470,11 @@ func TestCredentialOrdinaryErrorsKeepLegacyDispatch(t *testing.T) {
 			}
 			res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
 			data, _ := json.Marshal(res)
-			if res.Error == nil || res.Error.Code != "CREDENTIALS" || res.Error.Reason != "" || res.Error.CleanupFailed || f.closed != 0 || b.pairFailed || strings.Contains(string(data), "private-test-password") {
+			want := "CREDENTIALS"
+			if method == "info" {
+				want = "INFO"
+			}
+			if res.Error == nil || res.Error.Code != want || res.Error.Reason != "" || res.Error.CleanupFailed || f.closed != 0 || b.pairFailed || strings.Contains(string(data), "private-test-password") {
 				t.Fatal("ordinary credential error changed lifecycle or leaked")
 			}
 			if pair && b.handle(t.Context(), request{Method: "inspect"}).Error != nil {

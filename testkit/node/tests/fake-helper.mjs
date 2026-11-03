@@ -217,9 +217,23 @@ input.on("line", (line) => {
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
 		);
+	} else if (witnessMode === `bad-view-${req.method}-null`) {
+		reply(req, null);
+	} else if (witnessMode === `bad-view-${req.method}-shape`) {
+		reply(req, {
+			apiKey: 17,
+			username: "admin",
+			password: "private-test-password",
+			email: "test@example.invalid",
+			id: req.params.app ?? app,
+			url: "http://127.0.0.1:12345",
+			image: "peer:latest",
+			imageId: "sha256:test",
+			repoDigests: [17],
+		});
 	} else if (
 		pair &&
-		["getApiKey", "credentials"].includes(req.method) &&
+		["getApiKey", "credentials", "info"].includes(req.method) &&
 		witnessMode.startsWith("credential-")
 	) {
 		const error = {
@@ -237,6 +251,8 @@ input.on("line", (line) => {
 		if (witnessMode === "credential-timeout") error.code = "TIMEOUT";
 		if (witnessMode === "credential-cancel") error.code = "CANCELED";
 		if (witnessMode === "credential-missing") error.code = "CREDENTIALS";
+		if (witnessMode === "credential-missing" && req.method === "info")
+			error.code = "INFO";
 		if (error.code !== "OPERATION") error.reason = undefined;
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, error })}\n`,

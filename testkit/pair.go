@@ -391,30 +391,27 @@ func (v *AppView) URL() string {
 	return ""
 }
 
-func (v *AppView) present() error {
-	ids, err := v.owner.guard.p.AppIDs()
-	if err != nil || !slices.Contains(ids, v.id) {
-		return errors.New("testkit selected App is absent")
+func (a *App) pairAppPresent(ctx context.Context, id string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
-	return nil
+	ids, err := a.guard.p.AppIDs()
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if err != nil {
+		return false, startupError(StartupReasonStorage, "testkit selected App storage unavailable")
+	}
+	return slices.Contains(ids, id), nil
 }
 
 func (a *App) pairCredentials(ctx context.Context, id string) (_ service.Credentials, present bool, err error) {
 	defer a.closeOnPairFailure(&err)
 	work, cancel := context.WithDeadline(ctx, a.workDeadline)
 	defer cancel()
-	if err := work.Err(); err != nil {
-		return service.Credentials{}, false, err
-	}
-	ids, err := a.guard.p.AppIDs()
-	if err := work.Err(); err != nil {
-		return service.Credentials{}, false, err
-	}
-	if err != nil {
-		return service.Credentials{}, false, startupError(StartupReasonStorage, "testkit selected App storage unavailable")
-	}
-	if !slices.Contains(ids, id) {
-		return service.Credentials{}, false, nil
+	present, err = a.pairAppPresent(work, id)
+	if err != nil || !present {
+		return service.Credentials{}, present, err
 	}
 	creds, err := a.service.Credentials(work)
 	if err := work.Err(); err != nil {
@@ -434,25 +431,35 @@ func (v *AppView) Credentials(ctx context.Context) (Credentials, error) {
 	return v.owner.credentialsFor(ctx, v.id)
 }
 
-func (v *AppView) Info(ctx context.Context) (_ Info, err error) {
+func (v *AppView) Info(ctx context.Context) (Info, error) {
 	a := v.owner
-	work, cancel := context.WithDeadline(ctx, a.workDeadline)
-	defer cancel()
-	ctx = work
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed || a.pair.failed {
 		return Info{}, errors.New("testkit pair is closed")
 	}
-	if err := v.present(); err != nil {
+	info, present, err := v.info(ctx)
+	if err != nil {
 		return Info{}, err
 	}
+	if !present {
+		return Info{}, errors.New("testkit selected App is absent")
+	}
+	return info, nil
+}
+
+func (v *AppView) info(ctx context.Context) (_ Info, present bool, err error) {
+	a := v.owner
 	defer a.closeOnPairFailure(&err)
-	if err := ctx.Err(); err != nil {
-		return Info{}, err
+	work, cancel := context.WithDeadline(ctx, a.workDeadline)
+	defer cancel()
+	ctx = work
+	present, err = a.pairAppPresent(ctx, v.id)
+	if err != nil || !present {
+		return Info{}, present, err
 	}
 	if err := a.guard.verify(ctx); err != nil {
-		return Info{}, err
+		return Info{}, true, err
 	}
 	for _, selected := range a.pair.apps {
 		if selected.Info().ID != v.id {
@@ -460,17 +467,17 @@ func (v *AppView) Info(ctx context.Context) (_ Info, err error) {
 		}
 		container := a.guard.containers[selected.Info().Service]
 		if container.ID == "" {
-			return Info{}, startupError(StartupReasonContainer, "testkit selected App container is absent")
+			return Info{}, true, startupError(StartupReasonContainer, "testkit selected App container is absent")
 		}
 		data, err := docker(ctx, a.runner, "image", "inspect", "--format", `{{json .RepoDigests}}`, container.Image)
 		if err != nil {
-			return Info{}, err
+			return Info{}, true, err
 		}
 		info := Info{ID: v.id, URL: v.URL(), Image: container.ConfiguredImage, ImageID: container.Image}
 		if err := decodeDigests(data, &info.RepoDigests); err != nil {
-			return Info{}, err
+			return Info{}, true, err
 		}
-		return info, nil
+		return info, true, nil
 	}
-	return Info{}, errors.New("testkit selected App is unavailable")
+	return Info{}, true, errors.New("testkit selected App is unavailable")
 }

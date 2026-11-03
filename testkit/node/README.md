@@ -188,18 +188,18 @@ remain explicit errors or Manual outcomes, not automatic skips.
   five containers, 5 GiB, five CPUs; first-creation 1 GiB/one CPU/512-PID caps.
   Local Access/private binds/volume/socket restrictions remain; no override or
   arbitrary command/secret-write interface is exposed.
-- An infrastructure action/inspection or selected-view credential failure immediately
-  attempts independent-context whole-Pair cleanup and disables further actions.
+- An infrastructure action/inspection or selected-view key/credential/Info failure
+  immediately attempts independent-context whole-Pair cleanup and disables further actions.
   Expected Manual/incomplete Setup remains inspectable. `TestkitError` preserves
   an `OPERATION` reason (such as `LIMITS`), or `TIMEOUT`/`CANCELED`, and an additive
-  `cleanupFailed` flag. A failed
-  cleanup retains private recovery ownership and can be retried with close/manifest
+  `cleanupFailed` flag. A failed cleanup retains private recovery ownership and
+  can be retried with close/manifest
   recovery; it does not replace the original action cause.
-- Selected-view key/credential reads share the Pair's original work deadline.
+- Selected-view key/credential/Info reads share the Pair's original work deadline.
   Ordinary missing keys, absent Apps and Manual credentials remain nonfatal;
   cancellation, deadline and storage failures disable the whole owner. Malformed
-  action/inspection results likewise disable the owner and await owned cleanup
-  before rejecting with `PROTOCOL`, retaining any secondary `cleanupFailed` flag.
+  action/inspection or selected-view results likewise disable the owner and await
+  owned cleanup before rejecting with `PROTOCOL`, retaining any secondary `cleanupFailed` flag.
   Retrying cleanup never re-enables Pair or selected-view actions.
 - `withPair` preserves exact primary failures, including `undefined`, over
   cleanup failure. Cleanup-only failures throw. Optional `onCleanupError` receives

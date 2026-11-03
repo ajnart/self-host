@@ -694,7 +694,7 @@ test("pair action failures retain typed primary causes and cleanup status", asyn
 	}
 });
 
-for (const method of ["getApiKey", "credentials"] as const) {
+for (const method of ["getApiKey", "credentials", "info"] as const) {
 	test(`pair ${method} preserves credential failure kinds and cleanup status`, async () => {
 		for (const mode of ["missing", "storage", "timeout", "cancel", "cleanup"]) {
 			const { selfHost, manifest } = fixture(1000, `credential-${mode}`);
@@ -712,6 +712,7 @@ for (const method of ["getApiKey", "credentials"] as const) {
 				throw new Error("Missing typed credential error");
 			let code = "OPERATION";
 			if (mode === "missing") code = "CREDENTIALS";
+			if (mode === "missing" && method === "info") code = "INFO";
 			if (mode === "timeout") code = "TIMEOUT";
 			if (mode === "cancel") code = "CANCELED";
 			expect(caught.code).toBe(code);
@@ -739,6 +740,68 @@ for (const method of ["getApiKey", "credentials"] as const) {
 			await pair.close();
 		}
 	});
+}
+
+for (const method of ["getApiKey", "credentials", "info"] as const) {
+	for (const shape of ["null", "shape"]) {
+		for (const selected of ["consumer", "target"] as const) {
+			for (const cleanupFailed of [false, true]) {
+				test(`pair selected ${selected} ${method} ${shape} result poisons owner, cleanup failure=${cleanupFailed}`, async () => {
+					const { selfHost, manifest } = fixture(
+						1000,
+						`bad-view-${method}-${shape}`,
+						cleanupFailed,
+					);
+					const pair = await selfHost.spinupPair("homarr", "sonarr", {
+						order: "consumer-first",
+					});
+					let caught: unknown;
+					try {
+						await pair[selected][method]();
+					} catch (error) {
+						caught = error;
+					}
+					protocolFailure(caught, manifest, cleanupFailed);
+					const owner = ownedCleanup(manifest);
+					await disabledPair(pair, manifest);
+					if (cleanupFailed) {
+						await expect(pair.close()).rejects.toThrow(
+							"Fixture cleanup failed",
+						);
+						await disabledPair(pair, manifest);
+						unlinkSync(`${manifest}.${owner}.failed`);
+					}
+					await pair.close();
+					await disabledPair(pair, manifest);
+					let attempts = 1;
+					if (cleanupFailed) attempts = 3;
+					expect(
+						events(manifest).filter((event) => event.method === "cleanup"),
+					).toHaveLength(attempts);
+				});
+			}
+		}
+		test(`single App malformed ${method} ${shape} result keeps legacy owner live`, async () => {
+			const { selfHost, manifest } = fixture(
+				1000,
+				`bad-view-${method}-${shape}`,
+			);
+			const app = await selfHost.spinup("sonarr");
+			let caught: unknown;
+			try {
+				await app[method]();
+			} catch (error) {
+				caught = error;
+			}
+			protocolFailure(caught, manifest, false);
+			if (method === "info") expect(await app.getApiKey()).toBeDefined();
+			else expect((await app.info()).id).toBe("sonarr");
+			expect(
+				events(manifest).filter((event) => event.method === "cleanup"),
+			).toHaveLength(0);
+			await app.close();
+		});
+	}
 }
 
 test("shared scoped lifetime preserves single-App returns and both APIs' primitive failures", async () => {

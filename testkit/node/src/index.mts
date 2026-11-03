@@ -463,40 +463,52 @@ class AppHandle {
 		return this.#bridge.recoveryPath;
 	}
 
+	#validate<T>(read: () => T): T | Promise<never> {
+		try {
+			return read();
+		} catch (error) {
+			if (this.#app !== undefined) return this.#bridge.failAndClose(error);
+			throw error;
+		}
+	}
+
 	async getApiKey(name = "") {
 		if (this.#closed || typeof name !== "string") throw fault("STATE");
 		const value = await this.#bridge.request("getApiKey", {
 			name,
 			app: this.#app,
 		});
-		if (!strings(value, ["apiKey"])) throw fault("PROTOCOL");
-		return value.apiKey;
+		return this.#validate(() => {
+			if (!strings(value, ["apiKey"])) throw fault("PROTOCOL");
+			return value.apiKey;
+		});
 	}
 
 	async credentials() {
 		if (this.#closed) throw fault("STATE");
-		return privateCredentials(
-			await this.#bridge.request("credentials", { app: this.#app }),
-		);
+		const value = await this.#bridge.request("credentials", { app: this.#app });
+		return this.#validate(() => privateCredentials(value));
 	}
 
 	async info() {
 		if (this.#closed) throw fault("STATE");
 		const value = await this.#bridge.request("info", { app: this.#app });
-		if (
-			!strings(value, ["id", "url", "image", "imageId"]) ||
-			!Array.isArray(value.repoDigests) ||
-			!value.repoDigests.every((digest) => typeof digest === "string")
-		) {
-			throw fault("PROTOCOL");
-		}
-		return {
-			id: value.id,
-			url: value.url,
-			image: value.image,
-			imageId: value.imageId,
-			repoDigests: [...value.repoDigests],
-		};
+		return this.#validate(() => {
+			if (
+				!strings(value, ["id", "url", "image", "imageId"]) ||
+				!Array.isArray(value.repoDigests) ||
+				!value.repoDigests.every((digest) => typeof digest === "string")
+			) {
+				throw fault("PROTOCOL");
+			}
+			return {
+				id: value.id,
+				url: value.url,
+				image: value.image,
+				imageId: value.imageId,
+				repoDigests: [...value.repoDigests],
+			};
+		});
 	}
 
 	close() {

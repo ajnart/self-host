@@ -213,8 +213,11 @@ func TestPairActionsNeverRenewWorkDeadline(t *testing.T) {
 }
 
 func TestPairSelectedCredentialsInfrastructureFailureClosesOwner(t *testing.T) {
-	for _, method := range []string{"key", "credentials"} {
+	for _, method := range []string{"key", "credentials", "info-consumer", "info-peer"} {
 		for _, mode := range []string{"deadline", "cancel", "cancel-during-read", "deadline-during-read", "storage", "presence-storage"} {
+			if strings.HasPrefix(method, "info-") && mode != "deadline" && mode != "cancel" && mode != "presence-storage" {
+				continue
+			}
 			for _, cleanupFailed := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/cleanup-failed=%t", method, mode, cleanupFailed), func(t *testing.T) {
 					p, f, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer"})
@@ -223,6 +226,9 @@ func TestPairSelectedCredentialsInfrastructureFailureClosesOwner(t *testing.T) {
 					}
 					t.Cleanup(func() { f.cleanupFailure = false })
 					view, _ := p.App("peer")
+					if strings.HasPrefix(method, "info-") {
+						view, _ = p.App(strings.TrimPrefix(method, "info-"))
+					}
 					ctx, cancel := context.WithCancel(t.Context())
 					defer cancel()
 					root := p.RecoveryPath()
@@ -255,9 +261,16 @@ func TestPairSelectedCredentialsInfrastructureFailureClosesOwner(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
+					if strings.HasPrefix(method, "info-") && mode != "presence-storage" {
+						if err := os.WriteFile(p.owner.guard.p.Path("compose.yml"), []byte("services: ["), 0o600); err != nil {
+							t.Fatal(err)
+						}
+					}
 					deadline := p.owner.workDeadline
 					f.cleanupFailure = cleanupFailed
-					if method == "key" {
+					if strings.HasPrefix(method, "info-") {
+						_, err = view.Info(ctx)
+					} else if method == "key" {
 						_, err = view.GetAPIKey(ctx, "")
 					} else {
 						_, err = view.Credentials(ctx)
@@ -362,6 +375,9 @@ func TestPairSelectedCredentialsExpectedAbsenceAndManualRemainLive(t *testing.T)
 	}
 	if _, err := view.Credentials(t.Context()); err == nil {
 		t.Fatal("absent App exposed credentials")
+	}
+	if _, err := view.Info(t.Context()); err == nil {
+		t.Fatal("absent App exposed Info")
 	}
 	if _, err := p.Install(t.Context(), "peer"); err != nil || p.owner.closed || p.owner.pair.failed {
 		t.Fatal("expected credential absence disabled the owner")
