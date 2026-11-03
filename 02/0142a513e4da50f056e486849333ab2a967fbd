@@ -1,0 +1,36 @@
+docs/catalog/traps/thingport.md
+  h_d6e478ca18e517 1-135
+internal/apps/homarr/target_thingport.go
+  h_d6e478ca18e517 1-69
+internal/apps/homarr/target_thingport_test.go
+  h_d6e478ca18e517 1-42
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 58
+internal/apps/thingport/homarr.go
+  h_d6e478ca18e517 1-55
+internal/apps/thingport/preflight_test.go
+  h_d6e478ca18e517 1-428
+internal/apps/thingport/setup.go
+  h_d6e478ca18e517 1-163
+internal/apps/thingport/thingport.go
+  h_d6e478ca18e517 1-137
+internal/apps/thingport/thingport_test.go
+  h_d6e478ca18e517 1-370
+internal/catalog/batch_multi2.go
+  h_d6e478ca18e517 11,26
+tools/sitegen/icons.go
+  h_d6e478ca18e517 111
+tools/sitegen/stars.go
+  h_d6e478ca18e517 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "020142a513e4da50f056e486849333ab2a967fbd",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
