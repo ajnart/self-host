@@ -95,6 +95,7 @@ var repos = map[string]string{
 	"tdarr":                "HaveAGitGat/Tdarr",
 	"technitium-dns":       "TechnitiumSoftware/DnsServer",
 	"tracearr":             "connorgallopo/Tracearr",
+	"tubearchivist":        "tubearchivist/tubearchivist",
 	"traefik":              "traefik/traefik",
 	"transmission":         "transmission/transmission",
 	"umami":                "umami-software/umami",

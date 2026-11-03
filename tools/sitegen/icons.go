@@ -95,6 +95,7 @@ var icons = map[string]string{
 	"tdarr":                "svg/tdarr.svg",
 	"technitium-dns":       "svg/technitium.svg",
 	"tracearr":             "svg/tracearr.svg",
+	"tubearchivist":        "png/tube-archivist.png",
 	"traefik":              "svg/traefik.svg",
 	"transmission":         "svg/transmission.svg",
 	"umami":                "svg/umami.svg",

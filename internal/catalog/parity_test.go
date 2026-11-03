@@ -97,6 +97,7 @@ var compositionServiceAliases = map[string]map[string]string{
 	"patchmon":      {"database": "patchmon-database", "redis": "patchmon-redis", "guacd": "patchmon-guacd"},
 	"seafile":       {"db": "seafile-db", "redis": "seafile-redis"},
 	"tracearr":      {"timescale": "tracearr-timescale", "redis": "tracearr-redis"},
+	"tubearchivist": {"redis": "tubearchivist-redis", "elasticsearch": "tubearchivist-es"},
 	"umami":         {"db": "umami-db"},
 }
 

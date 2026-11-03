@@ -7,6 +7,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/patchmon"
 	"github.com/ajnart/self-host/internal/apps/seafile"
 	"github.com/ajnart/self-host/internal/apps/tracearr"
+	"github.com/ajnart/self-host/internal/apps/tubearchivist"
 	"github.com/ajnart/self-host/internal/apps/umami"
 )
 
@@ -18,6 +19,7 @@ func init() {
 		patchmon.App{},
 		seafile.App{},
 		tracearr.App{},
+		tubearchivist.App{},
 		umami.App{},
 	)
 }

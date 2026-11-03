@@ -281,7 +281,7 @@ func newTubeArchivistHarness(t *testing.T, fake *tubeArchivistFake) (*helpers.H,
 	deps := systemtest.NewDeps(t)
 	secrets := tubeArchivistSecrets{
 		"ADMIN_USER": "admin", "ADMIN_PASSWORD": "synthetic-password",
-		"TUBEARCHIVIST_ELASTIC_PASSWORD": "existing-elastic-secret", "TUBEARCHIVIST_HOMARR_API_KEY": "existing-token",
+		"TUBEARCHIVIST_ELASTIC_PASSWORD": "existing-elastic-secret",
 	}
 	var steps []helpers.StepResult
 	h := helpers.New(helpers.Config{

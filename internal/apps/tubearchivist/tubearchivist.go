@@ -130,26 +130,37 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := h.Ready(ctx, "/api/health/", helpers.WantStatus(http.StatusOK), helpers.Contains(`"OK"`)); err != nil {
 		return err
 	}
-	return h.Step(ctx, "admin-login", "verify the existing Tube Archivist administrator", helpers.StepSpec{
+	if err := h.Step(ctx, "admin-login", "verify the existing Tube Archivist administrator", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
-			err := verifyAdministrator(ctx, h)
+			_, _, err := signIn(ctx, h)
 			return err == nil, err
 		},
 		Hint: accountHint, Credential: "admin",
-	})
+	}); err != nil {
+		return err
+	}
+	if !homarrKeyNeeded(h) {
+		return nil
+	}
+	session, id, err := signIn(ctx, h)
+	if err != nil {
+		return err
+	}
+	return setupHomarrKey(ctx, h, session, strconv.FormatInt(id, 10))
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {
-	return verifyAdministrator(ctx, h)
+	_, _, err := signIn(ctx, h)
+	return err
 }
 
-func verifyAdministrator(ctx context.Context, h *helpers.H) error {
+func signIn(ctx context.Context, h *helpers.H) (*helpers.Session, int64, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, 0, err
 	}
 	user, password := h.AdminUser(), h.AdminPassword()
 	if strings.TrimSpace(user) == "" || password == "" {
-		return &helpers.ManualError{Hint: accountHint}
+		return nil, 0, &helpers.ManualError{Hint: accountHint}
 	}
 	h.Log.Secret(password)
 	session := h.Session()
@@ -158,24 +169,24 @@ func verifyAdministrator(ctx context.Context, h *helpers.H) error {
 		JSON: map[string]string{"username": user, "password": password, "remember_me": "off"},
 	})
 	if err != nil {
-		return h.Log.RedactError(fmt.Errorf("Tube Archivist login request failed: %w", err))
+		return nil, 0, h.Log.RedactError(fmt.Errorf("Tube Archivist login request failed: %w", err))
 	}
 	if login.Status == http.StatusBadRequest || login.Status == http.StatusUnauthorized || login.Status == http.StatusForbidden {
-		return &helpers.ManualError{Hint: accountHint}
+		return nil, 0, &helpers.ManualError{Hint: accountHint}
 	}
 	if login.Status != http.StatusNoContent {
-		return fmt.Errorf("Tube Archivist login returned HTTP %d; inspect its authentication and logs without resetting credentials", login.Status)
+		return nil, 0, fmt.Errorf("Tube Archivist login returned HTTP %d; inspect its authentication and logs without resetting credentials", login.Status)
 	}
 	if session.Cookie("sessionid") == "" {
-		return &helpers.ManualError{Hint: accountHint}
+		return nil, 0, &helpers.ManualError{Hint: accountHint}
 	}
 	h.Log.Secret(session.Cookie("sessionid"))
 	account, err := session.HTTP(ctx, helpers.Request{Path: "/api/user/account/", NoRedirect: true})
 	if err != nil {
-		return h.Log.RedactError(fmt.Errorf("Tube Archivist account request failed: %w", err))
+		return nil, 0, h.Log.RedactError(fmt.Errorf("Tube Archivist account request failed: %w", err))
 	}
 	if account.Status != http.StatusOK {
-		return &helpers.ManualError{Hint: accountHint}
+		return nil, 0, &helpers.ManualError{Hint: accountHint}
 	}
 	var identity struct {
 		ID          *int64 `json:"id"`
@@ -184,14 +195,14 @@ func verifyAdministrator(ctx context.Context, h *helpers.H) error {
 		IsStaff     *bool  `json:"is_staff"`
 	}
 	if account.Decode(&identity) != nil || identity.ID == nil || *identity.ID <= 0 || identity.Name != user || identity.IsSuperuser == nil || !*identity.IsSuperuser || identity.IsStaff == nil || !*identity.IsStaff {
-		return &helpers.ManualError{Hint: accountHint}
+		return nil, 0, &helpers.ManualError{Hint: accountHint}
 	}
 	ping, err := session.HTTP(ctx, helpers.Request{Path: "/api/ping/", NoRedirect: true})
 	if err != nil {
-		return h.Log.RedactError(fmt.Errorf("Tube Archivist authenticated ping request failed: %w", err))
+		return nil, 0, h.Log.RedactError(fmt.Errorf("Tube Archivist authenticated ping request failed: %w", err))
 	}
 	if ping.Status != http.StatusOK {
-		return fmt.Errorf("Tube Archivist authenticated ping returned HTTP %d; inspect its backing services and logs", ping.Status)
+		return nil, 0, fmt.Errorf("Tube Archivist authenticated ping returned HTTP %d; inspect its backing services and logs", ping.Status)
 	}
 	var state struct {
 		Response string `json:"response"`
@@ -199,12 +210,12 @@ func verifyAdministrator(ctx context.Context, h *helpers.H) error {
 		Version  string `json:"version"`
 	}
 	if ping.Decode(&state) != nil || state.Response != "pong" || state.User == nil || *state.User != *identity.ID {
-		return &helpers.ManualError{Hint: accountHint}
+		return nil, 0, &helpers.ManualError{Hint: accountHint}
 	}
 	if !helpers.VersionCompatible(state.Version, "0.6.0") {
-		return &helpers.ManualError{Hint: "Tube Archivist did not report a compatible v0.6.0-or-newer 0.x API. Review the selected image and its migration requirements before retrying Setup; preserve existing data and do not substitute or upgrade images automatically."}
+		return nil, 0, &helpers.ManualError{Hint: "Tube Archivist did not report a compatible v0.6.0-or-newer 0.x API. Review the selected image and its migration requirements before retrying Setup; preserve existing data and do not substitute or upgrade images automatically."}
 	}
-	return nil
+	return session, *identity.ID, nil
 }
 
 func (App) Links() []app.Link { return nil }
