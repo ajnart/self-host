@@ -1,0 +1,14 @@
+docs/catalog/traps/transmission.md
+  h_d6e478ca18e517 14,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57d5f59422e4298e62aa80cbb8dcdc70c4d01505",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
