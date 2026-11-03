@@ -1,0 +1,18 @@
+internal/service/install.go
+  h_d6e478ca18e517 8,319-344,347-350,355-356,359,378,384-396,522-523
+internal/service/preflight_context_test.go
+  h_d6e478ca18e517 1-583
+internal/service/restore.go
+  h_d6e478ca18e517 224-239,257,465-467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9091fda4fdbed8ef986e4a7480063ddc4defcd15",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
