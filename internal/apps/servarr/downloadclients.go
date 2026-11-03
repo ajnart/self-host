@@ -15,8 +15,49 @@ func DownloadClientLinks(api, categoryField, category string) []app.Link {
 	return []app.Link{QBittorrentLink(api, categoryField, category), SABnzbdLink(api, categoryField, category)}
 }
 
+type downloadProtocolFamily uint8
+
+const (
+	downloadProtocolSingle downloadProtocolFamily = iota
+	downloadProtocolUsenet
+	downloadProtocolTorrent
+)
+
+func (p providerLink) admitsDownloadProtocol(from *helpers.H, value any) bool {
+	protocol, ok := value.(string)
+	if !ok {
+		return false
+	}
+	if p.protocolFamily == downloadProtocolSingle {
+		return protocol == p.protocol
+	}
+	expected := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[from.App]
+	if expected == "" || expected != p.categoryField || from.App == "lidarr" && p.api != V1 || from.App != "lidarr" && p.api != V3 {
+		return false
+	}
+	switch p.protocolFamily {
+	case downloadProtocolUsenet:
+		return protocol == "usenet" || from.App == "lidarr" && protocol == "UsenetDownloadProtocol"
+	case downloadProtocolTorrent:
+		return protocol == "torrent" || from.App == "lidarr" && protocol == "TorrentDownloadProtocol"
+	default:
+		return false
+	}
+}
+
+func (p providerLink) downloadList(ctx context.Context, h *helpers.H, path string) ([]provider, error) {
+	if h.Secret(h.Key("api_key")) == "" {
+		return nil, p.manual(h, "the consumer's accepted API key is missing; restore consumer API access before retrying")
+	}
+	items, err := p.list(ctx, h, path)
+	if err != nil {
+		return nil, p.manual(h, "the authenticated download-client schema or resources could not be verified; restore consumer API access and retry without changing ownership")
+	}
+	return items, nil
+}
+
 func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provider, error) {
-	templates, err := p.list(ctx, h, p.path+"/schema")
+	templates, err := p.downloadList(ctx, h, p.path+"/schema")
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +66,7 @@ func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provi
 		if item["implementation"] != p.implementation {
 			continue
 		}
-		if selected != nil || item["configContract"] != p.configContract || item["protocol"] != p.protocol {
+		if selected != nil || item["configContract"] != p.configContract || !p.admitsDownloadProtocol(h, item["protocol"]) {
 			return nil, p.manual(h, "the download-client schema is ambiguous or unsupported")
 		}
 		selected = item
@@ -33,7 +74,87 @@ func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provi
 	if selected == nil {
 		return nil, p.manual(h, "the expected download-client schema is unavailable")
 	}
+	required := []connectionField{{p.endpointField, ""}, {p.categoryField, ""}}
+	if p.protocolFamily != downloadProtocolSingle {
+		required = append(required, connectionField{"port", float64(0)}, connectionField{"useSsl", false}, connectionField{"urlBase", ""}, connectionField{"password", ""})
+		if p.implementation == "Sabnzbd" {
+			required = append(required, connectionField{"apiKey", ""})
+		}
+		if p.implementation == "Sabnzbd" || p.implementation == "Nzbget" || p.implementation == "Transmission" {
+			required = append(required, connectionField{"username", ""})
+		}
+	}
+	for _, field := range required {
+		value := selected.field(field.Name)
+		if err := selected.setField(field.Name, value); err != nil {
+			return nil, p.manual(h, "a required download-client schema field is unavailable")
+		}
+		if value == nil && field.Value == "" {
+			continue
+		}
+		if reflect.TypeOf(value) != reflect.TypeOf(field.Value) {
+			return nil, p.manual(h, "a required download-client schema field has an unsupported type")
+		}
+	}
+	if p.protocolFamily != downloadProtocolSingle {
+		for _, raw := range selected["fields"].([]any) {
+			field := raw.(map[string]any)
+			switch field["value"].(type) {
+			case nil, string, bool, float64:
+			default:
+				return nil, p.manual(h, "a download-client schema field has an unsupported type")
+			}
+			switch field["name"] {
+			case "apiKey", "username", "password":
+				if value := field["value"]; value != nil {
+					if _, ok := value.(string); !ok {
+						return nil, p.manual(h, "a download-client credential schema field has an unsupported type")
+					}
+				}
+			}
+		}
+	}
 	return selected, nil
+}
+
+func (p providerLink) matchDownloadSchema(h *helpers.H, item, template provider) error {
+	if item["protocol"] != template["protocol"] {
+		return p.manual(h, "the recorded download-client protocol does not exactly match the current native schema; preserve the resource and review consumer compatibility")
+	}
+	values := map[string]any{}
+	for _, raw := range item["fields"].([]any) {
+		field := raw.(map[string]any)
+		values[field["name"].(string)] = field["value"]
+	}
+	if len(values) != len(template["fields"].([]any)) {
+		return p.manual(h, "the recorded download-client fields do not match the current native schema")
+	}
+	for _, raw := range template["fields"].([]any) {
+		field := raw.(map[string]any)
+		actual, exists := values[field["name"].(string)]
+		if !exists {
+			return p.manual(h, "a recorded download-client schema field is unavailable")
+		}
+		expected := field["value"]
+		if expected == nil {
+			if actual == nil {
+				continue
+			}
+			if _, ok := actual.(string); ok {
+				continue
+			}
+			return p.manual(h, "a recorded download-client schema field has an unsupported type")
+		}
+		if actual == nil {
+			if _, ok := expected.(string); ok {
+				continue
+			}
+		}
+		if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
+			return p.manual(h, "a recorded download-client schema field has an unsupported type")
+		}
+	}
+	return nil
 }
 
 func credentialField(name string) bool { return name == "apiKey" || name == "password" }
@@ -42,17 +163,22 @@ func downloadFieldEqual(actual, expected any) bool {
 	return reflect.DeepEqual(actual, expected) || actual == nil && expected == ""
 }
 
-func (p providerLink) downloadIdentity(item provider) bool {
-	return item["implementation"] == p.implementation && item["configContract"] == p.configContract && item["protocol"] == p.protocol && item["enable"] == true
+func (p providerLink) downloadIdentity(from *helpers.H, item provider) bool {
+	return item["implementation"] == p.implementation && item["configContract"] == p.configContract && p.admitsDownloadProtocol(from, item["protocol"]) && item["enable"] == true
 }
 
 func (p providerLink) verifyDownload(ctx context.Context, from, to *helpers.H, item provider, fields []connectionField) error {
-	if !p.downloadIdentity(item) {
+	if !p.downloadIdentity(from, item) {
 		return p.manual(from, "the recorded download-client identity or enabled state changed")
 	}
 	template, err := p.downloadTemplate(ctx, from)
 	if err != nil {
 		return err
+	}
+	if p.protocolFamily != downloadProtocolSingle {
+		if err := p.matchDownloadSchema(from, item, template); err != nil {
+			return err
+		}
 	}
 	for _, field := range fields {
 		schemaValue := template.field(field.Name)
@@ -181,7 +307,7 @@ func (p providerLink) updateDownload(ctx context.Context, from, to *helpers.H, i
 		return fmt.Errorf("the recorded %s credential update could not be verified; retry Setup without replacing the resource", p.name)
 	}
 	var updated provider
-	if resp.Status != 200 && resp.Status != 202 || resp.Decode(&updated) != nil || updated.id() != record.ID || !p.downloadIdentity(updated) || updated.field(p.endpointField) != item.field(p.endpointField) || updated.field(p.categoryField) != item.field(p.categoryField) {
+	if resp.Status != 200 && resp.Status != 202 || resp.Decode(&updated) != nil || updated.id() != record.ID || !p.downloadIdentity(from, updated) || updated["protocol"] != item["protocol"] || updated.field(p.endpointField) != item.field(p.endpointField) || updated.field(p.categoryField) != item.field(p.categoryField) {
 		return fmt.Errorf("the recorded %s credential update did not return its expected identity; retry Setup without changing ownership", p.name)
 	}
 	record.Fingerprint = connectionFingerprint(fields)

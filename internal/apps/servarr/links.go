@@ -64,6 +64,7 @@ type providerLink struct {
 	api, path, target, implementation, name string
 	endpointField, categoryField, category  string
 	configContract, protocol                string
+	protocolFamily                          downloadProtocolFamily
 	connectionFields                        func(from, to *helpers.H) ([]connectionField, error)
 	verify                                  func(ctx context.Context, from, to *helpers.H, item provider) error
 }
@@ -219,7 +220,13 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H, removing bo
 	if p.connectionFields != nil && removing && record.ID == 0 {
 		return nil, record, nil
 	}
-	items, err := p.list(ctx, from, p.path)
+	var items []provider
+	var err error
+	if p.connectionFields != nil {
+		items, err = p.downloadList(ctx, from, p.path)
+	} else {
+		items, err = p.list(ctx, from, p.path)
+	}
 	if err != nil {
 		return nil, record, err
 	}
@@ -227,7 +234,7 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H, removing bo
 	for _, item := range items {
 		endpoint, _ := item.field(p.endpointField).(string)
 		if record.ID > 0 && item.id() == record.ID {
-			if found != nil || item["implementation"] != p.implementation || !p.pointsAtTarget(endpoint, to) || p.connectionFields != nil && (item["configContract"] != p.configContract || item["protocol"] != p.protocol) {
+			if found != nil || item["implementation"] != p.implementation || !p.pointsAtTarget(endpoint, to) || p.connectionFields != nil && (item["configContract"] != p.configContract || !p.admitsDownloadProtocol(from, item["protocol"])) {
 				return nil, record, p.manual(from, "the recorded ID no longer uniquely identifies the expected implementation and target")
 			}
 			found = item
@@ -239,6 +246,17 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H, removing bo
 		name, _ := item["name"].(string)
 		if strings.EqualFold(name, p.name) || p.pointsAtTarget(endpoint, to) {
 			return nil, record, p.manual(from, "an unowned entry already uses this name or target")
+		}
+	}
+	if p.connectionFields != nil && p.protocolFamily != downloadProtocolSingle {
+		template, err := p.downloadTemplate(ctx, from)
+		if err != nil {
+			return nil, record, err
+		}
+		if found != nil {
+			if err := p.matchDownloadSchema(from, found, template); err != nil {
+				return nil, record, err
+			}
 		}
 	}
 	return found, record, nil
@@ -484,7 +502,7 @@ func (p providerLink) create(ctx context.Context, from, to *helpers.H, fields []
 	if err := resp.Decode(&created); err != nil || created.id() == 0 || p.connectionFields == nil && created["implementation"] != p.implementation || created.field(p.endpointField) != endpoint || !p.pointsAtTarget(endpoint, to) {
 		return p.manual(from, "creation did not return a positive resource ID with the expected implementation and target")
 	}
-	if p.connectionFields != nil && (!p.downloadIdentity(created) || created.field(p.categoryField) != item.field(p.categoryField)) {
+	if p.connectionFields != nil && (!p.downloadIdentity(from, created) || created["protocol"] != item["protocol"] || created.field(p.categoryField) != item.field(p.categoryField)) {
 		return p.manual(from, "creation did not return the expected download-client contract and category")
 	}
 	record.ID = created.id()
