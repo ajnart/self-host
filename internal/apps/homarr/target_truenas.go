@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -58,11 +57,6 @@ func truenasExternalTarget(c helpers.ExternalConnection) (target, error) {
 	}, nil
 }
 
-func truenasNumber(value any, integral bool) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && (!integral || number == math.Trunc(number) && number <= 1<<53-1)
-}
-
 func truenasFresh(value any, now time.Time) bool {
 	var at time.Time
 	switch stamp := value.(type) {
@@ -97,10 +91,10 @@ func truenasValidateNative(value any, integrationID string, now time.Time) error
 	if !ok {
 		return invalid()
 	}
-	cpu, cpuOK := truenasNumber(health["cpuUtilization"], false)
-	used, usedOK := truenasNumber(health["memUsedInBytes"], true)
-	available, availableOK := truenasNumber(health["memAvailableInBytes"], true)
-	_, uptimeOK := truenasNumber(health["uptime"], false)
+	cpu, cpuOK := measuredNumber(health["cpuUtilization"], false)
+	used, usedOK := measuredNumber(health["memUsedInBytes"], true)
+	available, availableOK := measuredNumber(health["memAvailableInBytes"], true)
+	_, uptimeOK := measuredNumber(health["uptime"], false)
 	if !cpuOK || cpu > 100 || !usedOK || !availableOK || used+available == 0 || !uptimeOK {
 		return invalid()
 	}
@@ -112,7 +106,7 @@ func truenasValidateStats(sample statsSample) error {
 	units := map[string]string{"cpu": "percent", "memoryUsed": "bytes", "memoryAvailable": "bytes", "uptime": "seconds"}
 	numbers := map[string]float64{}
 	for key, unit := range units {
-		number, ok := truenasNumber(sample.values[key], key == "memoryUsed" || key == "memoryAvailable")
+		number, ok := measuredNumber(sample.values[key], key == "memoryUsed" || key == "memoryAvailable")
 		if !ok || sample.units[key] != unit {
 			return invalid()
 		}

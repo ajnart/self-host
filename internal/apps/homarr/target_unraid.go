@@ -56,8 +56,8 @@ func unraidExternalTarget(c helpers.ExternalConnection) (target, error) {
 }
 
 func unraidNumber(value any, integral bool, max float64) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && number <= max && (!integral || number == math.Trunc(number))
+	number, ok := measuredNumber(value, integral)
+	return number, ok && number <= max
 }
 
 func unraidValidateNative(value any, integrationID string) error {

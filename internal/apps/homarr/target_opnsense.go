@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -92,8 +91,8 @@ func opnsenseExternalTarget(c helpers.ExternalConnection) (target, error) {
 }
 
 func opnsensePercent(value any) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && number <= 100
+	number, ok := measuredNumber(value, false)
+	return number, ok && number <= 100
 }
 
 func opnsenseValidateNative(value any, integrationID string) error {

@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/romm"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -24,8 +23,7 @@ func verifyRomm(ctx context.Context, _, to *helpers.H, _ string) error {
 }
 
 func verifyRommStats(sample statsSample) error {
-	size, ok := sample.values["totalFileSize"].(float64)
-	if !validCountStats(sample, "platforms", "roms", "saves", "states", "screenshots") || sample.units["totalFileSize"] != "bytes" || !ok || size < 0 || math.IsNaN(size) || math.IsInf(size, 0) || math.Trunc(size) != size {
+	if !validCountStats(sample, "platforms", "roms", "saves", "states", "screenshots") || sample.units["totalFileSize"] != "bytes" || !isCount(sample.values["totalFileSize"]) {
 		return errors.New("Homarr returned incomplete RomM Stats; retry self-host setup homarr")
 	}
 	return nil

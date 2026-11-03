@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/maintainerr"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -23,12 +22,8 @@ func maintainerrTarget() target {
 }
 
 func verifyMaintainerrStats(sample statsSample) error {
-	for key, unit := range map[string]string{"itemsHandled": "count", "episodesHandled": "count", "moviesHandled": "count", "reclaimable": "bytes"} {
-		number, ok := sample.values[key].(float64)
-		if !ok || sample.units[key] != unit || math.IsNaN(number) || math.IsInf(number, 0) || number < 0 ||
-			unit == "count" && math.Trunc(number) != number {
-			return errors.New("Homarr returned incomplete Maintainerr statistics; retry self-host setup homarr")
-		}
+	if !validMeasuredStats(sample, map[string]string{"itemsHandled": "count", "episodesHandled": "count", "moviesHandled": "count", "reclaimable": "bytes"}) {
+		return errors.New("Homarr returned incomplete Maintainerr statistics; retry self-host setup homarr")
 	}
 	return nil
 }

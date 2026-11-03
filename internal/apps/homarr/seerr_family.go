@@ -148,7 +148,7 @@ func (f seerrFamily) verifyCounts(ctx context.Context, from *helpers.H, endpoint
 	}
 	values := map[string]float64{}
 	for _, name := range seerrFamilyCountKeys {
-		number, ok := seerrFamilyCount(counts[name])
+		number, ok := countValue(counts[name])
 		if !ok {
 			return invalid()
 		}
@@ -164,11 +164,6 @@ func (f seerrFamily) partitionHolds(values map[string]float64) bool {
 	return !f.partition || values["processing"]+values["available"] == values["approved"]
 }
 
-func seerrFamilyCount(value any) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && number == math.Trunc(number) && number <= 1<<53-1
-}
-
 func (f seerrFamily) validateStats(sample statsSample) error {
 	retry, retryOK := sample.retryAt.(float64)
 	if !retryOK || retry != 0 || !validStatsTimestamp(sample.updatedAt) {
@@ -177,7 +172,7 @@ func (f seerrFamily) validateStats(sample statsSample) error {
 	invalid := errors.New("Homarr returned invalid " + f.name + " request count statistics; retry self-host setup homarr")
 	values := map[string]float64{}
 	for _, key := range seerrFamilyStatsKeys {
-		number, ok := seerrFamilyCount(sample.values[key])
+		number, ok := countValue(sample.values[key])
 		if !ok || sample.units[key] != "count" {
 			return invalid
 		}

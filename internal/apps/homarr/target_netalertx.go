@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -44,11 +43,6 @@ func netalertxExternalTarget(c helpers.ExternalConnection) (target, error) {
 	}, nil
 }
 
-func netalertxCount(value any) bool {
-	number, ok := value.(float64)
-	return ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && number == math.Trunc(number) && number <= 1<<53-1
-}
-
 func verifyNetalertx(ctx context.Context, from, _ *helpers.H, integrationID string) error {
 	value, err := apiKeyWrite(ctx, from, "integration.request", map[string]any{
 		"integrationId": integrationID, "method": "GET", "path": "/devices/totals",
@@ -67,7 +61,7 @@ func verifyNetalertx(ctx context.Context, from, _ *helpers.H, integrationID stri
 		return &helpers.ManualError{Hint: netalertxRecovery}
 	}
 	for _, index := range []int{0, 1, 3, 4} {
-		if !netalertxCount(totals[index]) {
+		if !isCount(totals[index]) {
 			return &helpers.ManualError{Hint: netalertxRecovery}
 		}
 	}
@@ -79,7 +73,7 @@ func verifyNetalertxStats(sample statsSample) error {
 		return &helpers.ManualError{Hint: netalertxRecovery}
 	}
 	for _, key := range netalertxStatsKeys {
-		if sample.units[key] != "count" || !netalertxCount(sample.values[key]) {
+		if sample.units[key] != "count" || !isCount(sample.values[key]) {
 			return &helpers.ManualError{Hint: netalertxRecovery}
 		}
 	}

@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/homebox"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -56,11 +55,8 @@ func verifyHomebox(ctx context.Context, from, to *helpers.H, integrationID strin
 }
 
 func verifyHomeboxStats(sample statsSample) error {
-	for _, key := range []string{"items", "locations", "users"} {
-		count, ok := sample.values[key].(float64)
-		if sample.units[key] != "count" || !ok || math.IsNaN(count) || math.IsInf(count, 0) || count < 0 || math.Trunc(count) != count {
-			return errors.New("Homarr returned incomplete Homebox statistics; retry self-host setup homarr")
-		}
+	if !validCountStats(sample, "items", "locations", "users") {
+		return errors.New("Homarr returned incomplete Homebox statistics; retry self-host setup homarr")
 	}
 	if sample.values["users"].(float64) < 1 {
 		return errors.New("Homarr returned Homebox statistics without any user; retry self-host setup homarr")

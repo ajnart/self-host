@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/apps/trilium"
@@ -41,7 +40,7 @@ func verifyTrilium(ctx context.Context, from, _ *helpers.H, integrationID string
 	data, _ := result["data"].(map[string]any)
 	info, _ := data["response"].(map[string]any)
 	if result["ok"] != true || result["status"] != float64(200) || integration["id"] != integrationID || integration["kind"] != "trilium" ||
-		!helpers.VersionCompatible(stringField(info, "appVersion"), "0.106.1") || stringField(info, "buildRevision") == "" || !triliumCount(info["dbVersion"]) || !triliumCount(info["syncVersion"]) {
+		!helpers.VersionCompatible(stringField(info, "appVersion"), "0.106.1") || stringField(info, "buildRevision") == "" || !isCount(info["dbVersion"]) || !isCount(info["syncVersion"]) {
 		from.Info("Restore the intended notebook's ETAPI token to this owned Trilium integration in Homarr Management > Integrations, preserving unrelated integrations, then retry self-host setup homarr. Equal or empty native counts do not establish notebook identity.")
 		return helpers.ErrManual
 	}
@@ -53,15 +52,8 @@ func verifyTriliumStats(sample statsSample) error {
 	if sample.units["version"] != "text" || strings.TrimSpace(version) == "" {
 		return errors.New("Homarr returned an unavailable Trilium version; retry self-host setup homarr")
 	}
-	for key, unit := range map[string]string{"notesCount": "count", "dbSize": "bytes"} {
-		if sample.units[key] != unit || !triliumCount(sample.values[key]) {
-			return errors.New("Homarr returned incomplete Trilium statistics; retry self-host setup homarr")
-		}
+	if !validMeasuredStats(sample, map[string]string{"notesCount": "count", "dbSize": "bytes"}) {
+		return errors.New("Homarr returned incomplete Trilium statistics; retry self-host setup homarr")
 	}
 	return nil
-}
-
-func triliumCount(value any) bool {
-	count, ok := value.(float64)
-	return ok && count >= 0 && !math.IsNaN(count) && !math.IsInf(count, 0) && math.Trunc(count) == count
 }

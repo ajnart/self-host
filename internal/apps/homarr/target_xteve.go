@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/xteve"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -37,15 +36,10 @@ func verifyXteve(ctx context.Context, _, to *helpers.H, _ string) error {
 }
 
 func verifyXteveStats(sample statsSample) error {
-	counts := map[string]float64{}
-	for _, key := range []string{"streamsAll", "streamsActive", "streamsXepg"} {
-		count, ok := sample.values[key].(float64)
-		if !ok || sample.units[key] != "count" || count < 0 || math.Trunc(count) != count || math.IsNaN(count) || math.IsInf(count, 0) {
-			return errors.New("Homarr returned incomplete xTeVe stream counts; retry self-host setup homarr")
-		}
-		counts[key] = count
+	if !validCountStats(sample, "streamsAll", "streamsActive", "streamsXepg") {
+		return errors.New("Homarr returned incomplete xTeVe stream counts; retry self-host setup homarr")
 	}
-	if counts["streamsActive"] > counts["streamsAll"] {
+	if sample.values["streamsActive"].(float64) > sample.values["streamsAll"].(float64) {
 		return errors.New("Homarr returned inconsistent xTeVe stream counts; retry self-host setup homarr")
 	}
 	return nil

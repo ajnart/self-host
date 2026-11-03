@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"net/http"
 	"time"
 
@@ -92,18 +91,10 @@ func plantitIdentityMatches(value any, integrationID, username string) bool {
 }
 
 func verifyPlantitStats(sample statsSample) error {
-	counts := map[string]float64{}
-	for _, metric := range []string{"plants", "species", "photos", "events"} {
-		if sample.units[metric] != "count" {
-			return errors.New("Homarr Plant-it Stats catalog has unexpected units; retry self-host setup homarr")
-		}
-		count, ok := sample.values[metric].(float64)
-		if !ok || math.IsNaN(count) || math.IsInf(count, 0) || count < 0 || math.Trunc(count) != count {
-			return errors.New("Homarr Plant-it Stats counts are incomplete or invalid; retry self-host setup homarr")
-		}
-		counts[metric] = count
+	if !validCountStats(sample, "plants", "species", "photos", "events") {
+		return errors.New("Homarr Plant-it Stats counts are incomplete or invalid; retry self-host setup homarr")
 	}
-	if counts["species"] > counts["plants"] {
+	if sample.values["species"].(float64) > sample.values["plants"].(float64) {
 		return errors.New("Homarr Plant-it Stats report more species than plants; retry self-host setup homarr")
 	}
 	return nil

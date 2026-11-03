@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/yourspotify"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -31,14 +30,8 @@ func yourSpotifyTarget() target {
 }
 
 func verifyYourSpotifyStats(sample statsSample) error {
-	for metric, unit := range map[string]string{"songs": "count", "time": "seconds", "artists": "count"} {
-		if sample.units[metric] != unit {
-			return errors.New("Homarr Your Spotify Stats catalog has unexpected units; retry self-host setup homarr")
-		}
-		value, ok := sample.values[metric].(float64)
-		if !ok || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || metric != "time" && math.Trunc(value) != value {
-			return errors.New("Homarr Your Spotify Stats are incomplete or invalid; retry self-host setup homarr")
-		}
+	if !validMeasuredStats(sample, map[string]string{"songs": "count", "time": "seconds", "artists": "count"}) {
+		return errors.New("Homarr Your Spotify Stats are incomplete or invalid; retry self-host setup homarr")
 	}
 	return nil
 }

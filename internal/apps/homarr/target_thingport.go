@@ -3,7 +3,8 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
+	"maps"
+	"slices"
 
 	"github.com/ajnart/self-host/internal/apps/thingport"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -59,11 +60,8 @@ func verifyThingport(ctx context.Context, from, to *helpers.H, integrationID str
 }
 
 func verifyThingportStats(sample statsSample) error {
-	for metric := range thingportMetrics {
-		count, ok := sample.values[metric].(float64)
-		if sample.units[metric] != "count" || !ok || count < 0 || math.IsNaN(count) || math.IsInf(count, 0) || math.Trunc(count) != count {
-			return errors.New("Homarr returned incomplete Thingport statistics; missing values are not zero")
-		}
+	if !validCountStats(sample, slices.Collect(maps.Keys(thingportMetrics))...) {
+		return errors.New("Homarr returned incomplete Thingport statistics; missing values are not zero")
 	}
 	return nil
 }

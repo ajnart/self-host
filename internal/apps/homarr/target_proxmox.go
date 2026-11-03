@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"regexp"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -61,11 +60,6 @@ func proxmoxExternalTarget(c helpers.ExternalConnection) (target, error) {
 		},
 		stats: proxmoxValidateStats,
 	}, nil
-}
-
-func measuredNumber(value any, integral bool) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && (!integral || number == math.Trunc(number) && number <= 1<<53-1)
 }
 
 func proxmoxValidateNative(value any, selectedNode string) error {

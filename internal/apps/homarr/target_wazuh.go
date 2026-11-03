@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -78,11 +77,6 @@ func wazuhProbe(ctx context.Context, h *helpers.H, endpoint, username, password 
 	return nil
 }
 
-func wazuhCounter(value any) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && number == math.Trunc(number) && number <= 1<<53-1
-}
-
 func wazuhValidateSummary(body []byte) error {
 	var raw struct {
 		Data struct {
@@ -98,7 +92,7 @@ func wazuhValidateSummary(body []byte) error {
 	}
 	counts := map[string]float64{}
 	for _, key := range []string{"total", "active", "disconnected", "never_connected", "pending"} {
-		count, ok := wazuhCounter(raw.Data.Connection[key])
+		count, ok := countValue(raw.Data.Connection[key])
 		if !ok {
 			return errors.New("Wazuh summary counters are missing or invalid")
 		}
@@ -112,9 +106,9 @@ func wazuhValidateSummary(body []byte) error {
 
 func wazuhValidateStats(sample statsSample) error {
 	retry, retryOK := sample.retryAt.(float64)
-	agents, agentsOK := wazuhCounter(sample.values["agents"])
-	active, activeOK := wazuhCounter(sample.values["activeAgents"])
-	disconnected, disconnectedOK := wazuhCounter(sample.values["disconnectedAgents"])
+	agents, agentsOK := countValue(sample.values["agents"])
+	active, activeOK := countValue(sample.values["activeAgents"])
+	disconnected, disconnectedOK := countValue(sample.values["disconnectedAgents"])
 	unitsOK := true
 	for _, metric := range []string{"agents", "activeAgents", "disconnectedAgents"} {
 		unitsOK = unitsOK && sample.units[metric] == "count"

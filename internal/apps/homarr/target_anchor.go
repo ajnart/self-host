@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/apps/anchor"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -31,8 +30,7 @@ func anchorTarget() target {
 }
 
 func verifyAnchorStats(sample statsSample) error {
-	count, ok := sample.values["notes"].(float64)
-	if sample.units["notes"] != "count" || !ok || math.IsNaN(count) || math.IsInf(count, 0) || count < 0 || math.Trunc(count) != count {
+	if !validCountStats(sample, "notes") {
 		return errors.New("Homarr returned incomplete Anchor statistics; retry self-host setup homarr")
 	}
 	return nil

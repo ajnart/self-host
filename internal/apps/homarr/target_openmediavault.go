@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -58,8 +57,8 @@ func openmediavaultExternalTarget(c helpers.ExternalConnection) (target, error) 
 }
 
 func openmediavaultNumber(value any, percent, integral bool) bool {
-	number, ok := value.(float64)
-	return ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && (!percent || number <= 100) && (!integral || number == math.Trunc(number) && number <= 1<<53-1)
+	number, ok := measuredNumber(value, integral)
+	return ok && (!percent || number <= 100)
 }
 
 func openmediavaultValidateNative(value any, integrationID string) error {

@@ -3,7 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -75,11 +74,6 @@ func synologyOrigin(endpoint string) error {
 	return nil
 }
 
-func synologyMetric(value any, integral bool) (float64, bool) {
-	number, ok := value.(float64)
-	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && (!integral || number == math.Trunc(number) && number <= 1<<53-1)
-}
-
 func synologyValidateNative(value any, integrationID string) error {
 	invalid := func() error { return &helpers.ManualError{Hint: synologyDataRecovery} }
 	results, ok := value.([]any)
@@ -94,10 +88,10 @@ func synologyValidateNative(value any, integrationID string) error {
 	if !ok {
 		return invalid()
 	}
-	cpu, cpuOK := synologyMetric(health["cpuUtilization"], false)
-	used, usedOK := synologyMetric(health["memUsedInBytes"], true)
-	available, availableOK := synologyMetric(health["memAvailableInBytes"], true)
-	_, uptimeOK := synologyMetric(health["uptime"], true)
+	cpu, cpuOK := measuredNumber(health["cpuUtilization"], false)
+	used, usedOK := measuredNumber(health["memUsedInBytes"], true)
+	available, availableOK := measuredNumber(health["memAvailableInBytes"], true)
+	_, uptimeOK := measuredNumber(health["uptime"], true)
 	if !cpuOK || cpu > 100 || !usedOK || !availableOK || used+available == 0 || !uptimeOK {
 		return invalid()
 	}
@@ -107,7 +101,7 @@ func synologyValidateNative(value any, integrationID string) error {
 func synologyValidateStats(sample statsSample) error {
 	invalid := func() error { return &helpers.ManualError{Hint: synologyStatsRecovery} }
 	for key, unit := range map[string]string{"cpu": "percent", "memoryUsed": "bytes", "memoryAvailable": "bytes", "uptime": "seconds"} {
-		number, valid := synologyMetric(sample.values[key], key != "cpu")
+		number, valid := measuredNumber(sample.values[key], key != "cpu")
 		if sample.units[key] != unit || !valid || key == "cpu" && number > 100 {
 			return invalid()
 		}
