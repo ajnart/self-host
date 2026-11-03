@@ -137,9 +137,14 @@ The native kind is `karakeep`; its supported surface is shared Stats with
 `bookmarks`, `favorites`, `archived`, `highlights`, `lists` and `tags`, all in
 counts for the selected account. Homarr consumes the peer-owned API key at the
 internal `http://karakeep:3000` Address, separately from the browser Address.
-Its leaf freshly verifies the local credential before mutation and checks the
-saved Homarr connection's account for diagnostics. **The managed Link remains
-Manual before Stats:** the inspected Karakeep account API does not return the
+**The managed Link remains Manual in preflight before any reconciliation,**
+including both LinkCheck and Apply. A fixed exact-key-proof hint is emitted and
+recorded by the Setup step. Apply may run even after a Manual Check, so the
+preflight must stop both paths before integration, Address, credential, widget
+or local-record writes, even when the expected fingerprint is stale or missing.
+Verified local owner/key A does not authorize replacing saved key B or user
+edits. The defensive verifier retains the same hold before Stats if called
+directly. The inspected Karakeep account API does not return the
 authenticated keyId. Session-only `apiKeys.list` cannot identify the bearer
 credential Homarr actually saved; public `apiKeys.validate` only validates an
 explicit input key and returns a boolean. Homarr's request result exposes no
@@ -163,9 +168,11 @@ Favorites and archived counts may overlap, but each cannot exceed bookmarks;
 tags/lists/highlights need not be bounded by bookmark count. The leaf does not
 acquire another Stats sample or compare independently cached counters.
 
-Shared reconciliation preserves owned IDs, user widgets/options and unrelated
-cross-kind entries. Retained user connections are released, never reclaimed on
-reconnect; removal does not need the peer's credential or a Stats refresh.
+Existing owned IDs, saved Addresses/credentials and user widgets/options remain
+unchanged while the preflight hold applies. Removal still uses shared owned
+cleanup without the peer's credential or a Stats refresh. Retained user
+connections are released; a held reconnect neither reclaims them nor creates
+replacement resources.
 Focused fake-backed checks are not native/rendered/runtime/lifecycle proof;
 both real installation orders, actual values and survivor behavior still need
 their centrally approved isolated attempt after the key-proof blocker is

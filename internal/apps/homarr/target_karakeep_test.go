@@ -284,7 +284,7 @@ func TestKarakeepMissingCredentialStopsBeforeHomarrRequests(t *testing.T) {
 	}
 }
 
-func KarakeepLifecycleFixtureForTest(t *testing.T) (app.Link, *helpers.H, http.Handler) {
+func KarakeepLifecycleFixtureForTest(t *testing.T) (app.Link, app.LinkCheck, *helpers.H, http.Handler, string) {
 	stats := newStatsFixture()
 	stats.timestamp = 1700000000000
 	stats.values = map[string]any{}
@@ -313,5 +313,7 @@ func KarakeepLifecycleFixtureForTest(t *testing.T) (app.Link, *helpers.H, http.H
 			w.WriteHeader(http.StatusNotFound)
 		}
 	})
-	return karakeepTarget().link(), karakeepPeerHelpers(t), handler
+	target := karakeepTarget()
+	peer := karakeepPeerHelpers(t)
+	return target.link(), target.linked, peer, handler, integrationFingerprint(target, nil, peer)
 }

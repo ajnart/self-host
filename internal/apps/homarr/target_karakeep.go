@@ -10,6 +10,8 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
+const karakeepSavedKeyProofHint = "Karakeep's account API does not identify Homarr's saved API key. This Link remains Manual before reconciliation until a supported read-only saved-connection contract authoritatively identifies the recorded keyId; matching accounts, counters and local fingerprints are insufficient. Preserve saved Addresses, credentials, integrations, widgets, user edits and private issuance records. Local owner/key verification does not authorize overwriting them. Do not rotate credentials or read private databases to bypass this hold. Review supported Karakeep/Homarr API capabilities, then retry self-host setup homarr; native Stats have not been verified."
+
 func karakeepTarget() target {
 	return target{
 		id: "karakeep", name: "Karakeep", kind: "karakeep", internal: (*helpers.H).InternalURL,
@@ -17,14 +19,9 @@ func karakeepTarget() target {
 			return []secret{{Kind: "apiKey", Value: to.Secret(to.Key("homarr_api_key"))}}
 		},
 		widgets: []widget{statWidget(karakeepStatsMetrics()...)},
-		preflight: func(ctx context.Context, from, to *helpers.H) error {
-			if err := karakeep.VerifyHomarr(ctx, to); err != nil {
-				if errors.Is(err, helpers.ErrManual) {
-					from.Info(karakeep.HomarrRecoveryHint + " No Homarr mutation is permitted before Karakeep's credential is verified.")
-				}
-				return err
-			}
-			return nil
+		preflight: func(_ context.Context, from, _ *helpers.H) error {
+			from.Info(karakeepSavedKeyProofHint)
+			return &helpers.ManualError{Hint: karakeepSavedKeyProofHint}
 		},
 		verify: verifyKarakeep,
 		stats:  verifyKarakeepStats,
@@ -56,7 +53,7 @@ func verifyKarakeep(ctx context.Context, from, to *helpers.H, integrationID stri
 	if result["ok"] != true || result["status"] != float64(200) || result["error"] != nil || integration["id"] != integrationID || integration["kind"] != "karakeep" || profile["id"] != accountID || profile["localUser"] != true || profile["error"] != nil || !strings.EqualFold(email, to.Secret(to.Key("admin_email"))) {
 		return &helpers.ManualError{Hint: "Homarr's saved Karakeep connection did not identify the recorded account. Restore only that owned integration's known matching credential, preserving user integrations and widgets, then retry self-host setup homarr. Empty or equal counters do not establish account identity."}
 	}
-	return &helpers.ManualError{Hint: "Karakeep's account API does not identify Homarr's saved API key. This Link remains Manual until a supported read-only saved-connection contract authoritatively identifies the recorded keyId; matching accounts, counters and local fingerprints are insufficient. Preserve the owned integration, private key and journal, and user widgets. Do not rotate credentials or read private databases to bypass this hold. Review supported Karakeep/Homarr API capabilities, then retry self-host setup homarr; native Stats have not been verified."}
+	return &helpers.ManualError{Hint: karakeepSavedKeyProofHint}
 }
 
 func verifyKarakeepStats(sample statsSample) error {
