@@ -1,0 +1,32 @@
+docs/catalog/traps/homebox.md
+  h_d6e478ca18e517 1-122
+internal/apps/homarr/target_homebox.go
+  h_d6e478ca18e517 1-69
+internal/apps/homarr/target_homebox_test.go
+  h_d6e478ca18e517 1-133
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 51
+internal/apps/homebox/account.go
+  h_d6e478ca18e517 1-188
+internal/apps/homebox/homarr.go
+  h_d6e478ca18e517 1-28
+internal/apps/homebox/homarr_test.go
+  h_d6e478ca18e517 1-80
+internal/apps/homebox/homebox.go
+  h_d6e478ca18e517 1-98
+internal/apps/homebox/homebox_test.go
+  h_d6e478ca18e517 1-486
+internal/apps/homebox/install_test.go
+  h_d6e478ca18e517 1-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "805b6b1056e93956dc0f77d48f3428f520e88246",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
