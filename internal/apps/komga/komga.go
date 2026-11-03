@@ -46,6 +46,10 @@ func (App) AdminEmail(username string) string {
 	return username + "@selfhost.local"
 }
 
+func (App) Directories(rc app.RenderContext) []app.Directory {
+	return []app.Directory{{Path: "config", Mode: 0o700, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}
+}
+
 func (App) Compose(rc app.RenderContext) string {
 	return `services:
   komga:
@@ -55,7 +59,11 @@ func (App) Compose(rc app.RenderContext) string {
     environment:
       TZ: ${TZ}
     volumes:
-      - ./config:/config
+      - type: bind
+        source: ./config
+        target: /config
+        bind:
+          create_host_path: false
       - ${MEDIA_ROOT}/books:/data:ro
     ports:
       - ${BIND_IP}:` + strconv.Itoa(rc.Port) + `:25600

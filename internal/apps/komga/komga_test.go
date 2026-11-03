@@ -172,7 +172,7 @@ func TestAppContract(t *testing.T) {
 			Restart     string
 			User        string
 			Environment map[string]string
-			Volumes     []string
+			Volumes     []any
 			Ports       []string
 		}
 	}
@@ -183,8 +183,20 @@ func TestAppContract(t *testing.T) {
 	if len(compose.Services) != 1 || service.Image != info.Image || service.Restart != "unless-stopped" || service.User != "${PUID}:${PGID}" {
 		t.Fatalf("unexpected official-image deployment: %+v", service)
 	}
-	if !reflect.DeepEqual(service.Environment, map[string]string{"TZ": "${TZ}"}) || !reflect.DeepEqual(service.Volumes, []string{"./config:/config", "${MEDIA_ROOT}/books:/data:ro"}) || !reflect.DeepEqual(service.Ports, []string{"${BIND_IP}:45678:25600"}) {
+	if !reflect.DeepEqual(service.Environment, map[string]string{"TZ": "${TZ}"}) || !reflect.DeepEqual(service.Volumes, []any{
+		map[string]any{"type": "bind", "source": "./config", "target": "/config", "bind": map[string]any{"create_host_path": false}},
+		"${MEDIA_ROOT}/books:/data:ro",
+	}) || !reflect.DeepEqual(service.Ports, []string{"${BIND_IP}:45678:25600"}) {
 		t.Fatalf("unexpected persistence, credential scope or Access: %+v", service)
+	}
+	declarer, ok := a.(app.DirectoryDeclarer)
+	if !ok {
+		t.Fatal("private configuration storage is not declared")
+	}
+	for _, settings := range []map[string]string{nil, {"PUID": "1234"}, {"PGID": "2345"}, {"PUID": "1234", "PGID": "2345"}} {
+		if !reflect.DeepEqual(declarer.Directories(app.RenderContext{Settings: settings}), []app.Directory{{Path: "config", Mode: 0o700, UID: settings["PUID"], GID: settings["PGID"]}}) {
+			t.Fatal("private configuration storage does not follow the actual runtime identity without fallback")
+		}
 	}
 	guide := (komga.App{}).StandaloneGuide()
 	if !strings.Contains(guide, "local filesystem") || !strings.Contains(guide, "read-only") {
