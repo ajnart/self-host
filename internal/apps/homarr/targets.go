@@ -55,5 +55,6 @@ func targets() []target {
 		homeboxTarget(),
 		stashTarget(),
 		minifluxTarget(),
+		thingportTarget(),
 	)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/patchmon"
 	"github.com/ajnart/self-host/internal/apps/seafile"
 	"github.com/ajnart/self-host/internal/apps/stash"
+	"github.com/ajnart/self-host/internal/apps/thingport"
 	"github.com/ajnart/self-host/internal/apps/tracearr"
 	"github.com/ajnart/self-host/internal/apps/umami"
 )
@@ -22,6 +23,7 @@ func init() {
 		seafile.App{},
 		stash.App{},
 		tracearr.App{},
+		thingport.App{},
 		umami.App{},
 	)
 }
