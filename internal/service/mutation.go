@@ -261,6 +261,11 @@ func (s *Service) runCompose(ctx context.Context, ss *session, c change, ids []s
 			if !found {
 				continue
 			}
+			if !ss.p.IsExtra(id) {
+				if err := s.validateAppDirectories(ctx, ss.p, a, ss.state.Apps[id], ss.settings); err != nil {
+					return err
+				}
+			}
 			if preflight, ok := a.(app.PreflightChecker); ok {
 				if err := preflight.Preflight(ctx, ss.helpers(a)); err != nil {
 					return err
