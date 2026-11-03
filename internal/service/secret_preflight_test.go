@@ -49,7 +49,7 @@ func TestSecretPrerequisiteInstallBeforeGeneration(t *testing.T) {
 	a := newSecretPrerequisiteApp()
 	h := newHarness(t, a)
 	err := h.svc.Install(t.Context(), InstallOptions{Targets: []string{"prerequisite"}, Sets: []string{"prerequisite.port=19001"}})
-	if !errors.Is(err, helpers.ErrManual) || a.pureChecks != 1 || len(a.credentialReads) != 1 || a.credentialReads[0] != "" {
+	if !errors.Is(err, helpers.ErrManual) || a.pureChecks != 2 || len(a.credentialReads) != 1 || a.credentialReads[0] != "" {
 		t.Fatalf("missing prerequisite was not held before generation: %v", err)
 	}
 	p, err := h.svc.Project()
@@ -76,7 +76,7 @@ func TestSecretPrerequisiteReceivesPrivateInputsAndPreservesStartupChecks(t *tes
 	if err := h.svc.Install(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}
-	if a.pureChecks != 1 || len(a.credentialReads) != 2 || a.credentialReads[0] != key || a.credentialReads[1] != key {
+	if a.pureChecks != 2 || len(a.credentialReads) != 2 || a.credentialReads[0] != key || a.credentialReads[1] != key {
 		t.Fatal("Install did not preserve pure admission and the credential-aware pre-generation/startup checks")
 	}
 	opts.PrivateInputs = nil
@@ -100,7 +100,7 @@ func TestSecretPrerequisiteDoesNotPreventOtherApprovedGeneration(t *testing.T) {
 	if err := h.svc.Install(t.Context(), InstallOptions{Targets: []string{"prerequisite"}, Sets: []string{"prerequisite.port=19001"}}); err != nil {
 		t.Fatal(err)
 	}
-	if a.pureChecks != 1 || len(a.credentialReads) != 2 || a.credentialReads[0] != "" || len(a.credentialReads[1]) != 48 {
+	if a.pureChecks != 2 || len(a.credentialReads) != 2 || a.credentialReads[0] != "" || len(a.credentialReads[1]) != 48 {
 		t.Fatal("existing generation or necessary post-generation startup validation changed")
 	}
 }

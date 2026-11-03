@@ -40,6 +40,30 @@ func managedAppIDs(h *helpers.H) (map[string]string, error) {
 	return readOwnership[string](h, h.Key("app_ids"), "App ownership")
 }
 
+func ownedIntegrationIDs(h *helpers.H) ([]string, error) {
+	ids := []string{}
+	seen := map[string]bool{}
+	add := func(key string) {
+		if id := h.Secret(h.Key(key)); id != "" && !seen[id] {
+			ids = append(ids, id)
+			seen[id] = true
+		}
+	}
+	for _, t := range targets() {
+		add("linked_" + t.id)
+	}
+	if h.ExternalConnections != nil {
+		connections, err := h.ExternalConnections()
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range connections {
+			add("linked_external-" + c.ID)
+		}
+	}
+	return ids, nil
+}
+
 func validateOwnership(h *helpers.H) error {
 	if _, err := managedAppIDs(h); err != nil {
 		return err
@@ -61,9 +85,21 @@ func validateOwnership(h *helpers.H) error {
 	return nil
 }
 
-func validateBoardOwnership(h *helpers.H, current map[string]any) error {
+func validateBoardOwnership(h *helpers.H, current map[string]any, affected map[string]bool) error {
 	for _, item := range itemsOf(current) {
+		if !affected[stringField(item, "id")] {
+			continue
+		}
 		ids, _ := item["integrationIds"].([]any)
+		if stringField(item, "kind") == "stats" {
+			options, _ := item["options"].(map[string]any)
+			entries, _ := options["entries"].([]any)
+			ids = append([]any{}, ids...)
+			for _, raw := range entries {
+				entry, _ := raw.(map[string]any)
+				ids = append(ids, entry["integrationId"])
+			}
+		}
 		for _, raw := range ids {
 			id, _ := raw.(string)
 			if id == "" {

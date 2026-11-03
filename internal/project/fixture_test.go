@@ -102,3 +102,16 @@ func TestFixtureImageRefusesInterpolationAndCredentials(t *testing.T) {
 		}
 	}
 }
+
+func TestFixtureComposePairImageOverrides(t *testing.T) {
+	p, policy := fixtureProject(t, "services:\n  fixture: {image: 'example/app:latest'}\n  peer: {image: 'example/peer:latest'}\n")
+	policy.Images = map[string]string{"fixture": "example/app:selected", "peer": "example/peer:selected"}
+	plan, err := p.PrepareFixtureCompose(policy)
+	if err != nil || plan.Images["fixture"] != "example/app:selected" || plan.Images["peer"] != "example/peer:selected" {
+		t.Fatal("pair overrides not applied", err)
+	}
+	policy.Images["peer"] = "${UNSAFE}"
+	if _, err := p.PrepareFixtureCompose(policy); err == nil {
+		t.Fatal("unsafe pair image accepted")
+	}
+}
