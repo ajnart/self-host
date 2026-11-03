@@ -31,7 +31,9 @@ type Arr struct {
 	FolderExists func(path string) bool
 	// AcceptDownloadClient plays the connection test Sonarr and Radarr run
 	// when a download client is saved.
-	AcceptDownloadClient func(host string, port int, user, password string) bool
+	AcceptDownloadClient   func(host string, port int, user, password string) bool
+	AcceptDownloadProvider func(client map[string]any) bool
+	downloadClientTests    int
 	// AcceptApplication plays the connection test Prowlarr runs when an
 	// application is saved.
 	AcceptApplication func(baseURL, apiKey string) bool
@@ -63,7 +65,7 @@ func (a *Arr) SeedDownloadClient(client map[string]any) {
 func NewArr(kind string) *Arr {
 	a := &Arr{kind: kind, version: "v3", Key: "key-" + kind, nextID: 1,
 		downloadClients: []map[string]any{}, applications: []map[string]any{}}
-	if kind == "prowlarr" {
+	if kind == "prowlarr" || kind == "lidarr" {
 		a.version = "v1"
 	}
 	a.mediaManagement = map[string]any{"id": 1, "copyUsingHardlinks": false, "renameEpisodes": false}
@@ -132,13 +134,22 @@ func (a *Arr) categoryField() string {
 	if a.kind == "radarr" {
 		return "movieCategory"
 	}
+	if a.kind == "lidarr" {
+		return "musicCategory"
+	}
 	return "tvCategory"
 }
 
 func (a *Arr) downloadClientSchema() []any {
+	sabFields := schemaFields("host", "port", "useSsl", "urlBase", "apiKey", "username", "password", a.categoryField())
+	defaults := map[string]any{"host": "localhost", "port": float64(8080), "useSsl": false, "urlBase": "", "apiKey": "", "username": "", "password": "", a.categoryField(): "tv"}
+	for _, raw := range sabFields {
+		field := raw.(map[string]any)
+		field["value"] = defaults[field["name"].(string)]
+	}
 	return []any{
-		map[string]any{"implementation": "SABnzbd", "implementationName": "SABnzbd", "protocol": "usenet",
-			"fields": schemaFields("host", "port", "apiKey")},
+		map[string]any{"implementation": "Sabnzbd", "implementationName": "SABnzbd", "configContract": "SabnzbdSettings", "protocol": "usenet",
+			"fields": sabFields},
 		map[string]any{"implementation": "QBittorrent", "implementationName": "qBittorrent",
 			"configContract": "QBittorrentSettings", "protocol": "torrent", "priority": 1, "enable": false, "name": nil,
 			"fields": schemaFields("host", "port", "useSsl", "username", "password", a.categoryField())},
@@ -177,10 +188,18 @@ func (a *Arr) Handler() http.Handler {
 		w.Write([]byte(`{"status":"OK"}`))
 	})
 	mux.HandleFunc("POST /login", a.login)
+	mux.HandleFunc("GET /api", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"current": a.version, "deprecated": []string{}})
+	}))
 	mux.HandleFunc("GET "+api+"/system/status", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		if a.kind == "lidarr" {
+			w.Write([]byte(`{"appName":"Lidarr","version":"3.1.0.4875"}`))
+			return
+		}
 		fmt.Fprintf(w, `{"appName":%q,"version":"4.0.0"}`, a.kind)
 	}))
 	mux.HandleFunc("GET "+api+"/config/host", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		a.host["apiKey"] = a.Key
 		json.NewEncoder(w).Encode(a.host)
 	}))
 	mux.HandleFunc("PUT "+api+"/config/host/{id}", a.keyed(a.putHost))
@@ -262,6 +281,18 @@ func (a *Arr) rootFolderRoutes(mux *http.ServeMux, api string) {
 }
 
 func (a *Arr) downloadClientRoutes(mux *http.ServeMux, api string) {
+	mux.HandleFunc("GET "+api+"/remotepathmapping", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`[]`))
+	}))
+	mux.HandleFunc("POST "+api+"/downloadclient/test", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		a.downloadClientTests++
+		var client map[string]any
+		if json.NewDecoder(r.Body).Decode(&client) != nil || !a.downloadClientAccepted(client) {
+			fail(w, "unable to connect to the download client")
+			return
+		}
+		w.Write([]byte(`{}`))
+	}))
 	mux.HandleFunc("GET "+api+"/downloadclient/schema", a.keyed(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(a.downloadClientSchema())
 	}))
@@ -275,11 +306,7 @@ func (a *Arr) downloadClientRoutes(mux *http.ServeMux, api string) {
 			fail(w, "name is required")
 			return
 		}
-		host, _ := Field(client, "host").(string)
-		port, _ := Field(client, "port").(float64)
-		user, _ := Field(client, "username").(string)
-		pass, _ := Field(client, "password").(string)
-		if a.AcceptDownloadClient != nil && !a.AcceptDownloadClient(host, int(port), user, pass) {
+		if !a.downloadClientAccepted(client) {
 			fail(w, "unable to connect to the download client")
 			return
 		}
@@ -287,6 +314,23 @@ func (a *Arr) downloadClientRoutes(mux *http.ServeMux, api string) {
 		a.nextID++
 		a.downloadClients = append(a.downloadClients, client)
 		json.NewEncoder(w).Encode(client)
+	}))
+	mux.HandleFunc("PUT "+api+"/downloadclient/{id}", a.keyed(func(w http.ResponseWriter, r *http.Request) {
+		var client map[string]any
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil || json.NewDecoder(r.Body).Decode(&client) != nil || client["id"] != float64(id) || !a.downloadClientAccepted(client) {
+			fail(w, "invalid download-client update")
+			return
+		}
+		for index, existing := range a.downloadClients {
+			if existing["id"] == id {
+				client["id"] = id
+				a.downloadClients[index] = client
+				json.NewEncoder(w).Encode(client)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNotFound)
 	}))
 	mux.HandleFunc("DELETE "+api+"/downloadclient/{id}", a.keyed(func(w http.ResponseWriter, r *http.Request) {
 		if a.FailDeletes {
@@ -296,6 +340,29 @@ func (a *Arr) downloadClientRoutes(mux *http.ServeMux, api string) {
 		a.downloadClients = deleteByID(a.downloadClients, r.PathValue("id"))
 		w.Write([]byte("{}"))
 	}))
+}
+
+func (a *Arr) downloadClientAccepted(client map[string]any) bool {
+	if a.AcceptDownloadProvider != nil {
+		return a.AcceptDownloadProvider(client)
+	}
+	host, _ := Field(client, "host").(string)
+	port, _ := Field(client, "port").(float64)
+	user, _ := Field(client, "username").(string)
+	password, _ := Field(client, "password").(string)
+	return a.AcceptDownloadClient == nil || a.AcceptDownloadClient(host, int(port), user, password)
+}
+
+func (a *Arr) DownloadClientTests() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.downloadClientTests
+}
+
+func (a *Arr) SeedRootFolder(path string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.rootFolders = append(a.rootFolders, path)
 }
 
 func (a *Arr) applicationRoutes(mux *http.ServeMux, api string) {
