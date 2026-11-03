@@ -27,7 +27,7 @@ func (t target) verifyData(ctx context.Context, from, to *helpers.H, integration
 		if len(metrics) == 0 {
 			return nil
 		}
-		sample, err := readStatsSample(ctx, from, integrationID, metrics)
+		sample, err := readStatsSample(ctx, from, integrationID, metrics, t.nullableStats...)
 		if err != nil {
 			return err
 		}

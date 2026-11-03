@@ -95,6 +95,82 @@ func decodeProcedure(resp helpers.Response) (any, error) {
 	return decodeProcedureData(env.Result.Data)
 }
 
+type uptimeKumaNativeFamily uint8
+
+const (
+	uptimeKumaStatusPages uptimeKumaNativeFamily = iota + 1
+	uptimeKumaLegacyDashboard
+)
+
+func uptimeKumaCapability(ctx context.Context, h *helpers.H, slug string) (uptimeKumaNativeFamily, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := supportedVersion(ctx, h); err != nil {
+		return 0, uptimeKumaCapabilityManual()
+	}
+	for _, family := range []uptimeKumaNativeFamily{uptimeKumaStatusPages, uptimeKumaLegacyDashboard} {
+		proc := family.procedure()
+		input := map[string]any{"integrationIds": []string{}}
+		if family == uptimeKumaStatusPages {
+			input["statusPageSlug"] = slug
+		}
+		path, err := procedurePath(proc, input)
+		if err != nil {
+			return 0, uptimeKumaCapabilityManual()
+		}
+		response, err := h.HTTP(ctx, helpers.Request{Path: path, Header: apiKeyHeader(h), NoRedirect: true})
+		if err != nil {
+			return 0, uptimeKumaCapabilityManual()
+		}
+		var reply struct {
+			Result *struct {
+				Data *struct {
+					JSON json.RawMessage `json:"json"`
+				} `json:"data"`
+			} `json:"result"`
+			Error *struct {
+				JSON struct {
+					Code    int    `json:"code"`
+					Message string `json:"message"`
+					Data    struct {
+						Code       string `json:"code"`
+						HTTPStatus int    `json:"httpStatus"`
+						Path       string `json:"path"`
+					} `json:"data"`
+				} `json:"json"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(response.Body, &reply) != nil {
+			return 0, uptimeKumaCapabilityManual()
+		}
+		if response.Status == 200 && reply.Error == nil && reply.Result != nil && reply.Result.Data != nil {
+			var values []json.RawMessage
+			if json.Unmarshal(reply.Result.Data.JSON, &values) == nil && values != nil && len(values) == 0 {
+				return family, nil
+			}
+		}
+		if family == uptimeKumaStatusPages && response.Status == 404 && reply.Result == nil && reply.Error != nil {
+			failure := reply.Error.JSON
+			if failure.Code == -32004 && failure.Data.Code == "NOT_FOUND" && failure.Data.HTTPStatus == 404 && failure.Data.Path == proc && failure.Message == `No procedure found on path "`+proc+`"` {
+				continue
+			}
+		}
+		return 0, uptimeKumaCapabilityManual()
+	}
+	return 0, uptimeKumaCapabilityManual()
+}
+
+func (f uptimeKumaNativeFamily) procedure() string {
+	if f == uptimeKumaLegacyDashboard {
+		return "widget.uptimeKuma.getDashboard"
+	}
+	return "widget.uptimeKuma.getStatusPages"
+}
+
+func uptimeKumaCapabilityManual() error {
+	return &helpers.ManualError{Hint: "Cannot safely verify the Uptime Kuma native API before changing Homarr. Preserve its integrations, boards and selected status page; review Homarr authentication and the resolved image's native API contract, then retry self-host setup homarr. Do not publish monitors, add a metrics key or create a duplicate integration."}
+}
+
 func procedurePath(proc string, input any) (string, error) {
 	path := "/api/trpc/" + proc
 	if input == nil {
@@ -330,6 +406,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}
 	if err := validateOwnership(h); err != nil {
 		return ownershipRecovery(err)
+	}
+	if err := admitUptimeKumaSetup(ctx, h); err != nil {
+		return err
 	}
 	if err := h.Ready(ctx, "/api/health/live", helpers.Timeout(2*time.Minute)); err != nil {
 		return err
