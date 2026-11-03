@@ -43,6 +43,7 @@ type fakeRomM struct {
 	postCreatePass  string
 	missingCSRF     bool
 	race            bool
+	requests        int
 	posts           int
 	creates         int
 }
@@ -52,6 +53,7 @@ func (f *fakeRomM) handler(t *testing.T) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		f.requests++
 		switch r.Method + " " + r.URL.Path {
 		case "GET /api/heartbeat":
 			if !f.missingCSRF {
