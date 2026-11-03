@@ -57,5 +57,6 @@ func targets() []target {
 		minifluxTarget(),
 		thingportTarget(),
 		spoolmanTarget(),
+		tubearchivistTarget(),
 	)
 }

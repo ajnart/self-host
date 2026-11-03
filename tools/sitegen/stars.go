@@ -106,6 +106,7 @@ var repos = map[string]string{
 	"technitium-dns":       "TechnitiumSoftware/DnsServer",
 	"stash":                "stashapp/stash",
 	"tracearr":             "connorgallopo/Tracearr",
+	"tubearchivist":        "tubearchivist/tubearchivist",
 	"traefik":              "traefik/traefik",
 	"transmission":         "transmission/transmission",
 	"thingport":            "TautvydasDerzinskas/Thingport",

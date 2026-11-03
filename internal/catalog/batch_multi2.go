@@ -10,6 +10,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/stash"
 	"github.com/ajnart/self-host/internal/apps/thingport"
 	"github.com/ajnart/self-host/internal/apps/tracearr"
+	"github.com/ajnart/self-host/internal/apps/tubearchivist"
 	"github.com/ajnart/self-host/internal/apps/umami"
 )
 
@@ -24,6 +25,7 @@ func init() {
 		stash.App{},
 		tracearr.App{},
 		thingport.App{},
+		tubearchivist.App{},
 		umami.App{},
 	)
 }
