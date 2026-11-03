@@ -177,7 +177,7 @@
    "port": 13378,
    "docs": "https://www.audiobookshelf.org/docs",
    "links": [],
-   "compose": "services:\n  audiobookshelf:\n    image: ghcr.io/advplyr/audiobookshelf:latest\n    container_name: ${CONTAINER_PREFIX}audiobookshelf\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/audiobookshelf/config:/config\n      - ${CONFIG_PATH}/audiobookshelf/metadata:/metadata\n    ports:\n      - 13378:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "compose": "services:\n  audiobookshelf:\n    image: ghcr.io/advplyr/audiobookshelf:latest\n    container_name: ${CONTAINER_PREFIX}audiobookshelf\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/audiobookshelf/config:/config\n      - ${CONFIG_PATH}/audiobookshelf/metadata:/metadata\n      - ${DATA_PATH}/media:/data/media\n    ports:\n      - 13378:80\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "CONFIG_PATH",
@@ -189,6 +189,12 @@
      "key": "CONTAINER_PREFIX",
      "default": "",
      "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
      "secret": false
     },
     {
@@ -205,7 +211,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, create the root account on the first visit."
+   "notes": "Before the first start, create ${DATA_PATH}/media and any missing audiobook or podcast subfolders with your Host user's ownership so Docker does not create the media parent as root. The shared media folder is mounted at /data/media. After starting, create the root account on the first visit, then select the media subfolders in Settings > Libraries. Review existing libraries before adding any, without replacing their folders or importing automatically."
   },
   {
    "id": "authelia",
@@ -2004,7 +2010,12 @@
    "image": "lscr.io/linuxserver/lidarr:latest",
    "port": 8686,
    "docs": "https://wiki.servarr.com/lidarr",
-   "links": [],
+   "links": [
+    {
+     "target": "qbittorrent",
+     "title": "download client: qBittorrent"
+    }
+   ],
    "compose": "services:\n  lidarr:\n    image: lscr.io/linuxserver/lidarr:latest\n    container_name: ${CONTAINER_PREFIX}lidarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/lidarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 8686:8686\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8686/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
@@ -2057,7 +2068,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/music. Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/music. Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "linkwarden",
@@ -2971,7 +2982,7 @@
    "port": 8000,
    "docs": "https://docs.paperless-ngx.com/setup/",
    "links": [],
-   "compose": "services:\n  paperless-ngx:\n    image: ghcr.io/paperless-ngx/paperless-ngx:latest\n    container_name: ${CONTAINER_PREFIX}paperless-ngx\n    restart: ${RESTART_POLICY}\n    environment:\n      PAPERLESS_REDIS: redis://paperless-ngx-broker:6379\n      PAPERLESS_DBHOST: paperless-ngx-db\n      PAPERLESS_DBENGINE: postgresql\n      PAPERLESS_ADMIN_USER: ${ADMIN_USER}\n      USERMAP_UID: ${PUID}\n      USERMAP_GID: ${PGID}\n      PAPERLESS_DBPASS: ${PAPERLESS_NGX_DB_PASSWORD}\n      PAPERLESS_SECRET_KEY: ${PAPERLESS_NGX_APP_KEY}\n      PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/data:/usr/src/paperless/data\n      - ${CONFIG_PATH}/paperless-ngx/media:/usr/src/paperless/media\n      - ${CONFIG_PATH}/paperless-ngx/export:/usr/src/paperless/export\n      - ${CONFIG_PATH}/paperless-ngx/consume:/usr/src/paperless/consume\n    ports:\n      - 8000:8000\n    depends_on:\n      - paperless-ngx-broker\n      - paperless-ngx-db\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  paperless-ngx-broker:\n    image: valkey/valkey:alpine\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-broker\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/broker:/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  paperless-ngx-db:\n    image: postgres:18\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: paperless\n      POSTGRES_USER: paperless\n      POSTGRES_PASSWORD: ${PAPERLESS_NGX_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/database:/var/lib/postgresql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "compose": "services:\n  paperless-ngx:\n    image: ghcr.io/paperless-ngx/paperless-ngx:latest\n    container_name: ${CONTAINER_PREFIX}paperless-ngx\n    restart: ${RESTART_POLICY}\n    environment:\n      PAPERLESS_REDIS: redis://paperless-ngx-broker:6379\n      PAPERLESS_DBHOST: paperless-ngx-db\n      PAPERLESS_DBENGINE: postgresql\n      PAPERLESS_ADMIN_USER: ${ADMIN_USER}\n      PAPERLESS_TIME_ZONE: ${TZ}\n      USERMAP_UID: ${PUID}\n      USERMAP_GID: ${PGID}\n      PAPERLESS_DBPASS: ${PAPERLESS_NGX_DB_PASSWORD}\n      PAPERLESS_SECRET_KEY: ${PAPERLESS_NGX_APP_KEY}\n      PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/data:/usr/src/paperless/data\n      - ${CONFIG_PATH}/paperless-ngx/media:/usr/src/paperless/media\n      - ${CONFIG_PATH}/paperless-ngx/export:/usr/src/paperless/export\n      - ${CONFIG_PATH}/paperless-ngx/consume:/usr/src/paperless/consume\n    ports:\n      - 8000:8000\n    depends_on:\n      - paperless-ngx-broker\n      - paperless-ngx-db\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  paperless-ngx-broker:\n    image: valkey/valkey:alpine\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-broker\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/broker:/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  paperless-ngx-db:\n    image: postgres:18\n    container_name: ${CONTAINER_PREFIX}paperless-ngx-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: paperless\n      POSTGRES_USER: paperless\n      POSTGRES_PASSWORD: ${PAPERLESS_NGX_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/paperless-ngx/database:/var/lib/postgresql\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
      "key": "ADMIN_PASSWORD",
@@ -3029,9 +3040,16 @@
      "default": "unless-stopped",
      "description": "Docker restart policy",
      "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
     }
    ],
-   "standalone": true
+   "standalone": true,
+   "notes": "Place copies of documents to import in the mounted consume folder at /usr/src/paperless/consume, or upload them through the web page. Successfully consumed files are removed from that folder and stored in the document archive; keep original backups elsewhere. Administrator environment settings create a missing account only; changing them cannot reset an existing user's password."
   },
   {
    "id": "patchmon",
@@ -3310,7 +3328,7 @@
     }
    ],
    "standalone": true,
-   "notes": "Create a claim token at https://www.plex.tv/claim (valid 4 minutes) and set PLEX_CLAIM_TOKEN before the first start, or the server stays unclaimed."
+   "notes": "Before the first start, create a private claim-token file (mode 0600) containing a token from https://www.plex.tv/claim (valid 4 minutes). Use the App's read-only claim-token mount and the image's file-based claim option; if an export substitutes a claim environment entry, restore that private-file configuration instead of putting the token in the environment or command arguments. Keep the server private and verify it in your own Plex account. An expired or failed first-run claim needs inspection and reviewed recovery, not an automatic reclaim."
   },
   {
    "id": "portainer",
@@ -3441,7 +3459,7 @@
   {
    "id": "prowlarr",
    "name": "Prowlarr",
-   "description": "Manage the search sites that Sonarr and Radarr use to find your downloads",
+   "description": "Manage the search sites Sonarr, Radarr and Lidarr use to find your downloads",
    "category": "Requests",
    "icon": "svg/prowlarr.svg",
    "image": "lscr.io/linuxserver/prowlarr:latest",
@@ -3455,6 +3473,10 @@
     {
      "target": "radarr",
      "title": "sync indexers to Radarr"
+    },
+    {
+     "target": "lidarr",
+     "title": "sync indexers to Lidarr"
     }
    ],
    "compose": "services:\n  prowlarr:\n    image: lscr.io/linuxserver/prowlarr:latest\n    container_name: ${CONTAINER_PREFIX}prowlarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/prowlarr/config:/config\n    ports:\n      - 9696:9696\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:9696/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
@@ -3503,7 +3525,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password). It works with other Apps (sync indexers to Sonarr; sync indexers to Radarr), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password). It works with other Apps (sync indexers to Sonarr; sync indexers to Radarr; sync indexers to Lidarr), but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "qbittorrent",
@@ -3770,7 +3792,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, set the WebUI username and password in Config > General. Set Temporary Download Folder to /data/usenet/incomplete and Completed Download Folder to /data/usenet/complete in Config > Folders."
+   "notes": "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. Set Temporary Download Folder to /data/usenet/incomplete and Completed Download Folder to /data/usenet/complete in Config > Folders. In Config > Categories, use relative folders tv, movies and music beneath the completed folder, matching your import App's category. Review existing paths and categories before changing them."
   },
   {
    "id": "scrypted",
@@ -4908,7 +4930,7 @@
     }
    ],
    "standalone": false,
-   "notes": "Needs files this Compose does not create before the first start (config), expected in ${CONFIG_PATH}/vector/; without them it does not start."
+   "notes": "Needs files this Compose does not create before the first start (config), expected in ${CONFIG_PATH}/vector/; without them it does not start. The starter configuration sends only Vector's own internal_logs to the console; it collects no other App or host logs and sends nothing to Loki. Review the configuration mounted at /etc/vector/vector.yaml before adding sources or destinations. A healthy API does not prove log delivery."
   },
   {
    "id": "victoria-metrics",

@@ -10,6 +10,9 @@ acceptance remain unproved. Earlier dated evidence retains its original scope.
 
 - Auxiliary Compose services use App-owned names: `paperless-ngx-db`, `paperless-ngx-broker`. Keep these names in connection settings and dependencies; persistent data paths stay unchanged.
 - Network filesystems may require polling; database and archive restore together.
+- `PAPERLESS_TIME_ZONE` follows the Host `TZ` setting rather than silently using UTC. See the [official configuration reference](https://docs.paperless-ngx.com/configuration/#PAPERLESS_TIME_ZONE).
+- Place copies of documents to ingest in the App-local `./consume` folder, mounted at `/usr/src/paperless/consume`, or upload through the web page. Successfully consumed files are removed from that folder and stored in the archive: do not point it at the only copy of a document library. Keep original backups elsewhere and ensure the mapped user can read and delete incoming files. See [the consumption directory](https://docs.paperless-ngx.com/usage/#the-consumption-directory).
+- `PAPERLESS_ADMIN_USER` and the administrator password file create a missing administrator only. Changing the environment or password file does not reset an existing account; recover that account explicitly instead of recreating it or deleting its database. See [administrator environment settings](https://docs.paperless-ngx.com/configuration/#PAPERLESS_ADMIN_USER).
 
 ## Security
 

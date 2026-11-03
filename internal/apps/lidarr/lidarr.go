@@ -33,7 +33,9 @@ func (App) Info() app.Info {
 }
 
 func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link {
+	return []app.Link{servarr.QBittorrentLink(servarr.V1, "musicCategory", "music")}
+}
 
 func (App) StandaloneGuide() string {
 	return lidarrServarr.StandaloneGuide("/data/media/music") + " Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used."

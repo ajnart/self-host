@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -2127,8 +2128,8 @@ func TestInvalidWidgetOwnershipFailsWithoutDeletingUserWidgets(t *testing.T) {
 			secrets[name] = "invalid-json"
 		}
 	}
-	if err := link.Apply(context.Background(), from, to); err == nil || !strings.Contains(err.Error(), "ownership") {
-		t.Fatalf("invalid ownership reported as success: %v", err)
+	if err := link.Apply(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) || !strings.Contains(err.Error(), "ownership") {
+		t.Fatalf("invalid ownership did not require Manual recovery: %v", err)
 	}
 	fake.mu.Lock()
 	if len(fake.items) != before {

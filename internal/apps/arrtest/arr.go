@@ -61,7 +61,8 @@ func (a *Arr) SeedDownloadClient(client map[string]any) {
 
 // NewArr returns a fake of kind "sonarr", "radarr" or "prowlarr".
 func NewArr(kind string) *Arr {
-	a := &Arr{kind: kind, version: "v3", Key: "key-" + kind, nextID: 1}
+	a := &Arr{kind: kind, version: "v3", Key: "key-" + kind, nextID: 1,
+		downloadClients: []map[string]any{}, applications: []map[string]any{}}
 	if kind == "prowlarr" {
 		a.version = "v1"
 	}

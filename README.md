@@ -291,9 +291,9 @@ docker compose logs -f sonarr
 docker compose down
 ```
 
-The private `.env` supplies settings and credentials. App configuration stays in its existing folders; updates preserve manual Compose edits. Existing multi-file Projects are converted without moving media or configuration, with the original root retained as `compose.legacy.yml` for recovery.
+The private `.env` (mode `0600`) supplies settings and credentials; legacy `secrets.env` remains compatible with migration and Restore. App configuration stays in its existing folders; updates preserve manual Compose edits. The first approved mutation consolidates supported multi-file Projects without moving media or configuration, retaining the original root as `compose.legacy.yml` for recovery. Ambiguous layouts stop for review rather than being rewritten.
 
-New media Projects use one data parent (`~/data` by default, configurable with `--data-root`) for torrents, Usenet and libraries. Importing Apps share that parent mount so hardlinks and atomic moves can work; actual filesystem support is checked as the App user. Copy fallback requires `--media-copy-fallback` or `MEDIA_COPY_FALLBACK=on`. Separate media App file owners are optional and off by default; enable them during Onboarding or with `--separate-media-users` for a new Project. Changing existing media paths or ownership requires an explicit migration.
+New media Projects default to one data parent (`~/data`, configurable with `--data-root`) for torrents, Usenet and libraries. Sonarr and Radarr share that parent mount and probe temporary hardlinks as the App user; this checks capability, not an actual import. Copy fallback requires `--media-copy-fallback` or `MEDIA_COPY_FALLBACK=on`. Separate supported media App file owners are optional and off by default; enable them during Onboarding or with `--separate-media-users` for a new Project. Existing layouts stay unchanged; changing media paths or ownership requires an explicit migration. Explicit `--media-root` or `--downloads-root` without `--data-root` retains the legacy layout.
 
 A service you add directly to `compose.yml` is an Unmanaged app: it gets lifecycle, Address listing and Backup, but no Setup. Put its configuration under `extra/<name>/` for Backup coverage. Legacy `extra/<name>/compose.yml` definitions are imported for compatibility; the root file is authoritative afterward.
 
@@ -310,15 +310,19 @@ Setup configures Apps where supported, and Links connect them: Sonarr and Radarr
 
 Setup configures accounts, API keys and settings where supported; browser-only work stays a Manual step. A **Link** is the part that connects one App to another. It belongs to the consuming App and runs once both have finished Setup.
 
-| Consumer       | Linked to                                         |
-| -------------- | ------------------------------------------------- |
-| Sonarr, Radarr | qBittorrent (download client)                     |
-| Prowlarr       | Sonarr, Radarr                                    |
-| Seerr          | Jellyfin, Sonarr, Radarr                          |
-| Cleanuparr     | Sonarr, Radarr, qBittorrent                       |
-| Homarr         | native tiles and widgets for the Apps it supports |
+| Consumer               | Linked to                                         |
+| ---------------------- | ------------------------------------------------- |
+| Sonarr, Radarr, Lidarr | qBittorrent (download client)                     |
+| Prowlarr               | Sonarr, Radarr, Lidarr                            |
+| Seerr                  | Jellyfin, Sonarr, Radarr                          |
+| Cleanuparr             | Sonarr, Radarr, qBittorrent                       |
+| Homarr                 | native tiles and widgets for the Apps it supports |
 
 A failing Link marks the consuming App as needing attention, not its target. Browser-only steps are reported as **Manual steps** with a hint and stay retryable: `self-host setup <app>`. Homarr Links need Homarr **2.4.1** or newer; NZBGet and SABnzbd Links need **2.5.1** or newer. Other versions stop with a recovery hint (back up first). See the [Homarr contracts](docs/homarr-integration-contract.md) and [proof](docs/homarr-proof.md).
+
+See [Media Setup](docs/catalog/media-setup.md) for shared folders, hardlink limitations and TRaSH quality/naming guidance. Existing profiles and paths stay yours; Setup does not import score bundles or migrate libraries.
+
+When Seerr finds several quality profiles, choose an existing profile with `--set seerr.sonarr_profile=<ID-or-name>` and `--set seerr.radarr_profile=<ID-or-name>` on install. Existing connections keep their selections.
 
 </details>
 
@@ -408,6 +412,8 @@ To turn it off, set `SELF_HOST_NO_TELEMETRY=1` or `DO_NOT_TRACK=1` (or `true`). 
 | `docs/`                                | Decisions, agent briefs, release notes and proofs.           |
 
 `site/` and `dcm/` are one bun workspace: run `bun install` at the root. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+For Apps and Links, use the [extension checklist](docs/catalog/adding-apps.md).
 
 ## Community and support
 

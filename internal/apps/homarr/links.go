@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/apps/beszel"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -38,22 +37,6 @@ func plain(kind string) widget { return widget{kind: kind, options: map[string]a
 
 func statWidget(metrics ...string) widget {
 	return widget{kind: "stats", options: map[string]any{}, metrics: metrics}
-}
-
-// beszelSystemStats shows this machine's CPU, memory, disk and network.
-// Homarr selects the system as "<integration id>:<system id>".
-func beszelSystemStats() widget {
-	return widget{kind: "beszelSystemStats", bind: func(ctx context.Context, to *helpers.H, integrationID string) (map[string]any, error) {
-		id, err := beszel.MachineID(ctx, to)
-		if err != nil {
-			return nil, err
-		}
-		options := map[string]any{"systemId": integrationID + ":" + id, "timePeriod": "1h"}
-		for _, key := range []string{"showCpu", "showMemory", "showDisk", "showDiskIO", "showNetwork", "showGpuUsage", "showGpuMemory", "showGpuPower", "showDockerCpu", "showDockerMemory", "showDockerNetwork"} {
-			options[key] = true
-		}
-		return options, nil
-	}}
 }
 
 // target is one App Homarr links to: an app tile, for most a dedicated
@@ -125,13 +108,7 @@ func existingTargets() []target {
 			},
 			widgets: []widget{plain("downloads"), statWidget("download", "upload", "paused")},
 		},
-		{
-			id: "beszel", name: "Beszel", kind: "beszel", internal: (*helpers.H).InternalURL,
-			secrets: func(_, to *helpers.H) []secret {
-				return []secret{{Kind: "username", Value: beszel.AdminEmail(to)}, {Kind: "password", Value: to.AdminPassword()}}
-			},
-			widgets: []widget{beszelSystemStats()},
-		},
+		beszelTarget(),
 		{id: "ntfy", name: "ntfy", kind: "ntfy", internal: (*helpers.H).InternalURL, secrets: ntfySecret,
 			widgets: []widget{plain("notifications"), statWidget("messages")}},
 		{id: "vaultwarden", name: "Vaultwarden", internal: (*helpers.H).InternalURL},
@@ -156,6 +133,15 @@ func iconURL(id string) string {
 }
 
 func (t target) hint(from *helpers.H) string {
+	if t.id == "immich" {
+		return "Run self-host setup immich to verify the dedicated administrator-owned key with only user.read and server.statistics, then run self-host setup homarr. For a lost or mismatched key, restore its matching secret and ID through the Project secret boundary; never delete a key solely by name or create a duplicate Homarr integration. A no-op Stats refresh needs a Setup retry, not another key."
+	}
+	if t.id == "beszel" {
+		return beszelRecoveryHint
+	}
+	if t.id == "uptime-kuma" {
+		return "Run self-host setup uptime-kuma to verify its administrator and explicitly selected existing status page, then run self-host setup homarr. If no page is selected, follow that Setup's approval-gated input recovery; do not publish private monitors, change Access or create a duplicate Homarr integration. A native widget/API mismatch needs a reviewed Homarr adapter update, not a metrics API key or another integration."
+	}
 	if t.id == "gluetun" {
 		return gluetunPrivacyHint + " " + gluetunReadinessHint
 	}
@@ -248,11 +234,15 @@ func listApps(ctx context.Context, h *helpers.H) ([]map[string]any, error) {
 }
 
 func (t target) findApp(ctx context.Context, h *helpers.H, pingURL string) (string, bool, error) {
+	ids, err := managedAppIDs(h)
+	if err != nil {
+		return "", false, err
+	}
 	apps, err := listApps(ctx, h)
 	if err != nil {
 		return "", false, err
 	}
-	recorded := managedAppIDs(h)[t.id]
+	recorded := ids[t.id]
 	if recorded != "" {
 		for _, item := range apps {
 			if appID(item) == recorded && !strings.HasPrefix(stringField(item, "description"), retainedTileMarker) {
@@ -340,6 +330,9 @@ func board(ctx context.Context, h *helpers.H) (map[string]any, error) {
 	record, _ := value.(map[string]any)
 	if record == nil {
 		return nil, errors.New("Homarr did not return the board")
+	}
+	if err := validateBoardOwnership(h, record); err != nil {
+		return nil, err
 	}
 	return record, nil
 }
@@ -463,23 +456,13 @@ func addItemID(ctx context.Context, h *helpers.H, body map[string]any) (string, 
 	return created.ItemID, nil
 }
 
-func ownedWidgets(h *helpers.H, integrationID string) map[string]bool {
-	ids := map[string]bool{}
-	json.Unmarshal([]byte(h.Secret(h.Key("widgets_"+integrationID))), &ids)
-	return ids
-}
-
 // The old CLI emitted one widget per kind, empty plain options, and
 // deterministic stats entries. Only that complete, unique shape is adopted.
 // Anything ambiguous requires an explicit ownership decision before mutation.
 func widgetOwnership(h *helpers.H, integrationID string, widgets []widget, items []map[string]any) (map[string]bool, error) {
 	key := h.Key("widgets_" + integrationID)
 	if raw := h.Secret(key); raw != "" {
-		ids := map[string]bool{}
-		if err := json.Unmarshal([]byte(raw), &ids); err != nil || ids == nil {
-			return nil, fmt.Errorf("invalid Homarr widget ownership; review %s as a JSON object of owned widget IDs, then run self-host setup homarr", key)
-		}
-		return ids, nil
+		return ownedWidgets(h, integrationID)
 	}
 	owned := map[string]bool{}
 	matching := false
@@ -553,14 +536,11 @@ func addTile(ctx context.Context, h *helpers.H, boardID, appID string) error {
 	return err
 }
 
-func managedAppIDs(h *helpers.H) map[string]string {
-	ids := map[string]string{}
-	json.Unmarshal([]byte(h.Secret(h.Key("app_ids"))), &ids)
-	return ids
-}
-
 func rememberAppID(h *helpers.H, targetID, appID string) error {
-	ids := managedAppIDs(h)
+	ids, err := managedAppIDs(h)
+	if err != nil {
+		return err
+	}
 	ids[targetID] = appID
 	raw, _ := json.Marshal(ids)
 	return h.SetSecret(h.Key("app_ids"), string(raw))
@@ -719,6 +699,16 @@ func widgetInitialSize(kind string) map[string]any {
 }
 
 func (t target) addWidgets(ctx context.Context, h, to *helpers.H, boardID, integrationID string, items []map[string]any) error {
+	if t.id == "beszel" {
+		current, err := board(ctx, h)
+		if err != nil {
+			return err
+		}
+		if _, err := reconcileBeszelSystemStats(ctx, h, to, current, integrationID, true); err != nil {
+			return err
+		}
+		items = itemsOf(current)
+	}
 	owned, err := widgetOwnership(h, integrationID, t.widgets, items)
 	if err != nil {
 		return err
@@ -752,6 +742,11 @@ func (t target) addWidgets(ctx context.Context, h, to *helpers.H, boardID, integ
 		raw, _ := json.Marshal(owned)
 		if err := h.SetSecret(h.Key("widgets_"+integrationID), string(raw)); err != nil {
 			return err
+		}
+		if t.id == "beszel" && w.kind == "beszelSystemStats" {
+			if err := rememberBeszelBinding(h, integrationID, id, stringField(options, "systemId")); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -805,6 +800,9 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 			return false, err
 		}
 	}
+	if err := validateOwnership(from); err != nil {
+		return false, err
+	}
 	if err := t.compatible(ctx, from, to); err != nil {
 		return false, err
 	}
@@ -853,6 +851,12 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 	if from.Secret(integrationFingerprintKey(from, integrationID)) != integrationFingerprint(t, from, to) {
 		return false, nil
 	}
+	if t.id == "beszel" {
+		ready, err := reconcileBeszelSystemStats(ctx, from, to, current, integrationID, false)
+		if err != nil || !ready {
+			return false, err
+		}
+	}
 	if err := t.verifyData(ctx, from, to, integrationID); err != nil {
 		return false, err
 	}
@@ -863,26 +867,19 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 	if rawOwnership == "" {
 		return false, nil
 	}
-	var ownership map[string]bool
-	if err := json.Unmarshal([]byte(rawOwnership), &ownership); err != nil || ownership == nil {
-		return false, errors.New("Homarr widget ownership must be reviewed; run self-host setup homarr for the recovery operation")
+	if _, err := ownedWidgets(from, integrationID); err != nil {
+		return false, err
 	}
 	items := itemsOf(current)
 	for _, w := range t.widgets {
-		if sharedWidget(w.kind) && !sharedWidgetCurrent(from, current, w, integrationID) {
-			return false, nil
+		if sharedWidget(w.kind) {
+			ready, err := sharedWidgetCurrent(from, current, w, integrationID)
+			if err != nil || !ready {
+				return false, err
+			}
 		}
 		if !hasWidget(items, w.kind, integrationID) {
 			return false, nil
-		}
-		owned := ownedWidgets(from, integrationID)
-		for _, item := range items {
-			if w.kind == "stats" {
-				continue
-			}
-			if owned[stringField(item, "id")] && wiredTo(item, w.kind, integrationID) && !widgetCurrent(item, w, integrationID) {
-				return false, nil
-			}
 		}
 	}
 	return true, nil
@@ -893,6 +890,13 @@ func (t target) add(ctx context.Context, from, to *helpers.H) error {
 		if err := t.preflight(ctx, from, to); err != nil {
 			return err
 		}
+	}
+	if err := validateOwnership(from); err != nil {
+		return err
+	}
+	recorded, err := managedAppIDs(from)
+	if err != nil {
+		return err
 	}
 	if err := t.compatible(ctx, from, to); err != nil {
 		return err
@@ -906,13 +910,18 @@ func (t target) add(ctx context.Context, from, to *helpers.H) error {
 	if err != nil {
 		return err
 	}
+	if t.id == "beszel" {
+		if _, err := reconcileBeszelSystemStats(ctx, from, to, current, from.Secret(from.Key("linked_"+t.id)), false); err != nil {
+			return err
+		}
+	}
 	boardID := stringField(current, "id")
 	id, found, err := t.findApp(ctx, from, internal)
 	if err != nil {
 		return err
 	}
 	if !found {
-		previous := managedAppIDs(from)[t.id]
+		previous := recorded[t.id]
 		retained := false
 		if previous != "" {
 			apps, err := listApps(ctx, from)
@@ -1007,7 +1016,14 @@ func browserAddress(ctx context.Context, from, to *helpers.H) (string, error) {
 }
 
 func (t target) remove(ctx context.Context, from, to *helpers.H) error {
-	if recordedID := managedAppIDs(from)[t.id]; recordedID != "" {
+	if err := validateOwnership(from); err != nil {
+		return err
+	}
+	recorded, err := managedAppIDs(from)
+	if err != nil {
+		return err
+	}
+	if recordedID := recorded[t.id]; recordedID != "" {
 		apps, err := listApps(ctx, from)
 		if err != nil {
 			return err
@@ -1062,7 +1078,7 @@ func (t target) remove(ctx context.Context, from, to *helpers.H) error {
 		return err
 	}
 	if !found {
-		recordedID := managedAppIDs(from)[t.id]
+		recordedID := recorded[t.id]
 		if err := removeAppTiles(ctx, from, recordedID); err != nil {
 			return err
 		}
@@ -1089,6 +1105,10 @@ func (t target) remove(ctx context.Context, from, to *helpers.H) error {
 }
 
 func (t target) releaseApp(ctx context.Context, h *helpers.H, id string) error {
+	ids, err := managedAppIDs(h)
+	if err != nil {
+		return err
+	}
 	apps, err := listApps(ctx, h)
 	if err != nil {
 		return err
@@ -1107,7 +1127,6 @@ func (t target) releaseApp(ctx context.Context, h *helpers.H, id string) error {
 			return err
 		}
 	}
-	ids := managedAppIDs(h)
 	delete(ids, t.id)
 	raw, err := json.Marshal(ids)
 	if err != nil {
@@ -1147,12 +1166,19 @@ func integrationUsedByWidgets(ctx context.Context, h *helpers.H, integrationID s
 }
 
 func (t target) absent(ctx context.Context, from, to *helpers.H) (bool, error) {
+	if err := validateOwnership(from); err != nil {
+		return false, err
+	}
+	recorded, err := managedAppIDs(from)
+	if err != nil {
+		return false, err
+	}
 	internal := t.internal(to)
 	_, found, err := t.findApp(ctx, from, internal)
 	if err != nil || found {
 		return false, err
 	}
-	if id := managedAppIDs(from)[t.id]; id != "" {
+	if id := recorded[t.id]; id != "" {
 		current, err := board(ctx, from)
 		if err != nil {
 			return false, err
@@ -1176,7 +1202,10 @@ func (t target) absent(ctx context.Context, from, to *helpers.H) (bool, error) {
 			if err != nil {
 				return false, err
 			}
-			owned := ownedWidgets(from, id)
+			owned, err := ownedWidgets(from, id)
+			if err != nil {
+				return false, err
+			}
 			for _, item := range itemsOf(current) {
 				if owned[stringField(item, "id")] {
 					if sharedWidget(stringField(item, "kind")) && !wiredTo(item, stringField(item, "kind"), id) {

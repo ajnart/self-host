@@ -330,6 +330,15 @@ func (s *session) createAPIKey(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
+	ownershipRecovery := func(err error) error {
+		return h.Step(ctx, "ownership", "review Homarr ownership", helpers.StepSpec{
+			Do:   func(context.Context) error { return err },
+			Hint: err.Error(),
+		})
+	}
+	if err := validateOwnership(h); err != nil {
+		return ownershipRecovery(err)
+	}
 	if err := h.Ready(ctx, "/api/health/live", helpers.Timeout(2*time.Minute)); err != nil {
 		return err
 	}
@@ -384,6 +393,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		}
 	}
 	if err := ensureAssistant(ctx, h); err != nil {
+		if errors.Is(err, helpers.ErrManual) {
+			return ownershipRecovery(err)
+		}
 		return err
 	}
 	return h.Step(ctx, "notebook", "place the Homarr notebook", helpers.StepSpec{

@@ -3,6 +3,8 @@
 ## Pitfalls
 
 - Hardware acceleration depends on matching host drivers and devices.
+- Setup recognizes existing libraries by their expected folder and CollectionType, not their display names, and leaves their options unchanged. The media parent is `/data/media` for shared layouts and `/media` for legacy layouts. Renaming Movies or Shows therefore does not create duplicate libraries; changing storage layout requires explicit migration rather than a library rename.
+- A matching display name with a different folder/type, or an expected folder with a different or missing CollectionType, requires Manual review in Dashboard > Libraries. Setup does not rename, replace or duplicate the conflicting library. Resolve the conflict explicitly, then run self-host setup jellyfin; a missing type is not inferred from a name or folder.
 
 ## Security
 
@@ -30,3 +32,7 @@ Sources: [Jellyfin container docs](https://jellyfin.org/docs/general/installatio
 [Linux inotify limits](https://www.kernel.org/pub/linux/docs/man-pages/book/man-pages-6.13.pdf).
 
 Startup ordering source: [Jellyfin 10.11.11 StartupController](https://github.com/jellyfin/jellyfin/blob/v10.11.11/Jellyfin.Api/Controllers/StartupController.cs).
+
+Library schema sources: [VirtualFolderInfo](https://github.com/jellyfin/jellyfin/blob/master/MediaBrowser.Model/Entities/VirtualFolderInfo.cs),
+[LibraryStructureController](https://github.com/jellyfin/jellyfin/blob/master/Jellyfin.Api/Controllers/LibraryStructureController.cs),
+[stable OpenAPI](https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json).

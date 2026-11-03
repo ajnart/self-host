@@ -33,6 +33,10 @@ func (App) Info() app.Info {
 
 func (App) Inputs() []app.Input { return nil }
 
+func (App) StandaloneGuide() string {
+	return "Place copies of documents to import in the mounted consume folder at /usr/src/paperless/consume, or upload them through the web page. Successfully consumed files are removed from that folder and stored in the document archive; keep original backups elsewhere. Administrator environment settings create a missing account only; changing them cannot reset an existing user's password."
+}
+
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{
 		{Name: "db_password", Length: 48},
@@ -65,6 +69,7 @@ func (App) Compose(rc app.RenderContext) string {
       PAPERLESS_DBHOST: paperless-ngx-db
       PAPERLESS_DBENGINE: postgresql
       PAPERLESS_ADMIN_USER: ${ADMIN_USER}
+      PAPERLESS_TIME_ZONE: ${TZ}
       USERMAP_UID: ${PUID}
       USERMAP_GID: ${PGID}
       PAPERLESS_DBPASS_FILE: /run/secrets/db_password
@@ -153,11 +158,12 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		},
 		Hint: func(h *helpers.H, user string) string {
 			return "Open " + h.URL + " and sign in as " + user +
-				". The password is in the admin-password file; if the first start failed, read: self-host logs paperless-ngx"
+				". The Admin login is shown by self-host credentials. Administrator environment settings create a missing account only; changing them cannot reset an existing password. Recover that account explicitly; if the first start failed, read: self-host logs paperless-ngx"
 		},
 	}).Admin(ctx, h); err != nil {
 		return err
 	}
+	h.Info("Place copies of documents to import in the App's consume folder, mounted at /usr/src/paperless/consume, or upload them through Paperless-ngx. Successfully consumed files are removed from that folder and stored in the document archive; keep original backups elsewhere.")
 	if h.Peer("homarr") == nil {
 		h.Skip("api-key", "Homarr is not installed; no Paperless-ngx token is needed")
 		return nil

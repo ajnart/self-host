@@ -62,7 +62,10 @@ func verifyHomeAssistant(ctx context.Context, from, to *helpers.H, integrationID
 	if err != nil {
 		return err
 	}
-	owned := ownedWidgets(from, integrationID)
+	owned, err := ownedWidgets(from, integrationID)
+	if err != nil {
+		return err
+	}
 	for _, item := range itemsOf(current) {
 		if !owned[stringField(item, "id")] || !wiredTo(item, "smartHome-entityState", integrationID) {
 			continue

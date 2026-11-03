@@ -227,6 +227,9 @@ func (ss *session) refreshFragments(ctx context.Context, ids []string) error {
 	}
 	for _, id := range stale {
 		next := pendings[id]
+		if err := ss.prepareMedia(ctx, []app.App{next.a}); err != nil {
+			return errors.Join(err, ss.p.SaveState(ss.state))
+		}
 		if err := ss.ensureSecrets(next.a); err != nil {
 			return errors.Join(err, ss.p.SaveState(ss.state))
 		}

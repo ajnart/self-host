@@ -179,14 +179,12 @@ func (s *Service) Remove(ctx context.Context, ids []string, purge bool) error {
 }
 
 // unlink runs Remove for Links that point at id from other installed Apps.
-// A Link that cannot be undone stays recorded as a failed step on the App
-// that declares it, and makes the removal incomplete.
 func (ss *session) unlink(ctx context.Context, id string) []string {
 	target, found := ss.s.Catalog.App(id)
 	if !found || ss.state.Apps[id] == nil {
 		return nil
 	}
-	var failed []string
+	var blocked []string
 	for _, other := range ss.s.Catalog.Apps() {
 		otherID := other.Info().ID
 		if otherID == id || ss.state.Apps[otherID] == nil {
@@ -200,15 +198,21 @@ func (ss *session) unlink(ctx context.Context, id string) []string {
 			err := link.Remove(ctx, h, ss.helpers(target))
 			ss.reportUnexpected(h, "un"+link.ID, err)
 			if err != nil {
-				ss.state.Apps[otherID].Setup = stepstatus.SetupIncomplete
-				failed = append(failed, otherID)
+				st := ss.state.Apps[otherID]
+				st.Setup = setupResult(st)
+				blocked = append(blocked, otherID)
 				continue
 			}
 			ss.forgetStep(otherID, link.ID)
 			ss.forgetStep(otherID, "un"+link.ID)
+			st := ss.state.Apps[otherID]
+			switch st.Setup {
+			case stepstatus.SetupOK, stepstatus.SetupIncomplete, stepstatus.SetupManual:
+				st.Setup = setupResult(st)
+			}
 		}
 	}
-	return failed
+	return blocked
 }
 
 // forgetStep drops a step record that no longer describes the App, such as
