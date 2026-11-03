@@ -1,0 +1,57 @@
+internal/apps/homarr/counts.go
+  s_0812986ae533ff::t_e4f6f93bfc59ba 5-9,11-17,21,23-31,35
+internal/apps/homarr/seerr_family.go
+  s_0812986ae533ff::t_136fe718d2821a 151,175
+internal/apps/homarr/target_anchor.go
+  s_0812986ae533ff::t_3ae91d88de9741 33
+internal/apps/homarr/target_changedetection.go
+  s_0812986ae533ff::t_2fa1ced559bab6 37-38
+internal/apps/homarr/target_homebox.go
+  s_0812986ae533ff::t_0712b0374ed15a 58-59
+internal/apps/homarr/target_maintainerr.go
+  s_0812986ae533ff::t_a70e22a765dd3e 25-26
+internal/apps/homarr/target_netalertx.go
+  s_0812986ae533ff::t_57033209fc8bf8 64,76
+internal/apps/homarr/target_openmediavault.go
+  s_0812986ae533ff::t_f315eabe247f8d 60-61
+internal/apps/homarr/target_opnsense.go
+  s_0812986ae533ff::t_43191fb2aa8cd1 94-95
+internal/apps/homarr/target_plantit.go
+  s_0812986ae533ff::t_751d517b3ca67c 94-95,97
+internal/apps/homarr/target_romm.go
+  s_0812986ae533ff::t_13b8d2637dbc3c 26
+internal/apps/homarr/target_synology.go
+  s_0812986ae533ff::t_c8c604b9c6d20b 91-94,104
+internal/apps/homarr/target_thingport.go
+  s_0812986ae533ff::t_bca8556ae22fef 6-7,63-64
+internal/apps/homarr/target_trilium.go
+  s_0812986ae533ff::t_b425ac9a7c903d 43,55-56
+internal/apps/homarr/target_truenas.go
+  s_0812986ae533ff::t_4acb8993d1754c 94-97,109
+internal/apps/homarr/target_unmanic.go
+  s_0812986ae533ff::t_2cdc3638892d31 33-34,36
+internal/apps/homarr/target_unraid.go
+  s_0812986ae533ff::t_962ff12495f82a 59-60
+internal/apps/homarr/target_wazuh.go
+  s_0812986ae533ff::t_5b3f2c81e3702e 95,109-111
+internal/apps/homarr/target_xteve.go
+  s_0812986ae533ff::t_0fa746dd10ac56 39-40,42
+internal/apps/homarr/target_your_spotify.go
+  s_0812986ae533ff::t_36ad61f1fb3df9 33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51175a1617ffdc017acda032ecdc90db79520a71",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
