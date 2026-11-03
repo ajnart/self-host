@@ -32,6 +32,7 @@ const expected = [
 	"LICENSE",
 	"binary.mjs",
 	"examples/sonarr.mjs",
+	"examples/homarr-sonarr.mjs",
 	"index.d.mts",
 	"index.mjs",
 	"package.json",

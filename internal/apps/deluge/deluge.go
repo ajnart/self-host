@@ -204,6 +204,63 @@ func establishPassword(ctx context.Context, h *helpers.H) error {
 	return h.SetSecret(h.Key("web_password"), password)
 }
 
+type daemonHost struct {
+	id       string
+	username json.RawMessage
+}
+
+type daemonSelection struct {
+	id, defaultDaemon string
+	hosts             []daemonHost
+}
+
+func readDaemonSelection(ctx context.Context, s *helpers.Session) (daemonSelection, error) {
+	configuration, err := rpc(ctx, s, "web.get_config")
+	if err != nil {
+		return daemonSelection{}, err
+	}
+	var config struct {
+		DefaultDaemon *string `json:"default_daemon"`
+	}
+	if json.Unmarshal(configuration.Result, &config) != nil || config.DefaultDaemon == nil {
+		return daemonSelection{}, errors.New("Deluge did not return its Web connection settings")
+	}
+	response, err := rpc(ctx, s, "web.get_hosts")
+	if err != nil {
+		return daemonSelection{}, err
+	}
+	var hosts [][]json.RawMessage
+	if json.Unmarshal(response.Result, &hosts) != nil || hosts == nil {
+		return daemonSelection{}, errors.New("Deluge did not return its saved daemon connections")
+	}
+	selection := daemonSelection{defaultDaemon: *config.DefaultDaemon}
+	for _, host := range hosts {
+		if len(host) != 4 {
+			return daemonSelection{}, errors.New("Deluge returned an incomplete daemon connection")
+		}
+		var candidate, address string
+		var port int
+		if json.Unmarshal(host[0], &candidate) != nil || json.Unmarshal(host[1], &address) != nil || json.Unmarshal(host[2], &port) != nil {
+			return daemonSelection{}, errors.New("Deluge returned an invalid daemon connection")
+		}
+		selection.hosts = append(selection.hosts, daemonHost{id: candidate, username: host[3]})
+		if candidate == "" || port != 58846 || address != "127.0.0.1" && address != "localhost" && address != "::1" {
+			continue
+		}
+		if selection.defaultDaemon != "" && candidate != selection.defaultDaemon {
+			continue
+		}
+		if selection.id != "" {
+			return daemonSelection{}, helpers.ErrManual
+		}
+		selection.id = candidate
+	}
+	if selection.id == "" {
+		return daemonSelection{}, helpers.ErrManual
+	}
+	return selection, nil
+}
+
 func connectDaemon(ctx context.Context, h *helpers.H) error {
 	s, err := webSession(ctx, h)
 	if err != nil {
@@ -217,47 +274,9 @@ func connectDaemon(ctx context.Context, h *helpers.H) error {
 	if connected {
 		return verifyQueue(ctx, s)
 	}
-	configuration, err := rpc(ctx, s, "web.get_config")
+	selection, err := readDaemonSelection(ctx, s)
 	if err != nil {
 		return err
-	}
-	var config struct {
-		DefaultDaemon *string `json:"default_daemon"`
-	}
-	if json.Unmarshal(configuration.Result, &config) != nil || config.DefaultDaemon == nil {
-		return errors.New("Deluge did not return its Web connection settings")
-	}
-	response, err := rpc(ctx, s, "web.get_hosts")
-	if err != nil {
-		return err
-	}
-	var hosts [][]json.RawMessage
-	if json.Unmarshal(response.Result, &hosts) != nil || hosts == nil {
-		return errors.New("Deluge did not return its saved daemon connections")
-	}
-	id := ""
-	for _, host := range hosts {
-		if len(host) != 4 {
-			return errors.New("Deluge returned an incomplete daemon connection")
-		}
-		var candidate, address string
-		var port int
-		if json.Unmarshal(host[0], &candidate) != nil || json.Unmarshal(host[1], &address) != nil || json.Unmarshal(host[2], &port) != nil {
-			return errors.New("Deluge returned an invalid daemon connection")
-		}
-		if candidate == "" || port != 58846 || address != "127.0.0.1" && address != "localhost" && address != "::1" {
-			continue
-		}
-		if *config.DefaultDaemon != "" && candidate != *config.DefaultDaemon {
-			continue
-		}
-		if id != "" {
-			return helpers.ErrManual
-		}
-		id = candidate
-	}
-	if id == "" {
-		return helpers.ErrManual
 	}
 	connected, err = daemonConnected(ctx, s)
 	if err != nil {
@@ -266,21 +285,24 @@ func connectDaemon(ctx context.Context, h *helpers.H) error {
 	if connected {
 		return verifyQueue(ctx, s)
 	}
-	if _, err := rpc(ctx, s, "web.connect", id); err != nil {
+	if _, err := rpc(ctx, s, "web.connect", selection.id); err != nil {
 		return err
 	}
 	if err := verifyQueue(ctx, s); err != nil {
 		return err
 	}
-	if *config.DefaultDaemon == "" {
-		if _, err := rpc(ctx, s, "web.set_config", map[string]any{"default_daemon": id}); err != nil {
+	if selection.defaultDaemon == "" {
+		if _, err := rpc(ctx, s, "web.set_config", map[string]any{"default_daemon": selection.id}); err != nil {
 			return err
 		}
 		response, err := rpc(ctx, s, "web.get_config")
 		if err != nil {
 			return err
 		}
-		if json.Unmarshal(response.Result, &config) != nil || config.DefaultDaemon == nil || *config.DefaultDaemon != id {
+		var config struct {
+			DefaultDaemon *string `json:"default_daemon"`
+		}
+		if json.Unmarshal(response.Result, &config) != nil || config.DefaultDaemon == nil || *config.DefaultDaemon != selection.id {
 			return errors.New("Deluge did not preserve its local daemon connection for restart")
 		}
 	}

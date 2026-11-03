@@ -11,8 +11,8 @@ var applicationImplementations = map[string]string{
 	"lidarr": "Lidarr",
 }
 
-func downloadClientLink(categoryField, category string) app.Link {
-	return servarr.QBittorrentLink(apiV3, categoryField, category)
+func downloadClientLinks(categoryField, category string) []app.Link {
+	return servarr.DownloadClientLinks(apiV3, categoryField, category)
 }
 
 func applicationLink(target string) app.Link {
