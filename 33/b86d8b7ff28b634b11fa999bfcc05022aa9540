@@ -1,0 +1,20 @@
+internal/apps/arr/sabnzbd_protocol_test.go
+  h_d6e478ca18e517 318-455
+internal/apps/servarr/downloadclients.go
+  h_d6e478ca18e517 70-79,85,94-96,139-184
+internal/apps/servarr/downloadclients_test.go
+  h_d6e478ca18e517 41,93,112-114,619-620,622-623,635-1174
+internal/apps/servarr/links.go
+  h_d6e478ca18e517 210,213,217,221,223,226,232,239,249,252-258,260,264-269,273,316,388,401,422,447-448,454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33b86d8b7ff28b634b11fa999bfcc05022aa9540",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
