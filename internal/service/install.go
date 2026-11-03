@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/catalog"
@@ -616,10 +617,6 @@ func (ss *session) ensureAdmin(opts InstallOptions) error {
 
 // writeFiles writes the config files an App declares into its folder.
 func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
-	declarer, found := a.(app.FileDeclarer)
-	if !found {
-		return nil
-	}
 	id := a.Info().ID
 	secret := func(name string) string {
 		if name == "ADMIN_USER" || name == "ADMIN_PASSWORD" {
@@ -627,7 +624,14 @@ func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
 		}
 		return ss.secrets.values[SecretKey(id, name)]
 	}
-	for _, f := range declarer.Files(rc, secret) {
+	var files []app.File
+	if declarer, found := a.(app.FileDeclarer); found {
+		files = declarer.Files(rc, secret)
+	}
+	if err := ss.prepareAppDirectories(a, rc, files); err != nil {
+		return err
+	}
+	for _, f := range files {
 		clean := path.Clean(f.Path)
 		if path.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") {
 			return fmt.Errorf("%s: file %q must stay inside apps/%s", id, f.Path, id)
@@ -652,6 +656,118 @@ func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
 		}
 	}
 	return nil
+}
+
+func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files []app.File) error {
+	declarer, found := a.(app.DirectoryDeclarer)
+	if !found {
+		return nil
+	}
+	directories := declarer.Directories(rc)
+	if len(directories) == 0 {
+		return nil
+	}
+	h := ss.helpers(a)
+	return h.Step(context.Background(), "directories", "prepare declared App directories", helpers.StepSpec{
+		Do: func(ctx context.Context) error {
+			id := a.Info().ID
+			if _, compiled := ss.s.Catalog.App(id); !compiled || ss.p.IsExtra(id) {
+				return errors.New("directory preparation requires a compiled Catalog App")
+			}
+			prepared, err := ss.s.resolveAppDirectories(ctx, id, directories)
+			if err != nil {
+				return err
+			}
+			for _, file := range files {
+				clean := path.Clean(file.Path)
+				if path.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") {
+					return errors.New("App files must stay inside the App directory")
+				}
+				for _, dir := range directories {
+					if clean == dir.Path || strings.HasPrefix(clean, dir.Path+"/") || strings.HasPrefix(dir.Path, clean+"/") {
+						return &helpers.ManualError{Hint: "The compiled file declaration overlaps " + id + "/" + dir.Path + ". Preserve existing files and ownership; use a corrected App definition without sentinel files or recursive ownership repair, then retry self-host install " + id}
+					}
+				}
+				if strings.Contains(clean, "/") {
+					return &helpers.ManualError{Hint: "Nested compiled files cannot safely share directory preparation for " + id + " because the existing file writer follows directory aliases. Preserve existing files and ownership; use a corrected App definition with only disjoint top-level files, then retry self-host install " + id}
+				}
+			}
+			return appDirectoryError(id, prepared, ss.p.PrepareAppDirectories(id, prepared))
+		},
+		Hint: "Preserve existing App data and review its declared directory ownership and permissions before retrying the approved install",
+	})
+}
+
+func (s *Service) resolveAppDirectories(ctx context.Context, id string, directories []app.Directory) ([]project.AppDirectory, error) {
+	var prepared []project.AppDirectory
+	seen := map[string]bool{}
+	for _, dir := range directories {
+		if dir.Path == "" || dir.Path == "." || dir.Path == ".." || strings.ContainsAny(dir.Path, "/\\\x00") || seen[dir.Path] || dir.Mode&^uint32(0o777) != 0 || dir.Mode&0o700 != 0o700 {
+			return nil, errors.New("App directory declarations need distinct relative components and explicit owner rwx permission bits")
+		}
+		seen[dir.Path] = true
+		uid, uidErr := appDirectoryID(dir.UID)
+		gid, gidErr := appDirectoryID(dir.GID)
+		if uidErr != nil || gidErr != nil {
+			return nil, errors.New("App directory declarations need explicit numeric container UID/GID")
+		}
+		prepared = append(prepared, project.AppDirectory{Path: dir.Path, Mode: os.FileMode(dir.Mode), UID: uid, GID: gid})
+	}
+	if len(prepared) == 0 {
+		return nil, nil
+	}
+	namespace, err := host.MediaUserNamespace(ctx, s.Deps)
+	if err != nil {
+		return nil, &helpers.ManualError{Hint: "Verify the local Docker runtime UID/GID mapping before admitting " + id + " directories: " + err.Error() + ". Preserve existing storage and retry self-host install " + id}
+	}
+	for i := range prepared {
+		dir := &prepared[i]
+		dir.UID, err = namespace.HostUID(dir.UID)
+		if err == nil {
+			dir.GID, err = namespace.HostGID(dir.GID)
+		}
+		if err != nil {
+			return nil, &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
+		}
+	}
+	return prepared, nil
+}
+
+func (s *Service) validateAppDirectories(ctx context.Context, p *project.Project, a app.App, record *project.AppState, settings map[string]string) error {
+	declarer, found := a.(app.DirectoryDeclarer)
+	if !found {
+		return nil
+	}
+	if record == nil {
+		return fmt.Errorf("missing configuration record for %s directory validation", a.Info().ID)
+	}
+	rc, err := s.renderContext(ctx, a, record.Port, publicInputs(a, record.Inputs), maps.Clone(settings))
+	if err != nil {
+		return err
+	}
+	dirs, err := s.resolveAppDirectories(ctx, a.Info().ID, declarer.Directories(rc))
+	if err != nil {
+		return err
+	}
+	return appDirectoryError(a.Info().ID, dirs, p.ValidateAppDirectories(a.Info().ID, dirs))
+}
+
+func appDirectoryError(id string, dirs []project.AppDirectory, err error) error {
+	if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+		return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s and all existing or partly prepared directories. Directory admission requires trusted nonshared parents, inspectable local filesystem/ACL semantics and matching mapped ownership/modes %+v: %s. Review storage explicitly, then retry the approved self-host install %s; no ACL reset, recursive ownership repair or pathname cleanup was attempted", id, dirs, err, id)}
+	}
+	return err
+}
+
+func appDirectoryID(value string) (int, error) {
+	if value == "" || strings.Trim(value, "0123456789") != "" {
+		return 0, errors.New("expected a decimal runtime identity")
+	}
+	n, err := strconv.ParseUint(value, 10, 32)
+	if err != nil || n >= 1<<32-1 || int(n) < 0 {
+		return 0, errors.New("runtime identity is outside the supported numeric range")
+	}
+	return int(n), nil
 }
 
 // ensureSecrets generates the secrets an App declares that secrets.env lacks.

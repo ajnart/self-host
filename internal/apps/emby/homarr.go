@@ -17,18 +17,23 @@ var errAPIKeyRejected = errors.New("Emby rejected the API key; run self-host set
 func APIKey(h *helpers.H) string { return h.Secret(h.Key("homarr_api_key")) }
 
 func verifyServer(ctx context.Context, h *helpers.H, key string) error {
+	_, err := serverIdentity(ctx, h, key)
+	return err
+}
+
+func serverIdentity(ctx context.Context, h *helpers.H, key string) (string, error) {
 	resp, err := h.HTTP(ctx, helpers.Request{Path: "/emby/System/Info", Header: embyHeader(key), NoRedirect: true})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden {
-		return errAPIKeyRejected
+		return "", errAPIKeyRejected
 	}
 	var info struct{ ID, Version string }
 	if resp.Status != http.StatusOK || resp.Decode(&info) != nil || info.ID == "" || !helpers.VersionCompatible(info.Version, "4.10.0.40") {
-		return errors.New("Emby must return authenticated server information for Emby 4.10.0.40 or newer 4.x; run self-host setup emby")
+		return "", errors.New("Emby must return authenticated server information for Emby 4.10.0.40 or newer 4.x; run self-host setup emby")
 	}
-	return nil
+	return info.ID, nil
 }
 
 func VerifyHomarr(ctx context.Context, h *helpers.H) error {

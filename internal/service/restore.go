@@ -478,6 +478,19 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 	if err := rs.planEnvironment(p, replacements); err != nil {
 		return err
 	}
+	if err := rs.applyOwnership(ctx); err != nil {
+		return err
+	}
+	view := &project.Project{Root: rs.staging.Dir(), Owner: p.Owner}
+	for _, id := range rs.targets {
+		a, found := rs.s.Catalog.App(id)
+		if !found || rs.r.Manifest.Folder(id) == project.ExtraDirName {
+			continue
+		}
+		if err := rs.s.validateAppDirectories(ctx, view, a, state.Apps[id], settings); err != nil {
+			return fmt.Errorf("backup declared directories for %s: %w", id, err)
+		}
+	}
 	pending, err := p.LoadRestoreStartup()
 	if err != nil {
 		return err
@@ -711,9 +724,6 @@ func (rs *restoration) edit(ctx context.Context, ss *session) (result error) {
 			result = errors.Join(result, err)
 		}
 	}()
-	if err := rs.applyOwnership(ctx); err != nil {
-		return err
-	}
 	for _, id := range rs.targets {
 		if slices.Contains(existing, id) {
 			services, err := ss.services(id)
@@ -824,6 +834,16 @@ func (rs *restoration) rollback(ctx context.Context, ss *session, oldApps map[st
 	if len(recoverServices) > 0 {
 		recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 		defer cancel()
+		for _, id := range recoverApps {
+			a, found := ss.s.Catalog.App(id)
+			if !found || ss.p.IsExtra(id) {
+				continue
+			}
+			if err := ss.s.validateAppDirectories(recovery, ss.p, a, ss.state.Apps[id], ss.settings); err != nil {
+				rs.keepRecovery = true
+				return fmt.Errorf("original App %s storage is not admitted; recovery retained in %s: %w", id, rs.staging.Dir(), err)
+			}
+		}
 		if err := ss.compose.Up(recovery, recoverServices...); err != nil {
 			rs.keepRecovery = true
 			return fmt.Errorf("could not restart original Apps after rollback; records retained in %s; run self-host start %s: %w", rs.staging.Dir(), strings.Join(recoverApps, " "), err)
