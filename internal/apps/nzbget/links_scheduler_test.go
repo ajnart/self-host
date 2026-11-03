@@ -119,6 +119,11 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 				if len(f.backend.DownloadClients()) != 2 || f.nativeTests < 2 || f.pathProbe.wrongIdentity != 0 {
 					t.Fatal("production scheduler did not run the guarded real NZBGet leaf")
 				}
+				for _, client := range f.backend.DownloadClients() {
+					if client["implementation"] == "Nzbget" && client["protocol"] != nzbgetConsumerCases[index].protocol {
+						t.Fatal("production scheduler normalized the consumer's protocol")
+					}
+				}
 				requests, native := f.rpcRequests(), f.nativeTests
 				result := e.Run("remove", "nzbget", "--yes", "--json")
 				items := f.backend.DownloadClients()

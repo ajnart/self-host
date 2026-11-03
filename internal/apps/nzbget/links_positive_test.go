@@ -43,7 +43,7 @@ func TestNZBGetLinksAllConsumersPreserveIdentityChoicesAndAcceptedPasswordRecove
 				t.Fatal(err)
 			}
 			items := f.backend.DownloadClients()
-			if len(items) != 1 || f.creates != 1 || f.nativeTests != 2 || f.pathProbe.wrongIdentity != 0 || f.pathProbe.targets != 2 || f.pathProbe.consumers != 4 || arrtest.Field(items[0], "port") != float64(6789) || arrtest.Field(items[0], "username") != "admin" || arrtest.Field(items[0], "password") != password {
+			if len(items) != 1 || items[0]["protocol"] != consumer.protocol || f.creates != 1 || f.nativeTests != 2 || f.pathProbe.wrongIdentity != 0 || f.pathProbe.targets != 2 || f.pathProbe.consumers != 4 || arrtest.Field(items[0], "port") != float64(6789) || arrtest.Field(items[0], "username") != "admin" || arrtest.Field(items[0], "password") != password {
 				t.Fatal("provider identity, internal Address, accepted Admin credential or guarded native tests were incorrect")
 			}
 			firstID, firstRecord := items[0]["id"], f.ownership()
@@ -77,8 +77,74 @@ func TestNZBGetLinksAllConsumersPreserveIdentityChoicesAndAcceptedPasswordRecove
 				t.Fatal(err)
 			}
 			current := f.backend.DownloadClients()[0]
-			if current["id"] != firstID || f.updates != 1 || f.creates != 1 || arrtest.Field(current, "password") != "renewed-accepted-control-password" || arrtest.Field(current, consumer.categoryField) != "Music" || current["priority"] != float64(7) || arrtest.Field(current, "addPaused") != true {
+			if current["id"] != firstID || current["protocol"] != consumer.protocol || f.updates != 1 || f.creates != 1 || arrtest.Field(current, "password") != "renewed-accepted-control-password" || arrtest.Field(current, consumer.categoryField) != "Music" || current["priority"] != float64(7) || arrtest.Field(current, "addPaused") != true {
 				t.Fatal("accepted password recovery replaced the client or noncredential choices")
+			}
+		})
+	}
+}
+
+func TestNZBGetConsumerProtocolsMatchUpstreamWithoutNormalization(t *testing.T) {
+	for _, consumer := range nzbgetConsumerCases {
+		t.Run(consumer.id, func(t *testing.T) {
+			f := newNZBGetLinkFixture(t, consumer)
+			f.pathProbe.supported = true
+			if f.template["protocol"] != consumer.protocol {
+				t.Fatal("fixture does not model the pinned upstream protocol")
+			}
+			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
+				t.Fatal("actual consumer protocol rejected", err)
+			}
+			client := f.backend.DownloadClients()[0]
+			if client["protocol"] != consumer.protocol || f.nativeTests != 2 {
+				t.Fatal("actual protocol was normalized or native verification was skipped")
+			}
+			other := "UsenetDownloadProtocol"
+			if consumer.id == "lidarr" {
+				other = "usenet"
+			}
+			owned, native, requests := f.ownership(), f.nativeTests, f.rpcRequests()
+			client["protocol"] = other
+			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("wrong stored protocol accepted", err)
+			}
+			if f.nativeTests != native || f.rpcRequests() != requests || f.updates != 0 || f.ownership() != owned {
+				t.Fatal("wrong stored protocol reached peer/native reads or changed ownership")
+			}
+			g := newNZBGetLinkFixture(t, consumer)
+			g.pathProbe.supported = true
+			g.template["protocol"] = other
+			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("wrong schema protocol accepted", err)
+			}
+			if g.nativeTests != 0 || g.creates != 0 || g.rpcRequests() != 0 || g.ownership() != "" {
+				t.Fatal("wrong schema protocol reached peer/native reads or acquired ownership")
+			}
+		})
+	}
+}
+
+func TestNZBGetRejectsUnsupportedActualConsumerContractsBeforePeerReads(t *testing.T) {
+	for _, scenario := range []struct {
+		consumer nzbgetConsumerCase
+		actual   string
+	}{
+		{nzbgetConsumerCases[0], "readarr"},
+		{nzbgetConsumerCases[0], "radarr"},
+		{nzbgetConsumerCases[0], "lidarr"},
+		{nzbgetConsumerCases[2], "sonarr"},
+	} {
+		t.Run(scenario.consumer.id+"/"+scenario.actual, func(t *testing.T) {
+			f := newNZBGetLinkFixture(t, scenario.consumer)
+			f.pathProbe.supported = true
+			from := *f.from
+			from.App = scenario.actual
+			f.secrets[from.Key("api_key")] = f.backend.Key
+			if err := f.link.Apply(context.Background(), &from, f.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("unsupported consumer/API/category-field combination was accepted", err)
+			}
+			if f.nativeTests != 0 || f.creates != 0 || f.rpcRequests() != 0 || f.secrets[from.Key("link_nzbget_resource")] != "" || len(f.pathProbe.observed) != 0 {
+				t.Fatal("unsupported consumer reached peer/native reads or acquired ownership")
 			}
 		})
 	}

@@ -20,13 +20,13 @@ import (
 )
 
 type nzbgetConsumerCase struct {
-	id, api, categoryField, category string
+	id, api, categoryField, category, protocol string
 }
 
 var nzbgetConsumerCases = []nzbgetConsumerCase{
-	{"sonarr", servarr.V3, "tvCategory", "tv"},
-	{"radarr", servarr.V3, "movieCategory", "Movies"},
-	{"lidarr", servarr.V1, "musicCategory", "Music"},
+	{"sonarr", servarr.V3, "tvCategory", "tv", "usenet"},
+	{"radarr", servarr.V3, "movieCategory", "Movies", "usenet"},
+	{"lidarr", servarr.V1, "musicCategory", "Music", "UsenetDownloadProtocol"},
 }
 
 type nzbgetLinkFixture struct {
@@ -139,7 +139,7 @@ func newNZBGetLinkFixture(t *testing.T, consumer nzbgetConsumerCase) *nzbgetLink
 	}
 	f := &nzbgetLinkFixture{
 		backend: backend, category: consumer.category, field: consumer.categoryField,
-		template: map[string]any{"name": "NZBGet", "implementation": "Nzbget", "implementationName": "NZBGet", "configContract": "NzbgetSettings", "protocol": "usenet", "enable": true, "priority": float64(9), "fields": fields},
+		template: map[string]any{"name": "NZBGet", "implementation": "Nzbget", "implementationName": "NZBGet", "configContract": "NzbgetSettings", "protocol": consumer.protocol, "enable": true, "priority": float64(9), "fields": fields},
 		secrets:  porttest.Secrets{strings.ToUpper(consumer.id) + "_API_KEY": backend.Key}, recorder: &porttest.Recorder{},
 		link: servarr.NZBGetLink(consumer.api, consumer.categoryField, consumer.category), pathProbe: &nzbgetImageIdentityFixture{}, mappings: []map[string]any{},
 	}
@@ -156,7 +156,7 @@ func newNZBGetLinkFixture(t *testing.T, consumer nzbgetConsumerCase) *nzbgetLink
 			host = "nzbget"
 		}
 		value := arrtest.Field(item, "password")
-		return !f.rejectNative && arrtest.Field(item, "host") == host && arrtest.Field(item, "port") == float64(6789) && arrtest.Field(item, "username") == "admin" && (value == accepted || value == "********")
+		return !f.rejectNative && item["protocol"] == consumer.protocol && arrtest.Field(item, "host") == host && arrtest.Field(item, "port") == float64(6789) && arrtest.Field(item, "username") == "admin" && (value == accepted || value == "********")
 	}
 	base := backend.Handler()
 	f.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
