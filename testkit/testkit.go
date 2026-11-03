@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/catalog"
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/host"
@@ -44,15 +45,17 @@ type Info struct {
 }
 
 type App struct {
-	mu       sync.Mutex
-	service  *service.Service
-	runner   system.Runner
-	guard    *guardedRunner
-	marker   ownership
-	info     Info
-	closed   bool
-	done     chan struct{}
-	deadline time.Time
+	mu           sync.Mutex
+	service      *service.Service
+	runner       system.Runner
+	guard        *guardedRunner
+	marker       ownership
+	info         Info
+	closed       bool
+	done         chan struct{}
+	deadline     time.Time
+	workDeadline time.Time
+	pair         *pairState
 }
 
 func Start(ctx context.Context, opts Options) (*App, error) {
@@ -64,12 +67,24 @@ func Start(ctx context.Context, opts Options) (*App, error) {
 }
 
 func start(ctx context.Context, opts Options, original *system.Deps, cat *catalog.Catalog) (_ *App, err error) {
+	return startFixture(ctx, opts, original, cat, nil)
+}
+
+func startFixture(ctx context.Context, opts Options, original *system.Deps, cat *catalog.Catalog, pair *PairOptions) (_ *App, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	selected, ok := cat.App(opts.App)
 	if !ok {
 		return nil, startupError(StartupReasonApp, "testkit requires one Catalog App")
+	}
+	selections := []app.App{selected}
+	if pair != nil {
+		target, err := pairSelection(cat, *pair)
+		if err != nil {
+			return nil, err
+		}
+		selections = append(selections, target)
 	}
 	if opts.Image != "" && !project.ValidFixtureImage(opts.Image) {
 		return nil, startupError(StartupReasonOptions, "invalid selected image")
@@ -151,7 +166,7 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	guard := &guardedRunner{base: base, p: p, policy: project.FixturePolicy{Root: root, Service: selected.Info().Service, Image: opts.Image}, ports: ports}
 	deps.Runner = guard
 	svc := service.New(&deps, events.Discard(), cat)
-	a := &App{service: svc, runner: base, guard: guard, marker: meta, deadline: deadline, done: make(chan struct{})}
+	a := &App{service: svc, runner: base, guard: guard, marker: meta, deadline: deadline, workDeadline: workDeadline, done: make(chan struct{})}
 	defer func() {
 		if err != nil {
 			cause := err
@@ -194,24 +209,33 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	}
 	var sets []string
 	primary := 0
-	if selected.Info().Port > 0 {
-		primary, err = ports.random("tcp")
-		if err != nil {
+	publications := map[string]int{}
+	for _, selection := range selections {
+		if selection.Info().Port > 0 {
+			primary, err = ports.random("tcp")
+			if err != nil {
+				return nil, err
+			}
+			publications[selection.Info().ID] = primary
+			sets = append(sets, selection.Info().ID+".port="+strconv.Itoa(primary))
+		}
+		for _, input := range selection.Inputs() {
+			if len(input.HostPortProtocols) == 0 {
+				continue
+			}
+			port, err := ports.random(input.HostPortProtocols...)
+			if err != nil {
+				return nil, err
+			}
+			sets = append(sets, selection.Info().ID+"."+input.Key+"="+strconv.Itoa(port))
+		}
+	}
+	install := service.InstallOptions{Targets: []string{opts.App}, Sets: sets, Exposure: service.ExposureLocal, DataRoot: filepath.Join(root, "data"), MediaRoot: filepath.Join(root, "data", "media"), DownloadsRoot: filepath.Join(root, "data", "torrents"), AdminUser: "testkit", AdminPassword: service.GeneratePassword(32), Settings: map[string]string{"LAN_IP": "127.0.0.1", "TZ": "UTC"}}
+	if pair != nil {
+		if err := a.startPair(work, *pair, selections, publications, install, owner); err != nil {
 			return nil, err
 		}
-		sets = append(sets, opts.App+".port="+strconv.Itoa(primary))
-	}
-	for _, input := range selected.Inputs() {
-		if len(input.HostPortProtocols) == 0 {
-			continue
-		}
-		port, err := ports.random(input.HostPortProtocols...)
-		if err != nil {
-			return nil, err
-		}
-		sets = append(sets, opts.App+"."+input.Key+"="+strconv.Itoa(port))
-	}
-	if err := svc.Install(work, service.InstallOptions{Targets: []string{opts.App}, Sets: sets, Exposure: service.ExposureLocal, DataRoot: filepath.Join(root, "data"), MediaRoot: filepath.Join(root, "data", "media"), DownloadsRoot: filepath.Join(root, "data", "torrents"), AdminUser: "testkit", AdminPassword: service.GeneratePassword(32), Settings: map[string]string{"LAN_IP": "127.0.0.1", "TZ": "UTC"}}); err != nil {
+	} else if err := svc.Install(work, install); err != nil {
 		var safe *StartupError
 		if errors.As(err, &safe) || work.Err() != nil {
 			return nil, err
@@ -228,6 +252,7 @@ func start(ctx context.Context, opts Options, original *system.Deps, cat *catalo
 	if err != nil {
 		return nil, err
 	}
+	primary = publications[opts.App]
 	a.info = Info{ID: opts.App, URL: service.AppURL(map[string]string{"EXPOSURE": "local"}, primary, selected.Info().Path), Image: guard.main.ConfiguredImage, ImageID: guard.main.Image}
 	if primary == 0 {
 		a.info.URL = ""
@@ -256,19 +281,44 @@ func (a *App) URL() string { return a.info.URL }
 func (a *App) RecoveryPath() string { return a.marker.Root }
 
 func (a *App) GetAPIKey(ctx context.Context, name string) (string, error) {
+	return a.apiKeyFor(ctx, a.info.ID, name)
+}
+
+func (a *App) apiKeyFor(ctx context.Context, id, name string) (string, error) {
+	creds, err := a.readCredentials(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return apiKey(creds, id, name)
+}
+
+func (a *App) readCredentials(ctx context.Context, id string) (service.Credentials, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
-		return "", errors.New("testkit App is closed")
+		return service.Credentials{}, errors.New("testkit App is closed")
+	}
+	if a.pair != nil {
+		if a.pair.failed {
+			return service.Credentials{}, errors.New("testkit pair is unavailable")
+		}
+		creds, present, err := a.pairCredentials(ctx, id)
+		if err != nil {
+			return service.Credentials{}, err
+		}
+		if !present {
+			return service.Credentials{}, errors.New("testkit selected App is absent")
+		}
+		return creds, nil
 	}
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return service.Credentials{}, err
 	}
 	creds, err := a.service.Credentials(ctx)
 	if err != nil {
-		return "", errors.New("testkit private credentials unavailable")
+		return service.Credentials{}, errors.New("testkit private credentials unavailable")
 	}
-	return apiKey(creds, a.info.ID, name)
+	return creds, nil
 }
 
 func apiKey(creds service.Credentials, id, name string) (string, error) {
@@ -289,26 +339,22 @@ func apiKey(creds service.Credentials, id, name string) (string, error) {
 }
 
 func (a *App) Credentials(ctx context.Context) (Credentials, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.closed {
-		return Credentials{}, errors.New("testkit App is closed")
-	}
-	if err := ctx.Err(); err != nil {
+	return a.credentialsFor(ctx, a.info.ID)
+}
+
+func (a *App) credentialsFor(ctx context.Context, id string) (Credentials, error) {
+	creds, err := a.readCredentials(ctx, id)
+	if err != nil {
 		return Credentials{}, err
 	}
-	creds, err := a.service.Credentials(ctx)
-	if err != nil {
-		return Credentials{}, errors.New("testkit private credentials unavailable")
-	}
 	out := Credentials{Username: creds.Admin.Username, Password: creds.Admin.Password, Email: creds.Admin.Email}
-	if alias := creds.Admin.Aliases[a.info.ID]; alias != "" {
+	if alias := creds.Admin.Aliases[id]; alias != "" {
 		out.Username = alias
 	}
-	if email := creds.Admin.Emails[a.info.ID]; email != "" {
+	if email := creds.Admin.Emails[id]; email != "" {
 		out.Email = email
 	}
-	out.APIKey, _ = apiKey(creds, a.info.ID, "")
+	out.APIKey, _ = apiKey(creds, id, "")
 	return out, nil
 }
 
@@ -324,8 +370,15 @@ func (a *App) Info(ctx context.Context) (Info, error) {
 func (a *App) Close(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.closeLocked(ctx)
+}
+
+func (a *App) closeLocked(ctx context.Context) error {
 	if a.closed {
 		return nil
+	}
+	if a.pair != nil {
+		a.pair.failed = true
 	}
 	cleanup, stop := context.WithDeadline(ctx, minTime(a.deadline, time.Now().Add(time.Minute)))
 	defer stop()

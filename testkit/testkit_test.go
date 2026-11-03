@@ -65,6 +65,7 @@ type fakeDocker struct {
 	unboundedCaps  bool
 	cleanupFailure bool
 	pulled         map[string]string
+	creations      int
 }
 
 func newFakeDocker(t *testing.T) *fakeDocker {
@@ -97,10 +98,13 @@ func (f *fakeDocker) run(cmd system.Cmd) system.Result {
 	}
 	if len(args) > 0 && args[0] == "ps" {
 		name := strings.TrimPrefix(args[len(args)-1], "label=com.docker.compose.project=")
-		if c, ok := f.containers[name]; ok {
-			return system.Result{Stdout: []byte(c.ID)}
+		var ids []string
+		for _, c := range f.containers {
+			if c.Project == name {
+				ids = append(ids, c.ID)
+			}
 		}
-		return system.Result{}
+		return system.Result{Stdout: []byte(strings.Join(ids, "\n"))}
 	}
 	if len(args) > 1 && args[0] == "network" {
 		return system.Result{}
@@ -126,12 +130,34 @@ func (f *fakeDocker) run(cmd system.Cmd) system.Result {
 	}
 	if len(args) > 5 && args[0] == "compose" {
 		root, name := args[2], args[4]
-		verb, _ := composeVerb(args[5:])
+		verb, rest := composeVerb(args[5:])
+		if verb == "ps" {
+			var containers []compose.Container
+			for _, c := range f.containers {
+				if c.Project == name {
+					containers = append(containers, compose.Container{Service: c.Service, State: "running", Image: c.ConfiguredImage})
+				}
+			}
+			data, _ := json.Marshal(containers)
+			return system.Result{Stdout: data}
+		}
+		if verb == "rm" {
+			for key, c := range f.containers {
+				if c.Project == name && slices.Contains(rest, c.Service) {
+					delete(f.containers, key)
+				}
+			}
+			return system.Result{}
+		}
 		if verb == "down" {
 			if f.cleanupFailure {
 				return system.Result{ExitCode: 1}
 			}
-			delete(f.containers, name)
+			for key, c := range f.containers {
+				if c.Project == name {
+					delete(f.containers, key)
+				}
+			}
 			return system.Result{}
 		}
 		if verb != "up" && verb != "pull" {
@@ -154,26 +180,32 @@ func (f *fakeDocker) run(cmd system.Cmd) system.Result {
 			f.t.Error(err)
 			return system.Result{ExitCode: 1}
 		}
-		svc := doc.Services["fixture"]
-		if svc.CPUs != "1.0" || svc.Memory != "1g" || svc.Pids != 512 {
-			f.t.Error("container command reached Docker before caps")
-			return system.Result{ExitCode: 1}
-		}
-		if verb == "pull" {
-			f.pulled[name] = svc.Image
-			return system.Result{}
-		}
-		if f.pulled[name] != svc.Image {
-			f.t.Error("selected image not freshly pulled")
-		}
-		f.containers[name] = containerInfo{ID: fmt.Sprintf("%x", sha256.Sum256([]byte(name))), Image: syntheticImageID, ConfiguredImage: svc.Image, Project: name, Service: "fixture", Memory: 1 << 30, NanoCPUs: 1e9, Pids: 512}
-		if f.unboundedCaps {
-			container := f.containers[name]
-			container.Memory = 0
-			f.containers[name] = container
-		}
-		if f.partialFailure {
-			return system.Result{ExitCode: 1, Stderr: []byte(syntheticKey)}
+		for service, svc := range doc.Services {
+			if !slices.Contains(rest, service) {
+				continue
+			}
+			if svc.CPUs != "1.0" || svc.Memory != "1g" || svc.Pids != 512 {
+				f.t.Error("container command reached Docker before caps")
+				return system.Result{ExitCode: 1}
+			}
+			if verb == "pull" {
+				f.pulled[name+":"+service] = svc.Image
+				continue
+			}
+			if f.pulled[name+":"+service] != svc.Image {
+				f.t.Error("selected image not freshly pulled")
+			}
+			key := name + ":" + service
+			f.creations++
+			f.containers[key] = containerInfo{ID: fmt.Sprintf("%x", sha256.Sum256([]byte(key))), Image: syntheticImageID, ConfiguredImage: svc.Image, Project: name, Service: service, Memory: 1 << 30, NanoCPUs: 1e9, Pids: 512}
+			if f.unboundedCaps {
+				container := f.containers[key]
+				container.Memory = 0
+				f.containers[key] = container
+			}
+			if f.partialFailure {
+				return system.Result{ExitCode: 1, Stderr: []byte(syntheticKey)}
+			}
 		}
 	}
 	return system.Result{}
@@ -240,6 +272,84 @@ func TestFixturesIsolateOwnerEnvironmentPortsAndPrivateCredentials(t *testing.T)
 		if _, err := os.Stat(fixture.RecoveryPath()); !errors.Is(err, os.ErrNotExist) {
 			t.Fatal("successful Close retained private fixture data")
 		}
+	}
+}
+
+func TestSingleAppCredentialFailuresKeepLegacySemantics(t *testing.T) {
+	for _, method := range []string{"key", "credentials", "info"} {
+		for _, mode := range []string{"deadline", "cancel", "storage"} {
+			t.Run(method+"/"+mode, func(t *testing.T) {
+				f := newFakeDocker(t)
+				a, err := startFake(t, f, fixtureApp{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := a.Close(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				a.workDeadline = time.Now().Add(-time.Second)
+				if mode == "cancel" {
+					cancel()
+				}
+				if mode == "storage" {
+					a.service.Deps.CurrentUser = func() (system.User, error) {
+						return system.User{}, errors.New(syntheticKey)
+					}
+				}
+				if method == "key" {
+					_, err = a.GetAPIKey(ctx, "")
+				} else if method == "info" {
+					_, err = a.Info(ctx)
+				} else {
+					_, err = a.Credentials(ctx)
+				}
+				wantError := mode != "deadline"
+				if method == "info" && mode == "storage" {
+					wantError = false
+				}
+				if (err != nil) != wantError || a.closed || len(f.containers) != 1 {
+					t.Fatal("legacy credential lifetime or cleanup changed")
+				}
+				var operation *OperationError
+				if errors.As(err, &operation) || mode == "cancel" && !errors.Is(err, context.Canceled) {
+					t.Fatal("legacy credential failure typing changed")
+				}
+				if err != nil && strings.Contains(err.Error(), syntheticKey) {
+					t.Fatal("legacy storage failure leaked")
+				}
+			})
+		}
+	}
+}
+
+func TestSingleAppDirectCloseFailureKeepsLegacyReads(t *testing.T) {
+	f := newFakeDocker(t)
+	a, err := startFake(t, f, fixtureApp{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		f.cleanupFailure = false
+		if err := a.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	f.cleanupFailure = true
+	if err := a.Close(t.Context()); err == nil || a.closed || a.pair != nil {
+		t.Fatal("legacy failed cleanup state changed")
+	}
+	if _, err := a.GetAPIKey(t.Context(), ""); err != nil {
+		t.Fatal("legacy failed cleanup disabled key reads")
+	}
+	if _, err := a.Credentials(t.Context()); err != nil {
+		t.Fatal("legacy failed cleanup disabled credential reads")
+	}
+	if _, err := a.Info(t.Context()); err != nil {
+		t.Fatal("legacy failed cleanup disabled Info")
 	}
 }
 

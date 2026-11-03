@@ -98,11 +98,11 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}
 	return h.Step(ctx, "homarr-status-page", "verify the selected Uptime Kuma status page", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) {
-			_, err := HomarrMonitors(ctx, h)
+			_, err := HomarrStatusPage(ctx, h)
 			return err == nil, err
 		},
 		Do: func(ctx context.Context) error {
-			_, err := HomarrMonitors(ctx, h)
+			_, err := HomarrStatusPage(ctx, h)
 			return err
 		},
 		Hint:       "Open " + h.URL + "/manage-status-page and review the selected page and its already shared monitors; do not publish private monitors. Then run self-host setup uptime-kuma and self-host setup homarr.",
@@ -117,7 +117,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	if HomarrSlug(h) == "" {
 		return nil
 	}
-	_, err := HomarrMonitors(ctx, h)
+	_, err := HomarrStatusPage(ctx, h)
 	return err
 }
 
@@ -126,7 +126,34 @@ type HomarrMonitor struct {
 	Name string
 }
 
+type HomarrGroup struct {
+	ID       int64
+	Name     string
+	Monitors []HomarrMonitor
+}
+
+type HomarrPage struct {
+	Slug   string
+	Groups []HomarrGroup
+}
+
 func HomarrMonitors(ctx context.Context, h *helpers.H) ([]HomarrMonitor, error) {
+	page, err := readHomarrPage(ctx, h, true)
+	if err != nil {
+		return nil, err
+	}
+	monitors := []HomarrMonitor{}
+	for _, group := range page.Groups {
+		monitors = append(monitors, group.Monitors...)
+	}
+	return monitors, nil
+}
+
+func HomarrStatusPage(ctx context.Context, h *helpers.H) (*HomarrPage, error) {
+	return readHomarrPage(ctx, h, false)
+}
+
+func readHomarrPage(ctx context.Context, h *helpers.H, legacy bool) (*HomarrPage, error) {
 	slug := HomarrSlug(h)
 	if slug == "" {
 		h.Info("Homarr needs an explicitly selected existing Uptime Kuma status page. Review the monitors it already shares without a login. Saving its slug requires reinstall, which replaces apps/uptime-kuma/compose.yml and can restart the App. First preserve and review custom authentication, mounts and ports and separately approve the concrete replacement plan. If custom configuration cannot survive replacement, stop; there is no input-only save command. After approval, run self-host install uptime-kuma --set uptime-kuma.homarr_status_page=SLUG; use --yes noninteractively only after that approval. Then retry self-host setup uptime-kuma and self-host setup homarr. Do not publish private monitors or change Access.")
@@ -174,22 +201,30 @@ func HomarrMonitors(ctx context.Context, h *helpers.H) ([]HomarrMonitor, error) 
 	if response.Decode(&heartbeat) != nil || heartbeat.Lists == nil || heartbeat.Uptime == nil {
 		return nil, errors.New("Uptime Kuma returned incomplete status-page heartbeat data; retry Setup")
 	}
-	monitors := []HomarrMonitor{}
+	groups := make([]HomarrGroup, 0, len(*page.Groups))
+	seenGroups := map[int64]bool{}
+	monitorNames := map[int64]string{}
 	for _, group := range *page.Groups {
-		if group.ID == nil || group.Name == nil || group.Monitors == nil {
+		if group.ID == nil || *group.ID <= 0 || seenGroups[*group.ID] || group.Name == nil || group.Monitors == nil {
 			return nil, errors.New("Uptime Kuma returned an incomplete status-page group")
 		}
+		seenGroups[*group.ID] = true
+		selected := HomarrGroup{ID: *group.ID, Name: *group.Name, Monitors: make([]HomarrMonitor, 0, len(*group.Monitors))}
 		for _, monitor := range *group.Monitors {
 			if monitor.ID == nil || *monitor.ID <= 0 || monitor.Name == nil {
 				return nil, errors.New("Uptime Kuma returned an incomplete status-page monitor")
 			}
+			if name, found := monitorNames[*monitor.ID]; found && name != *monitor.Name {
+				return nil, errors.New("Uptime Kuma returned conflicting selected monitor identities")
+			}
+			monitorNames[*monitor.ID] = *monitor.Name
 			id := strconv.FormatInt(*monitor.ID, 10)
 			beats, found := heartbeat.Lists[id]
-			if !found || beats == nil {
+			if found && beats == nil || legacy && !found {
 				return nil, errors.New("Uptime Kuma omitted a selected monitor's heartbeat list; retry Setup")
 			}
 			for _, beat := range beats {
-				if beat.Status == nil || *beat.Status < 0 || *beat.Status > 3 || beat.Time == nil || *beat.Time == "" {
+				if beat.Status == nil || beat.Time == nil || legacy && (*beat.Status < 0 || *beat.Status > 3 || *beat.Time == "") {
 					return nil, errors.New("Uptime Kuma returned an invalid monitor heartbeat")
 				}
 			}
@@ -198,8 +233,9 @@ func HomarrMonitors(ctx context.Context, h *helpers.H) ([]HomarrMonitor, error) 
 					return nil, errors.New("Uptime Kuma returned an invalid 24-hour uptime value")
 				}
 			}
-			monitors = append(monitors, HomarrMonitor{ID: *monitor.ID, Name: *monitor.Name})
+			selected.Monitors = append(selected.Monitors, HomarrMonitor{ID: *monitor.ID, Name: *monitor.Name})
 		}
+		groups = append(groups, selected)
 	}
-	return monitors, nil
+	return &HomarrPage{Slug: slug, Groups: groups}, nil
 }
