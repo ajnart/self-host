@@ -1,0 +1,36 @@
+docs/catalog/traps/miniflux.md
+  h_d6e478ca18e517 1-186
+internal/apps/homarr/target_miniflux.go
+  h_d6e478ca18e517 1-49
+internal/apps/homarr/target_miniflux_hold_test.go
+  h_d6e478ca18e517 1-152
+internal/apps/homarr/target_miniflux_test.go
+  h_d6e478ca18e517 1-209
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 56
+internal/apps/miniflux/homarr.go
+  h_d6e478ca18e517 1-339
+internal/apps/miniflux/homarr_test.go
+  h_d6e478ca18e517 1-421
+internal/apps/miniflux/miniflux.go
+  h_d6e478ca18e517 1-225
+internal/apps/miniflux/miniflux_test.go
+  h_d6e478ca18e517 1-369
+internal/catalog/batch_multi2.go
+  h_d6e478ca18e517 5,18
+internal/tui/testdata/onboarding-what-default-focus-narrow.golden
+  h_d6e478ca18e517 16
+internal/tui/testdata/onboarding-what-default-focus.golden
+  h_d6e478ca18e517 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91c05eaa98d00022ebe0d32dd9db06668790159a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
