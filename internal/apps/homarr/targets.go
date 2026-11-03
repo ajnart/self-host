@@ -56,5 +56,6 @@ func targets() []target {
 		stashTarget(),
 		minifluxTarget(),
 		thingportTarget(),
+		spoolmanTarget(),
 	)
 }

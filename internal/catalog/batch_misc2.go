@@ -12,6 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/oxynote"
 	"github.com/ajnart/self-host/internal/apps/pihole"
 	"github.com/ajnart/self-host/internal/apps/plex"
+	"github.com/ajnart/self-host/internal/apps/spoolman"
 	"github.com/ajnart/self-host/internal/apps/tailscale"
 	"github.com/ajnart/self-host/internal/apps/tandoor"
 	"github.com/ajnart/self-host/internal/apps/technitiumdns"
@@ -31,6 +32,7 @@ func init() {
 		oxynote.App{},
 		pihole.App{},
 		plex.App{},
+		spoolman.App{},
 		tailscale.App{},
 		tandoor.App{},
 		technitiumdns.App{},
