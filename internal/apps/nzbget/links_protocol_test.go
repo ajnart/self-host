@@ -241,3 +241,58 @@ func TestNZBGetAbsentOwnedRowRequiresVerifiedSchemaBeforeClearingRecord(t *testi
 		})
 	}
 }
+
+func TestNZBGetFreshSelectionHoldsBeforeTargetAccess(t *testing.T) {
+	for _, consumer := range nzbgetConsumerCases {
+		for _, scenario := range []string{"same-family", "same-family-crossed", "missing-enable", "missing-schema", "duplicate-schema", "crossed-protocol", "field-type"} {
+			t.Run(consumer.id+"/"+consumer.version+"/"+scenario, func(t *testing.T) {
+				f := newNZBGetLinkFixture(t, consumer)
+				f.pathProbe.supported = true
+				incumbent := nzbgetSurvivor(consumer)
+				if scenario == "same-family" || scenario == "same-family-crossed" {
+					data, err := json.Marshal(f.template)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := json.Unmarshal(data, &incumbent); err != nil {
+						t.Fatal(err)
+					}
+					incumbent["name"], incumbent["priority"], incumbent["tags"] = "Personal Usenet", float64(7), []any{float64(3)}
+					nzbgetSetClientField(incumbent, "host", "personal-nzbget")
+				}
+				switch scenario {
+				case "same-family-crossed":
+					incumbent["protocol"] = "UsenetDownloadProtocol"
+					if consumer.protocol == "UsenetDownloadProtocol" {
+						incumbent["protocol"] = "usenet"
+					}
+				case "missing-enable":
+					delete(incumbent, "enable")
+				case "missing-schema":
+					f.schemas = []map[string]any{f.template}
+				case "duplicate-schema":
+					f.schemas = append(f.schemas, nzbgetSurvivor(consumer))
+				case "crossed-protocol":
+					incumbent["protocol"] = "TorrentDownloadProtocol"
+					if consumer.survivorProtocol == "TorrentDownloadProtocol" {
+						incumbent["protocol"] = "torrent"
+					}
+				case "field-type":
+					nzbgetSetClientField(incumbent, "port", "8080")
+				}
+				f.backend.SeedDownloadClient(incumbent)
+				before, err := json.Marshal(f.backend.DownloadClients())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || !strings.Contains(err.Error(), "enabled competing client") {
+					t.Fatal("fresh selection ambiguity reached the leaf instead of its Manual hold", err)
+				}
+				after, err := json.Marshal(f.backend.DownloadClients())
+				if err != nil || string(after) != string(before) || f.targetSecrets.reads != 0 || f.targetSecrets.writes != 0 || f.consumerSecrets.writes != 0 || f.rpcRequests() != 0 || f.nativeTests != 0 || len(f.pathProbe.observed) != 0 || f.creates != 0 || f.updates != 0 || f.deletes != 0 || f.ownership() != "" {
+					t.Fatal("fresh selection hold changed inventory/authority or reached target credentials/RPC/probes/native tests", err)
+				}
+			})
+		}
+	}
+}

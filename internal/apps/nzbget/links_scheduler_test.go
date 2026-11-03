@@ -2,6 +2,7 @@ package nzbget_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -86,7 +87,14 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 					}
 				}
 				f.backend.SeedDownloadClient(nzbgetSurvivor(source))
+				nzbgetSetClientField(f.backend.DownloadClients()[0], "host", "qbittorrent")
+				nzbgetSetClientField(f.backend.DownloadClients()[0], "username", "fixture-admin")
+				nzbgetSetClientField(f.backend.DownloadClients()[0], "password", "fixture-qb-password")
 				survivor := f.backend.DownloadClients()[0]["id"]
+				survivorData, err := json.Marshal(f.backend.DownloadClients()[0])
+				if err != nil {
+					t.Fatal(err)
+				}
 				if order == "consumer-first" {
 					result := e.Run("install", id, "--yes", "--json", "--exposure", "local")
 					if result.Code != 0 || result.Step(id, "link-nzbget") != nil {
@@ -120,6 +128,10 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 				if len(f.backend.DownloadClients()) != 2 || f.nativeTests < 2 || f.pathProbe.wrongIdentity != 0 {
 					t.Fatal("production scheduler did not run the guarded real NZBGet leaf")
 				}
+				preserved, err := json.Marshal(f.backend.DownloadClients()[0])
+				if err != nil || string(preserved) != string(survivorData) || f.backend.DownloadClients()[0]["enable"] != true {
+					t.Fatal("guarded scheduling changed the complete enabled opposite-family survivor", err)
+				}
 				if source.id == "lidarr" && (f.version != source.version || f.statusReads == 0) {
 					t.Fatal("Lidarr Setup did not verify the matching source family's authenticated status")
 				}
@@ -133,6 +145,10 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 				items := f.backend.DownloadClients()
 				if result.Code != 0 || len(items) != 1 || items[0]["id"] != survivor || f.rpcRequests() != requests || f.nativeTests != native {
 					t.Fatal("production unlink changed its survivor or queried target prerequisites", result.Out)
+				}
+				preserved, err = json.Marshal(items[0])
+				if err != nil || string(preserved) != string(survivorData) || items[0]["enable"] != true {
+					t.Fatal("production unlink changed a full enabled survivor DTO", err)
 				}
 				if _, err := os.Stat(filepath.Join(e.AppDir("nzbget"), "config", "kept-data")); err != nil {
 					t.Fatal("non-purge removal lost synthetic target data", err)
