@@ -31,12 +31,19 @@ type preflightContextApp struct {
 	t            *testing.T
 	observations []preflightContextObservation
 	mutate       bool
+	media        bool
 	onEarly      func()
 	renders      []string
 }
 
 func newPreflightContextApp(t *testing.T) *preflightContextApp {
 	return &preflightContextApp{testApp: testApp{id: "context", done: map[string]bool{}}, t: t}
+}
+
+func (a *preflightContextApp) Info() app.Info {
+	info := a.testApp.Info()
+	info.UsesMedia = a.media
+	return info
 }
 
 func (*preflightContextApp) Inputs() []app.Input {
@@ -149,8 +156,8 @@ func TestPreflightContextInstallEffectiveSettings(t *testing.T) {
 			if mode == "rootless" && (settings["PUID"] != "0" || settings["PGID"] != "0") {
 				t.Fatal("rootless effective identities were lost")
 			}
-			if len(a.observations) != 3 || !a.observations[0].early || a.observations[1].early || a.observations[2].early {
-				t.Fatal("pure, pre-generation and final startup checks were not retained")
+			if len(a.observations) != 4 || !a.observations[0].early || !a.observations[1].early || a.observations[2].early || a.observations[3].early {
+				t.Fatal("early pure, locked pure, pre-generation and final startup checks were not retained")
 			}
 			for _, observed := range a.observations {
 				if !maps.Equal(observed.settings, settings) || observed.inputs["library"] != "library" {
@@ -579,5 +586,146 @@ func TestPreflightContextRestoreFreshWrongRootDoesNotInitialize(t *testing.T) {
 	prepareContextLibrary(t, root, "archived-library")
 	if err := h.svc.Restore(t.Context(), archive, nil, ""); err != nil {
 		t.Fatalf("preparing the archived effective root did not recover Restore: %v", err)
+	}
+}
+
+func TestPreflightContextInstallLockedAdmissionPrecedesMutations(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		existing      bool
+		settingsDrift bool
+		corrupt       bool
+		ready         bool
+	}{
+		{name: "changed settings", settingsDrift: true},
+		{name: "created same settings with changed inputs"},
+		{name: "existing same settings with changed inputs", existing: true},
+		{name: "unrecoverable locked context", corrupt: true},
+		{name: "approved recovery and migrations", ready: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newPreflightContextApp(t)
+			a.media = true
+			h := newHarness(t, a, &testApp{id: "other", done: map[string]bool{}})
+			p, err := h.svc.Project()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.existing {
+				if err := h.install("other"); err != nil {
+					t.Fatal(err)
+				}
+				settings, err := p.LoadSettings()
+				if err != nil {
+					t.Fatal(err)
+				}
+				settings[settingNames] = namesOn
+				settings["PUID"] = fmt.Sprint(os.Getuid())
+				settings["PGID"] = fmt.Sprint(os.Getgid())
+				if err := p.SaveSettings(settings); err != nil {
+					t.Fatal(err)
+				}
+			}
+			root := filepath.Join(p.Owner.Home, "data", "media")
+			prepareContextLibrary(t, root, "library")
+			if tc.ready {
+				prepareContextLibrary(t, root, "selected-library")
+			}
+			before := map[string][]byte{}
+			beforeAdmin := h.rec.find("", "admin-login")
+			beforeCompose := len(h.composeCalls())
+			a.onEarly = func() {
+				settings := maps.Clone(a.observations[0].settings)
+				if tc.settingsDrift {
+					settings["MEDIA_ROOT"] = filepath.Join(t.TempDir(), "missing-media")
+				}
+				if err := p.MkdirAll(); err != nil {
+					t.Fatal(err)
+				}
+				if err := p.SaveSettings(settings); err != nil {
+					t.Fatal(err)
+				}
+				if err := p.SaveSecrets(map[string]string{"ADMIN_PASSWORD": "synthetic-original-admin", "CONTEXT_PERSISTENT_KEY": "synthetic-original-key"}); err != nil {
+					t.Fatal(err)
+				}
+				state := `{"version":1,"apps":{"context":{"port":9000,"inputs":{"library":"selected-library","token":"synthetic-legacy-private"}}}}` + "\ndamaged tail"
+				if tc.corrupt {
+					state = "unrecoverable-state"
+				}
+				for name, content := range map[string]string{
+					"state.json":                          state,
+					"state.json.corrupt":                  "keep-prior-recovery-copy",
+					"compose.yml":                         "include:\n  - apps/context/compose.yml\n",
+					"apps/context/compose.yml":            "services:\n  context:\n    image: example/test:latest\n",
+					project.NamesFolder + "/runtime.json": "{\n  \"start_action\": \"install context\",\n  \"applied\": \"keep-until-approved\"\n}\n",
+				} {
+					if err := p.MkdirAll(filepath.Dir(name)); err != nil {
+						t.Fatal(err)
+					}
+					if err := p.WriteHomeFile(name, []byte(content), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				for _, name := range []string{".env", "state.json", "state.json.corrupt", "compose.yml", "apps/context/compose.yml", project.NamesFolder + "/runtime.json"} {
+					data, err := p.ReadHomeFile(name)
+					if err != nil {
+						t.Fatal(err)
+					}
+					before[name] = data
+				}
+			}
+			opts := InstallOptions{Targets: []string{"context"}, EasyNames: true, Settings: map[string]string{"PUID": fmt.Sprint(os.Getuid()), "PGID": fmt.Sprint(os.Getgid())}, AdminPassword: "synthetic-proposed-admin", PrivateInputs: map[string]map[string]string{"context": {"token": "synthetic-proposed-private"}}}
+			if tc.ready {
+				opts.PrivateInputs = nil
+				opts.AdminPassword = ""
+			}
+			err = h.svc.Install(t.Context(), opts)
+			if tc.ready {
+				if err != nil {
+					t.Fatal(err)
+				}
+				kept, err := p.ReadHomeFile("state.json.corrupt")
+				if err != nil || string(kept) != string(before["state.json"]) || !p.Canonical() {
+					t.Fatal("approved Install bypassed state recovery or Compose migration")
+				}
+				state, err := p.LoadState()
+				if err != nil || state.Apps["context"].Inputs["token"] != "" || state.Apps["context"].Inputs["library"] != "selected-library" {
+					t.Fatal("approved Install skipped private-input migration or lost locked public inputs")
+				}
+				secrets, err := p.LoadSecrets()
+				if err != nil || secrets["CONTEXT_TOKEN"] != "synthetic-legacy-private" || secrets["ADMIN_PASSWORD"] != "synthetic-original-admin" {
+					t.Fatal("approved Install did not preserve the Admin login and migrate the legacy private input")
+				}
+				return
+			}
+			if tc.corrupt {
+				if err == nil || !strings.Contains(err.Error(), "restore state.json from a backup") {
+					t.Fatalf("unreadable locked context lost its truthful recovery error: %v", err)
+				}
+			} else {
+				if !errors.Is(err, helpers.ErrManual) || len(a.observations) != 2 || !a.observations[1].early || a.observations[1].inputs["library"] != "selected-library" {
+					t.Fatalf("locked public context was not reread before refusal: %v", err)
+				}
+				if !tc.settingsDrift && !maps.Equal(a.observations[0].settings, a.observations[1].settings) {
+					t.Fatal("same-settings regression did not exercise identical Host settings")
+				}
+			}
+			for name, original := range before {
+				data, err := p.ReadHomeFile(name)
+				if err != nil || string(data) != string(original) {
+					t.Errorf("locked refusal modified %s before admission", name)
+				}
+			}
+			if _, err := os.Stat(p.Path("compose.legacy.yml")); !errors.Is(err, os.ErrNotExist) {
+				t.Error("locked refusal migrated Compose before admission")
+			}
+			entries, err := os.ReadDir(root)
+			if err != nil || len(entries) != 1 || entries[0].Name() != "library" {
+				t.Error("locked refusal prepared media directories before admission")
+			}
+			if len(h.composeCalls()) != beforeCompose || len(a.renders) != 0 || h.rec.find("context", "secret") != nil || !reflect.DeepEqual(beforeAdmin, h.rec.find("", "admin-login")) {
+				t.Error("locked refusal reached Compose mutation, rendering or credential generation")
+			}
+		})
 	}
 }
