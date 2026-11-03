@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,27 +24,95 @@ func TestWhatEnterShowsOnlySelectedAppPromptsOnEveryMessage(t *testing.T) {
 				m = drive(t, m, press("enter"))
 			}
 			m = drive(t, m, press("space"))
-			queue := []tea.Msg{press("enter")}
-			for messages := 0; len(queue) > 0; messages++ {
-				if messages > 30 {
-					t.Fatal("selected App prompt did not settle")
-				}
-				next, cmd := m.Update(queue[0])
-				m, queue = next.(Model), queue[1:]
-				out := screen(m)
-				for _, forbidden := range []string{"ArchiveTeam Warrior", "Warrior contribution nickname", "required", "Error"} {
-					if strings.Contains(out, forbidden) {
-						t.Fatalf("message %d shows an irrelevant prompt or transient validation %q\n%s", messages, forbidden, out)
+			wantApps := []string{"homarr", "qbittorrent"}
+			wantSets := []string{"qbittorrent.torrent-port=6882"}
+			type selectedPrompt struct {
+				app, key, title, initial, answer, other string
+			}
+			prompts := []selectedPrompt{
+				{"qBittorrent", "qbittorrent.torrent-port", "Torrent peer port", "6881", "6882", "Seerr media server"},
+			}
+			if recipe {
+				wantApps = []string{"homarr", "jellyfin", "prowlarr", "qbittorrent", "radarr", "seerr", "sonarr"}
+				wantSets = append(wantSets, "seerr.media_server=jellyfin")
+				prompts = append(prompts, selectedPrompt{"Seerr", "seerr.media_server", "Seerr media server: jellyfin, plex or emby", "", "jellyfin", "Torrent peer port"})
+			}
+			var gotApps []string
+			for _, a := range m.onboarding.answers.picks.apps(backend.Catalog()) {
+				gotApps = append(gotApps, a.Info().ID)
+			}
+			if !slices.Equal(gotApps, wantApps) {
+				t.Fatalf("selected Apps: got %v, want %v", gotApps, wantApps)
+			}
+			for index, prompt := range prompts {
+				queue := []tea.Msg{press("enter")}
+				focused := false
+				for messages := 0; len(queue) > 0; messages++ {
+					if messages > 30 {
+						t.Fatal("selected App prompt did not settle")
 					}
+					next, cmd := m.Update(queue[0])
+					m, queue = next.(Model), queue[1:]
+					out := screen(m)
+					visible := prompt
+					if index > 0 && !focused && strings.Contains(out, prompts[index-1].title) {
+						visible = prompts[index-1]
+						visible.initial = visible.answer
+					} else {
+						focused = true
+					}
+					for _, forbidden := range []string{"ArchiveTeam Warrior", "Warrior contribution nickname", "Sonarr quality profile ID or exact name", "Radarr quality profile ID or exact name", "required", "Error", visible.other} {
+						if strings.Contains(out, forbidden) {
+							t.Fatalf("message %d shows an irrelevant prompt or transient validation %q\n%s", messages, forbidden, out)
+						}
+					}
+					if m.onboarding.step != stepWhat || m.onboarding.form == nil || !strings.Contains(out, visible.app) || !strings.Contains(out, visible.title) || !strings.Contains(out, visible.initial) {
+						t.Fatalf("message %d must deliberately show %s's question\n%s", messages, visible.app, out)
+					}
+					if len(backend.Actions()) != 0 {
+						t.Fatal("answering selected App questions must not install anything")
+					}
+					queue = append(queue, runCmd(cmd)...)
 				}
-				if !strings.Contains(out, "qBittorrent") || !strings.Contains(out, "Torrent peer port") || !strings.Contains(out, "6881") {
-					t.Fatalf("message %d must deliberately show qBittorrent's question\n%s", messages, out)
+				if !focused {
+					t.Fatalf("%s never received focus", prompt.key)
 				}
-				queue = append(queue, runCmd(cmd)...)
+				value := m.onboarding.answers.inputs[prompt.key]
+				if value == nil || *value != prompt.initial {
+					t.Fatalf("%s must start with its own default %q, got %v", prompt.key, prompt.initial, value)
+				}
+				m = drive(t, m, press("ctrl+u"))
+				m = typeText(t, m, prompt.answer)
+				if *value != prompt.answer {
+					t.Fatalf("typing must answer the focused %s question, got %q", prompt.key, *value)
+				}
 			}
 			m = drive(t, m, press("enter"))
 			if m.onboarding.step != stepWhere {
-				t.Fatalf("the one selected App question should lead to Where\n%s", screen(m))
+				t.Fatalf("only completing every selected App question should lead to Where\n%s", screen(m))
+			}
+			if len(m.onboarding.answers.inputs) != len(prompts) {
+				t.Fatalf("only selected non-recovery Inputs should be collected: %v", m.onboarding.answers.inputs)
+			}
+			for _, prompt := range prompts {
+				if got := *m.onboarding.answers.inputs[prompt.key]; got != prompt.answer {
+					t.Fatalf("%s lost its answer after advancing: %q", prompt.key, got)
+				}
+			}
+			plan := planFromAnswers(backend, m.onboarding.answers)
+			if !slices.Equal(plan.opts.Targets, wantApps) || !slices.Equal(plan.opts.Sets, wantSets) {
+				t.Fatalf("selected Apps and their answers must reach the install plan: targets=%v sets=%v", plan.opts.Targets, plan.opts.Sets)
+			}
+			m = drive(t, m, press("esc"))
+			for _, prompt := range prompts {
+				m = drive(t, m, press("enter"))
+				if out := screen(m); m.onboarding.step != stepWhat || !strings.Contains(out, prompt.title) || !strings.Contains(out, prompt.answer) || strings.Contains(out, prompt.other) {
+					t.Fatalf("revisiting What must retain each selected App's answer and focus\n%s", out)
+				}
+			}
+			m = drive(t, m, press("enter"))
+			if m.onboarding.step != stepWhere || len(backend.Actions()) != 0 {
+				t.Fatal("revisiting selected App questions must return to Where without installing anything")
 			}
 		})
 	}

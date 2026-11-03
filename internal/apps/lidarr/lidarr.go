@@ -34,7 +34,7 @@ func (App) Info() app.Info {
 
 func (App) Inputs() []app.Input { return nil }
 func (App) Links() []app.Link {
-	return []app.Link{servarr.QBittorrentLink(servarr.V1, "musicCategory", "music")}
+	return servarr.DownloadClientLinks(servarr.V1, "musicCategory", "music")
 }
 
 func (App) StandaloneGuide() string {
