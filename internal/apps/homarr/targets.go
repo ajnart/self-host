@@ -48,5 +48,6 @@ func targets() []target {
 		healthchecksTarget(),
 		tandoorTarget(),
 		autobrrTarget(),
+		homeboxTarget(),
 	)
 }
