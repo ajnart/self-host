@@ -334,6 +334,12 @@ failure/cleanup behavior are reused. A timeout or failed write cannot be retried
 within that Pair. Receipt IDs/hashes may be recorded; never export credentials,
 nonce-bearing bodies, App logs or private fixture files.
 
+An invalid witness receipt or startup capability echo disables that helper's
+whole owner and awaits scoped cleanup before rejecting with `PROTOCOL`.
+Secondary cleanup failure is retained as `cleanupFailed: true`; it does not
+replace the protocol failure or expose raw causes. Subsequent actions are
+rejected, while explicit close/manifest recovery may retry failed cleanup.
+
 Both cycles must retain data through non-purge target removal. Final Pair/manager
 close still cleans the complete owned disposable fixture; do not add an API
 delete, broad Docker teardown or attach/reseed recovery. A helper lost before
