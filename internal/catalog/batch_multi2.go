@@ -6,6 +6,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/paperlessngx"
 	"github.com/ajnart/self-host/internal/apps/patchmon"
 	"github.com/ajnart/self-host/internal/apps/seafile"
+	"github.com/ajnart/self-host/internal/apps/thingport"
 	"github.com/ajnart/self-host/internal/apps/tracearr"
 	"github.com/ajnart/self-host/internal/apps/umami"
 )
@@ -18,6 +19,7 @@ func init() {
 		patchmon.App{},
 		seafile.App{},
 		tracearr.App{},
+		thingport.App{},
 		umami.App{},
 	)
 }

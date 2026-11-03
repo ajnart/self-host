@@ -97,6 +97,7 @@ var repos = map[string]string{
 	"tracearr":             "connorgallopo/Tracearr",
 	"traefik":              "traefik/traefik",
 	"transmission":         "transmission/transmission",
+	"thingport":            "TautvydasDerzinskas/Thingport",
 	"umami":                "umami-software/umami",
 	"unbound":              "NLnetLabs/unbound",
 	"uptime-kuma":          "louislam/uptime-kuma",

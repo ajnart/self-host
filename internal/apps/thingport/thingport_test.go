@@ -31,6 +31,8 @@ type fakeThingport struct {
 	loginBody   string
 	usersStatus int
 	usersBody   string
+	summary     string
+	summaryCode int
 	requests    []string
 }
 
@@ -69,6 +71,19 @@ func (f *fakeThingport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fmt.Fprint(w, `[{"id":"fixture-owner","email":"owner@example.test","role":"ADMIN","is_owner":true},{"id":"fixture-member","email":"member@example.test","role":"MEMBER","is_owner":false}]`)
+	case "GET /api/dashboard/summary":
+		if r.Header.Get("Authorization") != "Bearer dashboard-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if f.summaryCode != 0 {
+			w.WriteHeader(f.summaryCode)
+		}
+		if f.summary != "" {
+			fmt.Fprint(w, f.summary)
+			return
+		}
+		fmt.Fprint(w, `{"model_count":0,"collection_count":0,"category_count":82,"author_count":0}`)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
@@ -147,7 +162,7 @@ func TestComposeUsesOfficialMinimalServicesAndPrivateBackendAlias(t *testing.T) 
 
 func TestOwnerEmailRequiresAnExplicitPlainEmail(t *testing.T) {
 	inputs := (thingport.App{}).Inputs()
-	if len(inputs) != 1 || inputs[0].Key != "email" || !inputs[0].Required || inputs[0].Default != "" || inputs[0].Validate == nil {
+	if len(inputs) != 2 || inputs[1].Key != "homarr_api_key" || !inputs[1].Private || inputs[0].Key != "email" || !inputs[0].Required || inputs[0].Default != "" || inputs[0].Validate == nil {
 		t.Fatal("owner selection must be explicit")
 	}
 	for _, invalid := range []string{"", "admin", "Name <owner@example.test>", " owner@example.test", "owner@example.test\n"} {
@@ -319,5 +334,37 @@ func TestMalformedSuccessfulResponsesDoNotEstablishOwner(t *testing.T) {
 		if box.secrets["THINGPORT_OWNER_ID"] != "" || strings.Contains(fmt.Sprint(box.steps, box.log), "synthetic-session") {
 			t.Fatal("malformed response changed ownership or escaped diagnostics")
 		}
+	}
+}
+
+func TestVerifyHomarrRequiresKnownTokenAndExplicitCounts(t *testing.T) {
+	for _, scenario := range []struct {
+		name    string
+		key     string
+		fake    *fakeThingport
+		wantErr bool
+		manual  bool
+	}{
+		{name: "explicit zeros", key: "dashboard-token", fake: &fakeThingport{}},
+		{name: "no saved token", fake: &fakeThingport{}, manual: true, wantErr: true},
+		{name: "rejected token", key: "other-token", fake: &fakeThingport{}, manual: true, wantErr: true},
+		{name: "forbidden scope", key: "dashboard-token", fake: &fakeThingport{summaryCode: http.StatusForbidden}, manual: true, wantErr: true},
+		{name: "missing count", key: "dashboard-token", fake: &fakeThingport{summary: `{"model_count":0,"collection_count":0,"category_count":82}`}, wantErr: true},
+		{name: "null count", key: "dashboard-token", fake: &fakeThingport{summary: `{"model_count":null,"collection_count":0,"category_count":82,"author_count":0}`}, wantErr: true},
+		{name: "negative count", key: "dashboard-token", fake: &fakeThingport{summary: `{"model_count":-1,"collection_count":0,"category_count":82,"author_count":0}`}, wantErr: true},
+		{name: "textual count", key: "dashboard-token", fake: &fakeThingport{summary: `{"model_count":"0","collection_count":0,"category_count":82,"author_count":0}`}, wantErr: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			saved := ownerSecrets()
+			saved["THINGPORT_OWNER_ID"] = "fixture-owner"
+			if scenario.key != "" {
+				saved["THINGPORT_HOMARR_API_KEY"] = scenario.key
+			}
+			box := newHarness(t, scenario.fake, saved)
+			err := thingport.VerifyHomarr(context.Background(), box.h)
+			if (err != nil) != scenario.wantErr || scenario.manual != errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("unexpected result %v", err)
+			}
+		})
 	}
 }

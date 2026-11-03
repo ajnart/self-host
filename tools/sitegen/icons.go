@@ -97,6 +97,7 @@ var icons = map[string]string{
 	"tracearr":             "svg/tracearr.svg",
 	"traefik":              "svg/traefik.svg",
 	"transmission":         "svg/transmission.svg",
+	"thingport":            "svg/thingport.svg",
 	"umami":                "svg/umami.svg",
 	"unbound":              "svg/unbound.svg",
 	"uptime-kuma":          "svg/uptime-kuma.svg",

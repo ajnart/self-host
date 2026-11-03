@@ -28,6 +28,9 @@ func (App) Inputs() []app.Input {
 		Key: "email", Prompt: "Thingport instance owner's email", Required: true,
 		Help:     "The existing instance owner's email. Thingport uses this email, not the shared administrator username, with the password shown by self-host credentials. First-owner creation requires a Manual step.",
 		Validate: validateEmail,
+	}, {
+		Key: "homarr_api_key", Prompt: "Saved self-host Homarr access token", Private: true, RecoveryOnly: true,
+		Help: "Optional restoration of the known dashboard-only token of the selected owner; Thingport keeps one token per user and this build never regenerates it. Empty private inputs preserve saved values.",
 	}}
 }
 
