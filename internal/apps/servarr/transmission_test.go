@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -450,67 +451,134 @@ func TestTransmissionSourceFamiliesPreserveWireLifecycleAndSurvivors(t *testing.
 	for _, source := range transmissionSources() {
 		t.Run(source.consumer+"/"+source.version, func(t *testing.T) {
 			f := newTransmissionSourceFixture(t, source, false)
-			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+			fields := []connectionField{{"host", "selected-transmission"}, {"port", float64(9091)}, {"useSsl", false}, {"urlBase", "/transmission/"}, {"username", "fixture-user"}, {"password", "fixture-password"}}
+			owned := servarrContractCopy(f.template)
+			owned["id"], owned["name"], owned["enable"], owned["priority"] = float64(17), "Transmission", true, float64(9)
+			owned["tags"] = []any{float64(4)}
+			for _, field := range fields {
+				if err := owned.setField(field.Name, field.Value); err != nil {
+					t.Fatal(err)
+				}
+			}
+			owned.setField(f.field, "chosen")
+			owned.setField("addPaused", true)
+			survivor := servarrContractCopy(owned)
+			survivor["id"], survivor["name"], survivor["priority"], survivor["tags"] = float64(88), "independent Transmission", float64(4), []any{}
+			survivor.setField("host", "independent-host")
+			survivor.setField(f.field, "independent")
+			personal := servarrContractCopy(owned)
+			personal["id"], personal["name"] = float64(89), "personal Transmission"
+			personal.setField("host", "personal-host")
+			personal.setField(f.field, "personal")
+			f.items, f.nextID = []provider{owned, survivor, personal}, 18
+			key := f.from.Key("link_transmission_resource")
+			encoded, err := json.Marshal(providerOwnership{ID: 17, Target: "transmission", Endpoint: "selected-transmission", Fingerprint: connectionFingerprint(fields)})
+			if err != nil {
 				t.Fatal(err)
 			}
-			key := f.from.Key("link_transmission_resource")
-			raw := f.secrets[key]
+			raw := string(encoded)
+			f.secrets[key] = raw
 			var record map[string]any
 			if err := json.Unmarshal([]byte(raw), &record); err != nil || len(record) != 4 || record["id"] != float64(17) || record["target"] != "transmission" || record["endpoint"] != "selected-transmission" {
-				t.Fatal("ownership was migrated instead of retaining its serialized four-field contract", err)
+				t.Fatal("seeded authority does not use the exact old four-field contract", err)
 			}
-			f.items[0].setField(f.field, "chosen")
-			f.items[0]["priority"] = float64(9)
-			f.items[0].setField("addPaused", true)
+			requests := []downloadSelectionRequest{
+				{wire: source.protocol, tags: []any{float64(4)}},
+				{wire: source.protocol, tags: []any{float64(99)}},
+				{wire: source.protocol, tags: []any{float64(4)}, blocked: []int64{17}},
+				{wire: source.protocol, indexerClient: 88},
+			}
+			for index, want := range [][]int64{{17, 89, 17, 89}, {88, 88, 88, 88}, {89, 89, 89, 89}, {88, 88, 88, 88}} {
+				if !slices.Equal(requests[index].sequence(f.items), want) {
+					t.Fatal("intentional enabled clients do not exercise the expected selector paths")
+				}
+			}
+			assertInventory := func(t *testing.T, want []provider) {
+				t.Helper()
+				if !reflect.DeepEqual(f.items, want) {
+					t.Fatal("complete client DTOs, IDs or enabled flags changed")
+				}
+				for _, request := range requests {
+					if !slices.Equal(request.sequence(f.items), request.sequence(want)) {
+						t.Fatal("fixed-request modeled selection changed")
+					}
+				}
+			}
+			consumerSecrets, targetSecrets := &downloadSelectionSecrets{values: f.secrets}, &protocolTrackedSecrets{values: f.secrets}
+			f.from.Config.Secrets, f.to.Config.Secrets = consumerSecrets, targetSecrets
+			want := []provider{servarrContractCopy(owned), servarrContractCopy(survivor), servarrContractCopy(personal)}
+			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil || f.secrets[key] != raw || consumerSecrets.writes != 0 || f.creates != 0 || f.updates != 0 || f.tests != 1 {
+				t.Fatal("owned multi-client rerun changed authority or skipped native verification", err)
+			}
+			assertInventory(t, want)
 			f.items[0].setField("password", "********")
-			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil || f.secrets[key] != raw || f.updates != 0 {
+			want[0].setField("password", "********")
+			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil || f.secrets[key] != raw || consumerSecrets.writes != 0 || f.creates != 0 || f.updates != 0 || f.tests != 2 {
 				t.Fatal("masked rerun changed wire/ownership", err)
 			}
+			assertInventory(t, want)
 			f.rpc.mu.Lock()
 			f.rpc.password = "accepted-rotated-by-owner"
 			f.rpc.mu.Unlock()
 			f.secrets["ADMIN_PASSWORD"] = "accepted-rotated-by-owner"
-			before := servarrContractCopy(f.items[0])
 			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
-			before.setField("password", "accepted-rotated-by-owner")
-			want, _ := json.Marshal(before)
-			got, _ := json.Marshal(f.items[0])
-			if string(want) != string(got) || f.items[0]["protocol"] != source.protocol || f.updates != 1 {
+			want[0].setField("password", "accepted-rotated-by-owner")
+			assertInventory(t, want)
+			fields[len(fields)-1].Value = "accepted-rotated-by-owner"
+			var updated providerOwnership
+			if err := json.Unmarshal([]byte(f.secrets[key]), &updated); err != nil || updated != (providerOwnership{ID: 17, Target: "transmission", Endpoint: "selected-transmission", Fingerprint: connectionFingerprint(fields)}) || f.updates != 1 || consumerSecrets.writes != 1 || f.creates != 0 || f.deletes != 0 {
 				t.Fatal("credential-only update changed noncredential settings or source wire")
 			}
-			survivor := servarrContractCopy(f.items[0])
-			survivor["id"], survivor["name"] = float64(88), "independent Transmission"
-			survivor.setField("host", "independent-host")
-			personal := servarrContractCopy(f.items[0])
-			personal["id"], personal["name"] = float64(89), "personal Transmission"
-			f.items = append(f.items, survivor, personal)
-			consumerSecrets := &protocolTrackedSecrets{values: f.secrets}
-			targetSecrets := &protocolTrackedSecrets{values: f.secrets}
-			f.from.Config.Secrets, f.to.Config.Secrets = consumerSecrets, targetSecrets
 			delete(f.secrets, "ADMIN_PASSWORD")
 			f.rpc.status, f.exec.policy = 403, "false"
+			targetSecrets.reads = 0
 			rpcCalls, native, probes, policyReads := f.rpc.authenticated, f.tests, f.exec.calls, f.exec.policyReads
 			if err := f.link.Remove(t.Context(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
-			if targetSecrets.reads != 0 || targetSecrets.writes != 0 || f.rpc.authenticated != rpcCalls || f.tests != native || f.exec.calls != probes || f.exec.policyReads != policyReads || f.secrets[key] != "" || len(f.items) != 2 || f.items[0].id() != 88 || f.items[1].id() != 89 {
+			assertInventory(t, want[1:])
+			if consumerSecrets.adminReads != 0 || targetSecrets.reads != 0 || targetSecrets.writes != 0 || f.rpc.authenticated != rpcCalls || f.tests != native || f.exec.calls != probes || f.exec.policyReads != policyReads || f.secrets[key] != "" || f.creates != 0 || f.updates != 1 || f.deletes != 1 || consumerSecrets.writes != 2 {
 				t.Fatal("offline removal contacted target or changed a survivor")
 			}
 			consumerSecrets.writes = 0
-			if err := f.link.Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || targetSecrets.reads != 0 || consumerSecrets.writes != 0 || f.tests != native {
-				t.Fatal("reinstall adopted a personal same-target entry", err)
-			}
-			f.items[1].setField("host", "person-selected-host")
 			f.secrets["ADMIN_PASSWORD"] = "accepted-rotated-by-owner"
 			f.rpc.status, f.exec.policy = 0, "true"
-			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
-				t.Fatal(err)
+			for _, scenario := range []struct{ name, host, clientName string }{
+				{"unchanged-enabled-survivors", "personal-host", "personal Transmission"},
+				{"personal-same-target", "selected-transmission", "personal Transmission"},
+				{"edited-host-and-name", "person-selected-host", "renamed personal Transmission"},
+			} {
+				t.Run("fresh-reinstall/"+scenario.name, func(t *testing.T) {
+					f.items[1].setField("host", scenario.host)
+					f.items[1]["name"] = scenario.clientName
+					before := []provider{servarrContractCopy(f.items[0]), servarrContractCopy(f.items[1])}
+					f.recorder.Steps = nil
+					if err := f.link.Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.recorder.Status("link-transmission") != stepstatus.StepManual || f.recorder.Hint() == "" {
+						t.Fatal("enabled same-family survivors did not hold fresh reinstall Manual", err)
+					}
+					if scenario.host != "selected-transmission" && !strings.Contains(f.recorder.Hint(), "explicitly disable competing clients") {
+						t.Fatal("fresh selection refusal lost its explicit-person recovery")
+					}
+					if consumerSecrets.adminReads != 0 || targetSecrets.reads != 0 || targetSecrets.writes != 0 || consumerSecrets.writes != 0 || f.rpc.authenticated != rpcCalls || f.tests != native || f.exec.calls != probes || f.exec.policyReads != policyReads || f.creates != 0 || f.updates != 1 || f.deletes != 1 || f.secrets[key] != "" {
+						t.Fatal("fresh selection refusal reached target/native/CRUD/private effects")
+					}
+					assertInventory(t, before)
+				})
 			}
-			if len(f.items) != 3 || f.items[0].id() != 88 || f.items[1].id() != 89 || f.items[2].id() != 18 || f.items[2]["protocol"] != source.protocol {
-				t.Fatal("fresh creation reclaimed an ID or changed protocol/survivors")
-			}
+			t.Run("person-explicitly-disables-competitors-before-selecting-transmission", func(t *testing.T) {
+				for _, item := range f.items {
+					item["enable"] = false
+				}
+				disabled := []provider{servarrContractCopy(f.items[0]), servarrContractCopy(f.items[1])}
+				if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+					t.Fatal("separate person-selected transition could not create a fresh client", err)
+				}
+				if len(f.items) != 3 || !reflect.DeepEqual(f.items[:2], disabled) || f.items[2].id() != 18 || f.items[2]["enable"] != true || f.items[2]["protocol"] != source.protocol || f.creates != 1 || f.updates != 1 || f.deletes != 1 {
+					t.Fatal("person-selected creation reclaimed an ID or changed the disabled survivors")
+				}
+			})
 			for _, submitted := range append(append(f.nativeItems, f.createdItems...), f.updatedItems...) {
 				if submitted["protocol"] != source.protocol {
 					t.Fatal("native/create/update body normalized the actual schema wire")
