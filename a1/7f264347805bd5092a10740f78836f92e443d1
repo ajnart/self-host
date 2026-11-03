@@ -1,0 +1,23 @@
+internal/apps/homarr/external_targets.go
+  s_24f5d99ae33652::t_13b2d95898f8af 13-14
+internal/apps/homarr/seerr_family.go
+  s_24f5d99ae33652::t_57c1f50f6daad7 16-19,149,151-152,155-158,163-166,177-178,180-182,184-187
+internal/apps/homarr/target_overseerr.go
+  s_24f5d99ae33652::t_efcb0b56ced032 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a17f264347805bd5092a10740f78836f92e443d1",
+  "prompts": {},
+  "sessions": {
+    "s_24f5d99ae33652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a6ee58b-155d-442c-bbc3-c476e21a9a21",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
