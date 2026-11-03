@@ -19,6 +19,13 @@ readlink -f -- "$1"
 stat -L -c '%d:%i' -- "$1"
 cat /proc/self/mountinfo`
 
+type downloadPathIdentity uint8
+
+const (
+	downloadPathS6ABC downloadPathIdentity = iota
+	downloadPathSuExecUserUsers
+)
+
 type downloadDirectory struct {
 	canonical, identity, mountDevice, backing string
 }
@@ -80,17 +87,40 @@ func (p providerLink) mappedDownloadPath(ctx context.Context, from *helpers.H, h
 	return local, nil
 }
 
-func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory string) (downloadDirectory, error) {
+func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory string, identity downloadPathIdentity) (downloadDirectory, error) {
 	if h.Config.Exec == nil || !downloadPathValid(directory) {
 		return downloadDirectory{}, fmt.Errorf("directory access is unavailable")
 	}
+	command := []string{"s6-setuidgid", "abc"}
+	probe := downloadDirectoryProbe
+	switch identity {
+	case downloadPathS6ABC:
+	case downloadPathSuExecUserUsers:
+		command = []string{"su-exec", "user:users"}
+		probe = `test "$(id -u)" -ne 0
+test "$(id -g)" -ne 0
+test "$(id -un)" = "user"
+test "$(id -gn)" = "users"
+id -un
+id -gn
+` + downloadDirectoryProbe
+	default:
+		return downloadDirectory{}, fmt.Errorf("directory App-user mechanism is unsupported")
+	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	result, err := h.Exec(ctx, nil, "s6-setuidgid", "abc", "sh", "-eu", "-c", downloadDirectoryProbe, "self-host-download-path", directory)
+	command = append(command, "sh", "-eu", "-c", probe, "self-host-download-path", directory)
+	result, err := h.Exec(ctx, nil, command...)
 	if err != nil || result.ExitCode != 0 || len(result.Stderr) != 0 {
 		return downloadDirectory{}, fmt.Errorf("directory access could not be verified as the App user")
 	}
 	lines := strings.Split(strings.TrimSpace(string(result.Stdout)), "\n")
+	if identity == downloadPathSuExecUserUsers {
+		if len(lines) < 5 || lines[0] != "user" || lines[1] != "users" {
+			return downloadDirectory{}, fmt.Errorf("directory App-user identity could not be verified")
+		}
+		lines = lines[2:]
+	}
 	if len(lines) < 3 || !downloadPathValid(lines[0]) {
 		return downloadDirectory{}, fmt.Errorf("directory identity is unavailable")
 	}
@@ -152,6 +182,10 @@ func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory stri
 }
 
 func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.H, host, completed string) error {
+	return p.verifyDownloadPathAs(ctx, from, to, host, completed, downloadPathS6ABC)
+}
+
+func (p providerLink) verifyDownloadPathAs(ctx context.Context, from, to *helpers.H, host, completed string, targetIdentity downloadPathIdentity) error {
 	if !downloadPathValid(completed) {
 		return p.pathManual(from, "the downloader did not identify a supported absolute completed folder")
 	}
@@ -169,11 +203,11 @@ func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.
 	if len(roots) == 0 {
 		return p.pathManual(from, "choose the intended library root and any required profiles in the consuming App first")
 	}
-	remote, err := downloadDirectoryIdentity(ctx, to, completed)
+	remote, err := downloadDirectoryIdentity(ctx, to, completed, targetIdentity)
 	if err != nil {
 		return p.pathManual(from, "the downloader cannot verify access to its completed folder as its App user")
 	}
-	observed, err := downloadDirectoryIdentity(ctx, from, local)
+	observed, err := downloadDirectoryIdentity(ctx, from, local, downloadPathS6ABC)
 	if err != nil || remote.identity != observed.identity || remote.mountDevice != observed.mountDevice || remote.backing != observed.backing {
 		return p.pathManual(from, "the completed folder is not verified as the same accessible directory in both Apps; legacy App-local folders are not shared storage")
 	}
@@ -183,7 +217,7 @@ func (p providerLink) verifyDownloadPath(ctx context.Context, from, to *helpers.
 			return p.pathManual(from, "the configured library roots are invalid or ambiguous")
 		}
 		ids[root.ID] = true
-		library, err := downloadDirectoryIdentity(ctx, from, root.Path)
+		library, err := downloadDirectoryIdentity(ctx, from, root.Path, downloadPathS6ABC)
 		if err != nil {
 			return p.pathManual(from, "a selected library root is not accessible as the consuming App user")
 		}
