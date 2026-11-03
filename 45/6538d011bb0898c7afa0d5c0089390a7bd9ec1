@@ -1,0 +1,21 @@
+internal/apps/homarr/target_truenas.go
+  s_a5b4b0a218e701::t_5322386f6c499e 1-126
+internal/apps/homarr/target_truenas_test.go
+  s_a5b4b0a218e701::t_632444831ad3b0 1-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "456538d011bb0898c7afa0d5c0089390a7bd9ec1",
+  "prompts": {},
+  "sessions": {
+    "s_a5b4b0a218e701": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f269d40-2de2-4919-93d2-efc46c9a8874",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
