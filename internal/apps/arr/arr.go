@@ -44,7 +44,7 @@ func Sonarr() App {
 		},
 		api:        apiV3,
 		rootFolder: "/media/tv",
-		links:      []app.Link{downloadClientLink("tvCategory", "tv")},
+		links:      downloadClientLinks("tvCategory", "tv"),
 	}
 }
 
@@ -62,7 +62,7 @@ func Radarr() App {
 		},
 		api:        apiV3,
 		rootFolder: "/media/movies",
-		links:      []app.Link{downloadClientLink("movieCategory", "movies")},
+		links:      downloadClientLinks("movieCategory", "movies"),
 	}
 }
 
