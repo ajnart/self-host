@@ -577,7 +577,7 @@
    "name": "Bindery",
    "description": "Find and organize ebooks and audiobooks in your own library",
    "category": "Requests",
-   "icon": "",
+   "icon": "svg/bindery.svg",
    "image": "ghcr.io/vavallee/bindery:latest",
    "port": 8787,
    "docs": "https://github.com/vavallee/bindery/blob/main/docs/DEPLOYMENT.md",

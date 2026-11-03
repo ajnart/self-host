@@ -22,7 +22,7 @@ var icons = map[string]string{
 	"autobrr":              "svg/autobrr.svg",
 	"bazarr":               "svg/bazarr.svg",
 	"beszel":               "svg/beszel.svg",
-	"bindery":              "",
+	"bindery":              "svg/bindery.svg",
 	"bookstack":            "svg/bookstack.svg",
 	"borgmatic":            "svg/borg.svg",
 	"caddy":                "svg/caddy.svg",

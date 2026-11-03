@@ -135,7 +135,8 @@
    "img": "ghcr.io/vavallee/bindery:latest",
    "p": 8787,
    "l": [],
-   "lt": []
+   "lt": [],
+   "i": "svg/bindery.svg"
   },
   {
    "id": "bookstack",
