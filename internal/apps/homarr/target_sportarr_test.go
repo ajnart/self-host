@@ -23,6 +23,9 @@ type sportarrConnectorFixture struct {
 	media         any
 	mediaStatus   int
 	mediaRequests atomic.Int32
+	calendar      any
+	calendarFails bool
+	calendarReqs  atomic.Int32
 	otherRequests atomic.Int32
 }
 
@@ -104,6 +107,19 @@ func sportarrConnectorPeer(t *testing.T, f *sportarrConnectorFixture) *helpers.H
 func sportarrConnectorHomarr(t *testing.T, f *sportarrConnectorFixture) *helpers.H {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/trpc/widget.calendar.findAllEvents" {
+			f.calendarReqs.Add(1)
+			if f.calendarFails {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			value := f.calendar
+			if value == nil {
+				value = []any{map[string]any{"integration": map[string]any{"id": "sportarr-owned", "kind": "sportarr"}, "events": []any{map[string]any{"title": "Synthetic event", "startDate": "2026-11-03T20:00:00Z"}}}}
+			}
+			json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": value}}})
+			return
+		}
 		if r.URL.Path != "/api/trpc/widget.mediaOrganizer.getData" {
 			f.otherRequests.Add(1)
 			w.WriteHeader(http.StatusNotFound)
@@ -204,7 +220,7 @@ func TestSportarrConnectorReadsEmptyStandaloneAndLeagueData(t *testing.T) {
 				t.Fatal(err)
 			}
 			if f.mediaRequests.Load() != 1 || f.otherRequests.Load() != 0 {
-				t.Fatal("verification must use one shared media read, without Stats or a copied calendar reader")
+				t.Fatal("verification must use one shared media read, without Stats")
 			}
 		})
 	}
@@ -387,5 +403,36 @@ func TestSportarrConnectorBrowserLinkNormalization(t *testing.T) {
 		if valid := sportarrMediaLink(tc.link, base); valid != tc.valid {
 			t.Errorf("link %q valid=%v, want %v", tc.link, valid, tc.valid)
 		}
+	}
+}
+
+func TestSportarrConnectorCalendarMustBeNativeAndComplete(t *testing.T) {
+	ok := func(events any) any {
+		return []any{map[string]any{"integration": map[string]any{"id": "sportarr-owned", "kind": "sportarr"}, "events": events}}
+	}
+	for _, tc := range []struct {
+		name     string
+		calendar any
+		fails    bool
+		valid    bool
+	}{
+		{"empty events", ok([]any{}), false, true},
+		{"valid event", ok([]any{map[string]any{"title": "Event", "startDate": "2026-11-03T20:00:00Z"}}), false, true},
+		{"HTTP failure", nil, true, false},
+		{"error fallback", []any{map[string]any{"error": "private-provider-marker"}}, false, false},
+		{"null events", ok(nil), false, false},
+		{"wrong kind", []any{map[string]any{"integration": map[string]any{"id": "sportarr-owned", "kind": "sonarr"}, "events": []any{}}}, false, false},
+		{"wrong integration", []any{map[string]any{"integration": map[string]any{"id": "other", "kind": "sportarr"}, "events": []any{}}}, false, false},
+		{"missing title", ok([]any{map[string]any{"startDate": "2026-11-03T20:00:00Z"}}), false, false},
+		{"invalid date", ok([]any{map[string]any{"title": "Event", "startDate": "soon"}}), false, false},
+		{"two results", []any{}, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &sportarrConnectorFixture{calendar: tc.calendar, calendarFails: tc.fails}
+			err := sportarrTarget().verifyData(t.Context(), sportarrConnectorHomarr(t, f), sportarrConnectorPeer(t, f), "sportarr-owned")
+			if (err == nil) != tc.valid || err != nil && strings.Contains(err.Error(), "private-provider-marker") || f.calendarReqs.Load() != 1 {
+				t.Fatalf("valid=%v error=%v calendar requests=%d", tc.valid, err, f.calendarReqs.Load())
+			}
+		})
 	}
 }

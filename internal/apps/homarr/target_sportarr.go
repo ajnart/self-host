@@ -67,7 +67,8 @@ func verifySportarr(ctx context.Context, from, to *helpers.H, integrationID stri
 			seen[id] = true
 		}
 	}
-	return nil
+	_, err = readCalendarEvents(mediaCtx, from, integrationID, "sportarr")
+	return err
 }
 
 func sportarrMediaItem(item map[string]any, queued bool, base *url.URL) bool {

@@ -87,6 +87,7 @@ var icons = map[string]string{
 	"seerr":                "svg/seerr.svg",
 	"slskd":                "svg/slskd.svg",
 	"sonarr":               "svg/sonarr.svg",
+	"sportarr":             "svg/sportarr.svg",
 	"speedtest-tracker":    "",
 	"stalwart-mail":        "svg/stalwart.svg",
 	"stirling-pdf":         "svg/stirling-pdf.svg",

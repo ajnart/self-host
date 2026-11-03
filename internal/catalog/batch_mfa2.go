@@ -6,6 +6,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/portainer"
 	"github.com/ajnart/self-host/internal/apps/sabnzbd"
 	"github.com/ajnart/self-host/internal/apps/scrypted"
+	"github.com/ajnart/self-host/internal/apps/sportarr"
 	"github.com/ajnart/self-host/internal/apps/syncthing"
 	"github.com/ajnart/self-host/internal/apps/tdarr"
 	"github.com/ajnart/self-host/internal/apps/transmission"
@@ -19,6 +20,7 @@ func init() {
 		portainer.App{},
 		sabnzbd.App{},
 		scrypted.App{},
+		sportarr.App{},
 		syncthing.App{},
 		tdarr.App{},
 		transmission.App{},
