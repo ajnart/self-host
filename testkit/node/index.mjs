@@ -283,6 +283,16 @@ class AppHandle {
     get recoveryPath() {
         return this.#bridge.recoveryPath;
     }
+    #validate(read) {
+        try {
+            return read();
+        }
+        catch (error) {
+            if (this.#app !== undefined)
+                return this.#bridge.failAndClose(error);
+            throw error;
+        }
+    }
     async getApiKey(name = "") {
         if (this.#closed || typeof name !== "string")
             throw fault("STATE");
@@ -290,31 +300,41 @@ class AppHandle {
             name,
             app: this.#app,
         });
-        if (!strings(value, ["apiKey"]))
-            throw fault("PROTOCOL");
-        return value.apiKey;
+        return this.#validate(() => {
+            if (!strings(value, ["apiKey"]))
+                throw fault("PROTOCOL");
+            return value.apiKey;
+        });
     }
     async credentials() {
         if (this.#closed)
             throw fault("STATE");
-        return privateCredentials(await this.#bridge.request("credentials", { app: this.#app }));
+        const value = await this.#bridge.request("credentials", { app: this.#app });
+        return this.#validate(() => privateCredentials(value));
     }
     async info() {
         if (this.#closed)
             throw fault("STATE");
         const value = await this.#bridge.request("info", { app: this.#app });
-        if (!strings(value, ["id", "url", "image", "imageId"]) ||
-            !Array.isArray(value.repoDigests) ||
-            !value.repoDigests.every((digest) => typeof digest === "string")) {
-            throw fault("PROTOCOL");
-        }
-        return {
-            id: value.id,
-            url: value.url,
-            image: value.image,
-            imageId: value.imageId,
-            repoDigests: [...value.repoDigests],
-        };
+        return this.#validate(() => {
+            if (!strings(value, ["id", "url", "image", "imageId"]) ||
+                !Array.isArray(value.repoDigests) ||
+                !value.repoDigests.every((digest) => typeof digest === "string")) {
+                throw fault("PROTOCOL");
+            }
+            if (this.#app !== undefined &&
+                (value.id !== this.#app ||
+                    !loopback(value.url) ||
+                    value.url !== this.#url))
+                throw fault("PROTOCOL");
+            return {
+                id: value.id,
+                url: value.url,
+                image: value.image,
+                imageId: value.imageId,
+                repoDigests: [...value.repoDigests],
+            };
+        });
     }
     close() {
         this.#closed = true;
@@ -345,10 +365,11 @@ function loopback(value) {
         return false;
     }
 }
-function pairAppStatus(value, id) {
+function pairAppStatus(value, id, url) {
     if (!strings(value, ["id", "url", "state", "setup"]) ||
         value.id !== id ||
         !loopback(value.url) ||
+        value.url !== url ||
         typeof value.installed !== "boolean" ||
         ![
             "running",
@@ -367,6 +388,7 @@ function pairAppStatus(value, id) {
             value.setup !== "pending") ||
         !Array.isArray(value.steps))
         throw fault("PROTOCOL");
+    const seen = new Set();
     const steps = value.steps.map((step) => {
         if (!strings(step, ["id", "status"]) ||
             !appID(step.id) ||
@@ -375,6 +397,9 @@ function pairAppStatus(value, id) {
                 step.status !== "fail" &&
                 step.status !== "skip"))
             throw fault("PROTOCOL");
+        if (seen.has(step.id))
+            throw fault("PROTOCOL");
+        seen.add(step.id);
         return { id: step.id, status: step.status };
     });
     return {
@@ -386,15 +411,21 @@ function pairAppStatus(value, id) {
         steps,
     };
 }
-function pairInspection(value, ids) {
+function pairInspection(value, ids, urls) {
     if (!strings(value, ["link", "outcome", "reason"]) ||
         !appID(value.link) ||
         !Array.isArray(value.apps) ||
         value.apps.length !== 2)
         throw fault("PROTOCOL");
     const rawApps = value.apps;
-    const apps = ids.map((id, index) => pairAppStatus(rawApps[index], id));
+    const apps = ids.map((id, index) => pairAppStatus(rawApps[index], id, urls[index] ?? ""));
     const base = { link: value.link, apps };
+    const failed = apps.some((app) => app.steps.some((step) => step.status === "fail"));
+    if ((value.outcome === "failed") !== failed)
+        throw fault("PROTOCOL");
+    if (!failed &&
+        (value.outcome === "manual") !== apps.some((app) => app.setup === "manual"))
+        throw fault("PROTOCOL");
     if (value.outcome === "complete" && value.reason === "verified") {
         if (apps.some((app) => !app.installed ||
             app.setup !== "ok" ||
@@ -409,8 +440,17 @@ function pairInspection(value, ids) {
     if (value.outcome === "prerequisite" &&
         (value.reason === "absent" ||
             value.reason === "unready" ||
-            value.reason === "not-run"))
+            value.reason === "not-run")) {
+        const absent = apps.some((app) => !app.installed);
+        const unready = apps.some((app) => app.setup !== "ok");
+        if ((value.reason === "absent") !== absent ||
+            (!absent && (value.reason === "unready") !== unready) ||
+            (!absent &&
+                !unready &&
+                apps[0]?.steps.some((step) => step.id === base.link && step.status === "ok")))
+            throw fault("PROTOCOL");
         return { ...base, outcome: "prerequisite", reason: value.reason };
+    }
     throw fault("PROTOCOL");
 }
 function sonarrFilterWitness(value) {
@@ -481,7 +521,7 @@ class PairHandle {
         return this.#target;
     }
     get initial() {
-        return pairInspection(this.#initial, this.#ids);
+        return pairInspection(this.#initial, this.#ids, this.#initial.apps.map((app) => app.url));
     }
     get recoveryPath() {
         return this.#bridge.recoveryPath;
@@ -489,7 +529,15 @@ class PairHandle {
     async #action(method, app) {
         if (app !== undefined && !this.#ids.includes(app))
             throw fault("STATE");
-        return pairInspection(await this.#bridge.request(method, { app }, this.#timeout + 1000), this.#ids);
+        const result = await this.#bridge.request(method, { app }, this.#timeout + 1000);
+        try {
+            if (!record(result) || result.link !== this.#initial.link)
+                throw fault("PROTOCOL");
+            return pairInspection(result, this.#ids, this.#initial.apps.map((app) => app.url));
+        }
+        catch (error) {
+            return this.#bridge.failAndClose(error);
+        }
     }
     inspect() {
         return this.#action("inspect");
@@ -681,7 +729,7 @@ class SelfHostHandle {
                 !loopback(value.target.url) ||
                 value.consumer.url === value.target.url)
                 throw fault("PROTOCOL", undefined, this.#manifest);
-            const initial = pairInspection(value.initial, [consumer, target]);
+            const initial = pairInspection(value.initial, [consumer, target], [value.consumer.url, value.target.url]);
             if (options.sonarrFilterWitness && value.sonarrFilterWitness !== 1)
                 throw fault("PROTOCOL");
             if (this.#closed)
