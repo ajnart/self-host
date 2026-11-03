@@ -187,18 +187,22 @@ func TestDeploymentContract(t *testing.T) {
 	if len(inputs) != 1 || inputs[0].Key != "api_key" || !inputs[0].Private || !inputs[0].RecoveryOnly || inputs[0].Required {
 		t.Fatal("existing API key must use the optional private recovery boundary")
 	}
-	files := a.Files(app.RenderContext{}, func(string) string {
-		t.Fatal("configuration directory preparation must not obtain credentials")
-		return ""
-	})
-	if len(files) != 1 || files[0].Path != "config/.keep" || !files[0].Keep || files[0].Mode != 0o600 || files[0].Content != "" {
-		t.Fatal("configuration preparation must preserve existing App files")
+	if _, writesFiles := any(a).(app.FileDeclarer); writesFiles {
+		t.Fatal("configuration preparation must not declare sentinel files")
+	}
+	for _, settings := range []map[string]string{nil, {"PUID": "1234", "PGID": "5678"}, {"PUID": "0", "PGID": "0"}} {
+		directories := a.Directories(app.RenderContext{Settings: settings})
+		want := []app.Directory{{Path: "config", Mode: 0o755, UID: settings["PUID"], GID: settings["PGID"]}}
+		if !reflect.DeepEqual(directories, want) {
+			t.Fatal("configuration preparation must use the selected runtime owner without a fallback")
+		}
 	}
 	for _, layout := range []string{"shared", "legacy", ""} {
 		t.Run("layout="+layout, func(t *testing.T) {
 			compose := a.Compose(app.RenderContext{Port: 19000, Settings: map[string]string{"MEDIA_LAYOUT": layout, "MEDIA_SEPARATE_USERS": "on"}})
 			for _, expected := range []string{
-				"user: ${PUID}:${PGID}", "${BIND_IP}:19000:8787", "./config:/config",
+				"user: ${PUID}:${PGID}", "${BIND_IP}:19000:8787",
+				"- type: bind\n        source: ./config\n        target: /config\n        bind:\n          create_host_path: false",
 				`BINDERY_TELEMETRY_DISABLED: "true"`, `BINDERY_DOWNLOAD_RETENTION_DAYS: "0"`,
 				`test: ["CMD", "/bindery", "healthcheck"]`, "restart: unless-stopped",
 			} {
@@ -206,7 +210,7 @@ func TestDeploymentContract(t *testing.T) {
 					t.Fatalf("Compose omitted %s", expected)
 				}
 			}
-			for _, forbidden := range []string{"readarr", "s6-", "CMD-SHELL", "curl", "/ping", "BINDERY_API_KEY", "UMASK", "BINDERY_PUID", "depends_on", "container_name", "privileged", "docker.sock"} {
+			for _, forbidden := range []string{"config/.keep", "./config:/config", "readarr", "s6-", "CMD-SHELL", "curl", "/ping", "BINDERY_API_KEY", "UMASK", "BINDERY_PUID", "depends_on", "container_name", "privileged", "docker.sock"} {
 				if strings.Contains(compose, forbidden) {
 					t.Fatalf("Compose used an unsupported or unsafe assumption: %s", forbidden)
 				}

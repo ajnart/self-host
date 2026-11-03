@@ -51,8 +51,8 @@ func (App) Inputs() []app.Input {
 
 func (App) Links() []app.Link { return nil }
 
-func (App) Files(app.RenderContext, func(string) string) []app.File {
-	return []app.File{{Path: "config/.keep", Mode: 0o600, Keep: true}}
+func (App) Directories(rc app.RenderContext) []app.Directory {
+	return []app.Directory{{Path: "config", Mode: 0o755, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}
 }
 
 func (App) Compose(rc app.RenderContext) string {
@@ -71,7 +71,11 @@ func (App) Compose(rc app.RenderContext) string {
       BINDERY_TELEMETRY_DISABLED: "true"
       BINDERY_DOWNLOAD_RETENTION_DAYS: "0"
     volumes:
-      - ./config:/config
+      - type: bind
+        source: ./config
+        target: /config
+        bind:
+          create_host_path: false
 ` + mounts + `    ports:
       - ${BIND_IP}:` + strconv.Itoa(rc.Port) + `:8787
     healthcheck:
