@@ -1,0 +1,27 @@
+internal/app/link_pins_test.go
+  s_0812986ae533ff::t_ac483df173c35e 67
+internal/apps/arr/links_test.go
+  s_0812986ae533ff::t_86bc418a21bf0c 129,176
+internal/apps/arrtest/arr.go
+  s_0812986ae533ff::t_5ad32cb20340ec 126-129,132,148-149,152,155
+internal/apps/servarr/downloadclients.go
+  s_0812986ae533ff::t_6c7c9265d3ff1e 54-57,79,146
+internal/apps/servarr/links.go
+  s_0812986ae533ff::t_9d0af1086d8e86 223-224,226,228,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "317b100faf24eb36cd7ad3d72a22914ac78a4371",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
