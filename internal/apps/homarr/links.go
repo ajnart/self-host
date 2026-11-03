@@ -87,10 +87,7 @@ func ntfySecret(_, to *helpers.H) []secret {
 // Other Apps are reached by Compose service name, never localhost.
 func existingTargets() []target {
 	return []target{
-		{
-			id: "sonarr", name: "Sonarr", kind: "sonarr", internal: (*helpers.H).InternalURL, secrets: apiKeySecret,
-			widgets: []widget{plain("calendar"), plain("mediaMissing"), statWidget("shows", "downloaded", "missing", "queued")},
-		},
+		sonarrTarget(),
 		{
 			id: "radarr", name: "Radarr", kind: "radarr", internal: (*helpers.H).InternalURL, secrets: apiKeySecret,
 			widgets: []widget{plain("calendar"), plain("mediaMissing"), statWidget("movies", "downloaded", "missing", "queued")},
