@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -24,7 +25,8 @@ func minifluxPeerFixture(t *testing.T, identity string) *helpers.H {
 	const token = "miniflux-private-key"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, password, basic := r.BasicAuth()
-		if r.Method != http.MethodGet || basic && (user != "admin" || password != "miniflux-admin-password") || !basic && r.Header.Get("X-Auth-Token") != token {
+		presented := r.Header.Get("X-Auth-Token")
+		if r.Method != http.MethodGet || basic && (user != "admin" || password != "miniflux-admin-password") || !basic && presented != token && presented != "miniflux-other-valid-key" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -34,7 +36,7 @@ func minifluxPeerFixture(t *testing.T, identity string) *helpers.H {
 		case "/v1/feeds":
 			w.Write([]byte(`[{"id":41,"user_id":27}]`))
 		case "/v1/api-keys":
-			w.Write([]byte(`[{"id":8,"user_id":27,"description":"self-host Homarr statistics","token":"miniflux-private-key","created_at":"2026-11-02T12:00:00Z"}]`))
+			w.Write([]byte(`[{"id":8,"user_id":27,"description":"self-host Homarr statistics","token":"miniflux-private-key","created_at":"2026-11-02T12:00:00Z"},{"id":9,"user_id":27,"description":"Personal key","token":"miniflux-other-valid-key","created_at":"2026-11-02T13:00:00Z"}]`))
 		default:
 			t.Errorf("unexpected Miniflux request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -108,50 +110,56 @@ func TestMinifluxDescriptorExactKindCredentialsAndMetrics(t *testing.T) {
 	}
 }
 
-func TestMinifluxNativeReaderPrecedesOneAdvancingSemanticSample(t *testing.T) {
+func TestMinifluxCountSemanticsRemainStrictWithoutNativeAdmission(t *testing.T) {
 	for _, scenario := range []struct {
-		name    string
-		change  func(*minifluxNativeFixture)
-		wantOK  bool
-		refresh int
+		name   string
+		change func(*statsSample)
+		wantOK bool
 	}{
-		{name: "populated counters", wantOK: true, refresh: 1},
-		{name: "explicit empty counters", wantOK: true, refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.values = map[string]any{"read": 0, "unread": 0} }},
-		{name: "fractional read", refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.values["read"] = 0.5 }},
-		{name: "negative unread", refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.values["unread"] = -1 }},
-		{name: "text read", refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.values["read"] = "0" }},
-		{name: "null unread", refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.values["unread"] = nil }},
-		{name: "missing read", refresh: 1, change: func(f *minifluxNativeFixture) { delete(f.stats.values, "read") }},
-		{name: "wrong unit", refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.metrics[0].(map[string]any)["unit"] = "bytes" }},
-		{name: "missing catalog key", change: func(f *minifluxNativeFixture) { f.stats.metrics = f.stats.metrics[:1] }},
-		{name: "no-op refresh", refresh: 1, change: func(f *minifluxNativeFixture) { f.stats.advance = false }},
-		{name: "different reader ID", change: func(f *minifluxNativeFixture) { f.envelope["data"].(map[string]any)["id"] = 28 }},
-		{name: "equal empty counters from another reader", change: func(f *minifluxNativeFixture) {
-			f.envelope["data"].(map[string]any)["id"] = 28
-			f.stats.values = map[string]any{"read": 0, "unread": 0}
-		}},
-		{name: "different username", change: func(f *minifluxNativeFixture) { f.envelope["data"].(map[string]any)["username"] = "another" }},
-		{name: "nonadministrator authorization", change: func(f *minifluxNativeFixture) { f.envelope["data"].(map[string]any)["is_admin"] = false }},
-		{name: "missing authorization", change: func(f *minifluxNativeFixture) { delete(f.envelope["data"].(map[string]any), "is_admin") }},
-		{name: "another integration ID", change: func(f *minifluxNativeFixture) { f.envelope["integration"].(map[string]any)["id"] = "user-owned" }},
-		{name: "another kind", change: func(f *minifluxNativeFixture) { f.envelope["integration"].(map[string]any)["kind"] = "linkwarden" }},
-		{name: "body-level error", change: func(f *minifluxNativeFixture) { f.envelope["ok"] = false }},
-		{name: "upstream unauthorized", change: func(f *minifluxNativeFixture) { f.envelope["status"] = 401 }},
-		{name: "missing useful identity", change: func(f *minifluxNativeFixture) { f.envelope["data"] = nil }},
+		{name: "populated counters", wantOK: true},
+		{name: "explicit empty counters", wantOK: true, change: func(sample *statsSample) { sample.values = map[string]any{"read": float64(0), "unread": float64(0)} }},
+		{name: "fractional read", change: func(sample *statsSample) { sample.values["read"] = 0.5 }},
+		{name: "negative unread", change: func(sample *statsSample) { sample.values["unread"] = float64(-1) }},
+		{name: "text read", change: func(sample *statsSample) { sample.values["read"] = "0" }},
+		{name: "null unread", change: func(sample *statsSample) { sample.values["unread"] = nil }},
+		{name: "missing read", change: func(sample *statsSample) { delete(sample.values, "read") }},
+		{name: "wrong unit", change: func(sample *statsSample) { sample.units["read"] = "bytes" }},
+		{name: "missing unit", change: func(sample *statsSample) { delete(sample.units, "unread") }},
+		{name: "nonfinite count", change: func(sample *statsSample) { sample.values["read"] = math.NaN() }},
+		{name: "infinite count", change: func(sample *statsSample) { sample.values["unread"] = math.Inf(1) }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			fixture := newMinifluxNativeFixture()
+			sample := statsSample{
+				values: map[string]any{"read": float64(3), "unread": float64(8)},
+				units:  map[string]string{"read": "count", "unread": "count"},
+			}
 			if scenario.change != nil {
-				scenario.change(fixture)
+				scenario.change(&sample)
 			}
-			err := minifluxTarget().verifyData(t.Context(), fixture.helpers(t), minifluxPeerFixture(t, ""), "miniflux-owned")
-			if (err == nil) != scenario.wantOK || fixture.reads != 1 || fixture.stats.refreshes != scenario.refresh {
-				t.Fatalf("verification=%v native=%d refreshes=%d, expected success=%v refreshes=%d", err, fixture.reads, fixture.stats.refreshes, scenario.wantOK, scenario.refresh)
-			}
-			if scenario.refresh > 0 && (fixture.stats.catalogs != 1 || fixture.stats.snapshots != 1 || !fixture.stats.force || fixture.stats.integrationID != "miniflux-owned") {
-				t.Fatal("leaf bypassed the single central catalog/advancing refresh sample")
+			if err := minifluxTarget().stats(sample); (err == nil) != scenario.wantOK {
+				t.Fatalf("unexpected pure count semantics: %v", err)
 			}
 		})
+	}
+}
+
+func TestMinifluxKeyProofHoldPrecedesPlausibleNativeAndStatsData(t *testing.T) {
+	for _, empty := range []bool{false, true} {
+		fixture := newMinifluxNativeFixture()
+		if empty {
+			fixture.stats.values = map[string]any{"read": 0, "unread": 0}
+		}
+		from := fixture.helpers(t)
+		to := minifluxPeerFixture(t, "")
+		if err := minifluxTarget().verifyData(t.Context(), from, to, "miniflux-owned"); !errors.Is(err, helpers.ErrManual) {
+			t.Fatal("plausible account/Stats data bypassed missing exact saved-key proof")
+		}
+		if err := minifluxTarget().preflight(t.Context(), from, to); !errors.Is(err, helpers.ErrManual) {
+			t.Fatal("preflight admitted a credential without an authoritative native key identity")
+		}
+		if fixture.reads != 0 || fixture.stats.catalogs != 0 || fixture.stats.snapshots != 0 || fixture.stats.refreshes != 0 {
+			t.Fatal("native or Stats acquisition preceded exact saved-key admission")
+		}
 	}
 }
 
