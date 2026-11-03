@@ -1,0 +1,16 @@
+internal/apps/jellystat/homarr.go
+  h_d6e478ca18e517 155-158,163,166-169,175,182,192
+internal/apps/jellystat/homarr_test.go
+  h_d6e478ca18e517 357-362,368-370,374-379,395-397,420-423
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c41777e6b1c1b09e9cd8787989247f8094cbe343",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
