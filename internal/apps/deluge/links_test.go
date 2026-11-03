@@ -353,6 +353,27 @@ func delugeSurvivor(f *delugeLinkContract, source delugeConsumerSource) map[stri
 	return map[string]any{"name": "independent qBittorrent", "implementation": "QBittorrent", "configContract": "QBittorrentSettings", "protocol": source.protocol, "enable": true, "priority": 4, "fields": fields}
 }
 
+func seedDelugeOwnedClient(t *testing.T, f *delugeLinkContract) (map[string]any, string) {
+	t.Helper()
+	client := delugeCopyClient(t, f.template)
+	client["name"], client["enable"], client["priority"] = "existing managed Deluge", true, 9
+	client["tags"], client["removeCompletedDownloads"] = []any{float64(3)}, false
+	delugeSetField(client, "host", "deluge")
+	delugeSetField(client, "port", float64(8112))
+	delugeSetField(client, "urlBase", "")
+	delugeSetField(client, "password", "accepted-web-password")
+	delugeSetField(client, f.categoryField, "chosen")
+	delugeSetField(client, f.importedField, "done")
+	delugeSetField(client, "downloadDirectory", "/data/torrents/chosen")
+	delugeSetField(client, "completedDirectory", "/data/torrents/completed")
+	delugeSetField(client, "addPaused", true)
+	f.backend.SeedDownloadClient(client)
+	fingerprint := sha256.Sum256([]byte(`[{"Name":"host","Value":"deluge"},{"Name":"port","Value":8112},{"Name":"useSsl","Value":false},{"Name":"urlBase","Value":""},{"Name":"password","Value":"accepted-web-password"}]`))
+	raw := fmt.Sprintf(`{"id":%v,"target":"deluge","endpoint":"deluge","fingerprint":"%x"}`, client["id"], fingerprint)
+	f.secrets[f.from.Key("link_deluge_resource")] = raw
+	return client, raw
+}
+
 type delugeLinkActivity struct {
 	targetReads, targetWrites, consumerWrites, rpc, exec int
 	native, creates, updates, deletes, labels            int
@@ -428,19 +449,7 @@ func TestDelugeExistingSerializedOwnershipDoesNotMigrateEitherFamily(t *testing.
 	for _, source := range delugeConsumerSources() {
 		t.Run(source.name(), func(t *testing.T) {
 			f := newDelugeLinkContract(t, source)
-			client := delugeCopyClient(t, f.template)
-			client["name"], client["enable"], client["priority"] = "existing managed Deluge", true, 9
-			delugeSetField(client, "host", "deluge")
-			delugeSetField(client, "port", float64(8112))
-			delugeSetField(client, "urlBase", "")
-			delugeSetField(client, "password", "accepted-web-password")
-			delugeSetField(client, f.categoryField, "chosen")
-			delugeSetField(client, f.importedField, "done")
-			delugeSetField(client, "addPaused", true)
-			f.backend.SeedDownloadClient(client)
-			fingerprint := sha256.Sum256([]byte(`[{"Name":"host","Value":"deluge"},{"Name":"port","Value":8112},{"Name":"useSsl","Value":false},{"Name":"urlBase","Value":""},{"Name":"password","Value":"accepted-web-password"}]`))
-			raw := fmt.Sprintf(`{"id":1,"target":"deluge","endpoint":"deluge","fingerprint":"%x"}`, fingerprint)
-			f.secrets[f.from.Key("link_deluge_resource")] = raw
+			client, raw := seedDelugeOwnedClient(t, f)
 			before := delugeJSON(t, client)
 			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
 				t.Fatal(err)
@@ -716,17 +725,58 @@ func TestDelugeLinksVerifySharedAndExplicitLegacyViewsWithoutMigration(t *testin
 	}
 }
 
+func TestDelugeFreshCreationPreservesEnabledSameFamilySelection(t *testing.T) {
+	for _, source := range delugeConsumerSources() {
+		t.Run(source.name(), func(t *testing.T) {
+			f := newDelugeLinkContract(t, source)
+			survivor := delugeSurvivor(f, source)
+			f.backend.SeedDownloadClient(survivor)
+			resources, before := delugeJSON(t, f.backend.DownloadClients()), f.activity()
+			if f.template["priority"] != 1 || survivor["priority"] != 4 || survivor["enable"] != true || survivor["protocol"] != source.protocol || !f.backend.AcceptDownloadProvider(survivor) {
+				t.Fatal("fixture lost the meaningful enabled same-family competitor")
+			}
+			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("fresh creation changed the existing downloader selection", err)
+			}
+			if f.activity() != before || f.ownership() != "" || delugeJSON(t, f.backend.DownloadClients()) != resources || f.schemaReads == 0 || f.resourceReads == 0 || f.recorder.Status("link-deluge") != stepstatus.StepManual || !strings.Contains(f.recorder.Hint(), "enabled competing client") || !strings.Contains(f.recorder.Hint(), "self-host setup "+source.consumer.Info().ID) {
+				t.Fatal("selection hold lost its recovery or reached target/native/resource/private writes")
+			}
+		})
+	}
+}
+
 func TestDelugeOfflineRemovalAndReinstallPreservePersonalClientsAndSurvivors(t *testing.T) {
 	for _, source := range delugeConsumerSources() {
 		t.Run(source.name(), func(t *testing.T) {
 			f := newDelugeLinkContract(t, source)
 			survivor := delugeSurvivor(f, source)
 			f.backend.SeedDownloadClient(survivor)
+			client, owned := seedDelugeOwnedClient(t, f)
+			id := client["id"]
+			resources := delugeJSON(t, f.backend.DownloadClients())
 			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
-			client := f.backend.DownloadClients()[1]
-			id := client["id"]
+			if f.ownership() != owned || f.consumerSecrets.writes != 0 || f.creates != 0 || f.updates != 0 || f.nativeTests != 1 || delugeJSON(t, f.backend.DownloadClients()) != resources {
+				t.Fatal("owned rerun rebalanced the intentional enabled multi-client arrangement")
+			}
+			f.mask = true
+			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil || f.ownership() != owned || f.consumerSecrets.writes != 0 || f.updates != 0 || delugeJSON(t, f.backend.DownloadClients()) != resources {
+				t.Fatal("masked owned rerun changed existing selection", err)
+			}
+			survivorState := delugeJSON(t, survivor)
+			f.secrets["DELUGE_WEB_PASSWORD"] = "renewed-accepted-web-password"
+			f.target.web.password = "renewed-accepted-web-password"
+			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
+				t.Fatal(err)
+			}
+			expected := delugeCopyClient(t, client)
+			delugeSetField(expected, "password", "renewed-accepted-web-password")
+			client = f.backend.DownloadClients()[1]
+			if f.creates != 0 || f.updates != 1 || f.consumerSecrets.writes != 1 || f.ownership() == owned || client["id"] != id || delugeJSON(t, client) != delugeJSON(t, expected) || delugeJSON(t, f.backend.DownloadClients()[0]) != survivorState || !f.backend.AcceptDownloadProvider(survivor) {
+				t.Fatal("credential recovery changed IDs, survivor selection or noncredential DTOs")
+			}
+			f.mask = false
 			personal := delugeCopyClient(t, client)
 			personal["name"] = "personal same-target client"
 			f.backend.SeedDownloadClient(personal)
@@ -751,20 +801,34 @@ func TestDelugeOfflineRemovalAndReinstallPreservePersonalClientsAndSurvivors(t *
 			}
 			f.schemaBody, f.resourceBody = "", ""
 			f.target.web.connected = true
-			f.secrets["DELUGE_WEB_PASSWORD"] = "accepted-web-password"
+			f.secrets["DELUGE_WEB_PASSWORD"] = "renewed-accepted-web-password"
 			f.from.Config.Exec, f.to.Config.Exec = f.exec, f.exec
 			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.activity() != after {
 				t.Fatal("reinstall tried to adopt the personal same-target client", err)
 			}
 			delugeSetField(personal, "host", "person-selected-downloader")
 			remaining = delugeJSON(t, []any{survivor, personal})
-			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
-				t.Fatal(err)
+			if !t.Run("enabled-survivors-still-block-after-host-edit", func(t *testing.T) {
+				if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
+					t.Fatal("endpoint edit was mistaken for an explicit downloader selection", err)
+				}
+				if f.activity() != after || f.ownership() != "" || delugeJSON(t, f.backend.DownloadClients()) != remaining || survivor["enable"] != true || personal["enable"] != true || !strings.Contains(f.recorder.Steps[len(f.recorder.Steps)-1].Hint, "enabled competing client") {
+					t.Fatal("fresh reinstall changed enabled survivors or reached target/native/private writes")
+				}
+			}) {
+				return
 			}
-			clients := f.backend.DownloadClients()
-			if len(clients) != 3 || clients[2]["id"] == id || clients[2]["protocol"] != source.protocol || f.creates != 2 || delugeJSON(t, clients[:2]) != remaining || !f.backend.AcceptDownloadProvider(clients[0]) {
-				t.Fatal("reinstall reclaimed old identity")
-			}
+			t.Run("separate-explicit-person-selection-permits-reinstall", func(t *testing.T) {
+				survivor["enable"], personal["enable"] = false, false
+				personSelected := delugeJSON(t, []any{survivor, personal})
+				if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
+					t.Fatal(err)
+				}
+				clients := f.backend.DownloadClients()
+				if len(clients) != 3 || clients[2]["id"] == id || clients[2]["protocol"] != source.protocol || clients[2]["enable"] != true || f.creates != 1 || f.updates != 1 || delugeJSON(t, clients[:2]) != personSelected {
+					t.Fatal("person-selected reinstall reused authority or changed the explicitly disabled survivors")
+				}
+			})
 		})
 	}
 }
