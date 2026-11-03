@@ -1,0 +1,41 @@
+docs/catalog/traps/spoolman.md
+  s_0812986ae533ff::t_d2795a269aa976 1-143
+internal/apps/homarr/homarr_test.go
+  s_0812986ae533ff::t_f1376416bec16e 734
+internal/apps/homarr/target_spoolman.go
+  s_0812986ae533ff::t_a21a3ca318fee9 1-39
+internal/apps/homarr/target_spoolman_internal_test.go
+  s_0812986ae533ff::t_9257981ab4e626 1-54
+internal/apps/homarr/target_spoolman_test.go
+  s_0812986ae533ff::t_4e4e548747b83e 1-448
+internal/apps/homarr/targets.go
+  s_0812986ae533ff::t_eb5ecfbd9662a2 59
+internal/apps/spoolman/spoolman.go
+  s_0812986ae533ff::t_94581278cfac06 1-224
+internal/apps/spoolman/spoolman_service_test.go
+  s_0812986ae533ff::t_ddc622244ecf87 1-239
+internal/apps/spoolman/spoolman_test.go
+  s_0812986ae533ff::t_9a0da13028b86e 1-378
+internal/catalog/batch_misc2.go
+  s_0812986ae533ff::t_7890c97942d33f 15,35
+tools/sitegen/icons.go
+  s_0812986ae533ff::t_b3cc3eb5b78954 99
+tools/sitegen/stars.go
+  s_0812986ae533ff::t_455f444192d629 99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e9d33a373546d9a275a78b1a3d88f4db12047cec",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
