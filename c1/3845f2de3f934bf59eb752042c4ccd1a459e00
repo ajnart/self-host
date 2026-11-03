@@ -1,0 +1,32 @@
+docs/catalog/traps/changedetection.md
+  h_d6e478ca18e517 1-45
+internal/apps/changedetection/changedetection.go
+  h_d6e478ca18e517 1-77
+internal/apps/changedetection/changedetection_test.go
+  h_d6e478ca18e517 1-328
+internal/apps/changedetection/verify.go
+  h_d6e478ca18e517 1-125
+internal/apps/homarr/target_changedetection.go
+  h_d6e478ca18e517 1-45
+internal/apps/homarr/target_changedetection_test.go
+  h_d6e478ca18e517 1-28
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 10
+internal/catalog/batch_misc1.go
+  h_d6e478ca18e517 6,22
+tools/sitegen/icons.go
+  h_d6e478ca18e517 40
+tools/sitegen/stars.go
+  h_d6e478ca18e517 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c13845f2de3f934bf59eb752042c4ccd1a459e00",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
