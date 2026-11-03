@@ -21,6 +21,7 @@ type pairFixtureApp struct {
 	consumer    bool
 	extra       int
 	linkFailure bool
+	target      string
 }
 
 func (a pairFixtureApp) Info() app.Info {
@@ -37,7 +38,11 @@ func (a pairFixtureApp) Links() []app.Link {
 	if !a.consumer {
 		return nil
 	}
-	return []app.Link{app.NewLink("link-peer", "peer", "pair fixture", app.LinkStep{Do: func(ctx context.Context, from, to *helpers.H) error {
+	target := a.target
+	if target == "" {
+		target = "peer"
+	}
+	return []app.Link{app.NewLink("link-"+target, target, "pair fixture", app.LinkStep{Do: func(ctx context.Context, from, to *helpers.H) error {
 		if a.linkFailure {
 			return errors.New("synthetic-private-api-key")
 		}
