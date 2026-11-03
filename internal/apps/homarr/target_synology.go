@@ -3,9 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -18,7 +15,7 @@ func synologyExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "synology" {
 		return target{}, errors.New("the Synology external adapter requires the exact synology kind")
 	}
-	if err := synologyOrigin(c.Endpoint); err != nil {
+	if err := externalHTTPSOrigin(c.Endpoint, "Synology"); err != nil {
 		return target{}, err
 	}
 	values := map[string]string{}
@@ -58,20 +55,6 @@ func synologyExternalTarget(c helpers.ExternalConnection) (target, error) {
 		},
 		stats: synologyValidateStats,
 	}, nil
-}
-
-func synologyOrigin(endpoint string) error {
-	u, err := url.Parse(endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(endpoint, "\r\n\t\\ #") {
-		return errors.New("Synology requires an approved trusted-HTTPS DSM origin without embedded credentials, API paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return errors.New("the private Synology endpoint has an invalid port")
-		}
-	}
-	return nil
 }
 
 func synologyValidateNative(value any, integrationID string) error {

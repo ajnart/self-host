@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -34,15 +32,8 @@ func (f seerrFamily) externalTarget(c helpers.ExternalConnection) (target, error
 	if c.Kind != f.kind {
 		return target{}, fmt.Errorf("the %s external adapter requires the exact %s kind", f.name, f.kind)
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, fmt.Errorf("%s requires an approved trusted-HTTPS origin without embedded credentials, API/proxy paths, query or fragment", f.name)
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, fmt.Errorf("the private %s endpoint has an invalid port", f.name)
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, f.name); err != nil {
+		return target{}, err
 	}
 	key := ""
 	for _, credential := range c.Credentials {

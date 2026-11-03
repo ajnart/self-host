@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -18,15 +16,8 @@ func syncthingRelayExternalTarget(c helpers.ExternalConnection) (target, error) 
 	if c.Kind != "syncthingRelay" {
 		return target{}, errors.New("the Syncthing Relay external adapter requires the exact syncthingRelay kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("Syncthing Relay requires an approved HTTP(S) status origin without embedded credentials, paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private Syncthing Relay endpoint has an invalid port")
-		}
+	if err := externalHTTPOrigin(c.Endpoint, "Syncthing Relay"); err != nil {
+		return target{}, err
 	}
 	if len(c.Credentials) != 0 || len(c.Selection) != 0 {
 		return target{}, errors.New("Syncthing Relay status is unauthenticated; supply no credentials or selection")

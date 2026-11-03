@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -21,15 +19,8 @@ func opnsenseExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "opnsense" {
 		return target{}, errors.New("the OPNsense external adapter requires the exact opnsense kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("OPNsense requires an approved trusted-HTTPS origin without embedded credentials, paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private OPNsense endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "OPNsense"); err != nil {
+		return target{}, err
 	}
 	values := map[string]string{}
 	for _, credential := range c.Credentials {

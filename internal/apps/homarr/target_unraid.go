@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -18,15 +15,8 @@ func unraidExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "unraid" {
 		return target{}, errors.New("the Unraid external adapter requires the exact unraid kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("Unraid requires an approved trusted-HTTPS origin without embedded credentials, API paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private Unraid endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "Unraid"); err != nil {
+		return target{}, err
 	}
 	if len(c.Credentials) != 1 || c.Credentials[0].Kind != "apiKey" || c.Credentials[0].Value == "" {
 		return target{}, errors.New("Unraid requires exactly one nonempty apiKey credential; supply it only through the owner-only private input")

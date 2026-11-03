@@ -3,8 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -16,9 +14,8 @@ func readarrExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "readarr" {
 		return target{}, errors.New("the Readarr external adapter requires the exact readarr kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" && u.Scheme != "http" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("Readarr requires an explicit http or https origin without embedded credentials, paths, query or fragment")
+	if err := externalHTTPOrigin(c.Endpoint, "Readarr"); err != nil {
+		return target{}, err
 	}
 	if len(c.Credentials) != 1 || c.Credentials[0].Kind != "apiKey" || c.Credentials[0].Value == "" {
 		return target{}, errors.New("Readarr requires exactly one nonempty apiKey credential supplied through the owner-only private input")

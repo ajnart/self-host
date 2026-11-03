@@ -3,10 +3,7 @@ package homarr
 import (
 	"context"
 	"errors"
-	"net/url"
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -20,15 +17,8 @@ func unifiControllerExternalTarget(c helpers.ExternalConnection) (target, error)
 	if c.Kind != "unifiController" {
 		return target{}, errors.New("the UniFi Controller external adapter requires the exact unifiController kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("UniFi Controller requires an approved trusted-HTTPS origin without embedded credentials, API/proxy paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private UniFi Controller endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "UniFi Controller"); err != nil {
+		return target{}, err
 	}
 	values := map[string]string{}
 	for _, credential := range c.Credentials {

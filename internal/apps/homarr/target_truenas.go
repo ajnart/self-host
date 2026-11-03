@@ -3,9 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -20,15 +17,8 @@ func truenasExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "truenas" {
 		return target{}, errors.New("the TrueNAS external adapter requires the exact truenas kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("TrueNAS requires a trusted-HTTPS origin without embedded credentials, path, query or fragment; the API key is never sent over HTTP")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private TrueNAS endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "TrueNAS"); err != nil {
+		return target{}, err
 	}
 	if len(c.Credentials) != 1 || c.Credentials[0].Kind != "apiKey" || c.Credentials[0].Value == "" {
 		return target{}, errors.New("TrueNAS requires exactly one nonempty apiKey credential from a dedicated read-only user; supply it only through the owner-only private input")

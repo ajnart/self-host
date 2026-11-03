@@ -3,8 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,15 +22,8 @@ func coolifyExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "coolify" {
 		return target{}, errors.New("the Coolify external adapter requires the exact coolify kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("Coolify requires an approved trusted-HTTPS root origin without embedded credentials, /api paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private Coolify endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "Coolify"); err != nil {
+		return target{}, err
 	}
 	if len(c.Credentials) != 1 || c.Credentials[0].Kind != "apiKey" || strings.TrimSpace(c.Credentials[0].Value) == "" || c.Credentials[0].Value != strings.TrimSpace(c.Credentials[0].Value) {
 		return target{}, errors.New("Coolify requires exactly one nonempty apiKey credential: a dedicated read-only team token supplied only through the owner-only private input")

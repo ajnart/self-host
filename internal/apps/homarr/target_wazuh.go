@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
@@ -19,14 +17,8 @@ func wazuhExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "wazuh" {
 		return target{}, errors.New("the Wazuh external adapter requires the exact wazuh kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("Wazuh requires an approved trusted-HTTPS server API origin without embedded credentials, paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private Wazuh endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "Wazuh"); err != nil {
+		return target{}, err
 	}
 	values := map[string]string{}
 	for _, credential := range c.Credentials {

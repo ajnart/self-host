@@ -3,9 +3,6 @@ package homarr
 import (
 	"context"
 	"errors"
-	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -16,15 +13,8 @@ func llamacppExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "llamacpp" {
 		return target{}, errors.New("the llama.cpp external adapter requires the exact llamacpp kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("llama.cpp requires an explicit http or https origin without embedded credentials, API paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private llama.cpp endpoint has an invalid port")
-		}
+	if err := externalHTTPOrigin(c.Endpoint, "llama.cpp"); err != nil {
+		return target{}, err
 	}
 	if len(c.Credentials) != 0 {
 		return target{}, errors.New("llama.cpp supports only the unauthenticated alternative; Homarr sends no authentication, so an authenticated server must be connected manually")

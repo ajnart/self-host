@@ -3,6 +3,7 @@ package homarr
 import (
 	"errors"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,9 +51,17 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 }
 
 func externalHTTPSOrigin(endpoint, label string) error {
+	return externalOrigin(endpoint, label, "trusted-HTTPS", "https")
+}
+
+func externalHTTPOrigin(endpoint, label string) error {
+	return externalOrigin(endpoint, label, "HTTP(S)", "http", "https")
+}
+
+func externalOrigin(endpoint, label, kind string, schemes ...string) error {
 	u, err := url.Parse(endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(endpoint, "\r\n\t\\ #") {
-		return errors.New(label + " requires an approved trusted-HTTPS origin without embedded credentials, API/proxy paths, query or fragment")
+	if err != nil || !slices.Contains(schemes, u.Scheme) || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(endpoint, "\r\n\t\\ #") {
+		return errors.New(label + " requires an approved " + kind + " origin without embedded credentials, API/proxy paths, query or fragment")
 	}
 	if port := u.Port(); port != "" {
 		n, err := strconv.Atoi(port)
