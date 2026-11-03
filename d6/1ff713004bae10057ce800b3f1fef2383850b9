@@ -1,0 +1,281 @@
+cmd/self-host-testkit/main.go
+  s_0b63679bfab768::t_dd909c254a192a 29-37,41-44,62-84,86-95,162-168,199-201,274-275,287-294,330-379,393-401,405-465,470,476-484,487,489-494,499,501-506,511,513-518,529-566
+cmd/self-host-testkit/main_test.go
+  s_0b63679bfab768::t_dd2db8b942031f 216-485
+dcm/src/data/selfhost.json
+  s_0b63679bfab768::t_554f1f3f5d9952 2017-2032,2087,3623-3638,3693,3951-3958,4015,4116-4131,4186
+docs/arr-sabnzbd-contract.md
+  s_0b63679bfab768::t_e8792c471eb29a 1-54
+docs/catalog/adding-apps.md
+  s_0b63679bfab768::t_45e15d5269a5b2 13
+docs/catalog/media-setup.md
+  s_0b63679bfab768::t_cc4b50bd4ba4b6 39-52
+docs/catalog/traps/deluge.md
+  s_0b63679bfab768::t_c8d748726a48ff 8-21
+docs/catalog/traps/nzbget.md
+  s_0b63679bfab768::t_10b7993e9434cd 8-15
+docs/catalog/traps/sabnzbd.md
+  s_0b63679bfab768::t_7618c6d20de673 11-16
+docs/catalog/traps/seerr.md
+  s_0b63679bfab768::t_ad3c2628d9c56a 9-25
+docs/catalog/traps/transmission.md
+  s_0b63679bfab768::t_116280a2cc2967 11-23,38-44
+docs/catalog/traps/uptime-kuma.md
+  s_0b63679bfab768::t_1882659d3d7868 14,16,20-27,39-43
+docs/homarr-proxmox-proof.md
+  s_0b63679bfab768::t_5b0fe4eefbeb1d 1-132
+internal/app/app.go
+  s_0b63679bfab768::t_0df0a66b22bd55 148-153
+internal/app/external_connections.go
+  s_0b63679bfab768::t_b147b2a983e996 1-12
+internal/apps/arr/arr.go
+  s_0b63679bfab768::t_77bd1adc882974 47,65
+internal/apps/arr/downloadclient_registration_test.go
+  s_0b63679bfab768::t_bf7ac454579d40 1-29
+internal/apps/arr/links.go
+  s_0b63679bfab768::t_b898438913660e 14-15
+internal/apps/arr/links_test.go
+  s_0b63679bfab768::t_6d283f9181c66d 6,9,54-79,82,84-89,96-98,113,123,125-134,139,157-181,186,189-192,204-249,252-254
+internal/apps/arr/sabnzbd_links_test.go
+  s_0b63679bfab768::t_4ac949c8df88bd 1-636
+internal/apps/arr/sabnzbd_protocol_test.go
+  s_0b63679bfab768::t_be06fa1cfdcccb 1-471
+internal/apps/arrtest/arr.go
+  s_0b63679bfab768::t_11bc60c42f1777 34-36,68,137-139,144-149,151-152,191-193,195-198,202,284-295,309,318-334,345-367
+internal/apps/arrtest/seerr.go
+  s_0b63679bfab768::t_c4cd01c59c6aaa 24-49,53,113-116,121-129,144,170-175
+internal/apps/deluge/deluge.go
+  s_0b63679bfab768::t_6faf5bd750ed7d 207-217,220,226,230,234,236,239,244,246,250,253-254,256,258-279,288,294-295,302-305
+internal/apps/deluge/downloadclient.go
+  s_0b63679bfab768::t_cde8dd52bbfb56 1-174
+internal/apps/deluge/downloadclient_test.go
+  s_0b63679bfab768::t_ecfb76075b8fb1 1-291
+internal/apps/deluge/links_test.go
+  s_0b63679bfab768::t_999dab3275654d 1-1022
+internal/apps/emby/homarr.go
+  s_0b63679bfab768::t_8653c26f2f3d8f 20-24,27,30,34,36
+internal/apps/emby/libraries.go
+  s_0b63679bfab768::t_c653a3aedb7ec6 1-72
+internal/apps/emby/libraries_test.go
+  s_0b63679bfab768::t_3c2107fbc1e252 1-122
+internal/apps/homarr/external_connections.go
+  s_0b63679bfab768::t_2d8e5485b2759b 1-148
+internal/apps/homarr/external_connections_test.go
+  s_0b63679bfab768::t_d823de04333567 1-376
+internal/apps/homarr/external_targets.go
+  s_0b63679bfab768::t_e14d4f59ef7fad 1-15
+internal/apps/homarr/homarr.go
+  s_0b63679bfab768::t_d28a47113999bd 73,95-141,143-165,167-171,410-412
+internal/apps/homarr/homarr_test.go
+  s_0b63679bfab768::t_b778e8dd6d79c6 64-66,69-71,115-133,136-222,932-1027,1910-1912,2183
+internal/apps/homarr/links.go
+  s_0b63679bfab768::t_7807e638c55fbd 10,12-13,33-38,53-62,91,141-143,414-426,447-496,670,672-680,700,703-707,783-792,814-816,860-862,894-900,913-931,938,961-963,980-981,986-990,1005-1011,1038-1041,1045-1046,1050-1063,1065-1089,1093-1103,1105,1108-1112,1126-1128,1152-1156,1161-1163,1179-1182,1217-1219,1316-1318,1377-1383,1393-1400
+internal/apps/homarr/ownership.go
+  s_0b63679bfab768::t_9994ab06ac5f83 43-66,88,90-92,94-102
+internal/apps/homarr/ownership_test.go
+  s_0b63679bfab768::t_eefd4ceda324f3 7,155-309
+internal/apps/homarr/procedure_data.go
+  s_0b63679bfab768::t_1f11d55a7142bc 1-188
+internal/apps/homarr/procedure_data_test.go
+  s_0b63679bfab768::t_4eecf33091379e 1-198
+internal/apps/homarr/shared_widgets.go
+  s_0b63679bfab768::t_5e300d64b68c54 30,55-58,60,158-160
+internal/apps/homarr/stats.go
+  s_0b63679bfab768::t_fcbb2b2ed88108 8,42,75-76
+internal/apps/homarr/stats_test.go
+  s_0b63679bfab768::t_fdac84399f957a 31,78
+internal/apps/homarr/target_proxmox.go
+  s_0b63679bfab768::t_8f4e14a31161e3 1-138
+internal/apps/homarr/target_proxmox_external_test.go
+  s_0b63679bfab768::t_f095673c9245e4 1-97
+internal/apps/homarr/target_proxmox_test.go
+  s_0b63679bfab768::t_828e0d419ce62c 1-157
+internal/apps/homarr/target_sonarr.go
+  s_0b63679bfab768::t_9ec7e48b713770 1-138
+internal/apps/homarr/target_sonarr_test.go
+  s_0b63679bfab768::t_fd24f19c672d50 1-240
+internal/apps/homarr/target_uptime_kuma.go
+  s_0b63679bfab768::t_9a5d0d19b0530b 8-9,11-12,19-41,46-78,80,83-125,127-168,171-179,181,183-187,189-192,194-197,199-202,217,226,228-231,234,254-261,274-475,477-480,487-489,493
+internal/apps/homarr/target_uptime_kuma_common_test.go
+  s_0b63679bfab768::t_60fd9ed0e8f2c2 1-221
+internal/apps/homarr/target_uptime_kuma_native_test.go
+  s_0b63679bfab768::t_9edd9a03907515 1-493
+internal/apps/homarr/target_uptime_kuma_review_test.go
+  s_0b63679bfab768::t_22765d78832638 1-247
+internal/apps/homarr/target_uptime_kuma_setup_test.go
+  s_0b63679bfab768::t_3df67c3d9b3a65 1-95
+internal/apps/homarr/target_uptime_kuma_test.go
+  s_0b63679bfab768::t_b2b600b05a3a36 33,112,144
+internal/apps/lidarr/lidarr.go
+  s_0b63679bfab768::t_eb943a46e6022e 37
+internal/apps/nzbget/downloadclient.go
+  s_0b63679bfab768::t_f2e03d9717b949 1-111
+internal/apps/nzbget/downloadclient_test.go
+  s_0b63679bfab768::t_44a2a23a193d8c 1-239
+internal/apps/nzbget/links_positive_test.go
+  s_0b63679bfab768::t_12eaf6111ee1ba 1-469
+internal/apps/nzbget/links_protocol_test.go
+  s_0b63679bfab768::t_0cd69e7b076d58 1-298
+internal/apps/nzbget/links_scheduler_test.go
+  s_0b63679bfab768::t_e31cc5a02d50cd 1-159
+internal/apps/nzbget/links_test.go
+  s_0b63679bfab768::t_46d616ddfaa6b0 1-509
+internal/apps/plex/libraries.go
+  s_0b63679bfab768::t_2adccbd9e43137 1-39
+internal/apps/plex/libraries_test.go
+  s_0b63679bfab768::t_d07b7f9b02351a 1-97
+internal/apps/plex/plex.go
+  s_0b63679bfab768::t_fdbdb8306af3da 113,116,120,124,128,131,135,138,142,145-151,207-209,231,234,237-244
+internal/apps/sabnzbd/downloadclient.go
+  s_0b63679bfab768::t_f0f2009a6f1c2e 1-185
+internal/apps/sabnzbd/downloadclient_test.go
+  s_0b63679bfab768::t_89aef48d688839 1-122
+internal/apps/seerr/backend.go
+  s_0b63679bfab768::t_1b3eae5f1fc5bf 1-297
+internal/apps/seerr/backend_test.go
+  s_0b63679bfab768::t_8e00a4522281b7 1-535
+internal/apps/seerr/links_test.go
+  s_0b63679bfab768::t_b95f2872adfc37 52
+internal/apps/seerr/seerr.go
+  s_0b63679bfab768::t_c7be969c0883a3 44,84,98,102-110,203-204,207-212,218,222-224,266,278-279,397
+internal/apps/servarr/deluge.go
+  s_0b63679bfab768::t_97f410f1dadd1c 1-71
+internal/apps/servarr/downloadclients.go
+  s_0b63679bfab768::t_023757f2f09cf1 1-380
+internal/apps/servarr/downloadclients_test.go
+  s_0b63679bfab768::t_ecb5826562c32d 1-1372
+internal/apps/servarr/downloadpaths.go
+  s_0b63679bfab768::t_9a2bd77e861713 1-230
+internal/apps/servarr/downloadpaths_test.go
+  s_0b63679bfab768::t_ba60b8194e50bf 1-309
+internal/apps/servarr/links.go
+  s_0b63679bfab768::t_69bbb0eb3b83a9 66-69,137,210,213,217,220-230,232,238-239,244-246,249,252-273,277-279,316,336-338,388,401,422-425,447-463,483-490,512,515-517
+internal/apps/servarr/nzbget.go
+  s_0b63679bfab768::t_920a69eed8079e 1-46
+internal/apps/servarr/sabnzbd.go
+  s_0b63679bfab768::t_7042ba684720ec 1-52
+internal/apps/servarr/transmission.go
+  s_0b63679bfab768::t_73210a61633be3 1-61
+internal/apps/servarr/transmission_scheduler_test.go
+  s_0b63679bfab768::t_4653660cc41b41 1-213
+internal/apps/servarr/transmission_test.go
+  s_0b63679bfab768::t_d338e7b06b692b 1-759
+internal/apps/transmission/downloadclient.go
+  s_0b63679bfab768::t_439a029ea5f338 1-56
+internal/apps/uptimekuma/uptimekuma.go
+  s_0b63679bfab768::t_f52f25c757194a 101,105,120,129-139,141-156,204-206,208,211-212,217-220,223,227,236,238,240
+internal/apps/uptimekuma/uptimekuma_test.go
+  s_0b63679bfab768::t_af20d2f7ceefd4 5,12-13,65-138
+internal/cli/cli.go
+  s_0b63679bfab768::t_ad44bd8d5ecd5a 254
+internal/cli/connections.go
+  s_0b63679bfab768::t_fbf841e11ae50c 1-64
+internal/cli/connections_test.go
+  s_0b63679bfab768::t_1fc16e8f6d3eb7 1-124
+internal/helpers/external_connections.go
+  s_0b63679bfab768::t_ca653bb58ec693 1-15
+internal/helpers/helpers.go
+  s_0b63679bfab768::t_e972a7be165934 83-85
+internal/project/directories.go
+  s_0b63679bfab768::t_239b82b3082c69 26-30,41,44-47,50,54-60,63-64,66,71-117,125,127-142,146-151,154,203
+internal/project/directories_test.go
+  s_0b63679bfab768::t_85f71475a65b62 507-617
+internal/project/fixture.go
+  s_0b63679bfab768::t_ec001a6ee86d39 19,132-138
+internal/project/fixture_test.go
+  s_0b63679bfab768::t_77c22def6ae055 105-117
+internal/service/connections.go
+  s_0b63679bfab768::t_d5a5e093f3d255 1-540
+internal/service/connections_test.go
+  s_0b63679bfab768::t_485a5f2dc41e1b 1-602
+internal/service/directories_test.go
+  s_0b63679bfab768::t_d0939a2c6ab56f 328-339,342,536-541
+internal/service/directory_validation_test.go
+  s_0b63679bfab768::t_bcaf6bbde728c1 1-526
+internal/service/fragments.go
+  s_0b63679bfab768::t_9b81f008be9c01 233-237
+internal/service/install.go
+  s_0b63679bfab768::t_e76d8fbc10904a 8,280,283,285,287-289,292,294-300,323-348,351-354,359-363,366,369-372,381,390-409,458-460,485,540-541,677-679,695,701-761
+internal/service/lifecycle.go
+  s_0b63679bfab768::t_c6481c7424c795 120-124
+internal/service/link_applicability_test.go
+  s_0b63679bfab768::t_2c944e2dd9cdd7 1-188
+internal/service/mutation.go
+  s_0b63679bfab768::t_9b9615f01faf8a 264-268
+internal/service/preflight_context_test.go
+  s_0b63679bfab768::t_2e30274a024bbb 1-731
+internal/service/restore.go
+  s_0b63679bfab768::t_c7d22900f9d3ac 224-239,257,465-467,481-493,837-846
+internal/service/secret_preflight_test.go
+  s_0b63679bfab768::t_18bb50e91ec2af 1-150
+internal/service/service.go
+  s_0b63679bfab768::t_8ac33eb3059f3a 243,304,332-335,423-432,447-453,474-480,499-501,510-527
+internal/service/status.go
+  s_0b63679bfab768::t_519bfc15868504 64-68,100-103
+internal/skill/guide.md
+  s_0b63679bfab768::t_f89596578a1dc4 219-222,247-248,266-267,306,853-886
+internal/tui/onboarding_flow_test.go
+  s_0b63679bfab768::t_6c970af64fad79 4,27-52,54-78,80-87,92-115
+internal/tui/testdata/onboarding-what-selected-input-narrow.golden
+  s_0b63679bfab768::t_8525ff9f4b58c6 22
+internal/tui/testdata/onboarding-what-selected-input.golden
+  s_0b63679bfab768::t_4e3be1dbcb4c89 28
+site/src/data/catalog.json
+  s_0b63679bfab768::t_d24fd304216dae 524-528,531-535,868-872,875-879,945-946,952-953,978-982,985-989
+testkit/README.md
+  s_0b63679bfab768::t_5685f8a356fc2c 100-141
+testkit/docker.go
+  s_0b63679bfab768::t_7d435a0d1bf258 96-97,107
+testkit/errors.go
+  s_0b63679bfab768::t_a0d5239126d1a6 49-66
+testkit/node/README.md
+  s_0b63679bfab768::t_43a543c03ae927 148-226,270-271,273-274,301-365
+testkit/node/examples/homarr-sonarr.mjs
+  s_0b63679bfab768::t_0cd31725c8cd2e 1-66
+testkit/node/index.d.mts
+  s_0b63679bfab768::t_a6e4d06d5fc7fd 30-78,86,90,92,96-98
+testkit/node/index.mjs
+  s_0b63679bfab768::t_92f440aceb867d 20-21,30-31,33,39,43-44,126-127,176-177,186-192,225-239,274-275,278,286-295,299-307,312-313,318-337,350-584,674-742,794,797,803,808-811,817-824
+testkit/node/pack.mjs
+  s_0b63679bfab768::t_e7f0eb2f682580 35
+testkit/node/package.json
+  s_0b63679bfab768::t_e5a8b5c3458257 23
+testkit/node/src/index.mts
+  s_0b63679bfab768::t_a7efd06b52d148 44-100,119-120,134-135,145,152,155,161,170,172,283-288,342-343,353-367,401-414,450,452,455,466-474,477-484,489-490,495-518,535-829,836,933-1044,1104-1107,1111,1116,1119-1122,1127-1155
+testkit/node/tests/fake-helper.mjs
+  s_0b63679bfab768::t_1f776423524e9e 18,23-26,28-165,175-198,227-422,433-435,439-454
+testkit/node/tests/pair-types.mts
+  s_0b63679bfab768::t_d455aa32f6017e 1-48
+testkit/node/tests/transport.test.ts
+  s_0b63679bfab768::t_fd2b3d53b33a4e 4,8,14-21,26-30,40-49,52,64-127,134-407,510-1174
+testkit/pair.go
+  s_0b63679bfab768::t_83b9bae82cb220 1-483
+testkit/pair_test.go
+  s_0b63679bfab768::t_91401b92fc31ea 1-691
+testkit/runtime.go
+  s_0b63679bfab768::t_067a75d278396d 51-59,103-114,154-165
+testkit/sonarr_filter_witness.go
+  s_0b63679bfab768::t_0b83bd1011f2d5 1-295
+testkit/sonarr_filter_witness_test.go
+  s_0b63679bfab768::t_c42c4affe403ff 1-439
+testkit/testkit.go
+  s_0b63679bfab768::t_5cbb01b0180cf0 16,48-58,70-73,81-88,169,212-220,222-230,232-235,238,255,284-295,299-312,315,319,321,342-346,348,351,354,357,373-376,380-382
+testkit/testkit_test.go
+  s_0b63679bfab768::t_05f7f8f50d922e 68,101-105,107,133-151,156-160,183-208,278-355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d61ff713004bae10057ce800b3f1fef2383850b9",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
