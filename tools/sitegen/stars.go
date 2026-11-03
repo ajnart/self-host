@@ -94,6 +94,7 @@ var repos = map[string]string{
 	"stirling-pdf":         "Stirling-Tools/Stirling-PDF",
 	"syncthing":            "syncthing/syncthing",
 	"tailscale":            "tailscale/tailscale",
+	"tandoor":              "TandoorRecipes/recipes",
 	"tdarr":                "HaveAGitGat/Tdarr",
 	"technitium-dns":       "TechnitiumSoftware/DnsServer",
 	"tracearr":             "connorgallopo/Tracearr",

@@ -52,6 +52,7 @@ const ALIASES: Record<string, string> = {
   jellyseerr: "seerr",
   overseerr: "seerr",
   postgres: "postgresql",
+  tandoorrecipes: "tandoor",
 }
 
 export function getSelfHostId(toolId: string): string | undefined {

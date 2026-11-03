@@ -43,5 +43,6 @@ func targets() []target {
 		patchmonTarget(),
 		jackettTarget(),
 		healthchecksTarget(),
+		tandoorTarget(),
 	)
 }
