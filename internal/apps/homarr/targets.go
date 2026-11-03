@@ -41,5 +41,6 @@ func targets() []target {
 		slskdTarget(),
 		wudTarget(),
 		patchmonTarget(),
+		tandoorTarget(),
 	)
 }

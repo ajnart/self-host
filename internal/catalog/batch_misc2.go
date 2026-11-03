@@ -11,6 +11,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/pihole"
 	"github.com/ajnart/self-host/internal/apps/plex"
 	"github.com/ajnart/self-host/internal/apps/tailscale"
+	"github.com/ajnart/self-host/internal/apps/tandoor"
 	"github.com/ajnart/self-host/internal/apps/technitiumdns"
 	"github.com/ajnart/self-host/internal/apps/zerotier"
 )
@@ -27,6 +28,7 @@ func init() {
 		pihole.App{},
 		plex.App{},
 		tailscale.App{},
+		tandoor.App{},
 		technitiumdns.App{},
 		zerotier.App{},
 	)
