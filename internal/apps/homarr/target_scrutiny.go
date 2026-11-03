@@ -145,7 +145,7 @@ func scrutinyValidateStats(sample statsSample) error {
 	invalid := &helpers.ManualError{Hint: scrutinyStatsRecovery}
 	total := 0.0
 	for _, key := range []string{"passed", "failed", "unknown"} {
-		count, ok := proxmoxMetric(sample.values[key], true)
+		count, ok := measuredNumber(sample.values[key], true)
 		if !ok || sample.units[key] != "count" {
 			return invalid
 		}

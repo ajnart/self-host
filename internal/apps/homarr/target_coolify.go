@@ -114,7 +114,7 @@ func coolifyValidateStats(sample statsSample) error {
 	retry, retryOK := sample.retryAt.(float64)
 	valid := retryOK && retry == 0 && validStatsTimestamp(sample.updatedAt) && sample.updatedAt == float64(int64(sample.updatedAt)) && sample.updatedAt <= sample.completedAt+5000 && sample.updatedAt >= sample.startedAt-60000
 	for _, key := range coolifyInventory {
-		_, countOK := proxmoxMetric(sample.values[key], true)
+		_, countOK := measuredNumber(sample.values[key], true)
 		valid = valid && countOK && sample.units[key] == "count"
 	}
 	if !valid {

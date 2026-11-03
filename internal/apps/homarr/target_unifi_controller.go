@@ -104,7 +104,7 @@ func unifiValidateNative(value any, integrationID string, nowMillis int64, siteI
 			return invalid()
 		}
 		for _, field := range []string{"users", "guests"} {
-			if _, valid := proxmoxMetric(subsystem[field], true); !valid {
+			if _, valid := measuredNumber(subsystem[field], true); !valid {
 				return invalid()
 			}
 		}
@@ -113,13 +113,13 @@ func unifiValidateNative(value any, integrationID string, nowMillis int64, siteI
 	if !ok {
 		return invalid()
 	}
-	if _, valid := proxmoxMetric(www["latency"], false); !valid {
+	if _, valid := measuredNumber(www["latency"], false); !valid {
 		return invalid()
 	}
 	if vpn, ok := summary["vpn"].(map[string]any); !ok {
 		return invalid()
 	} else if users := vpn["users"]; users != nil {
-		if _, valid := proxmoxMetric(users, true); !valid {
+		if _, valid := measuredNumber(users, true); !valid {
 			return invalid()
 		}
 	}
@@ -130,7 +130,7 @@ func unifiValidateStats(sample statsSample) error {
 	retry, retryOK := sample.retryAt.(float64)
 	valid := sample.units["wifi"] == "count" && sample.units["lan"] == "count" && sample.units["latency"] == "ms"
 	for _, metric := range []string{"wifi", "lan", "latency"} {
-		_, ok := proxmoxMetric(sample.values[metric], metric != "latency")
+		_, ok := measuredNumber(sample.values[metric], metric != "latency")
 		valid = valid && ok
 	}
 	if !valid || !retryOK || retry != 0 || !validStatsTimestamp(sample.updatedAt) || sample.updatedAt > sample.completedAt+5000 || sample.updatedAt < sample.startedAt-60000 {
