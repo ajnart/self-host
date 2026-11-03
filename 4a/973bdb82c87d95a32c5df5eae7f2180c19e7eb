@@ -1,0 +1,29 @@
+internal/apps/homarr/external_connections_test.go
+  s_0812986ae533ff::t_dd1e133a2cd8e6 11,13,31,55-67
+internal/apps/homarr/external_targets.go
+  s_0812986ae533ff::t_03d36adb13aaf1 13-14
+internal/apps/homarr/target_proxmox.go
+  s_0812986ae533ff::t_9cfc514aef437e 76,113-117,132
+internal/apps/homarr/target_syncthing_relay.go
+  s_0812986ae533ff::t_5384be0dc875c9 1-89
+internal/apps/homarr/target_syncthing_relay_test.go
+  s_0812986ae533ff::t_12907246ea2f7f 1-168
+internal/skill/guide.md
+  s_0812986ae533ff::t_eab4a908e4411a 887-895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a973bdb82c87d95a32c5df5eae7f2180c19e7eb",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
