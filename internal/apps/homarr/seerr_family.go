@@ -13,9 +13,10 @@ import (
 )
 
 type seerrFamily struct {
-	name   string
-	kind   string
-	marker string
+	name      string
+	kind      string
+	marker    string
+	partition bool
 }
 
 var seerrFamilyCountKeys = []string{"total", "movie", "tv", "pending", "approved", "declined", "processing", "available"}
@@ -145,12 +146,22 @@ func (f seerrFamily) verifyCounts(ctx context.Context, from *helpers.H, endpoint
 	if resp.Status != 200 || resp.Decode(&counts) != nil {
 		return invalid()
 	}
+	values := map[string]float64{}
 	for _, name := range seerrFamilyCountKeys {
-		if _, ok := seerrFamilyCount(counts[name]); !ok {
+		number, ok := seerrFamilyCount(counts[name])
+		if !ok {
 			return invalid()
 		}
+		values[name] = number
+	}
+	if !f.partitionHolds(values) {
+		return invalid()
 	}
 	return nil
+}
+
+func (f seerrFamily) partitionHolds(values map[string]float64) bool {
+	return !f.partition || values["processing"]+values["available"] == values["approved"]
 }
 
 func seerrFamilyCount(value any) (float64, bool) {
@@ -163,10 +174,17 @@ func (f seerrFamily) validateStats(sample statsSample) error {
 	if !retryOK || retry != 0 || !validStatsTimestamp(sample.updatedAt) {
 		return errors.New("Homarr returned invalid " + f.name + " Stats refresh metadata; retry self-host setup homarr")
 	}
+	invalid := errors.New("Homarr returned invalid " + f.name + " request count statistics; retry self-host setup homarr")
+	values := map[string]float64{}
 	for _, key := range seerrFamilyStatsKeys {
-		if _, ok := seerrFamilyCount(sample.values[key]); !ok || sample.units[key] != "count" {
-			return errors.New("Homarr returned invalid " + f.name + " request count statistics; retry self-host setup homarr")
+		number, ok := seerrFamilyCount(sample.values[key])
+		if !ok || sample.units[key] != "count" {
+			return invalid
 		}
+		values[key] = number
+	}
+	if !f.partitionHolds(values) {
+		return invalid
 	}
 	return nil
 }
