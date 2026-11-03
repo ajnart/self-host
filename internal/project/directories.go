@@ -123,6 +123,7 @@ func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect 
 		}
 	}
 	existing := make([]bool, len(dirs))
+	creates := missingParent
 	for i, dir := range dirs {
 		if !missingParent {
 			file, err := openAppDirectoryAt(parent, dir.Path)
@@ -148,6 +149,16 @@ func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect 
 		}
 		if err := appDirectoryOwnershipAllowed(dir.UID, dir.GID); err != nil {
 			return &fs.PathError{Op: "admit new App directory ownership", Path: dir.Path, Err: err}
+		}
+		creates = true
+	}
+	if creates && os.Geteuid() != 0 {
+		info, err := parent.Stat()
+		if err != nil {
+			return err
+		}
+		if info.Sys().(*syscall.Stat_t).Uid != uint32(os.Geteuid()) {
+			return &fs.PathError{Op: "require ordinary write permission on the creating parent", Path: parent.Name(), Err: fs.ErrPermission}
 		}
 	}
 	parent = root
