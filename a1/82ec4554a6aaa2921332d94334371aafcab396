@@ -1,0 +1,22 @@
+internal/app/app.go
+  h_d6e478ca18e517 176-186
+internal/project/directories.go
+  h_d6e478ca18e517 1-134
+internal/project/directories_test.go
+  h_d6e478ca18e517 1-240
+internal/service/directories_test.go
+  h_d6e478ca18e517 1-370
+internal/service/install.go
+  h_d6e478ca18e517 14,627-634,661-747
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a182ec4554a6aaa2921332d94334371aafcab396",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
