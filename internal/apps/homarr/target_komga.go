@@ -9,6 +9,8 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
+const komgaSavedKeyHint = "Managed Komga linking is on hold: the supported APIs cannot prove that Homarr's saved key is the exact locally recorded key. Matching account identity, permissions and redacted key inventory do not prove key equality. Preserve Homarr's existing keys, integrations, widgets and layout; do not rotate credentials or retry an install to replace them. Keep any person-managed connection unchanged and wait for a supported exact-key verification contract before retrying self-host setup homarr."
+
 func komgaTarget() target {
 	return target{
 		id: "komga", name: "Komga", kind: "komga", internal: (*helpers.H).InternalURL,
@@ -16,12 +18,9 @@ func komgaTarget() target {
 			return []secret{{Kind: "apiKey", Value: to.Secret(to.Key("homarr_api_key"))}}
 		},
 		widgets: []widget{statWidget("libraries", "series", "books")},
-		preflight: func(ctx context.Context, from, to *helpers.H) error {
-			if err := komga.VerifyHomarr(ctx, to); err != nil {
-				from.Info(komga.HomarrRecoveryHint)
-				return err
-			}
-			return nil
+		preflight: func(_ context.Context, from, _ *helpers.H) error {
+			from.Info(komgaSavedKeyHint)
+			return &helpers.ManualError{Hint: komgaSavedKeyHint}
 		},
 		verify: verifyKomga,
 		stats:  verifyKomgaStats,
@@ -29,6 +28,13 @@ func komgaTarget() target {
 }
 
 func verifyKomga(ctx context.Context, from, to *helpers.H, integrationID string) error {
+	if err := verifyKomgaAccount(ctx, from, to, integrationID); err != nil {
+		return err
+	}
+	return &helpers.ManualError{Hint: komgaSavedKeyHint}
+}
+
+func verifyKomgaAccount(ctx context.Context, from, to *helpers.H, integrationID string) error {
 	if err := komga.VerifyHomarr(ctx, to); err != nil {
 		return err
 	}
@@ -40,11 +46,10 @@ func verifyKomga(ctx context.Context, from, to *helpers.H, integrationID string)
 	}
 	result, ok := value.(map[string]any)
 	integration, _ := result["integration"].(map[string]any)
-	data, _ := result["data"].(map[string]any)
 	if !ok || integrationID == "" || result["ok"] != true || result["status"] != float64(200) || integration["id"] != integrationID || integration["kind"] != "komga" {
 		return &helpers.ManualError{Hint: "Homarr did not confirm the selected Komga integration's authenticated identity. " + komga.HomarrRecoveryHint}
 	}
-	body, err := json.Marshal(data["response"])
+	body, err := json.Marshal(result["data"])
 	if err != nil {
 		return &helpers.ManualError{Hint: "Homarr returned an unreadable Komga identity. " + komga.HomarrRecoveryHint}
 	}
