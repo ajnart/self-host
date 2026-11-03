@@ -8,6 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/healthchecks"
 	"github.com/ajnart/self-host/internal/apps/immich"
 	"github.com/ajnart/self-host/internal/apps/jellystat"
+	"github.com/ajnart/self-host/internal/apps/karakeep"
 	"github.com/ajnart/self-host/internal/apps/keycloak"
 	"github.com/ajnart/self-host/internal/apps/linkwarden"
 	"github.com/ajnart/self-host/internal/apps/mealie"
@@ -23,6 +24,7 @@ func init() {
 		healthchecks.App{},
 		immich.App{},
 		jellystat.App{},
+		karakeep.App{},
 		keycloak.App{},
 		linkwarden.App{},
 		mealie.App{},

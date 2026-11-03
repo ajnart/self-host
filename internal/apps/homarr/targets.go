@@ -19,6 +19,7 @@ func targets() []target {
 		paperlessTarget(),
 		linkwardenTarget(),
 		mealieTarget(),
+		karakeepTarget(),
 		nextcloudTarget(),
 		lidarrTarget(),
 		binderyTarget(),
