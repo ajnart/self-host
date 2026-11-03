@@ -4,15 +4,49 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/system"
+	"golang.org/x/sys/unix"
 )
 
 func directoryProject(t *testing.T) *Project {
 	t.Helper()
-	return &Project{Root: t.TempDir(), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+	p := &Project{Root: filepath.Join(trustedDirectoryFixture(t), "project"), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+	unlock, err := p.Lock(os.Getpid(), func(int) bool { return false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unlock)
+	return p
+}
+
+func trustedDirectoryFixture(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp(".", ".directory-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err = filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err = filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Error(err)
+		}
+	})
+	return dir
+}
+
+func prepareTestAppDirectory(p *Project, id, rel string, mode os.FileMode, uid, gid int) error {
+	return p.prepareAppDirectories(id, []AppDirectory{{rel, mode, uid, gid}}, func(*os.File) error { return nil }, setAppDirectoryMetadata)
 }
 
 func TestAppDirectoryCreatesOwnedPrivateOrPublicLeafAndPreservesRerun(t *testing.T) {
@@ -20,7 +54,7 @@ func TestAppDirectoryCreatesOwnedPrivateOrPublicLeafAndPreservesRerun(t *testing
 		t.Run(mode.String(), func(t *testing.T) {
 			p := directoryProject(t)
 			old := syscall.Umask(0o077)
-			err := p.PrepareAppDirectory("sample", "config", mode, os.Geteuid(), os.Getegid())
+			err := prepareTestAppDirectory(p, "sample", "config", mode, os.Geteuid(), os.Getegid())
 			syscall.Umask(old)
 			if err != nil {
 				t.Fatal(err)
@@ -37,7 +71,7 @@ func TestAppDirectoryCreatesOwnedPrivateOrPublicLeafAndPreservesRerun(t *testing
 			if err := os.WriteFile(filepath.Join(dir, "keep"), []byte("preserved"), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if err := p.PrepareAppDirectory("sample", "config", mode, os.Geteuid(), os.Getegid()); err != nil {
+			if err := prepareTestAppDirectory(p, "sample", "config", mode, os.Geteuid(), os.Getegid()); err != nil {
 				t.Fatal(err)
 			}
 			after, _ := os.Stat(dir)
@@ -74,7 +108,7 @@ func TestAppDirectoryPreservesCompatibleModesAndRejectsConflicts(t *testing.T) {
 				t.Fatal(err)
 			}
 			before, _ := os.Stat(dir)
-			err := p.PrepareAppDirectory("sample", "data", scenario.want, scenario.uid, scenario.gid)
+			err := prepareTestAppDirectory(p, "sample", "data", scenario.want, scenario.uid, scenario.gid)
 			if (err == nil) != scenario.accepted {
 				t.Fatalf("acceptance = %v, want %v: %v", err == nil, scenario.accepted, err)
 			}
@@ -105,7 +139,7 @@ func TestAppDirectoryRefusesEverySymlinkBoundaryAndExistingFiles(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-				} else if err := os.Remove(p.Root); err != nil {
+				} else if err := os.Rename(p.Root, p.Root+"-preserved"); err != nil {
 					t.Fatal(err)
 				}
 				conflict := filepath.Join(parent, name)
@@ -123,7 +157,7 @@ func TestAppDirectoryRefusesEverySymlinkBoundaryAndExistingFiles(t *testing.T) {
 					}
 				}
 				before, _ := os.Lstat(conflict)
-				if err := p.PrepareAppDirectory("sample", "config", 0o700, os.Geteuid(), os.Getegid()); err == nil {
+				if err := prepareTestAppDirectory(p, "sample", "config", 0o700, os.Geteuid(), os.Getegid()); err == nil {
 					t.Fatal("non-directory or symlink was accepted")
 				}
 				after, _ := os.Lstat(conflict)
@@ -144,7 +178,7 @@ func TestAppDirectoryRefusesEverySymlinkBoundaryAndExistingFiles(t *testing.T) {
 func TestAppDirectoryInvalidDeclarationsDoNotCreateAppNamespace(t *testing.T) {
 	for _, rel := range []string{"", ".", "..", "../outside", "/absolute", "config/nested", `config\nested`} {
 		p := directoryProject(t)
-		if err := p.PrepareAppDirectory("sample", rel, 0o700, os.Geteuid(), os.Getegid()); err == nil {
+		if err := prepareTestAppDirectory(p, "sample", rel, 0o700, os.Geteuid(), os.Getegid()); err == nil {
 			t.Fatalf("invalid directory accepted: %q", rel)
 		}
 		if _, err := os.Stat(p.Path("apps")); !os.IsNotExist(err) {
@@ -153,14 +187,14 @@ func TestAppDirectoryInvalidDeclarationsDoNotCreateAppNamespace(t *testing.T) {
 	}
 }
 
-func TestAppDirectoryMetadataFailureStartsPrivateAndRemovesOnlyNewEmptyLeaf(t *testing.T) {
+func TestAppDirectoryMetadataFailureStartsPrivateAndPreservesEvenEmptyLeaf(t *testing.T) {
 	parent, err := os.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer parent.Close()
 	want := errors.New("metadata denied")
-	err = prepareAppDirectoryAt(parent, "data", 0o755, os.Geteuid(), os.Getegid(), func(file *os.File, uid, gid int, mode os.FileMode) error {
+	_, err = createAppDirectoryAt(parent, AppDirectory{"data", 0o755, os.Geteuid(), os.Getegid()}, func(*os.File) error { return nil }, func(file *os.File, uid, gid int, mode os.FileMode) error {
 		info, err := file.Stat()
 		if err != nil || info.Mode().Perm() != 0o700 {
 			t.Fatal("new directory did not start private")
@@ -170,8 +204,8 @@ func TestAppDirectoryMetadataFailureStartsPrivateAndRemovesOnlyNewEmptyLeaf(t *t
 	if !errors.Is(err, want) {
 		t.Fatalf("metadata failure was lost: %v", err)
 	}
-	if _, err := os.Lstat(filepath.Join(parent.Name(), "data")); !os.IsNotExist(err) {
-		t.Fatal("failed empty new directory was left behind")
+	if info, err := os.Lstat(filepath.Join(parent.Name(), "data")); err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatal("failed new directory was removed or lost its private mode")
 	}
 }
 
@@ -181,7 +215,7 @@ func TestAppDirectoryMetadataFailurePreservesNonemptyAndExistingDirectories(t *t
 		t.Fatal(err)
 	}
 	defer parent.Close()
-	err = prepareAppDirectoryAt(parent, "data", 0o700, os.Geteuid(), os.Getegid(), func(file *os.File, _, _ int, _ os.FileMode) error {
+	_, err = createAppDirectoryAt(parent, AppDirectory{"data", 0o700, os.Geteuid(), os.Getegid()}, func(*os.File) error { return nil }, func(file *os.File, _, _ int, _ os.FileMode) error {
 		if err := os.WriteFile(filepath.Join(parent.Name(), "data", "keep"), []byte("concurrent data"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -194,12 +228,12 @@ func TestAppDirectoryMetadataFailurePreservesNonemptyAndExistingDirectories(t *t
 	if err != nil || string(data) != "concurrent data" {
 		t.Fatal("failed preparation deleted nonempty data")
 	}
-	err = prepareAppDirectoryAt(parent, "data", 0o700, os.Geteuid(), os.Getegid(), func(*os.File, int, int, os.FileMode) error {
+	_, err = createAppDirectoryAt(parent, AppDirectory{"data", 0o700, os.Geteuid(), os.Getegid()}, func(*os.File) error { return nil }, func(*os.File, int, int, os.FileMode) error {
 		t.Fatal("existing directory reached metadata mutation")
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("compatible existing directory was not preserved on retry: %v", err)
+	if !errors.Is(err, os.ErrExist) {
+		t.Fatalf("unexpected existing path was not held without replacement: %v", err)
 	}
 }
 
@@ -210,7 +244,7 @@ func TestAppDirectoryPreservesExistingParentModesAndChildFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := os.Stat(parent)
-	if err := p.PrepareAppDirectory("sample", "config", 0o755, os.Geteuid(), os.Getegid()); err != nil {
+	if err := prepareTestAppDirectory(p, "sample", "config", 0o755, os.Geteuid(), os.Getegid()); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := os.Stat(parent)
@@ -218,7 +252,7 @@ func TestAppDirectoryPreservesExistingParentModesAndChildFiles(t *testing.T) {
 		t.Fatal("existing App namespace was changed")
 	}
 	for _, mode := range []os.FileMode{0, 0o600, 0o1700, os.ModeSetgid | 0o700} {
-		if err := p.PrepareAppDirectory("sample", "bad", mode, os.Geteuid(), os.Getegid()); err == nil {
+		if err := prepareTestAppDirectory(p, "sample", "bad", mode, os.Geteuid(), os.Getegid()); err == nil {
 			t.Fatalf("invalid creation mode accepted: %v", mode)
 		}
 	}
@@ -229,12 +263,245 @@ func TestAppDirectoryNewDifferentRuntimeOwner(t *testing.T) {
 		t.Skip("requires host permission to set a different numeric owner")
 	}
 	p := directoryProject(t)
-	if err := p.PrepareAppDirectory("sample", "config", 0o700, 23001, 23002); err != nil {
+	if err := prepareTestAppDirectory(p, "sample", "config", 0o700, 23001, 23002); err != nil {
 		t.Fatal(err)
 	}
 	info, _ := os.Stat(p.Path("apps", "sample", "config"))
 	stat := info.Sys().(*syscall.Stat_t)
 	if stat.Uid != 23001 || stat.Gid != 23002 || info.Mode().Perm() != 0o700 {
 		t.Fatal("new directory was not assigned the selected numeric runtime owner")
+	}
+}
+
+func TestAppDirectoryBatchAdmissionCreatesNothingForLaterFailure(t *testing.T) {
+	for _, conflict := range []string{"mode", "file", "symlink", "ownership", "acl"} {
+		t.Run(conflict, func(t *testing.T) {
+			p := directoryProject(t)
+			parent := p.Path("apps", "sample")
+			if err := os.MkdirAll(parent, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			later := AppDirectory{"later", 0o700, os.Geteuid(), os.Getegid()}
+			inspect := func(*os.File) error { return nil }
+			switch conflict {
+			case "file":
+				if err := os.WriteFile(filepath.Join(parent, "later"), []byte("preserve"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				if err := os.Symlink(t.TempDir(), filepath.Join(parent, "later")); err != nil {
+					t.Fatal(err)
+				}
+			case "ownership":
+				if os.Geteuid() == 0 {
+					t.Skip("ordinary ownership denial requires an unprivileged caller")
+				}
+				later.UID++
+			default:
+				if err := os.Mkdir(filepath.Join(parent, "later"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if conflict == "acl" {
+					later.Mode = 0o755
+					inspect = func(file *os.File) error {
+						if file.Name() == "later" {
+							return os.ErrPermission
+						}
+						return nil
+					}
+				}
+			}
+			dirs := []AppDirectory{{"first", 0o700, os.Geteuid(), os.Getegid()}, later}
+			err := p.prepareAppDirectories("sample", dirs, inspect, func(*os.File, int, int, os.FileMode) error {
+				t.Fatal("admission failure reached metadata mutation")
+				return nil
+			})
+			if err == nil {
+				t.Fatal("later incompatible directory passed batch admission")
+			}
+			if _, err := os.Lstat(filepath.Join(parent, "first")); !os.IsNotExist(err) {
+				t.Fatal("earlier missing directory was created before whole-batch admission")
+			}
+		})
+	}
+}
+
+func TestAppDirectoryRejectsSharedParentsAndRequiresHeldLock(t *testing.T) {
+	for _, component := range []string{"anchor", "root", "apps", "sample"} {
+		t.Run(component, func(t *testing.T) {
+			p := directoryProject(t)
+			parent := p.Path("apps", "sample")
+			if err := os.MkdirAll(parent, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			path := map[string]string{"anchor": filepath.Dir(p.Root), "root": p.Root, "apps": p.Path("apps"), "sample": parent}[component]
+			if err := os.Chmod(path, 0o775); err != nil {
+				t.Fatal(err)
+			}
+			if err := prepareTestAppDirectory(p, "sample", "config", 0o700, os.Geteuid(), os.Getegid()); !errors.Is(err, os.ErrPermission) {
+				t.Fatalf("shared-writable parent was admitted: %v", err)
+			}
+			if _, err := os.Lstat(filepath.Join(parent, "config")); !os.IsNotExist(err) {
+				t.Fatal("shared namespace reached creation")
+			}
+		})
+	}
+	p := &Project{Root: t.TempDir(), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+	if err := prepareTestAppDirectory(p, "sample", "config", 0o700, os.Geteuid(), os.Getegid()); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("unlocked Project was admitted: %v", err)
+	}
+}
+
+func TestAppDirectoryACLAdmissionRequiresKnownFilesystemAndExplicitAbsence(t *testing.T) {
+	for _, kind := range []int64{0xef53, 0x58465342, 0x01021994} {
+		if err := admitAppDirectoryFilesystem(kind, func(string) error { return unix.ENODATA }); err != nil {
+			t.Fatalf("supported absent-ACL filesystem was rejected: %v", err)
+		}
+	}
+	for _, attrErr := range []error{nil, unix.ENOTSUP, unix.EACCES, unix.EIO} {
+		if err := admitAppDirectoryFilesystem(0xef53, func(string) error { return attrErr }); !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("present or uncertain ACL was admitted: %v", err)
+		}
+	}
+	if err := admitAppDirectoryFilesystem(0xef53, func(attribute string) error {
+		if attribute == "system.posix_acl_default" {
+			return nil
+		}
+		return unix.ENODATA
+	}); !errors.Is(err, os.ErrPermission) {
+		t.Fatal("present default ACL was accepted")
+	}
+	if err := admitAppDirectoryFilesystem(0x794c7630, func(string) error { t.Fatal("unknown ACL model was probed as POSIX"); return nil }); !errors.Is(err, os.ErrPermission) {
+		t.Fatal("unknown filesystem ACL semantics were accepted")
+	}
+}
+
+func TestAppDirectoryBatchOwnershipAdmissionDoesNotCreateNamespace(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("ordinary ownership denial requires an unprivileged caller")
+	}
+	p := directoryProject(t)
+	dirs := []AppDirectory{{"first", 0o700, os.Geteuid(), os.Getegid()}, {"later", 0o700, os.Geteuid() + 1, os.Getegid()}}
+	if err := p.prepareAppDirectories("sample", dirs, func(*os.File) error { return nil }, setAppDirectoryMetadata); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("later ownership-setting failure was not held: %v", err)
+	}
+	if _, err := os.Lstat(p.Path("apps")); !os.IsNotExist(err) {
+		t.Fatal("batch ownership admission created namespace directories")
+	}
+}
+
+func TestAppDirectoryMetadataFailureNeverCleansReplacementPath(t *testing.T) {
+	parent, err := os.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer parent.Close()
+	_, err = createAppDirectoryAt(parent, AppDirectory{"data", 0o755, os.Geteuid(), os.Getegid()}, func(*os.File) error { return nil }, func(*os.File, int, int, os.FileMode) error {
+		if err := os.Rename(filepath.Join(parent.Name(), "data"), filepath.Join(parent.Name(), "preserved-original")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(filepath.Join(parent.Name(), "data"), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		return os.ErrPermission
+	})
+	if !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("metadata error was lost: %v", err)
+	}
+	for name, mode := range map[string]os.FileMode{"data": 0o750, "preserved-original": 0o700} {
+		info, err := os.Stat(filepath.Join(parent.Name(), name))
+		if err != nil || info.Mode().Perm() != mode {
+			t.Fatalf("error recovery cleaned or modified %s: %v", name, err)
+		}
+	}
+}
+
+func TestAppDirectoryForeignParentCannotReachMetadata(t *testing.T) {
+	p := directoryProject(t)
+	parent := p.Path("apps")
+	if err := os.Mkdir(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if os.Geteuid() == 0 {
+		if err := os.Chown(parent, 23001, 23002); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		p.Owner.UID++
+	}
+	err := p.prepareAppDirectories("sample", []AppDirectory{{"config", 0o700, os.Geteuid(), os.Getegid()}}, func(*os.File) error { return nil }, func(*os.File, int, int, os.FileMode) error {
+		t.Fatal("foreign-controlled namespace reached metadata mutation")
+		return nil
+	})
+	if !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("foreign-controlled parent was accepted: %v", err)
+	}
+	if _, err := os.Lstat(p.Path("apps", "sample")); !os.IsNotExist(err) {
+		t.Fatal("foreign namespace was written")
+	}
+}
+
+func TestAppDirectoryRequiresKernelLockAsWellAsProcessGate(t *testing.T) {
+	p := &Project{Root: filepath.Join(trustedDirectoryFixture(t), "project"), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+	if err := os.Mkdir(p.Root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.Path(".lock"), []byte("unlocked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gate := make(chan struct{}, 1)
+	gate <- struct{}{}
+	projectLocks.Store(p.Root, gate)
+	t.Cleanup(func() { projectLocks.Delete(p.Root) })
+	if err := prepareTestAppDirectory(p, "sample", "config", 0o700, os.Geteuid(), os.Getegid()); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("an occupied local gate without a kernel lock was accepted: %v", err)
+	}
+	if _, err := os.Lstat(p.Path("apps")); !os.IsNotExist(err) {
+		t.Fatal("unlocked namespace was written")
+	}
+}
+
+func TestAppDirectoryPublicBatchSupportsInspectedLinuxFilesystem(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("public ACL admission supports Linux only")
+	}
+	p := directoryProject(t)
+	for path := p.Root; ; path = filepath.Dir(path) {
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := file.Stat()
+		if err != nil {
+			file.Close()
+			t.Fatal(err)
+		}
+		owner := info.Sys().(*syscall.Stat_t).Uid
+		if owner != 0 && owner != uint32(os.Geteuid()) || info.Mode().Perm()&0o022 != 0 || info.Mode()&(os.ModeSetgid|os.ModeSetuid|os.ModeSticky) != 0 {
+			file.Close()
+			t.Skip("native fixture has a shared or foreign-controlled path prefix")
+		}
+		var stat unix.Statfs_t
+		if err := unix.Fstatfs(int(file.Fd()), &stat); err != nil {
+			file.Close()
+			t.Fatal(err)
+		}
+		if stat.Flags&1 != 0 || int64(stat.Type) != 0xef53 && int64(stat.Type) != 0x58465342 && int64(stat.Type) != 0x01021994 {
+			file.Close()
+			t.Skip("native fixture has an unsupported filesystem prefix")
+		}
+		for _, name := range []string{"system.posix_acl_access", "system.posix_acl_default"} {
+			if _, err := unix.Fgetxattr(int(file.Fd()), name, nil); !errors.Is(err, unix.ENODATA) {
+				file.Close()
+				t.Skip("native fixture cannot independently establish ACL absence")
+			}
+		}
+		file.Close()
+		if filepath.Dir(path) == path {
+			break
+		}
+	}
+	if err := p.PrepareAppDirectories("sample", []AppDirectory{{"config", 0o700, os.Geteuid(), os.Getegid()}}); err != nil {
+		t.Fatalf("supported public batch failed: %v", err)
 	}
 }

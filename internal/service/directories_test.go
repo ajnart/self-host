@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -18,6 +20,7 @@ import (
 	stepstatus "github.com/ajnart/self-host/internal/status"
 	"github.com/ajnart/self-host/internal/system"
 	"github.com/ajnart/self-host/internal/systemtest"
+	"golang.org/x/sys/unix"
 )
 
 type directoryTestApp struct {
@@ -78,6 +81,23 @@ func newDirectoryHarness(t *testing.T, apps ...app.App) *harness {
 		t.Fatal(err)
 	}
 	owner.UID, owner.GID = os.Geteuid(), os.Getegid()
+	dir, err := os.MkdirTemp(".", ".directory-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner.Home, err = filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner.Home, err = filepath.EvalSymlinks(owner.Home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(owner.Home); err != nil {
+			t.Error(err)
+		}
+	})
 	h.deps.WithAccounts(systemtest.NewAccounts(owner))
 	return h
 }
@@ -91,7 +111,59 @@ func assertNoDirectoryRepairOrStartup(t *testing.T, calls []string) {
 	}
 }
 
+func requireNativeDirectoryFilesystem(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("successful native filesystem/ACL admission requires Linux")
+	}
+	path, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := file.Stat()
+		if err != nil {
+			file.Close()
+			t.Fatal(err)
+		}
+		owner := info.Sys().(*syscall.Stat_t).Uid
+		if owner != 0 && owner != uint32(os.Geteuid()) || info.Mode().Perm()&0o022 != 0 || info.Mode()&(os.ModeSetgid|os.ModeSetuid|os.ModeSticky) != 0 {
+			file.Close()
+			t.Skip("native fixture has a shared or foreign-controlled path prefix")
+		}
+		var stat unix.Statfs_t
+		if err := unix.Fstatfs(int(file.Fd()), &stat); err != nil {
+			file.Close()
+			t.Fatal(err)
+		}
+		if stat.Flags&1 != 0 || int64(stat.Type) != 0xef53 && int64(stat.Type) != 0x58465342 && int64(stat.Type) != 0x01021994 {
+			file.Close()
+			t.Skip("native test filesystem is outside the supported ACL model")
+		}
+		for _, name := range []string{"system.posix_acl_access", "system.posix_acl_default"} {
+			if _, err := unix.Fgetxattr(int(file.Fd()), name, nil); !errors.Is(err, unix.ENODATA) {
+				file.Close()
+				t.Skip("native test filesystem cannot establish ACL absence")
+			}
+		}
+		file.Close()
+		if filepath.Dir(path) == path {
+			break
+		}
+		path = filepath.Dir(path)
+	}
+}
+
 func TestDirectoryInstallPreparesTwoDirectoryOnlyAppsBeforeFirstUp(t *testing.T) {
+	requireNativeDirectoryFilesystem(t)
 	one, two := newDirectoryTestApp("one", 0o755), newDirectoryTestApp("two", 0o700)
 	two.preflight = true
 	h := newDirectoryHarness(t, one, two)
@@ -186,16 +258,19 @@ func TestDirectoryInstallPreservesConflictsAsManualBeforeRecursiveRepairOrUp(t *
 }
 
 func TestDirectoryInstallKeepsDisjointFilesAndValidatesAllDeclarationsFirst(t *testing.T) {
-	base := newDirectoryTestApp("one", 0o700)
-	a := &directoryFileTestApp{base, []app.File{{Path: "settings.json", Content: "preserve settings", Mode: 0o600}}}
-	h := newDirectoryHarness(t, a)
-	if err := h.install("one"); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(h.root(), "apps", "one", "settings.json"))
-	if err != nil || string(data) != "preserve settings" {
-		t.Fatal("disjoint FileDeclarer was skipped")
-	}
+	t.Run("disjoint-file", func(t *testing.T) {
+		requireNativeDirectoryFilesystem(t)
+		base := newDirectoryTestApp("one", 0o700)
+		a := &directoryFileTestApp{base, []app.File{{Path: "settings.json", Content: "preserve settings", Mode: 0o600}}}
+		h := newDirectoryHarness(t, a)
+		if err := h.install("one"); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(h.root(), "apps", "one", "settings.json"))
+		if err != nil || string(data) != "preserve settings" {
+			t.Fatal("disjoint FileDeclarer was skipped")
+		}
+	})
 	for _, invalid := range []app.Directory{
 		{Path: "config/nested", Mode: 0o700, UID: "0", GID: "0"},
 		{Path: "config", Mode: 0o700, UID: "", GID: "0"},
@@ -219,6 +294,9 @@ func TestDirectoryInstallKeepsDisjointFilesAndValidatesAllDeclarationsFirst(t *t
 func TestDirectoryGeneratedRefreshPreparesBeforeUpAndPreservesCustomCompose(t *testing.T) {
 	for _, customized := range []bool{false, true} {
 		t.Run(fmt.Sprint(customized), func(t *testing.T) {
+			if !customized {
+				requireNativeDirectoryFilesystem(t)
+			}
 			a := newDirectoryTestApp("one", 0o700)
 			directories := a.directories
 			a.directories = nil
@@ -294,6 +372,9 @@ func TestDirectoryVerifiedRootlessMappingDistinguishesZeroAndSubordinateOwner(t 
 	}
 	for _, containerID := range []string{"0", "7"} {
 		t.Run(containerID, func(t *testing.T) {
+			if containerID == "0" {
+				requireNativeDirectoryFilesystem(t)
+			}
 			a := newDirectoryTestApp("one", 0o700)
 			a.directories[0].UID, a.directories[0].GID = containerID, containerID
 			h := newDirectoryHarness(t, a)
@@ -329,6 +410,145 @@ func TestDirectoryVerifiedRootlessMappingDistinguishesZeroAndSubordinateOwner(t 
 			}
 		})
 	}
+}
+
+func TestDirectoryServiceBatchLaterFilesystemConflictCreatesNothing(t *testing.T) {
+	requireNativeDirectoryFilesystem(t)
+	for _, conflict := range []string{"mode", "symlink", "ownership"} {
+		t.Run(conflict, func(t *testing.T) {
+			a := newDirectoryTestApp("one", 0o700)
+			a.directories[0].Path = "first"
+			later := a.directories[0]
+			later.Path = "later"
+			if conflict == "ownership" {
+				if os.Geteuid() == 0 {
+					t.Skip("ownership denial requires an unprivileged caller")
+				}
+				later.UID = strconv.Itoa(os.Geteuid() + 1)
+			}
+			a.directories = append(a.directories, later)
+			h := newDirectoryHarness(t, a)
+			parent := filepath.Join(h.root(), "apps", "one")
+			if err := os.MkdirAll(parent, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if conflict == "mode" {
+				if err := os.Mkdir(filepath.Join(parent, "later"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			} else if conflict == "symlink" {
+				if err := os.Symlink(t.TempDir(), filepath.Join(parent, "later")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.install("one"); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("later path conflict was not Manual: %v", err)
+			}
+			if _, err := os.Lstat(filepath.Join(parent, "first")); !os.IsNotExist(err) {
+				t.Fatal("Service created an earlier directory before full filesystem admission")
+			}
+			assertNoDirectoryRepairOrStartup(t, h.runner.Calls())
+		})
+	}
+}
+
+func TestDirectoryServiceRejectsNativeUnknownACLModelWithoutCreation(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("this regression exercises an unsupported native ACL model")
+	}
+	a := newDirectoryTestApp("one", 0o755)
+	h := newDirectoryHarness(t, a)
+	if err := h.install("one"); !errors.Is(err, helpers.ErrManual) {
+		t.Fatalf("fake Linux daemon metadata bypassed native ACL-model admission: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(h.root(), "apps", "one", "config")); !os.IsNotExist(err) {
+		t.Fatal("unknown native ACL model created a directory")
+	}
+	if e := h.rec.find("one", "directories"); e == nil || !strings.Contains(e.Hint, "ACL") {
+		t.Fatal("unknown ACL model did not persist an explicit Manual hint")
+	}
+	assertNoDirectoryRepairOrStartup(t, h.runner.Calls())
+}
+
+func TestDirectoryServicePreservesPresentACLAndRejectsEntireBatch(t *testing.T) {
+	requireNativeDirectoryFilesystem(t)
+	a := newDirectoryTestApp("one", 0o755)
+	dirs := a.directories
+	a.directories = nil
+	h := newDirectoryHarness(t, a)
+	if err := h.install("one"); err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Join(h.root(), "apps", "one")
+	leaf := filepath.Join(parent, "config")
+	if err := os.Mkdir(leaf, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	acl := make([]byte, 44)
+	binary.LittleEndian.PutUint32(acl, 2)
+	entries := []struct {
+		tag, permissions uint16
+		id               uint32
+	}{{1, 7, 0xffffffff}, {2, 4, uint32(os.Geteuid() + 1)}, {4, 0, 0xffffffff}, {16, 5, 0xffffffff}, {32, 0, 0xffffffff}}
+	for i, entry := range entries {
+		binary.LittleEndian.PutUint16(acl[4+i*8:], entry.tag)
+		binary.LittleEndian.PutUint16(acl[6+i*8:], entry.permissions)
+		binary.LittleEndian.PutUint32(acl[8+i*8:], entry.id)
+	}
+	if err := unix.Setxattr(leaf, "system.posix_acl_access", acl, 0); err != nil {
+		t.Skipf("native ACL fixture cannot be installed: %v", err)
+	}
+	before, err := os.Stat(leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := dirs[0]
+	first.Path = "first"
+	a.directories = append([]app.Directory{first}, dirs...)
+	callCount := len(h.runner.Calls())
+	if err := h.install("one"); !errors.Is(err, helpers.ErrManual) {
+		t.Fatalf("present ACL was admitted: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(parent, "first")); !os.IsNotExist(err) {
+		t.Fatal("later ACL conflict allowed earlier directory creation")
+	}
+	after, _ := os.Stat(leaf)
+	if !os.SameFile(before, after) || before.Mode() != after.Mode() {
+		t.Fatal("existing ACL-bearing directory was changed")
+	}
+	got := make([]byte, 128)
+	n, err := unix.Getxattr(leaf, "system.posix_acl_access", got)
+	if err != nil || string(got[:n]) != string(acl) {
+		t.Fatal("ACL was reset or changed")
+	}
+	assertNoDirectoryRepairOrStartup(t, h.runner.Calls()[callCount:])
+}
+
+func TestDirectoryRefreshAdmitsWholeBatchBeforeCreation(t *testing.T) {
+	requireNativeDirectoryFilesystem(t)
+	a := newDirectoryTestApp("one", 0o700)
+	dirs := a.directories
+	a.directories = nil
+	h := newDirectoryHarness(t, a)
+	if err := h.install("one"); err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Join(h.root(), "apps", "one")
+	if err := os.Mkdir(filepath.Join(parent, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first := dirs[0]
+	first.Path = "first"
+	a.directories = append([]app.Directory{first}, dirs...)
+	a.image = "example/test:revised"
+	before := len(h.runner.Calls())
+	if err := h.svc.Update(context.Background(), []string{"one"}); !errors.Is(err, helpers.ErrManual) {
+		t.Fatalf("refresh did not stop at later admission conflict: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(parent, "first")); !os.IsNotExist(err) {
+		t.Fatal("refresh created the first path before admitting the entire batch")
+	}
+	assertNoDirectoryRepairOrStartup(t, h.runner.Calls()[before:])
 }
 
 func TestDirectoryUnsupportedPlatformIsManualBeforePreparation(t *testing.T) {
