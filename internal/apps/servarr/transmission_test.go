@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,11 +94,13 @@ func (f *transmissionRPCFixture) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 type transmissionLinkExecutor struct {
 	*servarrPathExecutor
-	policy string
+	policy      string
+	policyReads int
 }
 
 func (e *transmissionLinkExecutor) Exec(ctx context.Context, service string, env map[string]string, args ...string) (system.Result, error) {
 	if len(args) == 3 && args[0] == "sh" && args[1] == "-c" && strings.Contains(args[2], "rpc-authentication-required") {
+		e.policyReads++
 		return system.Result{Stdout: []byte(e.policy)}, nil
 	}
 	return e.servarrPathExecutor.Exec(ctx, service, env, args...)
@@ -112,22 +115,42 @@ type transmissionLinkFixture struct {
 	field    string
 }
 
+type transmissionSource struct {
+	consumer, api, field, category, schemaCategory, version, protocol string
+}
+
+func transmissionSources() []transmissionSource {
+	return []transmissionSource{
+		{"sonarr", V3, "tvCategory", "tv", "tv-sonarr", "4.0.20.3014", "torrent"},
+		{"radarr", V3, "movieCategory", "movies", "radarr", "6.4.4.10685", "torrent"},
+		{"lidarr", V1, "musicCategory", "music", "lidarr", "3.1.0.4875", "torrent"},
+		{"lidarr", V1, "musicCategory", "music", "lidarr", "3.1.6.5079", "TorrentDownloadProtocol"},
+	}
+}
+
 func newTransmissionLinkFixture(t *testing.T, consumer string, legacy bool) *transmissionLinkFixture {
 	t.Helper()
-	api, protocol, field, category := V3, "torrent", "tvCategory", "tv"
-	if consumer == "radarr" {
-		field, category = "movieCategory", "movies"
+	for _, source := range transmissionSources() {
+		if source.consumer == consumer {
+			return newTransmissionSourceFixture(t, source, legacy)
+		}
 	}
-	if consumer == "lidarr" {
-		api, protocol, field, category = V1, "TorrentDownloadProtocol", "musicCategory", "music"
-	}
+	t.Fatal("unsupported source fixture")
+	return nil
+}
+
+func newTransmissionSourceFixture(t *testing.T, source transmissionSource, legacy bool) *transmissionLinkFixture {
+	t.Helper()
+	consumer, api, field, category := source.consumer, source.api, source.field, source.category
 	f := newServarrContract(t, api)
 	f.guards = 1
+	f.appName, f.version = map[string]string{"sonarr": "Sonarr", "radarr": "Radarr", "lidarr": "Lidarr"}[consumer], source.version
 	f.from.App, f.from.Service = consumer, consumer
 	f.secrets[strings.ToUpper(consumer)+"_API_KEY"] = "consumer-key"
 	f.secrets["ADMIN_USER"], f.secrets["ADMIN_PASSWORD"] = "fixture-user", "fixture-password"
-	f.template = provider{"implementation": "Transmission", "configContract": "TransmissionSettings", "protocol": protocol, "fields": []any{}, "priority": float64(1), "removeCompletedDownloads": false}
-	for name, value := range map[string]any{"host": "localhost", "port": float64(9091), "useSsl": false, "urlBase": "/transmission/", "username": "", "password": "", field: category, strings.TrimSuffix(field, "Category") + "Directory": nil, strings.TrimSuffix(field, "Category") + "ImportedCategory": "", "addPaused": false} {
+	f.template = provider{"implementation": "Transmission", "configContract": "TransmissionSettings", "protocol": source.protocol, "fields": []any{}, "priority": float64(1), "removeCompletedDownloads": false}
+	prefix := strings.TrimSuffix(field, "Category")
+	for name, value := range map[string]any{"host": "localhost", "port": float64(9091), "useSsl": false, "urlBase": "/transmission/", "username": nil, "password": nil, field: source.schemaCategory, prefix + "Directory": nil, prefix + "ImportedCategory": nil, "recent" + strings.ToUpper(prefix[:1]) + prefix[1:] + "Priority": float64(0), "older" + strings.ToUpper(prefix[:1]) + prefix[1:] + "Priority": float64(0), "addPaused": false} {
 		f.template["fields"] = append(f.template["fields"].([]any), map[string]any{"name": name, "value": value})
 	}
 	root, local, library := "/data/torrents", "/data/torrents", "/data/media/library"
@@ -167,6 +190,11 @@ func newTransmissionLinkFixture(t *testing.T, consumer string, legacy bool) *tra
 	pathServer := httptest.NewServer(paths)
 	t.Cleanup(pathServer.Close)
 	f.from.Config.HTTP = &http.Client{Transport: transmissionPathTransport{base: http.DefaultTransport, paths: pathServer.URL}}
+	resp, err := f.from.HTTP(t.Context(), Request(f.from, api, helpers.Request{Path: "/system/status", NoRedirect: true}))
+	var status struct{ AppName, Version string }
+	if err != nil || resp.Status != 200 || resp.Decode(&status) != nil || status.AppName != f.appName || status.Version != source.version {
+		t.Fatal("source-version/protocol fixture is inconsistent", err)
+	}
 	return &transmissionLinkFixture{servarrContractFixture: f, rpc: rpc, exec: exec, link: TransmissionLink(api, field, category), category: category, field: field}
 }
 
@@ -187,10 +215,10 @@ func (t transmissionPathTransport) RoundTrip(r *http.Request) (*http.Response, e
 }
 
 func TestTransmissionLinksAllConsumersVerifyPathsAndPreserveChoices(t *testing.T) {
-	for _, consumer := range []string{"sonarr", "radarr", "lidarr"} {
+	for _, source := range transmissionSources() {
 		for _, legacy := range []bool{false, true} {
-			t.Run(consumer+map[bool]string{false: "/shared", true: "/legacy"}[legacy], func(t *testing.T) {
-				f := newTransmissionLinkFixture(t, consumer, legacy)
+			t.Run(source.consumer+"/"+source.version+map[bool]string{false: "/shared", true: "/legacy"}[legacy], func(t *testing.T) {
+				f := newTransmissionSourceFixture(t, source, legacy)
 				if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
 					t.Fatal(err)
 				}
@@ -237,8 +265,8 @@ func TestTransmissionLinksAllConsumersVerifyPathsAndPreserveChoices(t *testing.T
 }
 
 func TestTransmissionDirectoryChoicesUseNativeConsumerValidation(t *testing.T) {
-	for _, consumer := range []string{"sonarr", "radarr", "lidarr"} {
-		f := newTransmissionLinkFixture(t, consumer, false)
+	for _, source := range transmissionSources() {
+		f := newTransmissionSourceFixture(t, source, false)
 		if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
 			t.Fatal(err)
 		}
@@ -249,10 +277,6 @@ func TestTransmissionDirectoryChoicesUseNativeConsumerValidation(t *testing.T) {
 		f.nativeStatus, f.nativeBody = 400, `[{"propertyName":"Category","errorMessage":"Cannot use Category and Directory"}]`
 		if err := f.link.Apply(t.Context(), f.from, f.to); err == nil {
 			t.Fatal("stable consumer's native category/directory rejection was ignored")
-		}
-		f.nativeStatus, f.nativeBody = 200, `{}`
-		if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
-			t.Fatal("leaf imposed a universal category/directory prohibition", err)
 		}
 		if f.items[0].field(directoryField) != "/data/torrents/override" || f.creates != 1 || f.updates != 0 {
 			t.Fatal("person's explicit directory was overwritten")
@@ -419,5 +443,249 @@ func TestTransmissionOwnershipRecoveryAndRemovalDoNotNeedTarget(t *testing.T) {
 				t.Fatal("owned cleanup depended on target credentials or paths")
 			}
 		})
+	}
+}
+
+func TestTransmissionSourceFamiliesPreserveWireLifecycleAndSurvivors(t *testing.T) {
+	for _, source := range transmissionSources() {
+		t.Run(source.consumer+"/"+source.version, func(t *testing.T) {
+			f := newTransmissionSourceFixture(t, source, false)
+			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+				t.Fatal(err)
+			}
+			key := f.from.Key("link_transmission_resource")
+			raw := f.secrets[key]
+			var record map[string]any
+			if err := json.Unmarshal([]byte(raw), &record); err != nil || len(record) != 4 || record["id"] != float64(17) || record["target"] != "transmission" || record["endpoint"] != "selected-transmission" {
+				t.Fatal("ownership was migrated instead of retaining its serialized four-field contract", err)
+			}
+			f.items[0].setField(f.field, "chosen")
+			f.items[0]["priority"] = float64(9)
+			f.items[0].setField("addPaused", true)
+			f.items[0].setField("password", "********")
+			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil || f.secrets[key] != raw || f.updates != 0 {
+				t.Fatal("masked rerun changed wire/ownership", err)
+			}
+			f.rpc.mu.Lock()
+			f.rpc.password = "accepted-rotated-by-owner"
+			f.rpc.mu.Unlock()
+			f.secrets["ADMIN_PASSWORD"] = "accepted-rotated-by-owner"
+			before := servarrContractCopy(f.items[0])
+			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+				t.Fatal(err)
+			}
+			before.setField("password", "accepted-rotated-by-owner")
+			want, _ := json.Marshal(before)
+			got, _ := json.Marshal(f.items[0])
+			if string(want) != string(got) || f.items[0]["protocol"] != source.protocol || f.updates != 1 {
+				t.Fatal("credential-only update changed noncredential settings or source wire")
+			}
+			survivor := servarrContractCopy(f.items[0])
+			survivor["id"], survivor["name"] = float64(88), "independent Transmission"
+			survivor.setField("host", "independent-host")
+			personal := servarrContractCopy(f.items[0])
+			personal["id"], personal["name"] = float64(89), "personal Transmission"
+			f.items = append(f.items, survivor, personal)
+			consumerSecrets := &protocolTrackedSecrets{values: f.secrets}
+			targetSecrets := &protocolTrackedSecrets{values: f.secrets}
+			f.from.Config.Secrets, f.to.Config.Secrets = consumerSecrets, targetSecrets
+			delete(f.secrets, "ADMIN_PASSWORD")
+			f.rpc.status, f.exec.policy = 403, "false"
+			rpcCalls, native, probes, policyReads := f.rpc.authenticated, f.tests, f.exec.calls, f.exec.policyReads
+			if err := f.link.Remove(t.Context(), f.from, f.to); err != nil {
+				t.Fatal(err)
+			}
+			if targetSecrets.reads != 0 || targetSecrets.writes != 0 || f.rpc.authenticated != rpcCalls || f.tests != native || f.exec.calls != probes || f.exec.policyReads != policyReads || f.secrets[key] != "" || len(f.items) != 2 || f.items[0].id() != 88 || f.items[1].id() != 89 {
+				t.Fatal("offline removal contacted target or changed a survivor")
+			}
+			consumerSecrets.writes = 0
+			if err := f.link.Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || targetSecrets.reads != 0 || consumerSecrets.writes != 0 || f.tests != native {
+				t.Fatal("reinstall adopted a personal same-target entry", err)
+			}
+			f.items[1].setField("host", "person-selected-host")
+			f.secrets["ADMIN_PASSWORD"] = "accepted-rotated-by-owner"
+			f.rpc.status, f.exec.policy = 0, "true"
+			if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+				t.Fatal(err)
+			}
+			if len(f.items) != 3 || f.items[0].id() != 88 || f.items[1].id() != 89 || f.items[2].id() != 18 || f.items[2]["protocol"] != source.protocol {
+				t.Fatal("fresh creation reclaimed an ID or changed protocol/survivors")
+			}
+			for _, submitted := range append(append(f.nativeItems, f.createdItems...), f.updatedItems...) {
+				if submitted["protocol"] != source.protocol {
+					t.Fatal("native/create/update body normalized the actual schema wire")
+				}
+			}
+		})
+	}
+}
+
+func TestTransmissionCommonAdmissionPrecedesTargetAndPrivateWrites(t *testing.T) {
+	creationFaults := []string{"schema-sibling", "schema-sibling-string", "schema-lidarr-string", "schema-null", "schema-number", "schema-bool", "schema-unknown", "schema-whitespace", "schema-casing", "schema-contract", "schema-missing", "schema-duplicate", "schema-field-type", "schema-missing-credential", "schema-credential-type", "auth-schema", "auth-resource", "malformed-schema", "malformed-resource", "missing-key", "rejected-key", "schema-forbidden", "resource-forbidden", "wrong-api", "wrong-category"}
+	ownedFaults := append(slices.Clone(creationFaults), "resource-crossed", "schema-crossed", "resource-sibling", "resource-contract", "resource-field-type", "resource-extra-field", "resource-disabled")
+	for _, source := range transmissionSources() {
+		for _, operation := range []string{"create", "apply", "remove"} {
+			faults := creationFaults
+			if operation != "create" {
+				faults = ownedFaults
+			}
+			for _, fault := range faults {
+				if source.consumer == "lidarr" && fault == "schema-lidarr-string" {
+					continue
+				}
+				if operation == "remove" && fault == "resource-disabled" {
+					continue
+				}
+				if source.consumer != "lidarr" && strings.HasSuffix(fault, "-crossed") {
+					continue
+				}
+				t.Run(source.consumer+"/"+source.version+"/"+operation+"/"+fault, func(t *testing.T) {
+					f := newTransmissionSourceFixture(t, source, false)
+					if operation != "create" {
+						if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+							t.Fatal(err)
+						}
+					}
+					key := f.from.Key("link_transmission_resource")
+					raw := f.secrets[key]
+					other := "TorrentDownloadProtocol"
+					if source.protocol == other {
+						other = "torrent"
+					}
+					privateBody, malformed := `{"status":false,"error":"private-admission-marker"}`, `{"private-admission-marker"`
+					switch fault {
+					case "schema-sibling":
+						f.template["protocol"] = "usenet"
+					case "schema-sibling-string":
+						f.template["protocol"] = "UsenetDownloadProtocol"
+					case "schema-lidarr-string":
+						f.template["protocol"] = "TorrentDownloadProtocol"
+					case "schema-null":
+						f.template["protocol"] = nil
+					case "schema-number":
+						f.template["protocol"] = float64(1)
+					case "schema-bool":
+						f.template["protocol"] = true
+					case "schema-unknown":
+						f.template["protocol"] = "unknown-wire"
+					case "schema-whitespace":
+						f.template["protocol"] = source.protocol + " "
+					case "schema-casing":
+						f.template["protocol"] = "TORRENT"
+					case "schema-contract":
+						f.template["configContract"] = "WrongSettings"
+					case "schema-missing":
+						f.schemas = []provider{}
+					case "schema-duplicate":
+						f.schemas = []provider{servarrContractCopy(f.template), servarrContractCopy(f.template)}
+					case "schema-field-type":
+						f.template.setField("port", true)
+					case "schema-missing-credential":
+						f.template["fields"] = slices.DeleteFunc(f.template["fields"].([]any), func(raw any) bool { return raw.(map[string]any)["name"] == "password" })
+					case "schema-credential-type":
+						f.template.setField("username", true)
+					case "auth-schema":
+						f.schemaBody = &privateBody
+					case "auth-resource":
+						f.resourceBody = &privateBody
+					case "malformed-schema":
+						f.schemaBody = &malformed
+					case "malformed-resource":
+						f.resourceBody = &malformed
+					case "missing-key":
+						delete(f.secrets, f.from.Key("api_key"))
+					case "rejected-key":
+						f.secrets[f.from.Key("api_key")] = "rejected-key"
+					case "schema-forbidden":
+						f.schemaStatus = 403
+					case "resource-forbidden":
+						f.resourceStatus = 401
+					case "wrong-api":
+						api := V1
+						if source.api == V1 {
+							api = V3
+						}
+						f.link = TransmissionLink(api, source.field, source.category)
+					case "wrong-category":
+						f.link = TransmissionLink(source.api, "unrecognizedCategory", source.category)
+					case "resource-crossed":
+						f.items[0]["protocol"] = other
+					case "schema-crossed":
+						f.template["protocol"] = other
+					case "resource-sibling":
+						f.items[0]["protocol"] = "usenet"
+					case "resource-contract":
+						f.items[0]["configContract"] = "WrongSettings"
+					case "resource-field-type":
+						f.items[0].setField("port", true)
+					case "resource-extra-field":
+						f.items[0]["fields"] = append(f.items[0]["fields"].([]any), map[string]any{"name": "unknown", "value": true})
+					case "resource-disabled":
+						f.items[0]["enable"] = false
+					}
+					consumerSecrets, targetSecrets := &protocolTrackedSecrets{values: f.secrets}, &protocolTrackedSecrets{values: f.secrets}
+					f.from.Config.Secrets, f.to.Config.Secrets = consumerSecrets, targetSecrets
+					rpcCalls, native, probes, policies := f.rpc.authenticated, f.tests, f.exec.calls, f.exec.policyReads
+					creates, updates, deletes := f.creates, f.updates, f.deletes
+					var err error
+					if operation == "remove" {
+						err = f.link.Remove(t.Context(), f.from, f.to)
+					} else {
+						err = f.link.Apply(t.Context(), f.from, f.to)
+					}
+					if !errors.Is(err, helpers.ErrManual) || strings.Contains(err.Error(), "private-admission-marker") {
+						t.Fatal("invalid native contract did not return private Manual recovery", err)
+					}
+					if targetSecrets.reads != 0 || targetSecrets.writes != 0 || consumerSecrets.writes != 0 || f.rpc.authenticated != rpcCalls || f.exec.calls != probes || f.exec.policyReads != policies || f.tests != native || f.creates != creates || f.updates != updates || f.deletes != deletes || f.secrets[key] != raw {
+						t.Fatal("common rejection reached target/native/CRUD/private writes")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestTransmissionWireResponseUncertaintyDoesNotAdvanceOwnership(t *testing.T) {
+	for _, source := range transmissionSources()[2:] {
+		for _, operation := range []string{"create", "update"} {
+			t.Run(source.version+"/"+operation, func(t *testing.T) {
+				f := newTransmissionSourceFixture(t, source, false)
+				key := f.from.Key("link_transmission_resource")
+				if operation == "update" {
+					if err := f.link.Apply(t.Context(), f.from, f.to); err != nil {
+						t.Fatal(err)
+					}
+					f.items[0].setField("password", "********")
+					f.rpc.password = "accepted-owner-password"
+					f.secrets["ADMIN_PASSWORD"] = "accepted-owner-password"
+				}
+				raw := f.secrets[key]
+				other := "TorrentDownloadProtocol"
+				if source.protocol == other {
+					other = "torrent"
+				}
+				f.responseEdit = func(item provider) { item["protocol"] = other }
+				consumer := &protocolTrackedSecrets{values: f.secrets}
+				f.from.Config.Secrets = consumer
+				if err := f.link.Apply(t.Context(), f.from, f.to); err == nil {
+					t.Fatal("different response spelling was accepted")
+				}
+				if f.deletes != 0 || f.items[0]["protocol"] != source.protocol {
+					t.Fatal("uncertain response caused protocol rewrite or undo")
+				}
+				if operation == "create" {
+					var pending providerOwnership
+					if err := json.Unmarshal([]byte(f.secrets[key]), &pending); err != nil || pending.ID != 0 || consumer.writes != 1 || f.creates != 1 {
+						t.Fatal("uncertain creation acquired an ID or lost its intent", err)
+					}
+					native, rpcCalls := f.tests, f.rpc.authenticated
+					if err := f.link.Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || consumer.writes != 1 || f.creates != 1 || f.tests != native || f.rpc.authenticated != rpcCalls {
+						t.Fatal("uncertain creation was retried", err)
+					}
+				} else if consumer.writes != 0 || f.updates != 1 || f.secrets[key] != raw {
+					t.Fatal("uncertain credential response advanced prior fingerprint")
+				}
+			})
+		}
 	}
 }

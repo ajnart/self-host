@@ -12,11 +12,7 @@ import (
 )
 
 func TransmissionLink(api, categoryField, category string) app.Link {
-	protocol := "torrent"
-	if api == V1 {
-		protocol = "TorrentDownloadProtocol"
-	}
-	p := providerLink{api: api, path: "/downloadclient", target: "transmission", implementation: "Transmission", name: "Transmission", endpointField: "host", categoryField: categoryField, category: category, configContract: "TransmissionSettings", protocol: protocol}
+	p := providerLink{api: api, path: "/downloadclient", target: "transmission", implementation: "Transmission", name: "Transmission", endpointField: "host", categoryField: categoryField, category: category, configContract: "TransmissionSettings", protocolFamily: downloadProtocolTorrent}
 	p.connectionFields = func(from, to *helpers.H) ([]connectionField, error) {
 		if to.Service == "" || to.ContainerPort <= 0 || to.ContainerPort > 65535 || to.AdminUser() == "" || to.AdminPassword() == "" {
 			return nil, &helpers.ManualError{Hint: "Run self-host setup transmission to verify its existing Project Admin login and internal Compose Address, then self-host setup " + from.App + ". Preserve RPC authentication, credentials, host/IP protection and selected Access."}
@@ -25,10 +21,6 @@ func TransmissionLink(api, categoryField, category string) app.Link {
 		return []connectionField{{"host", to.Service}, {"port", float64(to.ContainerPort)}, {"useSsl", false}, {"urlBase", "/transmission/"}, {"username", to.AdminUser()}, {"password", to.AdminPassword()}}, nil
 	}
 	p.verify = func(ctx context.Context, from, to *helpers.H, item provider) error {
-		expected := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[from.App]
-		if expected == "" || expected != categoryField || from.App == "lidarr" && api != V1 || from.App != "lidarr" && api != V3 {
-			return p.manual(from, "the Transmission consumer API or category schema is unsupported")
-		}
 		directoryField := strings.TrimSuffix(categoryField, "Category") + "Directory"
 		value := item.field(directoryField)
 		if err := item.setField(directoryField, value); err != nil {
