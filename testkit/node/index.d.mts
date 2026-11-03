@@ -27,6 +27,47 @@ export interface SpinupOptions {
 export interface SelfHost {
     readonly recoveryPath?: string;
     spinup(app: string, options?: SpinupOptions): Promise<App>;
+    spinupPair(consumer: string, target: string, options: PairOptions): Promise<Pair>;
+    close(): Promise<void>;
+}
+export interface PairOptions {
+    order: "consumer-first" | "target-first";
+    images?: Readonly<Record<string, string>>;
+}
+export interface PairAppStatus {
+    readonly id: string;
+    readonly url: string;
+    readonly installed: boolean;
+    readonly state: string;
+    readonly setup: "ok" | "manual" | "incomplete" | "pending";
+    readonly steps: ReadonlyArray<{
+        readonly id: string;
+        readonly status: "ok" | "manual" | "fail" | "skip";
+    }>;
+}
+export type PairInspection = {
+    readonly link: string;
+    readonly apps: readonly PairAppStatus[];
+} & ({
+    readonly outcome: "complete";
+    readonly reason: "verified";
+} | {
+    readonly outcome: "manual" | "failed";
+    readonly reason: "setup";
+} | {
+    readonly outcome: "prerequisite";
+    readonly reason: "absent" | "unready" | "not-run";
+});
+export type PairApp = Omit<App, "close">;
+export interface Pair {
+    readonly consumer: PairApp;
+    readonly target: PairApp;
+    readonly initial: PairInspection;
+    readonly recoveryPath?: string;
+    inspect(): Promise<PairInspection>;
+    setup(app?: string): Promise<PairInspection>;
+    remove(app: string): Promise<PairInspection>;
+    install(app: string): Promise<PairInspection>;
     close(): Promise<void>;
 }
 export interface SelfHostOptions {
@@ -34,12 +75,16 @@ export interface SelfHostOptions {
     timeoutMs?: number;
     manifest?: string;
 }
-export type TestkitErrorCode = "PROTOCOL" | "STATE" | "START" | "CREDENTIALS" | "INFO" | "CLEANUP" | "TIMEOUT" | "TRANSPORT" | "BINARY";
+export type TestkitErrorCode = "PROTOCOL" | "STATE" | "START" | "CREDENTIALS" | "INFO" | "CLEANUP" | "TIMEOUT" | "TRANSPORT" | "OPERATION" | "CANCELED" | "BINARY";
 export declare class TestkitError extends Error {
     readonly code: TestkitErrorCode;
     readonly reason: TestkitStartupReason | undefined;
+    readonly cleanupFailed: boolean;
     readonly recoveryPath?: string;
-    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string);
+    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string, cleanupFailed?: boolean);
 }
 export declare function createSelfHost(options?: SelfHostOptions): SelfHost;
 export declare function withApp<T>(app: string, callback: (app: App) => T | Promise<T>, options?: SelfHostOptions & SpinupOptions): Promise<T>;
+export declare function withPair<T>(consumer: string, target: string, callback: (pair: Pair) => T | Promise<T>, options: SelfHostOptions & PairOptions & {
+    onCleanupError?: (error: TestkitError) => void | Promise<void>;
+}): Promise<T>;

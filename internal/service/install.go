@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/catalog"
@@ -275,24 +277,27 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	if err != nil {
 		return err
 	}
-	var previous map[string]map[string]string
+	resolveProjectInputs := func(p *project.Project) (map[string]map[string]string, error) {
+		state, err := p.LoadState()
+		if err != nil {
+			return nil, err
+		}
+		previous := map[string]map[string]string{}
+		for id, st := range state.Apps {
+			if st == nil {
+				return nil, fmt.Errorf("state.json: missing configuration record for %s", id)
+			}
+			previous[id] = st.Inputs
+		}
+		return resolveInputs(apps, opts.Sets, previous)
+	}
 	existed := p.Exists()
 	if !existed {
 		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
 			return err
 		}
 	}
-	if existed {
-		state, err := p.LoadState()
-		if err != nil {
-			return err
-		}
-		previous = map[string]map[string]string{}
-		for id, st := range state.Apps {
-			previous[id] = st.Inputs
-		}
-	}
-	preflightInputs, err := resolveInputs(apps, opts.Sets, previous)
+	preflightInputs, err := resolveProjectInputs(p)
 	if err != nil {
 		return err
 	}
@@ -315,24 +320,56 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	if opts.Exposure != "" && opts.Exposure != ExposureLAN && opts.Exposure != ExposureLocal {
 		return fmt.Errorf("--exposure must be %s or %s", ExposureLAN, ExposureLocal)
 	}
-	for _, a := range apps {
-		if preflight, ok := a.(app.PreflightChecker); ok {
-			h := helpers.New(helpers.Config{App: a.Info().ID, Dir: p.Path("apps", a.Info().ID), Inputs: publicInputs(a, preflightInputs[a.Info().ID]), Log: s.Log})
-			if err := preflight.Preflight(ctx, h); err != nil {
-				return err
+	var settings map[string]string
+	if p.Exists() {
+		settings, err = p.LoadSettings()
+		if err != nil {
+			return err
+		}
+	} else {
+		prepared := s.detectSettings(ctx, p.Owner, opts.Exposure)
+		applyInstallSettings(prepared, opts)
+		if err := normalizeMediaSettings(prepared); err != nil {
+			return err
+		}
+		settings = map[string]string{}
+		for _, key := range project.SettingKeys {
+			if value, ok := prepared[key]; ok {
+				settings[key] = value
 			}
 		}
+	}
+	checkPrerequisites := func(ctx context.Context, settings map[string]string, inputs map[string]map[string]string) error {
+		for _, a := range apps {
+			if preflight, ok := a.(app.PreflightChecker); ok {
+				h := helpers.New(helpers.Config{App: a.Info().ID, Dir: p.Path("apps", a.Info().ID), Inputs: publicInputs(a, inputs[a.Info().ID]), Settings: maps.Clone(settings), Log: s.Log})
+				if err := preflight.Preflight(ctx, h); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := checkPrerequisites(ctx, settings, preflightInputs); err != nil {
+		return err
 	}
 	if err := s.requireDocker(ctx); err != nil {
 		return err
 	}
-	if opts.EasyNames || opts.Settings[settingNames] == namesOn {
-		if opts.Exposure == ExposureLocal {
+	checkNames := func(ctx context.Context, settings map[string]string) error {
+		if settings[settingNames] != namesOn {
+			return nil
+		}
+		if settings["EXPOSURE"] == ExposureLocal {
 			return fmt.Errorf("Easy names need Home network")
 		}
-		if check := s.checkEasyNames(ctx, opts.Settings["LAN_IP"]); !check.Available {
+		if check := s.checkEasyNames(ctx, settings["LAN_IP"]); !check.Available {
 			return &NamesBlocked{check}
 		}
+		return nil
+	}
+	if err := checkNames(ctx, settings); err != nil {
+		return err
 	}
 
 	recipes := s.recipeOf(opts.Targets)
@@ -341,6 +378,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		names[i] = a.Info().ID
 	}
 	var nodes []string
+	var inputs map[string]map[string]string
 	run := s.run
 	if locked != nil {
 		run = func(ctx context.Context, c change) error { return s.runLocked(ctx, c, locked) }
@@ -349,7 +387,26 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		namesStart: func(ss *session) bool { return len(ss.state.Apps) == 0 && ss.namesOn() },
 		services:   func() []string { return nodes },
 		title:      "install " + strings.Join(names, " "),
-		initialize: func(p *project.Project) error { return s.createProject(ctx, p, opts) },
+		initialize: func(p *project.Project) error { return s.createProject(ctx, p, settings) },
+		preflight: func(ctx context.Context, p *project.Project) error {
+			effective := settings
+			if p.Exists() {
+				var err error
+				effective, err = p.LoadSettings()
+				if err != nil {
+					return err
+				}
+			}
+			var err error
+			inputs, err = resolveProjectInputs(p)
+			if err != nil {
+				return err
+			}
+			if err := checkPrerequisites(ctx, effective, inputs); err != nil {
+				return err
+			}
+			return checkNames(ctx, effective)
+		},
 		edit: func(ctx context.Context, ss *session) error {
 			ss.deferDashboard = opts.deferDashboard
 			if existed {
@@ -365,14 +422,6 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err != nil {
 					return err
 				}
-			}
-			previous := map[string]map[string]string{}
-			for id, st := range ss.state.Apps {
-				previous[id] = st.Inputs
-			}
-			inputs, err := resolveInputs(apps, opts.Sets, previous)
-			if err != nil {
-				return err
 			}
 			if err := ss.applyPrivateInputs(apps, opts, inputs); err != nil {
 				return err
@@ -399,15 +448,15 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err := ss.allocateInputPorts(a, values, opts.Sets, st.Inputs, port); err != nil {
 					return err
 				}
-				if err := ss.ensureSecrets(a); err != nil {
-					return err
-				}
 				previousPort, previousInputs := st.Port, st.Inputs
 				st.Port, st.Inputs = port, publicInputs(a, values)
 				if preflight, ok := a.(app.PreflightChecker); ok {
 					if err := preflight.Preflight(ctx, ss.helpers(a)); err != nil {
 						return err
 					}
+				}
+				if err := ss.ensureSecrets(a); err != nil {
+					return err
 				}
 				ss.emitStage([]string{info.ID}, events.Event{Event: events.StepStart, App: info.ID, Step: StageRender, Msg: "render " + info.ID})
 				rc, err := s.renderContext(ctx, a, port, values, ss.settings)
@@ -433,7 +482,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 					return err
 				}
 			}
-			_, err = ss.renderTailscale()
+			_, err := ss.renderTailscale()
 			if err != nil {
 				return err
 			}
@@ -488,9 +537,8 @@ func warnIgnoredProjectFlags(log *events.Logger, opts InstallOptions) {
 		Hint: "To change it, run: self-host config set " + strings.Join(fixes, " ")})
 }
 
-func (s *Service) createProject(ctx context.Context, p *project.Project, opts InstallOptions) error {
-	settings := s.detectSettings(ctx, p.Owner, opts.Exposure)
-	applyInstallSettings(settings, opts)
+func (s *Service) createProject(ctx context.Context, p *project.Project, prepared map[string]string) error {
+	settings := maps.Clone(prepared)
 	if err := s.initializeMediaSettings(ctx, settings); err != nil {
 		return err
 	}
@@ -569,10 +617,6 @@ func (ss *session) ensureAdmin(opts InstallOptions) error {
 
 // writeFiles writes the config files an App declares into its folder.
 func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
-	declarer, found := a.(app.FileDeclarer)
-	if !found {
-		return nil
-	}
 	id := a.Info().ID
 	secret := func(name string) string {
 		if name == "ADMIN_USER" || name == "ADMIN_PASSWORD" {
@@ -580,7 +624,14 @@ func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
 		}
 		return ss.secrets.values[SecretKey(id, name)]
 	}
-	for _, f := range declarer.Files(rc, secret) {
+	var files []app.File
+	if declarer, found := a.(app.FileDeclarer); found {
+		files = declarer.Files(rc, secret)
+	}
+	if err := ss.prepareAppDirectories(a, rc, files); err != nil {
+		return err
+	}
+	for _, f := range files {
 		clean := path.Clean(f.Path)
 		if path.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") {
 			return fmt.Errorf("%s: file %q must stay inside apps/%s", id, f.Path, id)
@@ -605,6 +656,87 @@ func (ss *session) writeFiles(a app.App, rc app.RenderContext) error {
 		}
 	}
 	return nil
+}
+
+func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files []app.File) error {
+	declarer, found := a.(app.DirectoryDeclarer)
+	if !found {
+		return nil
+	}
+	directories := declarer.Directories(rc)
+	if len(directories) == 0 {
+		return nil
+	}
+	h := ss.helpers(a)
+	return h.Step(context.Background(), "directories", "prepare declared App directories", helpers.StepSpec{
+		Do: func(ctx context.Context) error {
+			id := a.Info().ID
+			if _, compiled := ss.s.Catalog.App(id); !compiled || ss.p.IsExtra(id) {
+				return errors.New("directory preparation requires a compiled Catalog App")
+			}
+			var prepared []project.AppDirectory
+			seen := map[string]bool{}
+			for _, dir := range directories {
+				if dir.Path == "" || dir.Path == "." || dir.Path == ".." || strings.ContainsAny(dir.Path, "/\\\x00") || seen[dir.Path] || dir.Mode&^uint32(0o777) != 0 || dir.Mode&0o700 != 0o700 {
+					return errors.New("App directory declarations need distinct relative components and explicit owner rwx permission bits")
+				}
+				seen[dir.Path] = true
+				uid, uidErr := appDirectoryID(dir.UID)
+				gid, gidErr := appDirectoryID(dir.GID)
+				if uidErr != nil || gidErr != nil {
+					return errors.New("App directory declarations need explicit numeric container UID/GID")
+				}
+				prepared = append(prepared, project.AppDirectory{Path: dir.Path, Mode: os.FileMode(dir.Mode), UID: uid, GID: gid})
+			}
+			for _, file := range files {
+				clean := path.Clean(file.Path)
+				if path.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") {
+					return errors.New("App files must stay inside the App directory")
+				}
+				for _, dir := range directories {
+					if clean == dir.Path || strings.HasPrefix(clean, dir.Path+"/") || strings.HasPrefix(dir.Path, clean+"/") {
+						return &helpers.ManualError{Hint: "The compiled file declaration overlaps " + id + "/" + dir.Path + ". Preserve existing files and ownership; use a corrected App definition without sentinel files or recursive ownership repair, then retry self-host install " + id}
+					}
+				}
+				if strings.Contains(clean, "/") {
+					return &helpers.ManualError{Hint: "Nested compiled files cannot safely share directory preparation for " + id + " because the existing file writer follows directory aliases. Preserve existing files and ownership; use a corrected App definition with only disjoint top-level files, then retry self-host install " + id}
+				}
+			}
+			namespace, err := host.MediaUserNamespace(ctx, ss.s.Deps)
+			if err != nil {
+				return &helpers.ManualError{Hint: "Verify the local Docker runtime UID/GID mapping before preparing " + id + " directories: " + err.Error() + ". Preserve existing storage and retry self-host install " + id}
+			}
+			for i := range prepared {
+				dir := &prepared[i]
+				dir.UID, err = namespace.HostUID(dir.UID)
+				if err == nil {
+					dir.GID, err = namespace.HostGID(dir.GID)
+				}
+				if err != nil {
+					return &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
+				}
+			}
+			if err := ss.p.PrepareAppDirectories(id, prepared); err != nil {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+					return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s and all existing or partly prepared directories. Directory admission requires a held Project lock, trusted nonshared parents, inspectable local filesystem/ACL semantics and matching mapped ownership/modes %+v: %s. Review storage explicitly, then retry self-host install %s; no ACL reset, recursive ownership repair or pathname cleanup was attempted", id, prepared, err, id)}
+				}
+				return err
+			}
+			return nil
+		},
+		Hint: "Preserve existing App data and review its declared directory ownership and permissions before retrying the approved install",
+	})
+}
+
+func appDirectoryID(value string) (int, error) {
+	if value == "" || strings.Trim(value, "0123456789") != "" {
+		return 0, errors.New("expected a decimal runtime identity")
+	}
+	n, err := strconv.ParseUint(value, 10, 32)
+	if err != nil || n >= 1<<32-1 || int(n) < 0 {
+		return 0, errors.New("runtime identity is outside the supported numeric range")
+	}
+	return int(n), nil
 }
 
 // ensureSecrets generates the secrets an App declares that secrets.env lacks.
