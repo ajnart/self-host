@@ -18,6 +18,7 @@ var icons = map[string]string{
 	"audiobookshelf":       "svg/audiobookshelf.svg",
 	"authelia":             "svg/authelia.svg",
 	"authentik":            "svg/authentik.svg",
+	"bindery":              "",
 	"bazarr":               "svg/bazarr.svg",
 	"beszel":               "svg/beszel.svg",
 	"bookstack":            "svg/bookstack.svg",
