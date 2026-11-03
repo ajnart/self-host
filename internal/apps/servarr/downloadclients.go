@@ -67,12 +67,22 @@ func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provi
 	if err != nil {
 		return nil, err
 	}
+	return p.selectDownloadTemplate(h, templates)
+}
+
+func (p providerLink) selectDownloadTemplate(h *helpers.H, templates []provider) (provider, error) {
+	identity := p
+	legacyCreation := p.path == "/downloadclient" && p.target == "qbittorrent" && p.implementation == "QBittorrent" && p.connectionFields == nil
+	if legacyCreation {
+		identity.configContract = "QBittorrentSettings"
+		identity.protocolFamily = downloadProtocolTorrent
+	}
 	var selected provider
 	for _, item := range templates {
 		if item["implementation"] != p.implementation {
 			continue
 		}
-		if selected != nil || item["configContract"] != p.configContract || !p.admitsDownloadProtocol(h, item["protocol"]) {
+		if selected != nil || item["configContract"] != identity.configContract || !identity.admitsDownloadProtocol(h, item["protocol"]) {
 			return nil, p.manual(h, "the download-client schema is ambiguous or unsupported")
 		}
 		selected = item
@@ -81,6 +91,9 @@ func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provi
 		return nil, p.manual(h, "the expected download-client schema is unavailable")
 	}
 	required := []connectionField{{p.endpointField, ""}, {p.categoryField, ""}}
+	if legacyCreation {
+		required = append(required, connectionField{"port", float64(0)}, connectionField{"useSsl", false}, connectionField{"username", ""}, connectionField{"password", ""})
+	}
 	if p.protocolFamily != downloadProtocolSingle {
 		required = append(required, connectionField{"port", float64(0)}, connectionField{"useSsl", false}, connectionField{"urlBase", ""}, connectionField{"password", ""})
 		if p.implementation == "Sabnzbd" {
@@ -121,6 +134,52 @@ func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provi
 		}
 	}
 	return selected, nil
+}
+
+func (p providerLink) admitDownloadCreation(from *helpers.H, template provider, items, schemas []provider) error {
+	refusal := &helpers.ManualError{Hint: "Review " + from.App + " > Settings > Download Clients: an enabled competing client or unreadable selection contract prevents safely adding " + p.name + ". Keep the existing choice and configure the additional connection manually, or explicitly disable competing clients if you intend this target, then run self-host setup " + from.App + ". Setup does not change priorities, tags, indexer assignments or enabled flags. Preserve existing jobs and configuration."}
+	classification := p
+	if p.protocolFamily == downloadProtocolSingle && p.target == "qbittorrent" && p.implementation == "QBittorrent" && p.connectionFields == nil {
+		classification.protocolFamily = downloadProtocolTorrent
+	}
+	if classification.protocolFamily == downloadProtocolSingle || !classification.admitsDownloadProtocol(from, template["protocol"]) {
+		return refusal
+	}
+	if classification.protocolFamily == downloadProtocolUsenet {
+		classification.protocolFamily = downloadProtocolTorrent
+	} else {
+		classification.protocolFamily = downloadProtocolUsenet
+	}
+	for _, item := range items {
+		enabled, ok := item["enable"].(bool)
+		if !ok {
+			return refusal
+		}
+		if !enabled {
+			continue
+		}
+		if !classification.admitsDownloadProtocol(from, item["protocol"]) {
+			return refusal
+		}
+		contract, ok := item["configContract"].(string)
+		if !ok || strings.TrimSpace(contract) == "" {
+			return refusal
+		}
+		var schema provider
+		for _, candidate := range schemas {
+			if candidate["implementation"] != item["implementation"] {
+				continue
+			}
+			if schema != nil || candidate["configContract"] != contract {
+				return refusal
+			}
+			schema = candidate
+		}
+		if schema == nil || p.matchDownloadSchema(from, item, schema) != nil {
+			return refusal
+		}
+	}
+	return nil
 }
 
 func (p providerLink) matchDownloadSchema(h *helpers.H, item, template provider) error {

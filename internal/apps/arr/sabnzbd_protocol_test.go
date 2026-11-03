@@ -315,6 +315,144 @@ func TestSABnzbdProtocolResponseMismatchPreservesUncertainty(t *testing.T) {
 	}
 }
 
+func TestSABnzbdSelectionAdmissionPreservesEnabledOppositeAndOwnedSurvivors(t *testing.T) {
+	for _, source := range sabnzbdConsumerSources() {
+		for _, scenario := range []string{"fresh-competing-usenet", "fresh-opposite-torrent", "owned-intentional-usenet"} {
+			t.Run(source.name()+"/"+scenario, func(t *testing.T) {
+				backend := arrtest.NewArr(source.id)
+				backend.SeedRootFolder("/data/media/library")
+				category := source.category
+				if source.id == "radarr" {
+					category = "Movies"
+				}
+				if source.id == "lidarr" {
+					category = "Music"
+				}
+				fields := []any{}
+				for name, value := range map[string]any{"host": "localhost", "port": 6789, "useSsl": false, "urlBase": nil, "username": "nzbget", "password": "tegbzn6789", source.field: category} {
+					fields = append(fields, map[string]any{"name": name, "value": value})
+				}
+				schema := map[string]any{"implementation": "Nzbget", "configContract": "NzbgetSettings", "protocol": source.protocol, "priority": 1, "fields": fields}
+				if scenario == "fresh-opposite-torrent" {
+					schema = source.schemas()[1]
+				}
+				schemas := append(source.schemas(), schema)
+				if scenario == "fresh-opposite-torrent" {
+					schemas = source.schemas()
+				}
+				base := sabnzbdSourceHandler(t, backend, source)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" && r.URL.Path == source.api+"/downloadclient/schema" && r.Header.Get("X-Api-Key") == backend.Key {
+						json.NewEncoder(w).Encode(schemas)
+						return
+					}
+					base.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				fixture := newSabnzbdLinkFixture()
+				target := httptest.NewServer(fixture.handler(t))
+				t.Cleanup(target.Close)
+				secrets := porttest.Secrets{strings.ToUpper(source.id) + "_API_KEY": backend.Key, "SABNZBD_API_KEY": fixture.key}
+				from := porttest.New(t, porttest.Options{App: source.id, Service: source.id, Secrets: secrets}, server, &porttest.Recorder{})
+				to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
+				executor := &sabnzbdLinkExecutor{}
+				from.Config.Exec, to.Config.Exec, to.ContainerPort = executor, executor, 8080
+				consumerSecrets := &sabnzbdTrackedSecrets{values: secrets}
+				targetSecrets := &sabnzbdTrackedSecrets{values: secrets}
+				from.Config.Secrets, to.Config.Secrets = consumerSecrets, targetSecrets
+				link := sabnzbdConsumerLink(t, source.consumer)
+				if scenario == "owned-intentional-usenet" {
+					if err := link.Apply(t.Context(), from, to); err != nil {
+						t.Fatal(err)
+					}
+				}
+				data, err := json.Marshal(schema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var survivor map[string]any
+				if err := json.Unmarshal(data, &survivor); err != nil {
+					t.Fatal(err)
+				}
+				survivor["name"], survivor["enable"], survivor["priority"] = "person-selected enabled survivor", true, float64(7)
+				for _, raw := range survivor["fields"].([]any) {
+					field := raw.(map[string]any)
+					if field["name"] == "host" {
+						field["value"] = "independent-downloader"
+					}
+				}
+				backend.SeedDownloadClient(survivor)
+				survivorData, err := json.Marshal(survivor)
+				if err != nil {
+					t.Fatal(err)
+				}
+				before, err := json.Marshal(backend.DownloadClients())
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw := secrets[from.Key("link_sabnzbd_resource")]
+				native := backend.DownloadClientTests()
+				consumerSecrets.writes.Store(0)
+				targetSecrets.reads.Store(0)
+				executor.calls.Store(0)
+				fixture.mu.Lock()
+				fixture.calls = nil
+				fixture.mu.Unlock()
+				err = link.Apply(t.Context(), from, to)
+				if scenario == "fresh-competing-usenet" {
+					fixture.mu.Lock()
+					calls := len(fixture.calls)
+					fixture.mu.Unlock()
+					after, _ := json.Marshal(backend.DownloadClients())
+					if !errors.Is(err, helpers.ErrManual) || targetSecrets.reads.Load() != 0 || targetSecrets.writes.Load() != 0 || consumerSecrets.writes.Load() != 0 || executor.calls.Load() != 0 || calls != 0 || backend.DownloadClientTests() != native || string(after) != string(before) || secrets[from.Key("link_sabnzbd_resource")] != "" {
+						t.Fatal("same-protocol creation changed selection or reached target/native/private effects", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(backend.DownloadClients()) != 2 || survivor["enable"] != true || survivor["priority"] != float64(7) {
+					t.Fatal("successful coexistence changed the enabled meaningful survivor")
+				}
+				var preserved []byte
+				for _, item := range backend.DownloadClients() {
+					if item["id"] == survivor["id"] {
+						preserved, err = json.Marshal(item)
+					}
+				}
+				if err != nil || string(preserved) != string(survivorData) {
+					t.Fatal("successful coexistence changed an existing survivor's ID or options", err)
+				}
+				if scenario == "owned-intentional-usenet" {
+					after, _ := json.Marshal(backend.DownloadClients())
+					if string(after) != string(before) || secrets[from.Key("link_sabnzbd_resource")] != raw || consumerSecrets.writes.Load() != 0 {
+						t.Fatal("owned intentional multi-client rerun changed old options or ownership")
+					}
+				}
+				target.Close()
+				delete(secrets, "SABNZBD_API_KEY")
+				targetSecrets.reads.Store(0)
+				executor.calls.Store(0)
+				native = backend.DownloadClientTests()
+				if err := link.Remove(t.Context(), from, to); err != nil || len(backend.DownloadClients()) != 1 || backend.DownloadClients()[0]["id"] != survivor["id"] || survivor["enable"] != true || targetSecrets.reads.Load() != 0 || executor.calls.Load() != 0 || backend.DownloadClientTests() != native {
+					t.Fatal("owned removal changed an enabled survivor or required target readiness", err)
+				}
+				preserved, err = json.Marshal(backend.DownloadClients()[0])
+				if err != nil || string(preserved) != string(survivorData) {
+					t.Fatal("owned removal changed surviving options", err)
+				}
+				if scenario == "owned-intentional-usenet" {
+					consumerSecrets.writes.Store(0)
+					if err := link.Apply(t.Context(), from, to); !errors.Is(err, helpers.ErrManual) || targetSecrets.reads.Load() != 0 || consumerSecrets.writes.Load() != 0 || executor.calls.Load() != 0 || backend.DownloadClientTests() != native {
+						t.Fatal("reinstall ignored the surviving person's active Usenet selection", err)
+					}
+				}
+			})
+		}
+	}
+}
+
 func sabnzbdCaptureWire(t *testing.T, source sabnzbdConsumerSource, next http.Handler) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
