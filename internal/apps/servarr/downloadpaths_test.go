@@ -20,8 +20,11 @@ type servarrPathExecutor struct {
 	backing        map[string]string
 	mounts         string
 	calls          int
+	probes         int
 	identity       downloadPathIdentity
 	identityOutput string
+	childUser      string
+	childGroup     string
 	result         *system.Result
 	err            error
 }
@@ -41,7 +44,24 @@ func (e *servarrPathExecutor) Exec(_ context.Context, service string, _ map[stri
 				return system.Result{}, errors.New("missing App-user identity check")
 			}
 		}
-		identityOutput = "user\nusers\n"
+		user, group := e.childUser, e.childGroup
+		if user == "" {
+			user = "user"
+		}
+		if group == "" {
+			group = "users"
+		}
+		for _, guard := range []struct{ actual, expected, command string }{
+			{user, "user", `test "$(id -un)" = "user"`},
+			{group, "users", `test "$(id -gn)" = "users"`},
+		} {
+			guardIndex := strings.Index(args[5], guard.command)
+			probeIndex := strings.Index(args[5], downloadDirectoryProbe)
+			if guard.actual != guard.expected && guardIndex >= 0 && guardIndex < probeIndex {
+				return system.Result{ExitCode: 1}, nil
+			}
+		}
+		identityOutput = user + "\n" + group + "\n"
 		if e.identityOutput != "" {
 			identityOutput = e.identityOutput
 		}
@@ -54,6 +74,7 @@ func (e *servarrPathExecutor) Exec(_ context.Context, service string, _ map[stri
 		}
 		return *e.result, e.err
 	}
+	e.probes++
 	value, ok := e.paths[service+":"+args[7]]
 	if !ok {
 		return system.Result{ExitCode: 1}, nil
@@ -199,7 +220,7 @@ func TestDownloadMappingMatchesSelectedHostWithoutDNSEquivalence(t *testing.T) {
 }
 
 func TestDownloadPathsSuExecTargetKeepsS6ConsumersAndReadOnlySemantics(t *testing.T) {
-	for _, scenario := range []string{"shared", "mapped", "missing-executor", "missing-binary", "wrapper-error", "wrong-user", "wrong-group", "root-uid", "root-gid", "missing-identity", "unsupported-mechanism", "unsupported-mapping", "different-directory", "overlap"} {
+	for _, scenario := range []string{"shared", "mapped", "missing-executor", "missing-binary", "wrapper-error", "wrong-user", "wrong-group", "wrong-nonroot-user", "wrong-nonroot-group", "root-uid", "root-gid", "missing-identity", "unsupported-mechanism", "unsupported-mapping", "different-directory", "overlap"} {
 		t.Run(scenario, func(t *testing.T) {
 			completed, local, library := "/internal/downloads/tv", "/internal/downloads/tv", "/internal/media/tv"
 			mappings := []map[string]any{}
@@ -245,6 +266,10 @@ func TestDownloadPathsSuExecTargetKeepsS6ConsumersAndReadOnlySemantics(t *testin
 				targetExec.identityOutput = "root\nusers\n"
 			case "wrong-group":
 				targetExec.identityOutput = "user\nroot\n"
+			case "wrong-nonroot-user":
+				targetExec.childUser = "worker"
+			case "wrong-nonroot-group":
+				targetExec.childGroup = "staff"
 			case "root-uid", "root-gid":
 				targetExec.result = &system.Result{ExitCode: 1}
 			case "missing-identity":
@@ -262,7 +287,7 @@ func TestDownloadPathsSuExecTargetKeepsS6ConsumersAndReadOnlySemantics(t *testin
 				t.Fatal("path verifier wrote private state")
 			}
 			if scenario == "shared" || scenario == "mapped" {
-				if err != nil || targetExec.calls != 1 || consumerExec.calls != 2 {
+				if err != nil || targetExec.calls != 1 || consumerExec.calls != 2 || targetExec.probes != 1 || consumerExec.probes != 2 {
 					t.Fatalf("separate target/consumer identities were not verified: target=%d consumer=%d err=%v", targetExec.calls, consumerExec.calls, err)
 				}
 				return
@@ -275,6 +300,9 @@ func TestDownloadPathsSuExecTargetKeepsS6ConsumersAndReadOnlySemantics(t *testin
 			}
 			if scenario != "different-directory" && scenario != "overlap" && consumerExec.calls != 0 {
 				t.Fatal("unsupported target identity reached consumer probes")
+			}
+			if (scenario == "wrong-nonroot-user" || scenario == "wrong-nonroot-group") && targetExec.probes != 0 {
+				t.Fatalf("wrong nonroot identity reached %d filesystem probes before rejection", targetExec.probes)
 			}
 		})
 	}

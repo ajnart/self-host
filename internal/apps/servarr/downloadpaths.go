@@ -99,6 +99,8 @@ func downloadDirectoryIdentity(ctx context.Context, h *helpers.H, directory stri
 		command = []string{"su-exec", "user:users"}
 		probe = `test "$(id -u)" -ne 0
 test "$(id -g)" -ne 0
+test "$(id -un)" = "user"
+test "$(id -gn)" = "users"
 id -un
 id -gn
 ` + downloadDirectoryProbe
