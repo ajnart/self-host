@@ -1,0 +1,25 @@
+docs/homarr-scrutiny-contract.md
+  s_6cb24a436ae88c::t_e1f42cee9ef8d2 1-27
+internal/apps/homarr/external_targets.go
+  s_6cb24a436ae88c::t_46f888ee99ea05 13-14
+internal/apps/homarr/target_scrutiny.go
+  s_6cb24a436ae88c::t_b2ba99dd563975 1-159
+internal/apps/homarr/target_scrutiny_test.go
+  s_6cb24a436ae88c::t_890791021646d0 1-217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c32dda3de7193b4a94e209aab269e6aed72623b",
+  "prompts": {},
+  "sessions": {
+    "s_6cb24a436ae88c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e13183d-8355-40f2-b13c-1602a6892068",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
