@@ -180,6 +180,13 @@ remain explicit errors or Manual outcomes, not automatic skips.
   observations and `complete`, `manual`, `prerequisite` or `failed`. Missing,
   skipped or unready Links are never complete. Completion is the production
   recorded outcome, not a claim of rendered acceptance for every peer.
+  Selected Info and inspection results must retain the selected IDs and exact
+  loopback Addresses established at startup, including their frozen ports/paths.
+  Inspections must also retain the startup-declared Link ID; response steps cannot
+  nominate a replacement Link to satisfy completion.
+  Step IDs must be unique within each App. Summaries must agree with observed
+  failures, Manual Setup and prerequisite facts; contradictory results reject
+  through the same awaited whole-owner cleanup boundary.
 - `setup(app?)` retries production Setup for one/both selected Apps;
   `remove(app)` is non-purge and retains data; `install(app)` reinstalls only a
   selected admitted App with its original ports/options. No action renews the
@@ -188,12 +195,21 @@ remain explicit errors or Manual outcomes, not automatic skips.
   five containers, 5 GiB, five CPUs; first-creation 1 GiB/one CPU/512-PID caps.
   Local Access/private binds/volume/socket restrictions remain; no override or
   arbitrary command/secret-write interface is exposed.
-- An infrastructure action/inspection failure immediately attempts independent-context
-  whole-Pair cleanup and disables further actions. Expected Manual/incomplete Setup
-  remains inspectable. `TestkitError` preserves an `OPERATION` reason (such as
-  `LIMITS`), or `TIMEOUT`/`CANCELED`, and an additive `cleanupFailed` flag. A failed
-  cleanup retains private recovery ownership and can be retried with close/manifest
+- An infrastructure action/inspection or selected-view key/credential/Info failure
+  immediately attempts independent-context whole-Pair cleanup and disables further actions.
+  Expected Manual/incomplete Setup remains inspectable. `TestkitError` preserves
+  an `OPERATION` reason (such as `LIMITS`), or `TIMEOUT`/`CANCELED`, and an additive
+  `cleanupFailed` flag. A failed cleanup retains private recovery ownership and
+  can be retried with close/manifest
   recovery; it does not replace the original action cause.
+- Selected-view key/credential/Info reads share the Pair's original work deadline.
+  Ordinary missing keys, absent Apps and Manual credentials remain nonfatal;
+  cancellation, deadline and storage failures disable the whole owner. Malformed
+  action/inspection or selected-view results likewise disable the owner and await
+  owned cleanup before rejecting with `PROTOCOL`, retaining any secondary `cleanupFailed` flag.
+  Retrying cleanup never re-enables Pair or selected-view actions.
+- Beginning explicit Pair close also permanently disables live actions and reads,
+  even if cleanup fails. Close remains retryable within the original lifetime.
 - `withPair` preserves exact primary failures, including `undefined`, over
   cleanup failure. Cleanup-only failures throw. Optional `onCleanupError` receives
   a sanitized cleanup error when there is already a primary failure; failure of
