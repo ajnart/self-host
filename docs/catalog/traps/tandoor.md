@@ -5,8 +5,9 @@
 This source implementation for #180 supplies the deployment definition, checks
 an existing administrator and its owned active Space, issues one dedicated
 read-scoped token through the shared credential journal and supplies a native
-Homarr Stats leaf that is explicitly held before native mutation. Automatic first-account creation remains Manual. Catalog and
-Homarr registration, DCM promotion and generated metadata remain coordinator-owned.
+Homarr Stats leaf that is explicitly held before native mutation. Automatic
+first-account creation remains Manual. Catalog and Homarr registration, DCM
+promotion and generated metadata remain coordinator-owned.
 No native, rendered, persistence or lifecycle runtime acceptance has been performed.
 
 ## Deployment and persistence
@@ -94,13 +95,31 @@ name and are masked shortly after creation. The App uses the reviewed #150
 journal or adopt a matching user token. A dedicated 90-day `read` token is issued
 through `POST /api/access-token/` only when no active/ownership/pending record
 exists. The App prepares it even before Homarr is installed, so either installation
-order has a credential available once central registration is assembled.
+order can prepare a credential independently of native admission.
 
-Intent records contain only the exact authenticated account, active/first Space
-IDs, scope and expiry. After the request, capture saves only the one-time token
-and selected response status/token ID/scope/expiry before semantic acceptance.
-Neither raw response bodies nor the all-token inventory is persisted. The saved
-token is authenticated against fresh account and Space metadata; its exact ID,
+Before Begin, Setup reads the supported owner-filtered `/api/access-token/`
+inventory using the positively authenticated owner header session. Unsupported,
+missing, malformed or ambiguous inventory stays Manual before any journal write
+or issuance POST. Every item must have an unambiguous positive ID, supported
+rights and a valid expiry. Existing tokens are neither adopted nor replaced.
+Intent records contain the exact authenticated account, active/first Space IDs,
+scope and expiry plus only the observed inventory count, highest ID and observation
+time. No unrelated token list, token values, scope list or per-token fingerprints
+are persisted. Acceptance requires the returned new ID to exceed that observed
+maximum, proving it was not among existing IDs without retaining their inventory.
+A non-monotonic/reused ID remains a Manual novelty hold, not permission to adopt it.
+
+The provider-local response decoder reads at most a 64 KiB prefix, 64 fields and
+bounded selected values. It captures an already-decoded one-time token even when
+a later member or trailing JSON is malformed. Capture saves only that token,
+selected response status/ID/scope/expiry and explicit complete, incomplete,
+decode-error, duplicate, limit, request-failure and reported-error outcome flags
+before semantic acceptance. It never stores a raw blob or another duplicate token.
+Flags survive retries: incomplete/ambiguous/error outcomes can neither Commit nor
+reissue just because their projected ID/scope/expiry later look acceptable.
+
+The App-owned captured token is authenticated against fresh account and Space
+metadata; its known issued ID,
 `read` scope, expiry and full-or-masked suffix are checked through the official
 owner-filtered token inventory. A valid credential is retained. Private active
 storage uses `TANDOOR_HOMARR_API_KEY` and `TANDOOR_HOMARR_TOKEN_OWNERSHIP`; the shared
@@ -114,6 +133,11 @@ still keeps its pending attempt and never automatically posts again. Restore onl
 known matching records from a verified Project Backup, or explicitly review the
 recorded attempt in Settings → API. Do not clear pending state to bypass the hold,
 rotate credentials, recreate users/Spaces or scrape a database to recover a key.
+This App credential recovery does not remove the separate native exact-token hold.
+Older records without validated pre-inventory or complete response-outcome evidence
+remain Manual and are not silently upgraded. Safe shared-journal persistence errors
+remain Failed; semantic uncertainty remains Manual, with both states retryable
+without another issuance after uncertainty.
 
 The Homarr leaf binds real Stats metrics `users`, `recipes` and `keywords`, each
 in `count` units, using the reviewed #147 `validCountStats`/`countValue` primitives.

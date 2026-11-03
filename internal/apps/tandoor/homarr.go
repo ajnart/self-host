@@ -29,8 +29,9 @@ type ConnectionIdentity struct {
 
 type tokenIntent struct {
 	ConnectionIdentity
-	Scope   string    `json:"scope"`
-	Expires time.Time `json:"expires"`
+	Scope     string             `json:"scope"`
+	Expires   time.Time          `json:"expires"`
+	Inventory *inventoryEvidence `json:"inventory"`
 }
 
 type tokenOwnership struct {
@@ -40,10 +41,11 @@ type tokenOwnership struct {
 }
 
 type tokenEvidence struct {
-	Status  int    `json:"status"`
-	ID      int64  `json:"id"`
-	Scope   string `json:"scope"`
-	Expires string `json:"expires"`
+	Status  int             `json:"status"`
+	ID      int64           `json:"id"`
+	Scope   string          `json:"scope"`
+	Expires string          `json:"expires"`
+	Outcome issuanceOutcome `json:"outcome"`
 }
 
 func tokenManual() error { return &helpers.ManualError{Hint: HomarrRecoveryHint} }
@@ -58,7 +60,7 @@ func validToken(token string) bool {
 }
 
 func validIntent(h *helpers.H, intent tokenIntent) bool {
-	return intent.AccountID > 0 && intent.ActiveSpaceID > 0 && intent.FirstSpaceID > 0 && intent.Scope == "read" && intent.Expires.After(h.Now())
+	return intent.AccountID > 0 && intent.ActiveSpaceID > 0 && intent.FirstSpaceID > 0 && intent.Scope == "read" && intent.Expires.After(h.Now()) && validInventoryEvidence(h, intent.Inventory) && intent.Expires.After(intent.Inventory.ObservedAt)
 }
 
 func readOwnership(h *helpers.H) (tokenOwnership, error) {
@@ -114,14 +116,6 @@ func checkIdentity(h *helpers.H, identity ConnectionIdentity, personal, current,
 	return nil
 }
 
-func VerifyHomarrIdentity(h *helpers.H, personal, current, spaces json.RawMessage) error {
-	identity, err := HomarrIdentity(h)
-	if err != nil {
-		return err
-	}
-	return checkIdentity(h, identity, personal, current, spaces)
-}
-
 func readIdentity(ctx context.Context, h *helpers.H, header map[string]string, hint string) (json.RawMessage, json.RawMessage, json.RawMessage, error) {
 	var personal, current, spaces json.RawMessage
 	for _, request := range []struct {
@@ -140,7 +134,7 @@ func readIdentity(ctx context.Context, h *helpers.H, header map[string]string, h
 }
 
 func verifyToken(ctx context.Context, h *helpers.H, key string, ownership tokenOwnership) error {
-	if !validIntent(h, ownership.tokenIntent) || ownership.TokenID <= 0 || !validToken(key) || ownership.Fingerprint != tokenFingerprint(key) {
+	if !validIntent(h, ownership.tokenIntent) || ownership.TokenID <= ownership.Inventory.MaxID || !validToken(key) || ownership.Fingerprint != tokenFingerprint(key) {
 		return tokenManual()
 	}
 	header := map[string]string{"Authorization": "Bearer " + key}
@@ -154,22 +148,12 @@ func verifyToken(ctx context.Context, h *helpers.H, key string, ownership tokenO
 		}
 		return err
 	}
-	var inventory []struct {
-		ID      int64     `json:"id"`
-		Scope   string    `json:"scope"`
-		Expires time.Time `json:"expires"`
-		Token   string    `json:"token"`
-	}
-	if err := authenticatedRead(ctx, h, header, "/api/access-token/", &inventory, HomarrRecoveryHint); err != nil {
+	inventory, err := readTokenInventory(ctx, h, header)
+	if err != nil {
 		return err
 	}
-	seen := map[int64]bool{}
 	matched := false
 	for _, token := range inventory {
-		if token.ID <= 0 || seen[token.ID] {
-			return tokenManual()
-		}
-		seen[token.ID] = true
 		if token.ID != ownership.TokenID {
 			continue
 		}
@@ -208,7 +192,7 @@ func acceptCaptured(ctx context.Context, h *helpers.H, pending helpers.PendingCr
 	if evidence.Status == http.StatusTooManyRequests {
 		return &helpers.ManualError{Hint: tokenThrottleHint}
 	}
-	if evidence.Status != http.StatusCreated || evidence.ID <= 0 || evidence.Scope != "read" || !validToken(pending.Issued.Secret) {
+	if !evidence.Outcome.acceptable() || evidence.Status != http.StatusCreated || evidence.ID <= intent.Inventory.MaxID || evidence.Scope != "read" || !validToken(pending.Issued.Secret) {
 		return tokenManual()
 	}
 	expires, err := time.Parse(time.RFC3339Nano, evidence.Expires)
@@ -253,7 +237,17 @@ func ensureHomarrToken(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
-	intent := tokenIntent{ConnectionIdentity: ConnectionIdentity{AccountID: id, ActiveSpaceID: active, FirstSpaceID: first}, Scope: "read", Expires: h.Now().UTC().Add(90 * 24 * time.Hour).Truncate(time.Second)}
+	inventory, err := readTokenInventory(ctx, h, map[string]string{"X-Session-Token": session})
+	if err != nil {
+		return err
+	}
+	observation := inventoryEvidence{Count: len(inventory), ObservedAt: h.Now().UTC()}
+	for _, token := range inventory {
+		if token.ID > observation.MaxID {
+			observation.MaxID = token.ID
+		}
+	}
+	intent := tokenIntent{ConnectionIdentity: ConnectionIdentity{AccountID: id, ActiveSpaceID: active, FirstSpaceID: first}, Scope: "read", Expires: h.Now().UTC().Add(90 * 24 * time.Hour).Truncate(time.Second), Inventory: &observation}
 	encoded, err := json.Marshal(intent)
 	if err != nil {
 		return errors.New("Tandoor token intent could not be encoded")
@@ -265,22 +259,14 @@ func ensureHomarrToken(ctx context.Context, h *helpers.H) error {
 		Method: http.MethodPost, Path: "/api/access-token/", NoRedirect: true,
 		Header: map[string]string{"X-Session-Token": session}, JSON: map[string]string{"scope": "read", "expires": intent.Expires.Format(time.RFC3339)},
 	})
-	var response struct {
-		Token string `json:"token"`
-		tokenEvidence
-	}
-	decodeErr := json.Unmarshal(resp.Body, &response)
-	response.Status = resp.Status
-	h.Log.Secret(response.Token)
-	data, err := json.Marshal(response.tokenEvidence)
+	key, evidence := captureTokenResponse(resp.Body, resp.Status, requestErr != nil)
+	h.Log.Secret(key)
+	data, err := json.Marshal(evidence)
 	if err != nil {
 		return errors.New("Tandoor token response evidence could not be encoded; preserve its issuance journal")
 	}
-	if err := homarrIssuance.Capture(h, helpers.CredentialEvidence{Secret: response.Token, Data: data}); err != nil {
+	if err := homarrIssuance.Capture(h, helpers.CredentialEvidence{Secret: key, Data: data}); err != nil {
 		return err
-	}
-	if requestErr != nil || decodeErr != nil {
-		return tokenManual()
 	}
 	pending, _, err = homarrIssuance.Pending(h)
 	if err != nil {

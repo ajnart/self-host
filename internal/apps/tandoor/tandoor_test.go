@@ -42,20 +42,23 @@ func (s *tandoorSecrets) Set(key, value string) error {
 }
 
 type tandoorFixture struct {
-	login       string
-	membership  string
-	space       string
-	statuses    map[string]int
-	requests    []string
-	location    string
-	spaces      string
-	inventory   string
-	expires     string
-	issued      bool
-	posts       int
-	issueStatus int
-	issueBody   string
-	afterIssue  func()
+	login             string
+	membership        string
+	space             string
+	statuses          map[string]int
+	requests          []string
+	location          string
+	spaces            string
+	inventory         string
+	expires           string
+	issued            bool
+	posts             int
+	issueStatus       int
+	issueBody         string
+	afterIssue        func()
+	inventorySessions int
+	inventoryBearers  int
+	beforeInventory   func()
 }
 
 func tandoorAccount(id int, username string) string {
@@ -111,6 +114,17 @@ func (f *tandoorFixture) handler(t *testing.T) http.Handler {
 			}
 			if r.URL.Path == "/api/access-token/" {
 				body = fmt.Sprintf(`[{"id":91,"scope":"read","expires":%q,"token":"tda_************_******_***********1234"},{"id":92,"scope":"write","expires":%q,"token":"unrelated-private-token"}]`, f.expires, f.expires)
+				if !f.issued {
+					body = fmt.Sprintf(`[{"id":7,"scope":"write","expires":%q,"token":"unrelated-private-token"}]`, f.expires)
+				}
+				if r.Header.Get("X-Session-Token") != "" {
+					f.inventorySessions++
+				} else {
+					f.inventoryBearers++
+				}
+				if f.beforeInventory != nil {
+					f.beforeInventory()
+				}
 				if f.inventory != "" {
 					body = f.inventory
 				}
@@ -167,7 +181,7 @@ func tandoorHarness(t *testing.T, fixture *tandoorFixture) (*helpers.H, *tandoor
 	deps := systemtest.NewDeps(t)
 	fixture.expires = deps.Now().UTC().Add(90 * 24 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
 	fingerprint := sha256.Sum256([]byte("tda_fixture_read_key_1234"))
-	ownership := fmt.Sprintf(`{"tokenId":91,"accountId":17,"activeSpaceId":31,"firstSpaceId":31,"scope":"read","expires":%q,"fingerprint":%q}`, fixture.expires, hex.EncodeToString(fingerprint[:]))
+	ownership := fmt.Sprintf(`{"tokenId":91,"accountId":17,"activeSpaceId":31,"firstSpaceId":31,"scope":"read","expires":%q,"fingerprint":%q,"inventory":{"count":1,"maxId":7,"observedAt":%q}}`, fixture.expires, hex.EncodeToString(fingerprint[:]), deps.Now().UTC().Format(time.RFC3339Nano))
 	secrets := &tandoorSecrets{values: map[string]string{
 		"ADMIN_USER": "admin", "ADMIN_PASSWORD": "fixture-password",
 		"TANDOOR_SECRET_KEY": "preserved-app-secret", "TANDOOR_DB_PASSWORD": "preserved-database-secret",
@@ -413,7 +427,7 @@ func TestTandoorComposeAndPublicMetadataMatchOfficialContract(t *testing.T) {
 	if secrets := a.Secrets(); len(secrets) != 2 || secrets[0].Name != "secret_key" || secrets[0].Length < 48 || secrets[1].Name != "db_password" || secrets[1].Length < 48 {
 		t.Fatalf("missing first-start private secrets: %+v", secrets)
 	}
-	if !strings.Contains(a.StandaloneGuide(), "read-only token") || !strings.Contains(a.StandaloneGuide(), "ALLOWED_HOSTS") {
+	if !strings.Contains(a.StandaloneGuide(), "exact saved token") || !strings.Contains(a.StandaloneGuide(), "ALLOWED_HOSTS") {
 		t.Fatal("standalone guidance obscures the partial Setup boundary")
 	}
 }
