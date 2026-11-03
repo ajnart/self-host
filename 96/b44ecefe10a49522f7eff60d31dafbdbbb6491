@@ -1,0 +1,41 @@
+internal/apps/changedetection/changedetection_test.go
+  s_0b63679bfab768::t_96ecd1eccd596b 73-74
+internal/apps/changedetection/verify.go
+  s_27fdae60a6a245::t_ef1740a63206a8 124-125
+internal/apps/homarr/target_changedetection.go
+  s_27fdae60a6a245::t_9f948ac7d2a2c1 1-45
+internal/apps/homarr/target_changedetection_test.go
+  s_27fdae60a6a245::t_2cafa36f283055 1-28
+internal/apps/homarr/targets.go
+  s_27fdae60a6a245::t_483d2c2b4399e3 8
+internal/catalog/batch_misc1.go
+  s_27fdae60a6a245::t_99d5a46c5b2bae 6,22
+tools/sitegen/icons.go
+  s_27fdae60a6a245::t_9d6b121269172e 38
+tools/sitegen/stars.go
+  s_27fdae60a6a245::t_89dd208ce470cc 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96b44ecefe10a49522f7eff60d31dafbdbbb6491",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_27fdae60a6a245": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51d15e0d-7a54-4805-b528-1ecabca16967",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
