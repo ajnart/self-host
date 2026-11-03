@@ -12,6 +12,8 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 		return icalExternalTarget(c)
 	case "proxmox":
 		return proxmoxExternalTarget(c)
+	case "synology":
+		return synologyExternalTarget(c)
 	}
 	return target{}, errors.New("unsupported external integration kind; use a supported exact Homarr kind")
 }
