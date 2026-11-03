@@ -12,6 +12,8 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 		return icalExternalTarget(c)
 	case "coolify":
 		return coolifyExternalTarget(c)
+	case "jellyseerr":
+		return jellyseerrExternalTarget(c)
 	case "proxmox":
 		return proxmoxExternalTarget(c)
 	case "synology":
