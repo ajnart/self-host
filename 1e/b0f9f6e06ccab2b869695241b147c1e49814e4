@@ -1,0 +1,24 @@
+internal/apps/homarr/external_connections_test.go
+  h_d6e478ca18e517 11,13,31,55-67
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 46-47
+internal/apps/homarr/target_proxmox.go
+  h_d6e478ca18e517 66,103-107,122
+internal/apps/homarr/target_syncthing_relay.go
+  h_d6e478ca18e517 1-89
+internal/apps/homarr/target_syncthing_relay_test.go
+  h_d6e478ca18e517 1-168
+internal/skill/guide.md
+  h_d6e478ca18e517 887-895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1eb0f9f6e06ccab2b869695241b147c1e49814e4",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
