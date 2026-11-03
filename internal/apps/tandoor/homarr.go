@@ -2,8 +2,6 @@ package tandoor
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -50,11 +48,6 @@ type tokenEvidence struct {
 
 func tokenManual() error { return &helpers.ManualError{Hint: HomarrRecoveryHint} }
 
-func tokenFingerprint(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
-}
-
 func validToken(token string) bool {
 	return strings.HasPrefix(token, "tda_") && len(token) > 8 && !strings.ContainsAny(token, "* \t\r\n")
 }
@@ -67,7 +60,7 @@ func readOwnership(h *helpers.H) (tokenOwnership, error) {
 	var ownership tokenOwnership
 	key, raw := h.Secret(h.Key("homarr_api_key")), h.Secret(h.Key("homarr_token_ownership"))
 	h.Log.Secret(key, raw)
-	if json.Unmarshal([]byte(raw), &ownership) != nil || ownership.TokenID <= 0 || !validIntent(h, ownership.tokenIntent) || !validToken(key) || ownership.Fingerprint != tokenFingerprint(key) {
+	if json.Unmarshal([]byte(raw), &ownership) != nil || ownership.TokenID <= 0 || !validIntent(h, ownership.tokenIntent) || !validToken(key) || ownership.Fingerprint != helpers.Fingerprint(key) {
 		return ownership, tokenManual()
 	}
 	return ownership, nil
@@ -134,7 +127,7 @@ func readIdentity(ctx context.Context, h *helpers.H, header map[string]string, h
 }
 
 func verifyToken(ctx context.Context, h *helpers.H, key string, ownership tokenOwnership) error {
-	if !validIntent(h, ownership.tokenIntent) || ownership.TokenID <= ownership.Inventory.MaxID || !validToken(key) || ownership.Fingerprint != tokenFingerprint(key) {
+	if !validIntent(h, ownership.tokenIntent) || ownership.TokenID <= ownership.Inventory.MaxID || !validToken(key) || ownership.Fingerprint != helpers.Fingerprint(key) {
 		return tokenManual()
 	}
 	header := map[string]string{"Authorization": "Bearer " + key}
@@ -199,7 +192,7 @@ func acceptCaptured(ctx context.Context, h *helpers.H, pending helpers.PendingCr
 	if err != nil || !expires.Equal(intent.Expires) {
 		return tokenManual()
 	}
-	ownership := tokenOwnership{TokenID: evidence.ID, tokenIntent: intent, Fingerprint: tokenFingerprint(pending.Issued.Secret)}
+	ownership := tokenOwnership{TokenID: evidence.ID, tokenIntent: intent, Fingerprint: helpers.Fingerprint(pending.Issued.Secret)}
 	if err := verifyToken(ctx, h, pending.Issued.Secret, ownership); err != nil {
 		return err
 	}

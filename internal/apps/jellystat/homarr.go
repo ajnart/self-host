@@ -3,8 +3,6 @@ package jellystat
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -87,11 +85,6 @@ func currentKeyIdentity(h *helpers.H) keyIdentity {
 		kind = "jellyfin"
 	}
 	return keyIdentity{Endpoint: h.InternalURL(), User: h.AdminUser(), ServerAddress: address, ServerAdminID: h.Secret(h.Key("server_admin_id")), MediaServer: kind}
-}
-
-func keyFingerprint(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
 }
 
 func parseKeyInventory(h *helpers.H, raw []byte) ([]keyRecord, error) {
@@ -214,10 +207,10 @@ func readKeyInventory(ctx context.Context, h *helpers.H, header map[string]strin
 func inventoryDigest(records []keyRecord) string {
 	parts := make([]string, 0, len(records))
 	for _, record := range records {
-		parts = append(parts, keyFingerprint(record.Name+"\x00"+record.Key))
+		parts = append(parts, helpers.Fingerprint(record.Name+"\x00"+record.Key))
 	}
 	sort.Strings(parts)
-	return keyFingerprint(strings.Join(parts, "\n"))
+	return helpers.Fingerprint(strings.Join(parts, "\n"))
 }
 
 func selectedIssuedKey(before, after []keyRecord) (string, bool) {
@@ -257,7 +250,7 @@ func savedKeyOwnership(h *helpers.H) (keyOwnership, error) {
 	key, raw := h.Secret(h.Key("homarr_api_key")), h.Secret(h.Key("homarr_ownership"))
 	h.Log.Secret(key, raw)
 	var owned keyOwnership
-	if key == "" || json.Unmarshal([]byte(raw), &owned) != nil || owned.Name != homarrKeyName || owned.Fingerprint != keyFingerprint(key) || owned.Identity != currentKeyIdentity(h) {
+	if key == "" || json.Unmarshal([]byte(raw), &owned) != nil || owned.Name != homarrKeyName || owned.Fingerprint != helpers.Fingerprint(key) || owned.Identity != currentKeyIdentity(h) {
 		return keyOwnership{}, homarrManual("The Jellystat key or its pinned ownership is missing or differs from the selected instance.")
 	}
 	return owned, nil
@@ -347,7 +340,7 @@ func setupHomarrKey(ctx context.Context, h *helpers.H) error {
 	response, issueErr := h.HTTP(ctx, helpers.Request{Method: http.MethodPost, Path: "/api/keys", Header: header, JSON: map[string]string{"name": homarrKeyName}, NoRedirect: true})
 	projection := projectKeyInventory(h, response.Body)
 	selected, consistent := selectedIssuedKey(before, projection.Records)
-	capture := keyCapture{Intent: intent, Status: response.Status, Selected: consistent, Fingerprint: keyFingerprint(selected),
+	capture := keyCapture{Intent: intent, Status: response.Status, Selected: consistent, Fingerprint: helpers.Fingerprint(selected),
 		Incomplete: projection.Incomplete, Duplicate: projection.Duplicate, Error: projection.Error || issueErr != nil}
 	data, err := json.Marshal(capture)
 	if err != nil {
@@ -373,13 +366,13 @@ func resumeHomarrKey(ctx context.Context, h *helpers.H, pending helpers.PendingC
 		return homarrManual("The pending Jellystat issuance cannot be verified safely.")
 	}
 	key := pending.Issued.Secret
-	if intent.Name != homarrKeyName || intent.Identity != currentKeyIdentity(h) || intent.InventoryCount <= 0 || len(intent.InventoryDigest) != 64 || capture.Intent != intent || capture.Status != http.StatusOK || !capture.Selected || capture.Incomplete || capture.Duplicate || capture.Error || key == "" || capture.Fingerprint != keyFingerprint(key) {
+	if intent.Name != homarrKeyName || intent.Identity != currentKeyIdentity(h) || intent.InventoryCount <= 0 || len(intent.InventoryDigest) != 64 || capture.Intent != intent || capture.Status != http.StatusOK || !capture.Selected || capture.Incomplete || capture.Duplicate || capture.Error || key == "" || capture.Fingerprint != helpers.Fingerprint(key) {
 		return homarrManual("The captured Jellystat credential was rejected, uncertain or belongs to a different pinned instance.")
 	}
 	if err := verifyIssuedKey(ctx, h, key, intent.Identity); err != nil {
 		return err
 	}
-	ownership, err := json.Marshal(keyOwnership{Identity: intent.Identity, Name: homarrKeyName, Fingerprint: keyFingerprint(key)})
+	ownership, err := json.Marshal(keyOwnership{Identity: intent.Identity, Name: homarrKeyName, Fingerprint: helpers.Fingerprint(key)})
 	if err != nil {
 		return homarrManual("The verified Jellystat key ownership could not be encoded.")
 	}

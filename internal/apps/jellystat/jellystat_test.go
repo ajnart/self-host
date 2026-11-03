@@ -144,7 +144,7 @@ func TestJellystatExistingIdentityAndBackendAreVerifiedWithoutMutation(t *testin
 			h.Inputs["media_server"] = kind
 			sec := h.Secrets.(jellystatSecrets)
 			sec["JELLYSTAT_HOMARR_API_KEY"] = "synthetic-key"
-			owned, err := json.Marshal(keyOwnership{Identity: currentKeyIdentity(h), Name: homarrKeyName, Fingerprint: keyFingerprint("synthetic-key")})
+			owned, err := json.Marshal(keyOwnership{Identity: currentKeyIdentity(h), Name: homarrKeyName, Fingerprint: helpers.Fingerprint("synthetic-key")})
 			if err != nil {
 				t.Fatal(err)
 			}

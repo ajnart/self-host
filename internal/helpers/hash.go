@@ -2,7 +2,9 @@ package helpers
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 
 	"golang.org/x/crypto/argon2"
@@ -43,6 +45,13 @@ func HashPassword(kind HashKind, password string) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown password hash kind %q", kind)
 	}
+}
+
+// Fingerprint is the hex SHA-256 of a secret, recorded to recognise the
+// secret an App saved without storing it.
+func Fingerprint(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
 }
 
 func argon2id(password string) (string, error) {

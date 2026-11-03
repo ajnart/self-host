@@ -2,7 +2,6 @@ package karakeep
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -54,11 +53,6 @@ func homarrManual(reason string) error {
 	return &helpers.ManualError{Hint: reason + " " + HomarrRecoveryHint}
 }
 
-func homarrFingerprint(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
-}
-
 func homarrKeyID(key string) (string, bool) {
 	parts := strings.Split(key, "_")
 	if len(parts) != 3 || parts[0] != "ak2" || len(parts[1]) != 20 || len(parts[2]) != 32 {
@@ -82,7 +76,7 @@ func readHomarrOwnership(h *helpers.H) (homarrOwnership, error) {
 	h.Log.Secret(key, raw)
 	var ownership homarrOwnership
 	keyID, valid := homarrKeyID(key)
-	if json.Unmarshal([]byte(raw), &ownership) != nil || !valid || strings.TrimSpace(ownership.ID) == "" || ownership.ID != strings.TrimSpace(ownership.ID) || ownership.KeyID != keyID || ownership.Name != homarrKeyName || !homarrScopes(ownership.Scopes) || ownership.AccountID == "" || ownership.AccountID != h.Secret(h.Key("account_id")) || ownership.Fingerprint != homarrFingerprint(key) {
+	if json.Unmarshal([]byte(raw), &ownership) != nil || !valid || strings.TrimSpace(ownership.ID) == "" || ownership.ID != strings.TrimSpace(ownership.ID) || ownership.KeyID != keyID || ownership.Name != homarrKeyName || !homarrScopes(ownership.Scopes) || ownership.AccountID == "" || ownership.AccountID != h.Secret(h.Key("account_id")) || ownership.Fingerprint != helpers.Fingerprint(key) {
 		return ownership, homarrManual("Karakeep's saved statistics credential and ownership do not form the recorded read-only account tuple.")
 	}
 	return ownership, nil
@@ -121,7 +115,7 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 
 func verifyHomarrTuple(ctx context.Context, h *helpers.H, owner ownerIdentity, inventory []homarrKey, ownership homarrOwnership, key string) error {
 	keyID, valid := homarrKeyID(key)
-	if !valid || ownership.AccountID != owner.ID || ownership.AccountID != h.Secret(h.Key("account_id")) || ownership.KeyID != keyID || ownership.Name != homarrKeyName || !homarrScopes(ownership.Scopes) || ownership.Fingerprint != homarrFingerprint(key) {
+	if !valid || ownership.AccountID != owner.ID || ownership.AccountID != h.Secret(h.Key("account_id")) || ownership.KeyID != keyID || ownership.Name != homarrKeyName || !homarrScopes(ownership.Scopes) || ownership.Fingerprint != helpers.Fingerprint(key) {
 		return homarrManual("Karakeep's statistics key does not match its intended account and read-only ownership.")
 	}
 	found := false
@@ -275,7 +269,7 @@ func completeHomarrIssuance(ctx context.Context, h *helpers.H, owner ownerIdenti
 	}
 	ownership := homarrOwnership{
 		homarrKey: homarrKey{ID: created.ID, Name: created.Name, KeyID: keyID, Scopes: []string{"users:read"}},
-		AccountID: owner.ID, Fingerprint: homarrFingerprint(pending.Issued.Secret),
+		AccountID: owner.ID, Fingerprint: helpers.Fingerprint(pending.Issued.Secret),
 	}
 	if err := verifyHomarrTuple(ctx, h, owner, inventory, ownership, pending.Issued.Secret); err != nil {
 		return err

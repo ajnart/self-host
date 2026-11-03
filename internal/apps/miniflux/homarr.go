@@ -3,8 +3,6 @@ package miniflux
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -72,11 +70,6 @@ func HomarrReaderID(h *helpers.H) (int64, error) {
 	return id, nil
 }
 
-func homarrFingerprint(token string) string {
-	fingerprint := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(fingerprint[:])
-}
-
 func homarrRecord(raw []byte, value any) bool {
 	if json.Unmarshal(raw, value) != nil {
 		return false
@@ -115,7 +108,7 @@ func verifyHomarrKey(ctx context.Context, h *helpers.H, token string, ownership 
 	if err != nil {
 		return err
 	}
-	if ownership.Version != 1 || ownership.ID <= 0 || ownership.ReaderID != readerID || ownership.Username != h.AdminUser() || !ownership.IsAdmin || ownership.Description != homarrKeyDescription || !validHomarrCreation(ownership.CreatedAt) || strings.TrimSpace(token) == "" || ownership.Fingerprint != homarrFingerprint(token) {
+	if ownership.Version != 1 || ownership.ID <= 0 || ownership.ReaderID != readerID || ownership.Username != h.AdminUser() || !ownership.IsAdmin || ownership.Description != homarrKeyDescription || !validHomarrCreation(ownership.CreatedAt) || strings.TrimSpace(token) == "" || ownership.Fingerprint != helpers.Fingerprint(token) {
 		return homarrManual()
 	}
 	if _, err := verifyReader(ctx, h); err != nil {
@@ -263,7 +256,7 @@ func acceptHomarr(ctx context.Context, h *helpers.H, pending helpers.PendingCred
 	}
 	ownership := homarrOwnership{
 		Version: 1, ID: evidence.ID, ReaderID: readerID, Username: intent.Username, IsAdmin: intent.IsAdmin,
-		Description: evidence.Description, CreatedAt: evidence.CreatedAt, Fingerprint: homarrFingerprint(pending.Issued.Secret),
+		Description: evidence.Description, CreatedAt: evidence.CreatedAt, Fingerprint: helpers.Fingerprint(pending.Issued.Secret),
 	}
 	raw, err := json.Marshal(ownership)
 	if err != nil {

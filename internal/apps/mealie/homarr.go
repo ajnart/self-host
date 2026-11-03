@@ -3,8 +3,6 @@ package mealie
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -79,11 +77,6 @@ func homarrManual(reason string) error {
 	return &helpers.ManualError{Hint: reason + " " + HomarrRecoveryHint}
 }
 
-func keyFingerprint(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
-}
-
 func tokenInventory(ctx context.Context, h *helpers.H, key string) ([]tokenMetadata, error) {
 	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/users/self", NoRedirect: true,
 		Header: (helpers.KeyScheme{Header: "Authorization", Prefix: "Bearer "}).Headers(key)})
@@ -118,7 +111,7 @@ func verifyOwnedKey(ctx context.Context, h *helpers.H, key string, owned homarrO
 		return err
 	}
 	h.Log.Secret(key)
-	if key == "" || owned.Intent != expected || owned.ID <= 0 || owned.CreatedAt.IsZero() || owned.Fingerprint != keyFingerprint(key) {
+	if key == "" || owned.Intent != expected || owned.ID <= 0 || owned.CreatedAt.IsZero() || owned.Fingerprint != helpers.Fingerprint(key) {
 		return homarrManual("The saved Mealie token does not match its immutable account/household ownership record.")
 	}
 	if err := verifyIdentityToken(ctx, h, key); err != nil {
@@ -218,7 +211,7 @@ func finishHomarrIssuance(ctx context.Context, h *helpers.H, pending helpers.Pen
 	if json.Unmarshal(pending.Issued.Data, &data) != nil || data.Status != http.StatusCreated || !data.Complete || data.Duplicate || json.Unmarshal(data.ID, &metadata.ID) != nil || json.Unmarshal(data.Name, &metadata.Name) != nil || json.Unmarshal(data.CreatedAt, &metadata.CreatedAt) != nil || metadata.Name == nil || *metadata.Name != homarrKeyName || metadata.CreatedAt == nil {
 		return homarrManual("Mealie did not confirm complete successful token issuance; its captured secret and selected evidence remain held.")
 	}
-	owned := homarrOwnership{Intent: intent, ID: metadata.ID, CreatedAt: *metadata.CreatedAt, Fingerprint: keyFingerprint(pending.Issued.Secret)}
+	owned := homarrOwnership{Intent: intent, ID: metadata.ID, CreatedAt: *metadata.CreatedAt, Fingerprint: helpers.Fingerprint(pending.Issued.Secret)}
 	if err := verifyIdentity(ctx, h); err != nil {
 		return err
 	}

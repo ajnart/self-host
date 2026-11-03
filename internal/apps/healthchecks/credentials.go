@@ -3,8 +3,6 @@ package healthchecks
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"html"
@@ -46,8 +44,7 @@ var createdReadOnly = regexp.MustCompile(`\sreadonly(?:\s|=|/?>)`)
 var issuedKeyPattern = regexp.MustCompile(`^hcr_[a-zA-Z0-9]{28}$`)
 
 func ownershipFor(selection projectSelection, key string) keyOwnership {
-	fingerprint := sha256.Sum256([]byte(key))
-	return keyOwnership{Version: 1, Selection: selection, Fingerprint: hex.EncodeToString(fingerprint[:])}
+	return keyOwnership{Version: 1, Selection: selection, Fingerprint: helpers.Fingerprint(key)}
 }
 
 func credentialOwned(h *helpers.H, selection projectSelection) error {

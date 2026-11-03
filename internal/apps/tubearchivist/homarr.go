@@ -2,8 +2,6 @@ package tubearchivist
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -18,11 +16,6 @@ func homarrKeyNeeded(h *helpers.H) bool {
 	return h.Peer("homarr") != nil || h.Secret(h.Key("homarr_api_key")) != "" || h.Secret(h.Key("homarr_api_key_owner")) != "" || h.Secret(h.Key("homarr_api_key_hash")) != ""
 }
 
-func homarrKeyHash(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
-}
-
 func homarrManual(reason string) error {
 	return &helpers.ManualError{Hint: reason + " " + homarrRecoveryHint}
 }
@@ -30,7 +23,7 @@ func homarrManual(reason string) error {
 func homarrKeyOwned(h *helpers.H) (key, owner string, err error) {
 	key, owner = h.Secret(h.Key("homarr_api_key")), h.Secret(h.Key("homarr_api_key_owner"))
 	id, parseErr := strconv.ParseInt(owner, 10, 64)
-	if key == "" || parseErr != nil || id <= 0 || h.Secret(h.Key("homarr_api_key_hash")) != homarrKeyHash(key) {
+	if key == "" || parseErr != nil || id <= 0 || h.Secret(h.Key("homarr_api_key_hash")) != helpers.Fingerprint(key) {
 		return "", "", homarrManual("Tube Archivist's owned Homarr token or its account checkpoint is missing or inconsistent.")
 	}
 	return key, owner, nil
@@ -127,7 +120,7 @@ func setupHomarrKey(ctx context.Context, h *helpers.H, session *helpers.Session,
 				return homarrManual("Tube Archivist token creation was not confirmed.")
 			}
 			h.Log.Secret(created.Token)
-			if err := h.SetSecret(h.Key("homarr_api_key_hash"), homarrKeyHash(created.Token)); err != nil {
+			if err := h.SetSecret(h.Key("homarr_api_key_hash"), helpers.Fingerprint(created.Token)); err != nil {
 				return err
 			}
 			return h.SetSecret(h.Key("homarr_api_key"), created.Token)

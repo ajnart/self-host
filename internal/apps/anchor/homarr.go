@@ -2,7 +2,6 @@ package anchor
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -21,11 +20,6 @@ type tokenOwnership struct {
 	AccountID   string `json:"accountId"`
 	Email       string `json:"email"`
 	Fingerprint string `json:"fingerprint"`
-}
-
-func tokenFingerprint(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
 }
 
 func validToken(token string) bool {
@@ -93,7 +87,7 @@ func homarrTokenWorks(ctx context.Context, h *helpers.H) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if ownership.Fingerprint != tokenFingerprint(token) {
+	if ownership.Fingerprint != helpers.Fingerprint(token) {
 		return false, homarrManual("Anchor's saved Homarr token and ownership do not match.")
 	}
 	session, err := selectedAdministrator(ctx, h)
@@ -182,7 +176,7 @@ func prepareHomarrToken(ctx context.Context, h *helpers.H) error {
 }
 
 func commitHomarrToken(h *helpers.H, session administratorSession, token string) error {
-	ownership, err := json.Marshal(tokenOwnership{AccountID: session.Identity.ID, Email: session.Identity.Email, Fingerprint: tokenFingerprint(token)})
+	ownership, err := json.Marshal(tokenOwnership{AccountID: session.Identity.ID, Email: session.Identity.Email, Fingerprint: helpers.Fingerprint(token)})
 	if err != nil {
 		return errors.New("cannot record the Anchor token ownership")
 	}

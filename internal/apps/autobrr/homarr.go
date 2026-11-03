@@ -3,8 +3,6 @@ package autobrr
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -58,17 +56,12 @@ func homarrManual(reason string) error {
 	return &helpers.ManualError{Hint: reason + " " + HomarrRecoveryHint}
 }
 
-func fingerprint(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
-}
-
 func savedOwnership(h *helpers.H) (keyOwnership, error) {
 	raw := h.Secret(h.Key("homarr_key_ownership"))
 	key := h.Secret(h.Key("homarr_api_key"))
 	h.Log.Secret(raw, key)
 	var ownership keyOwnership
-	if json.Unmarshal([]byte(raw), &ownership) != nil || key == "" || ownership.Username == "" || ownership.Username != h.AdminUser() || ownership.Name != homarrKeyName || ownership.Scopes == nil || len(ownership.Scopes) != 0 || ownership.CreatedAt.IsZero() || ownership.Fingerprint != fingerprint(key) {
+	if json.Unmarshal([]byte(raw), &ownership) != nil || key == "" || ownership.Username == "" || ownership.Username != h.AdminUser() || ownership.Name != homarrKeyName || ownership.Scopes == nil || len(ownership.Scopes) != 0 || ownership.CreatedAt.IsZero() || ownership.Fingerprint != helpers.Fingerprint(key) {
 		return ownership, homarrManual("The saved Autobrr credential and ownership do not match the intended administrator.")
 	}
 	return ownership, nil
@@ -353,7 +346,7 @@ func recoverHomarrKey(ctx context.Context, h *helpers.H, pending helpers.Pending
 	if json.Unmarshal(pending.Intent, &intent) != nil || intent.Username == "" || intent.Username != h.AdminUser() || intent.Name != homarrKeyName || intent.Scopes == nil || len(intent.Scopes) != 0 || intent.Existing == nil || json.Unmarshal(pending.Issued.Data, &evidence) != nil {
 		return homarrManual("The captured Autobrr issuance intent or evidence is incomplete.")
 	}
-	ownership := keyOwnership{Username: intent.Username, Fingerprint: fingerprint(pending.Issued.Secret)}
+	ownership := keyOwnership{Username: intent.Username, Fingerprint: helpers.Fingerprint(pending.Issued.Secret)}
 	if evidence.Status != http.StatusCreated || !evidence.Complete || json.Unmarshal(evidence.Name, &ownership.Name) != nil || json.Unmarshal(evidence.Scopes, &ownership.Scopes) != nil || json.Unmarshal(evidence.CreatedAt, &ownership.CreatedAt) != nil || ownership.Name != homarrKeyName || ownership.Scopes == nil || len(ownership.Scopes) != 0 || ownership.CreatedAt.IsZero() || slices.Contains(intent.Existing, ownership.Fingerprint) {
 		return homarrManual("Autobrr did not confirm an unambiguous new statistics key; its captured evidence was preserved.")
 	}

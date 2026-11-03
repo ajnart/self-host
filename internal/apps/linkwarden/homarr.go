@@ -2,7 +2,6 @@ package linkwarden
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -58,15 +57,10 @@ func HomarrAccountID(h *helpers.H) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if ownership.AccountID == 0 || ownership.Pending || ownership.Fingerprint != tokenFingerprint(h.Secret(h.Key("homarr_api_key"))) || !ownership.Expires.After(h.Now()) {
+	if ownership.AccountID == 0 || ownership.Pending || ownership.Fingerprint != helpers.Fingerprint(h.Secret(h.Key("homarr_api_key"))) || !ownership.Expires.After(h.Now()) {
 		return 0, fmt.Errorf("%w: Linkwarden Homarr token ownership needs Setup recovery", helpers.ErrManual)
 	}
 	return ownership.AccountID, nil
-}
-
-func tokenFingerprint(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
 }
 
 func tokenIdentity(ctx context.Context, h *helpers.H, token string) (bool, error) {
@@ -138,7 +132,7 @@ func homarrTokenWorks(ctx context.Context, h *helpers.H) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if ownership.Fingerprint != tokenFingerprint(token) {
+	if ownership.Fingerprint != helpers.Fingerprint(token) {
 		return false, fmt.Errorf("%w: Linkwarden Homarr token and ownership do not match; recover the pending credential before retrying", helpers.ErrManual)
 	}
 	if ownership.Pending || ownership.AccountID == 0 {
@@ -229,7 +223,7 @@ func createHomarrToken(ctx context.Context, h *helpers.H) error {
 				return fmt.Errorf("%w: the recorded Linkwarden token needs explicit recovery or revocation", helpers.ErrManual)
 			}
 			token := h.Secret(h.Key("homarr_api_key"))
-			if token == "" || tokenFingerprint(token) != ownership.Fingerprint {
+			if token == "" || helpers.Fingerprint(token) != ownership.Fingerprint {
 				return fmt.Errorf("%w: an issued Linkwarden token still exists but its matching secret is unavailable; restore the pair or revoke only that recorded token", helpers.ErrManual)
 			}
 			ok, err := tokenIdentity(ctx, h, token)
@@ -280,7 +274,7 @@ func createHomarrToken(ctx context.Context, h *helpers.H) error {
 	if created.Response.SecretKey == "" || current.ID <= 0 || current.UserID != 1 || current.Name != homarrTokenName || current.IsSession == nil || *current.IsSession || current.Revoked == nil || *current.Revoked || !current.Expires.After(h.Now()) || current.Expires.After(h.Now().Add(91*24*time.Hour)) {
 		return errors.New("Linkwarden returned incomplete or unexpected token metadata; inspect Access Tokens before retrying")
 	}
-	ownership = tokenOwnership{ID: current.ID, AccountID: current.UserID, Expires: current.Expires, Fingerprint: tokenFingerprint(created.Response.SecretKey), Pending: true}
+	ownership = tokenOwnership{ID: current.ID, AccountID: current.UserID, Expires: current.Expires, Fingerprint: helpers.Fingerprint(created.Response.SecretKey), Pending: true}
 	if err := saveHomarrOwnership(h, ownership); err != nil {
 		return err
 	}

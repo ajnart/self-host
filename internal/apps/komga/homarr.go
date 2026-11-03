@@ -3,8 +3,6 @@ package komga
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -165,11 +163,6 @@ func verifyHomarrKey(ctx context.Context, h *helpers.H, secret string, key homar
 	return homarrManual("Komga's recorded key is no longer present; no replacement was issued.")
 }
 
-func homarrFingerprint(secret string) string {
-	sum := sha256.Sum256([]byte(secret))
-	return hex.EncodeToString(sum[:])
-}
-
 func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 	if _, err := signedIn(ctx, h, (App{}).AdminEmail(h.AdminUser()), h.AdminPassword()); err != nil {
 		return err
@@ -181,7 +174,7 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 	}
 	secret := h.Secret(h.Key("homarr_api_key"))
 	var ownership homarrOwnership
-	if secret == "" || json.Unmarshal([]byte(h.Secret(h.Key("homarr_key_ownership"))), &ownership) != nil || ownership.Fingerprint != homarrFingerprint(secret) || ownership.Email != h.Secret(h.Key("homarr_user_email")) {
+	if secret == "" || json.Unmarshal([]byte(h.Secret(h.Key("homarr_key_ownership"))), &ownership) != nil || ownership.Fingerprint != helpers.Fingerprint(secret) || ownership.Email != h.Secret(h.Key("homarr_user_email")) {
 		return homarrManual("Komga's key and confirmed ownership are missing or mismatched.")
 	}
 	return verifyHomarrKey(ctx, h, secret, ownership.Key)
@@ -203,7 +196,7 @@ func recoverHomarrKey(ctx context.Context, h *helpers.H, pending helpers.Pending
 	if err := verifyHomarrKey(ctx, h, pending.Issued.Secret, evidence.Key); err != nil {
 		return err
 	}
-	ownership, err := json.Marshal(homarrOwnership{Key: evidence.Key, Email: intent.Email, Fingerprint: homarrFingerprint(pending.Issued.Secret)})
+	ownership, err := json.Marshal(homarrOwnership{Key: evidence.Key, Email: intent.Email, Fingerprint: helpers.Fingerprint(pending.Issued.Secret)})
 	if err != nil {
 		return homarrManual("Komga's verified key ownership could not be encoded.")
 	}
