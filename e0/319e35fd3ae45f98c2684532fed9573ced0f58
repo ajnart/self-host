@@ -1,0 +1,20 @@
+docs/homarr-opnsense-contract.md
+  h_d6e478ca18e517 1-48
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 19-20
+internal/apps/homarr/target_opnsense.go
+  h_d6e478ca18e517 1-133
+internal/apps/homarr/target_opnsense_test.go
+  h_d6e478ca18e517 1-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e0319e35fd3ae45f98c2684532fed9573ced0f58",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
