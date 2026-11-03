@@ -1,0 +1,39 @@
+docs/homarr-wazuh.md
+  s_3708f40cecd7da::t_458ce628267c4c 1-29
+internal/apps/homarr/target_wazuh.go
+  s_0812986ae533ff::t_f32f70be0906a7 1-126
+internal/apps/homarr/target_wazuh_test.go
+  s_55b5a31b8144fe::t_9c41295f744b3e 1-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50eeac79bdf93df283e584e56675921af48059a7",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_3708f40cecd7da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e176a8-21e9-423d-9718-ddb371c05e43",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_55b5a31b8144fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a22d04dd-7d16-4c46-98f1-b94d3e92ce32",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
