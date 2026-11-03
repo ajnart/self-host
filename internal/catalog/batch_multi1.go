@@ -10,6 +10,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/jellystat"
 	"github.com/ajnart/self-host/internal/apps/keycloak"
 	"github.com/ajnart/self-host/internal/apps/linkwarden"
+	"github.com/ajnart/self-host/internal/apps/mealie"
 )
 
 func init() {
@@ -23,5 +24,6 @@ func init() {
 		jellystat.App{},
 		keycloak.App{},
 		linkwarden.App{},
+		mealie.App{},
 	)
 }

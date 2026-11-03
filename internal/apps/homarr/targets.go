@@ -16,6 +16,7 @@ func targets() []target {
 		audiobookshelfTarget(),
 		paperlessTarget(),
 		linkwardenTarget(),
+		mealieTarget(),
 		nextcloudTarget(),
 		lidarrTarget(),
 		binderyTarget(),
