@@ -1,0 +1,35 @@
+docs/catalog/traps/fileflows.md
+  s_36f092184c883e::t_24aa5446ae151d 1-25
+internal/apps/fileflows/fileflows.go
+  s_0812986ae533ff::t_9d466200f95978 1-62
+internal/apps/fileflows/fileflows_test.go
+  s_36f092184c883e::t_f941b36bb3c0e5 1-95
+internal/catalog/batch_mfa2.go
+  s_36f092184c883e::t_9ec8edbd31cbb4 4,18
+tools/sitegen/icons.go
+  s_36f092184c883e::t_4784924790da60 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b3bedb61bab26505486d50f2db5252f36731444",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_36f092184c883e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1384766-24f2-4339-aac8-15bc80973fb7",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
