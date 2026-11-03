@@ -145,6 +145,69 @@ The advanced example uses ordinary `finally` semantics: a cleanup error can
 replace an earlier error. Prefer `withApp` when exact primary-error preservation
 matters.
 
+## Unreleased ordered pair API
+
+Pair calls require a helper built from the same source checkout; published 1.2.1
+does not contain them. Existing `spinup`/`withApp` calls are unchanged.
+
+```javascript
+import { withPair } from "@ajnart/self-host-testkit";
+
+await withPair(
+  "homarr",
+  "sonarr",
+  async (pair) => {
+    const result = await pair.inspect();
+    if (result.outcome !== "complete") throw new Error("Pair needs attention");
+    const key = await pair.target.getApiKey();
+    await testSonarrAdapter({ baseUrl: pair.target.url, apiKey: key });
+  },
+  { order: "consumer-first" },
+);
+```
+
+`createSelfHost().spinupPair(consumer, target, { order, images? })` returns the
+same Pair for explicit lifetime management. `order` must be `consumer-first` or
+`target-first`; both are sequential production installs into one fresh Project.
+`images` may override only selected main App images, keyed by App ID.
+Initial support requires web Apps without additional Inputs and one declared
+consumer Link. Unsupported Compose/account/hardware/private-input boundaries
+remain explicit errors or Manual outcomes, not automatic skips.
+
+- `consumer`/`target` expose `url`, `getApiKey`, `credentials`, `info` and private
+  recovery access, but **no close method**. Only Pair/manager close owns cleanup.
+- `initial` records first-install absence. `inspect()` returns selected public
+  observations and `complete`, `manual`, `prerequisite` or `failed`. Missing,
+  skipped or unready Links are never complete. Completion is the production
+  recorded outcome, not a claim of rendered acceptance for every peer.
+- `setup(app?)` retries production Setup for one/both selected Apps;
+  `remove(app)` is non-purge and retains data; `install(app)` reinstalls only a
+  selected admitted App with its original ports/options. No action renews the
+  lifetime. An absent App cannot expose stale Info/credentials.
+- One owner/admission budget covers both Apps plus every backing service:
+  five containers, 5 GiB, five CPUs; first-creation 1 GiB/one CPU/512-PID caps.
+  Local Access/private binds/volume/socket restrictions remain; no override or
+  arbitrary command/secret-write interface is exposed.
+- An infrastructure action/inspection failure immediately attempts independent-context
+  whole-Pair cleanup and disables further actions. Expected Manual/incomplete Setup
+  remains inspectable. `TestkitError` preserves an `OPERATION` reason (such as
+  `LIMITS`), or `TIMEOUT`/`CANCELED`, and an additive `cleanupFailed` flag. A failed
+  cleanup retains private recovery ownership and can be retried with close/manifest
+  recovery; it does not replace the original action cause.
+- `withPair` preserves exact primary failures, including `undefined`, over
+  cleanup failure. Cleanup-only failures throw. Optional `onCleanupError` receives
+  a sanitized cleanup error when there is already a primary failure; failure of
+  that notification does not replace the original. Recovery remains manifest-
+  scoped and uses the existing Action post hook.
+
+`examples/homarr-sonarr.mjs` demonstrates one order with authenticated Sonarr
+identity and production-Setup-driven advancing Stats. Run a second fresh scenario
+with `target-first` to test the other order. It never configures Homarr in Node,
+does not require a downloader or Kuma, and must wait for integrated Sonarr leaf
+registration plus a centrally approved runtime slot. Empty/native/error and
+rendered/lifecycle acceptance remain separate evidence; no runtime is implied by
+building or importing the SDK.
+
 ## GitHub Actions
 
 **Unreleased source workflow:** run this on a branch containing these changes.
@@ -188,9 +251,11 @@ directory does not change which source checkout supplies the helper and SDK.
 
 ## Errors and private recovery
 
-`TestkitError` has sanitized `code` and optional startup `reason` with safe hints.
+`TestkitError` has sanitized `code`, optional startup/operation `reason` with safe
+hints, and a `cleanupFailed` flag for secondary cleanup trouble.
 Codes: `BINARY`, `PROTOCOL`, `STATE`, `START`, `CREDENTIALS`, `INFO`, `CLEANUP`,
-`TIMEOUT`, `TRANSPORT`. Raw provider output and helper stderr are not forwarded.
+`TIMEOUT`, `CANCELED`, `TRANSPORT`, `OPERATION`. Raw provider output and helper stderr
+are not forwarded.
 
 - **BINARY:** explicitly prepare a matching helper or set its absolute path.
 - **START:** check Docker/Compose, resource limits and image availability. Apps

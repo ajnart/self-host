@@ -97,6 +97,22 @@ networking, socket mounts or named volumes fail explicitly. Not every Catalog
 App is a supported fixture. Live App acceptance and Backup/Restore caching remain
 deferred; passing transport tests does not establish either.
 
+## Unreleased ordered pairs
+
+`withPair("homarr", "sonarr", callback, { order: "consumer-first" })` starts both
+Apps in one disposable Project through production Setup and Links. Choose
+`target-first` for a separate fresh scenario; two independent `spinup` calls do
+not share a Project. App views cannot close a peer: close the Pair or its manager.
+The same five-container/5-GiB/five-CPU aggregate guards and lifetime apply to the
+whole pair, including dependencies. No resource override is available.
+
+After building this checkout's matching SDK/helper, the optional
+`testkit/node/examples/homarr-sonarr.mjs` accepts either installation order as its
+first argument. It starts real Docker Apps: run only in an approved runtime slot.
+The integrated Sonarr verifier registration is required for advancing Stats.
+No downloader adapter or Kuma fix is needed. Pair/native/rendered acceptance is
+not established by helper or transport tests; see the Node guide for boundaries.
+
 ## Guides
 
 - [Node: mock replacement, API, CI and recovery](node/README.md)

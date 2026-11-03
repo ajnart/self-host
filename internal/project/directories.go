@@ -23,7 +23,11 @@ func (p *Project) PrepareAppDirectories(id string, dirs []AppDirectory) error {
 	return p.prepareAppDirectories(id, dirs, inspectAppDirectory, setAppDirectoryMetadata)
 }
 
-func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect func(*os.File) error, apply func(*os.File, int, int, os.FileMode) error) error {
+func (p *Project) ValidateAppDirectories(id string, dirs []AppDirectory) error {
+	return p.validateAppDirectories(id, dirs, inspectAppDirectory)
+}
+
+func (p *Project) checkAppDirectoryDeclarations(id string, dirs []AppDirectory) error {
 	if err := validAppID(id); err != nil {
 		return err
 	}
@@ -34,11 +38,106 @@ func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect 
 		}
 		seen[dir.Path] = true
 	}
+	if len(dirs) != 0 && (p.Owner.UID < 0 || p.Owner.GID < 0 || uint64(p.Owner.UID) >= 1<<32-1 || uint64(p.Owner.GID) >= 1<<32-1) {
+		return errors.New("App directory preparation requires valid Project-owner IDs")
+	}
+	return nil
+}
+
+func (p *Project) openAppDirectoryRoot(inspect func(*os.File) error) (*os.File, func(), error) {
+	rootPath, err := filepath.Abs(p.Root)
+	if err != nil {
+		return nil, nil, err
+	}
+	anchor, err := openAppDirectoryAt(nil, string(filepath.Separator))
+	if err != nil {
+		return nil, nil, err
+	}
+	parents := []*os.File{anchor}
+	closeParents := func() {
+		for _, parent := range parents {
+			parent.Close()
+		}
+	}
+	if err := p.trustedAppDirectoryParent(anchor, inspect); err != nil {
+		closeParents()
+		return nil, nil, err
+	}
+	for _, component := range strings.Split(strings.Trim(rootPath, string(filepath.Separator)), string(filepath.Separator)) {
+		if component == "" {
+			continue
+		}
+		next, err := openAppDirectoryAt(anchor, component)
+		if err != nil {
+			closeParents()
+			return nil, nil, err
+		}
+		parents = append(parents, next)
+		if err := p.trustedAppDirectoryParent(next, inspect); err != nil {
+			closeParents()
+			return nil, nil, err
+		}
+		anchor = next
+	}
+	return anchor, closeParents, nil
+}
+
+func inspectAppDirectoryAt(parent *os.File, dir AppDirectory, inspect func(*os.File) error) error {
+	file, err := openAppDirectoryAt(parent, dir.Path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if err := inspect(file); err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !appDirectoryMetadata(info, dir.Mode, dir.UID, dir.GID) {
+		return &fs.PathError{Op: "preserve incompatible App directory owner or mode", Path: dir.Path, Err: fs.ErrPermission}
+	}
+	return nil
+}
+
+func (p *Project) validateAppDirectories(id string, dirs []AppDirectory, inspect func(*os.File) error) error {
+	if err := p.checkAppDirectoryDeclarations(id, dirs); err != nil {
+		return err
+	}
 	if len(dirs) == 0 {
 		return nil
 	}
-	if p.Owner.UID < 0 || p.Owner.GID < 0 || uint64(p.Owner.UID) >= 1<<32-1 || uint64(p.Owner.GID) >= 1<<32-1 {
-		return errors.New("App directory preparation requires valid Project-owner IDs")
+	parent, closeRoot, err := p.openAppDirectoryRoot(inspect)
+	if err != nil {
+		return err
+	}
+	defer closeRoot()
+	for _, component := range []string{"apps", id} {
+		next, err := openAppDirectoryAt(parent, component)
+		if err != nil {
+			return err
+		}
+		defer next.Close()
+		if err := p.trustedAppDirectoryParent(next, inspect); err != nil {
+			return err
+		}
+		parent = next
+	}
+	for _, dir := range dirs {
+		if err := inspectAppDirectoryAt(parent, dir, inspect); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect func(*os.File) error, apply func(*os.File, int, int, os.FileMode) error) error {
+	if err := p.checkAppDirectoryDeclarations(id, dirs); err != nil {
+		return err
+	}
+	if len(dirs) == 0 {
+		return nil
 	}
 	rootPath, err := filepath.Abs(p.Root)
 	if err != nil {
@@ -48,36 +147,11 @@ func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect 
 	if !held || len(gate.(chan struct{})) != 1 {
 		return &fs.PathError{Op: "require active Project mutation lock", Path: rootPath, Err: fs.ErrPermission}
 	}
-	anchor, err := openAppDirectoryAt(nil, string(filepath.Separator))
+	root, closeRoot, err := p.openAppDirectoryRoot(inspect)
 	if err != nil {
 		return err
 	}
-	defer anchor.Close()
-	if err := p.trustedAppDirectoryParent(anchor, inspect); err != nil {
-		return err
-	}
-	for _, component := range strings.Split(strings.Trim(filepath.Dir(rootPath), string(filepath.Separator)), string(filepath.Separator)) {
-		if component == "" {
-			continue
-		}
-		next, err := openAppDirectoryAt(anchor, component)
-		if err != nil {
-			return err
-		}
-		defer next.Close()
-		if err := p.trustedAppDirectoryParent(next, inspect); err != nil {
-			return err
-		}
-		anchor = next
-	}
-	root, err := openAppDirectoryAt(anchor, filepath.Base(rootPath))
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	if err := p.trustedAppDirectoryParent(root, inspect); err != nil {
-		return err
-	}
+	defer closeRoot()
 	lockFD, err := unix.Openat(int(root.Fd()), ".lock", unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return &fs.PathError{Op: "inspect Project lock", Path: ".lock", Err: err}
@@ -126,20 +200,8 @@ func (p *Project) prepareAppDirectories(id string, dirs []AppDirectory, inspect 
 	creates := missingParent
 	for i, dir := range dirs {
 		if !missingParent {
-			file, err := openAppDirectoryAt(parent, dir.Path)
+			err := inspectAppDirectoryAt(parent, dir, inspect)
 			if err == nil {
-				err = inspect(file)
-				info, statErr := file.Stat()
-				file.Close()
-				if err != nil {
-					return err
-				}
-				if statErr != nil {
-					return statErr
-				}
-				if !appDirectoryMetadata(info, dir.Mode, dir.UID, dir.GID) {
-					return &fs.PathError{Op: "preserve incompatible App directory owner or mode", Path: dir.Path, Err: fs.ErrPermission}
-				}
 				existing[i] = true
 				continue
 			}
