@@ -420,7 +420,16 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 	}
 	st.StepOrder = slices.DeleteFunc(st.StepOrder, func(step string) bool { return !IsStage(step) })
 	h := ss.helpers(a)
-	err = a.Setup(ctx, h)
+	if !ss.p.IsExtra(id) {
+		err = ss.s.validateAppDirectories(ctx, ss.p, a, st, ss.settings)
+	}
+	if directoryErr := err; directoryErr != nil {
+		err = h.Step(ctx, "directories", "validate declared App directories", helpers.StepSpec{
+			Do: func(context.Context) error { return directoryErr },
+		})
+	} else {
+		err = a.Setup(ctx, h)
+	}
 	if id == tailscaleID || id == cloudflareConnector {
 		ss.invalidateNavigation()
 	}
@@ -462,9 +471,14 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 			// indirectly (Seerr's servers need its Jellyfin Link), so retry it.
 			for _, link := range links {
 				if link.Target != id && !ss.failed(otherID, link.ID) {
-					continue
+					record := ss.state.Apps[otherID].Steps[link.ID]
+					if link.Applicable == nil || !slices.Contains(installed, link.Target) || !(record.Status.NeedsAttention() || record.Status == stepstatus.StepSkip && record.Msg == linkWaitingMessage(link.Target)) {
+						continue
+					}
+					ss.linkApplicable(ctx, ss.helpers(other), link)
+				} else {
+					ss.applyLink(ctx, other, link, installed)
 				}
-				ss.applyLink(ctx, other, link, installed)
 				otherState := ss.state.Apps[otherID]
 				otherState.Setup = setupResult(otherState)
 				if otherState.Setup == stepstatus.SetupIncomplete {
@@ -482,12 +496,33 @@ func (ss *session) applyLink(ctx context.Context, from app.App, link app.Link, i
 	if !slices.Contains(installed, link.Target) {
 		return
 	}
+	if !ss.linkApplicable(ctx, h, link) {
+		return
+	}
 	to := ss.readyPeer(link.Target)
 	if to == nil {
 		h.Skip(link.ID, linkWaitingMessage(link.Target))
 		return
 	}
 	ss.reportUnexpected(h, link.ID, link.Apply(ctx, h, to))
+}
+
+func (ss *session) linkApplicable(ctx context.Context, h *helpers.H, link app.Link) bool {
+	if link.Applicable == nil {
+		return true
+	}
+	selected, err := link.Applicable(ctx, h)
+	if err != nil {
+		ss.reportUnexpected(h, link.ID, h.Step(ctx, link.ID, link.Title, helpers.StepSpec{
+			Do:   func(context.Context) error { return err },
+			Hint: "Review the selected target, then run self-host setup " + h.App + ".",
+		}))
+		return false
+	}
+	if !selected {
+		h.Skip(link.ID, "not selected: "+link.Title)
+	}
+	return selected
 }
 
 func linkWaitingMessage(target string) string {

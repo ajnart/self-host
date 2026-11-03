@@ -2014,6 +2014,22 @@
     {
      "target": "qbittorrent",
      "title": "download client: qBittorrent"
+    },
+    {
+     "target": "sabnzbd",
+     "title": "download client: SABnzbd"
+    },
+    {
+     "target": "nzbget",
+     "title": "download client: NZBGet"
+    },
+    {
+     "target": "deluge",
+     "title": "download client: Deluge"
+    },
+    {
+     "target": "transmission",
+     "title": "download client: Transmission"
     }
    ],
    "compose": "services:\n  lidarr:\n    image: lscr.io/linuxserver/lidarr:latest\n    container_name: ${CONTAINER_PREFIX}lidarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/lidarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 8686:8686\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8686/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
@@ -2068,7 +2084,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/music. Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/music. Keep download-client paths under /data/torrents or /data/usenet. In-place music tagging can change the original seeding file when hardlinks are used. It works with 5 other Apps, but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "linkwarden",
@@ -3604,6 +3620,22 @@
     {
      "target": "qbittorrent",
      "title": "download client: qBittorrent"
+    },
+    {
+     "target": "sabnzbd",
+     "title": "download client: SABnzbd"
+    },
+    {
+     "target": "nzbget",
+     "title": "download client: NZBGet"
+    },
+    {
+     "target": "deluge",
+     "title": "download client: Deluge"
+    },
+    {
+     "target": "transmission",
+     "title": "download client: Transmission"
     }
    ],
    "compose": "services:\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    container_name: ${CONTAINER_PREFIX}radarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/radarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 7878:7878\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:7878/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
@@ -3658,7 +3690,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/movies. Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/movies. Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks. It works with 5 other Apps, but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "renovate",
@@ -3917,6 +3949,14 @@
      "title": "media server: Jellyfin"
     },
     {
+     "target": "plex",
+     "title": "media server: Plex"
+    },
+    {
+     "target": "emby",
+     "title": "media server: Emby"
+    },
+    {
      "target": "sonarr",
      "title": "requests go to Sonarr"
     },
@@ -3972,7 +4012,7 @@
     }
    ],
    "standalone": true,
-   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/seerr/config) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. It works with other Apps (media server: Jellyfin; requests go to Sonarr; requests go to Radarr), but this Compose does not connect them; do that in each App's settings."
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/seerr/config) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. It works with 5 other Apps, but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "slskd",
@@ -4073,6 +4113,22 @@
     {
      "target": "qbittorrent",
      "title": "download client: qBittorrent"
+    },
+    {
+     "target": "sabnzbd",
+     "title": "download client: SABnzbd"
+    },
+    {
+     "target": "nzbget",
+     "title": "download client: NZBGet"
+    },
+    {
+     "target": "deluge",
+     "title": "download client: Deluge"
+    },
+    {
+     "target": "transmission",
+     "title": "download client: Transmission"
     }
    ],
    "compose": "services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:latest\n    container_name: ${CONTAINER_PREFIX}sonarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/sonarr/config:/config\n      - ${DATA_PATH}:/data\n    ports:\n      - 8989:8989\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:8989/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
@@ -4127,7 +4183,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/tv. Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks. It works with other Apps (download client: qBittorrent), but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, turn on authentication in Settings > General > Security (Authentication: Forms, with a username and password) and add the root folder /data/media/tv. Keep downloads under /data/torrents and libraries under /data/media on the same filesystem, and enable Use Hardlinks instead of Copy in Media Management. Nested mounts or separate datasets can still prevent hardlinks. It works with 5 other Apps, but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "speedtest-tracker",
