@@ -29,7 +29,15 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
+func (App) Inputs() []app.Input {
+	return []app.Input{
+		{Key: "homarr_user_id", Prompt: "Existing limited Komga user ID", Private: true, RecoveryOnly: true},
+		{Key: "homarr_user_email", Prompt: "Existing limited Komga user email", Private: true, RecoveryOnly: true},
+		{Key: "homarr_user_password", Prompt: "Existing limited Komga user password", Private: true, RecoveryOnly: true},
+		{Key: "homarr_api_key", Prompt: "Confirmed matching Komga Homarr key", Private: true, RecoveryOnly: true},
+		{Key: "homarr_key_ownership", Prompt: "Confirmed matching Komga Homarr key ownership", Private: true, RecoveryOnly: true},
+	}
+}
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -68,9 +76,13 @@ func manual(h *helpers.H, reason string) error {
 	return &helpers.ManualError{Hint: reason + " " + recoveryHint(h)}
 }
 
-func validLogin(user, password string) error {
+func validEmail(user string) bool {
 	address, err := mail.ParseAddress(user)
-	if err != nil || address.Address != user || strings.TrimSpace(password) == "" {
+	return err == nil && address.Address == user
+}
+
+func validLogin(user, password string) error {
+	if !validEmail(user) || strings.TrimSpace(password) == "" {
 		return &helpers.ManualError{Hint: "Komga needs a valid Admin email and a nonempty shared Admin password; review self-host credentials and restore the intended Project login privately, then run: self-host setup komga"}
 	}
 	return nil
@@ -170,12 +182,29 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	if h.Secret(h.Key("admin_user_id")) == "" {
-		return h.SetSecret(h.Key("admin_user_id"), id)
+		if err := h.SetSecret(h.Key("admin_user_id"), id); err != nil {
+			return err
+		}
 	}
-	return nil
+	if !homarrRequested(h) {
+		h.Skip("homarr-key", "No Komga Homarr account is selected and Homarr is not installed")
+		return nil
+	}
+	return h.Step(ctx, "homarr-key", "verify the selected Komga Homarr credential", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) {
+			err := VerifyHomarr(ctx, h)
+			return err == nil, err
+		},
+		Do:         func(ctx context.Context) error { return prepareHomarrKey(ctx, h) },
+		Hint:       HomarrRecoveryHint,
+		Credential: "admin",
+	})
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {
+	if homarrRequested(h) {
+		return VerifyHomarr(ctx, h)
+	}
 	_, err := signedIn(ctx, h, (App{}).AdminEmail(h.AdminUser()), h.AdminPassword())
 	return err
 }

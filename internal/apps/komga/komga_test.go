@@ -158,8 +158,13 @@ func TestAppContract(t *testing.T) {
 	if info.ID != "komga" || info.Service != "komga" || info.Image != "gotson/komga:1.x" || info.Port != 25600 || info.ContainerPortFor(9999) != 25600 || !info.UsesMedia {
 		t.Fatalf("unexpected App metadata: %+v", info)
 	}
-	if len(a.Inputs()) != 0 || len(a.Links()) != 0 || (komga.App{}).AdminEmail("") != "" || (komga.App{}).AdminEmail("reader") != "reader@selfhost.local" {
+	if len(a.Inputs()) != 5 || len(a.Links()) != 0 || (komga.App{}).AdminEmail("") != "" || (komga.App{}).AdminEmail("reader") != "reader@selfhost.local" {
 		t.Fatal("unexpected inputs, Links or Admin email alias")
+	}
+	for _, input := range a.Inputs() {
+		if !input.Private || !input.RecoveryOnly || input.Required {
+			t.Fatal("credential selection and recovery inputs must stay optional and private")
+		}
 	}
 	var compose struct {
 		Services map[string]struct {
