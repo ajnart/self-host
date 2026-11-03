@@ -1,0 +1,20 @@
+docs/homarr-coolify-contract.md
+  h_d6e478ca18e517 1-34
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 13-14
+internal/apps/homarr/target_coolify.go
+  h_d6e478ca18e517 1-124
+internal/apps/homarr/target_coolify_test.go
+  h_d6e478ca18e517 1-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9decc14a9fff8c2e9ec7c1de59d0017adce4d403",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
