@@ -1,0 +1,18 @@
+internal/tui/onboarding_flow_test.go
+  h_d6e478ca18e517 4,27-52,54-78,80-87,92-115
+internal/tui/testdata/onboarding-what-selected-input-narrow.golden
+  h_d6e478ca18e517 22
+internal/tui/testdata/onboarding-what-selected-input.golden
+  h_d6e478ca18e517 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c52023408c019a967556751436ad9f19c73aed67",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
