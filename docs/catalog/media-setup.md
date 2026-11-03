@@ -36,6 +36,20 @@ Existing Projects without `MEDIA_LAYOUT=shared` retain their paths. Explicit `--
 - Preserve existing categories, seed goals and cleanup choices. Post-import category changes can affect completed-download removal; removing torrents/data needs explicit intent.
 - Provider connection success is narrower than a successful import; neither proves hardlinks or populated-library acceptance.
 
+Sonarr, Radarr and Lidarr expose guarded Links to qBittorrent, SABnzbd, NZBGet, Deluge and Transmission through one shared downloader aggregate. They reuse accepted credentials and existing configuration; registration does not initialize categories, plugins, labels, folders or libraries. Review the product-specific prerequisites before retrying: [SABnzbd](traps/sabnzbd.md), [NZBGet](traps/nzbget.md), [Deluge](traps/deluge.md), [Transmission](traps/transmission.md) and [qBittorrent](traps/qbittorrent.md). NZBGet's category matching is case-sensitive, and sanitizer-sensitive appended category names remain Manual rather than verifying the wrong folder. Source/fake connection checks do not establish native imports or lifecycle acceptance.
+
+## Preserve the selected downloader
+
+Fresh connection creation is guarded for all five downloaders. Before target credential access, native tests or ownership/resource writes, the Link checks authenticated Arr inventory and schema facts. An enabled client in the same protocol family blocks automatic addition: qBittorrent, Deluge and Transmission compete for torrents; SABnzbd and NZBGet compete for Usenet. Ownership, different hosts, priorities, tags, indexer assignments or apparent unavailability do not exempt an enabled competitor. Missing or ambiguous enabled/protocol/schema facts remain Manual, not an empty or disabled inventory.
+
+An empty valid inventory permits the first client when its schema and all existing prerequisites pass. Explicitly disabled rows do not compete; an enabled opposite-family row can coexist only when its exact protocol and implementation/configuration contract are corroborated by its authenticated schema. Installing all five Apps does not mean all five Links configure automatically: after the first permitted client per protocol, later same-family creation remains Manual. Installation order is not approval to switch an existing choice.
+
+For a selection hold, open the consuming App's Settings > Download Clients. Keep the existing choice and configure an additional connection manually, or explicitly disable competing clients only if you intend to select the new target, then retry `self-host setup sonarr`, `radarr` or `lidarr` as appropriate. Preserve pending jobs and configuration. Setup does not automatically rerank clients, change priorities, tags or indexer assignments, or change existing enabled flags. Stopping or uninstalling a downloader is not proof its Arr entry was disabled.
+
+Existing owned multi-client arrangements are not rebalanced or retrospectively undone. Their existing verification and edited/disabled/credential/ownership holds still apply; accepted credential updates preserve the owned ID and unrelated choices. Removal deletes only a validated owned connection and preserves survivors. Reinstallation without ownership is fresh creation: an enabled same-family survivor still holds, even after its name or endpoint changes. See the [SABnzbd ownership and lifecycle contract](../arr-sabnzbd-contract.md#ownership-and-lifecycle).
+
+Admission uses fresh authenticated snapshots in both the Link's Check and Do, not an atomic Arr transaction. The Project lock does not lock Arr's UI/API or other controllers; edits after admission can still race creation. These source/fake checks do not establish unchanged selection across protocols, future selector behavior, native downloads, imports, provider-account acceptance or runtime lifecycle acceptance. All credential, category and path prerequisites above remain required.
+
 ## Quality and naming are user choices
 
 - Review playback hardware, language, storage budget, allowed qualities and upgrade limits before changing a quality profile.

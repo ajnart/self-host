@@ -10,7 +10,7 @@ For media paths and user choices, read [Media Setup](media-setup.md).
 - Verify image, ports, mounts and authentication against primary upstream sources; retain those URLs in `docs/catalog/traps/<id>.md`.
 - Implement the existing [`app.App` contract](../../internal/app/app.go): `Info`, `Inputs`, `Compose`, `Setup`, `Check`, `Links`.
 - Reuse a comparable App and [`internal/helpers/`](../../internal/helpers/); add no parallel Setup framework.
-- Servarr consumers reuse [`QBittorrentLink` and `ApplicationLink`](../../internal/apps/servarr/links.go); pass the actual API prefix and category rather than copying a downloader implementation.
+- Servarr consumers reuse [`DownloadClientLinks`](../../internal/apps/servarr/downloadclients.go) for supported downloaders and [`ApplicationLink`](../../internal/apps/servarr/links.go) for consuming application Links. Pass the actual API prefix, category field and category rather than copying a downloader implementation; keep target-specific authentication and read-only prerequisites in the target owner.
 - `tools/appgen` is a historical importer, not a safe scaffold: it references removed `internal/onboard` and overwrites App sources and registration. Do not run it to add an App.
 
 ## Compose and optional interfaces
