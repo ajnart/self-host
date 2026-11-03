@@ -884,6 +884,15 @@ audited adapter repair; a successful CLI probe does not lift it. Preserve the
 token and selection without TLS bypasses, certificate enrollment or a forwarding
 proxy.
 
+`syncthingRelay` connects an existing Syncthing relay's HTTP status listener
+(normally port 22070) to Homarr Stats only: active sessions, connections and
+proxied bytes. The endpoint is a bare HTTP(S) origin; supply no credentials or
+selection, because `/status` is unauthenticated and the relay `-token` is not
+status authentication. A protected status proxy, redirect, non-JSON response or
+missing counter stays Manual with no TLS or authentication bypass. The status
+document has no relay Device ID, so identity attestation stays Manual. Setup
+never uses the Syncthing GUI, joins a pool, opens a public port or pairs devices.
+
 ## Telemetry
 
 `self-host` sends a little anonymous data to the project's PostHog (ADR 0011):

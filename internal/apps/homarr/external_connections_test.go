@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -26,6 +28,7 @@ type externalConnectionFixture struct {
 	clearedApps  int
 	detail       map[string]any
 	detailStatus int
+	statsAt      float64
 }
 
 func externalConnectionReply(w http.ResponseWriter, value any) {
@@ -49,7 +52,19 @@ func (f *externalConnectionFixture) ServeHTTP(w http.ResponseWriter, r *http.Req
 	case "/api/trpc/info.getInfo":
 		externalConnectionReply(w, map[string]any{"version": "2.10.1"})
 	case "/api/trpc/integration.getKinds":
-		externalConnectionReply(w, []any{map[string]any{"kind": "testPeer", "requiredSecrets": [][]string{{"apiKey"}}}})
+		externalConnectionReply(w, []any{map[string]any{"kind": "testPeer", "requiredSecrets": [][]string{{"apiKey"}}}, map[string]any{"kind": "syncthingRelay", "requiredSecrets": [][]string{{}}}})
+	case "/api/trpc/widget.stats.catalog":
+		externalConnectionReply(w, map[string]any{"metrics": []any{
+			map[string]any{"key": "numActiveSessions", "unit": "count"}, map[string]any{"key": "numConnections", "unit": "count"}, map[string]any{"key": "bytesProxied", "unit": "bytes"},
+		}})
+	case "/api/trpc/widget.stats.snapshot", "/api/trpc/widget.stats.refresh":
+		if f.statsAt == 0 {
+			f.statsAt = float64(time.Now().UnixMilli())
+		}
+		if strings.HasSuffix(r.URL.Path, "refresh") {
+			f.statsAt++
+		}
+		externalConnectionReply(w, map[string]any{"updatedAt": f.statsAt, "error": false, "stale": false, "retryAt": 0, "values": map[string]any{"numActiveSessions": 0, "numConnections": 0, "bytesProxied": 0}})
 	case "/api/trpc/integration.all":
 		externalConnectionReply(w, f.integrations)
 	case "/api/trpc/integration.byId":
