@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -173,6 +175,86 @@ func TestPairExplicitManualAndFailedOutcomes(t *testing.T) {
 	}
 }
 
+func TestPairObservedFailuresPrecedeManualAndMissingPeers(t *testing.T) {
+	for _, order := range []string{"consumer-first", "target-first"} {
+		for _, failingID := range []string{"consumer", "peer"} {
+			for _, manual := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/manual=%t", order, failingID, manual), func(t *testing.T) {
+					consumer := pairFixtureApp{id: "consumer", consumer: true}
+					peer := pairFixtureApp{id: "peer"}
+					for _, selected := range []*pairFixtureApp{&consumer, &peer} {
+						selected.setup = func(ctx context.Context, h *helpers.H) error {
+							return h.Step(ctx, "observation", "observe fixture", helpers.StepSpec{Do: func(context.Context) error {
+								if h.App == failingID {
+									return errors.New("synthetic failure")
+								}
+								if manual {
+									return helpers.ErrManual
+								}
+								return nil
+							}, Hint: "fixture prerequisite"})
+						}
+					}
+					p, _, err := pairFake(t, order, consumer, peer)
+					if err != nil {
+						t.Fatal(err)
+					}
+					assertObserved := func(result PairInspection, required bool) {
+						t.Helper()
+						fails := 0
+						manualObserved := false
+						for _, item := range result.Apps {
+							if item.Setup == "manual" {
+								manualObserved = true
+							}
+							seen := map[string]bool{}
+							for _, step := range item.Steps {
+								if seen[step.ID] {
+									t.Fatal("producer duplicated a step within an App")
+								}
+								seen[step.ID] = true
+								if step.Status == "fail" {
+									fails++
+								}
+							}
+						}
+						if required && fails == 0 {
+							t.Fatal("producer dropped the observed failure")
+						}
+						if fails > 0 && (result.Outcome != PairFailed || result.Reason != "setup") {
+							t.Fatal("observed failure lost summary precedence")
+						}
+						if fails == 0 && manualObserved && result.Outcome != PairManual {
+							t.Fatal("ordinary Manual observation lost summary precedence")
+						}
+					}
+					assertObserved(p.Initial(), false)
+					for _, action := range []func() (PairInspection, error){
+						func() (PairInspection, error) { return p.Inspect(t.Context()) },
+						func() (PairInspection, error) { return p.Setup(t.Context(), "") },
+						func() (PairInspection, error) {
+							other := "consumer"
+							if failingID == "consumer" {
+								other = "peer"
+							}
+							return p.Remove(t.Context(), other)
+						},
+					} {
+						observed, err := action()
+						if err != nil {
+							t.Fatal(err)
+						}
+						assertObserved(observed, true)
+					}
+					if p.owner.closed || p.owner.pair.failed {
+						t.Fatal("ordinary failure observations disabled the Pair")
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestPairPartialStartupAndCancellationCleanOneOwner(t *testing.T) {
 	for _, mode := range []string{"partial", "canceled"} {
 		t.Run(mode, func(t *testing.T) {
@@ -208,6 +290,282 @@ func TestPairActionsNeverRenewWorkDeadline(t *testing.T) {
 	}
 	if err := p.Close(t.Context()); err != nil {
 		t.Fatal("work deadline canceled reserved cleanup")
+	}
+}
+
+func TestPairDirectCloseFailurePermanentlyDisablesOwner(t *testing.T) {
+	p, f, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.cleanupFailure = true
+	t.Cleanup(func() { f.cleanupFailure = false })
+	workDeadline, deadline := p.owner.workDeadline, p.owner.deadline
+	started, release := make(chan bool, 1), make(chan struct{})
+	var once, unblock sync.Once
+	defer unblock.Do(func() { close(release) })
+	f.runner.OnFunc("docker container rm", func(cmd system.Cmd) system.Result {
+		once.Do(func() {
+			started <- p.owner.pair.failed
+			<-release
+		})
+		return f.run(cmd)
+	})
+	closed := make(chan error, 1)
+	go func() { closed <- p.Close(t.Context()) }()
+	select {
+	case disabled := <-started:
+		if !disabled {
+			t.Error("Pair was not disabled before cleanup began")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("fake cleanup did not reach its owned removal")
+	}
+	consumer, _ := p.App("consumer")
+	queued := make(chan struct{}, 2)
+	results := make(chan error, 2)
+	for _, action := range []func() error{
+		func() error { _, err := p.Inspect(t.Context()); return err },
+		func() error { _, err := consumer.GetAPIKey(t.Context(), ""); return err },
+	} {
+		go func() { queued <- struct{}{}; results <- action() }()
+	}
+	for range 2 {
+		<-queued
+	}
+	unblock.Do(func() { close(release) })
+	if err := <-closed; err == nil || p.owner.closed || !p.owner.pair.failed {
+		t.Fatal("direct failed close did not retain a disabled recoverable owner")
+	}
+	for range 2 {
+		if err := <-results; err == nil {
+			t.Fatal("a call queued during close resumed the owner")
+		}
+	}
+	assertDisabled := func() {
+		t.Helper()
+		before := len(f.runner.Calls())
+		storage, svc := p.owner.guard.p, p.owner.service
+		p.owner.guard.p, p.owner.service = nil, nil
+		defer func() { p.owner.guard.p, p.owner.service = storage, svc }()
+		for _, id := range []string{"consumer", "peer"} {
+			view, _ := p.App(id)
+			if _, err := view.GetAPIKey(t.Context(), ""); err == nil {
+				t.Fatal("closing owner exposed a key")
+			}
+			if _, err := view.Credentials(t.Context()); err == nil {
+				t.Fatal("closing owner exposed credentials")
+			}
+			if _, err := view.Info(t.Context()); err == nil {
+				t.Fatal("closing owner read storage for Info")
+			}
+		}
+		if _, err := p.Inspect(t.Context()); err == nil {
+			t.Fatal("closing Pair remained inspectable")
+		}
+		if _, err := p.Setup(t.Context(), ""); err == nil {
+			t.Fatal("closing Pair accepted Setup")
+		}
+		if _, err := p.Remove(t.Context(), "peer"); err == nil {
+			t.Fatal("closing Pair accepted Remove")
+		}
+		if _, err := p.Install(t.Context(), "peer"); err == nil {
+			t.Fatal("closing Pair accepted Install")
+		}
+		if _, err := p.CreateSonarrFilterWitness(t.Context()); err == nil {
+			t.Fatal("closing Pair accepted a witness create")
+		}
+		if _, err := p.ReadSonarrFilterWitness(t.Context()); err == nil || len(f.runner.Calls()) != before {
+			t.Fatal("closing Pair reached its runner")
+		}
+	}
+	assertDisabled()
+	if err := p.Close(t.Context()); err == nil {
+		t.Fatal("repeated failed cleanup was hidden")
+	}
+	assertDisabled()
+	if _, err := readOwnership(p.RecoveryPath()); err != nil {
+		t.Fatal("failed direct cleanup lost its recovery ownership")
+	}
+	f.cleanupFailure = false
+	if err := p.Close(t.Context()); err != nil || len(f.containers) != 0 || !p.owner.closed {
+		t.Fatal("direct cleanup retry could not finish")
+	}
+	assertDisabled()
+	if !p.owner.workDeadline.Equal(workDeadline) || !p.owner.deadline.Equal(deadline) {
+		t.Fatal("direct close renewed an owner clock")
+	}
+}
+
+func TestPairSelectedCredentialsInfrastructureFailureClosesOwner(t *testing.T) {
+	for _, method := range []string{"key", "credentials", "info-consumer", "info-peer"} {
+		for _, mode := range []string{"deadline", "cancel", "cancel-during-read", "deadline-during-read", "storage", "presence-storage"} {
+			if strings.HasPrefix(method, "info-") && mode != "deadline" && mode != "cancel" && mode != "presence-storage" {
+				continue
+			}
+			for _, cleanupFailed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/cleanup-failed=%t", method, mode, cleanupFailed), func(t *testing.T) {
+					p, f, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer"})
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() { f.cleanupFailure = false })
+					view, _ := p.App("peer")
+					if strings.HasPrefix(method, "info-") {
+						view, _ = p.App(strings.TrimPrefix(method, "info-"))
+					}
+					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					root := p.RecoveryPath()
+					owner := p.owner.service.Deps.CurrentUser
+					wantReason := string(StartupReasonSetup)
+					switch mode {
+					case "deadline":
+						p.owner.workDeadline = time.Now().Add(-time.Second)
+					case "cancel":
+						cancel()
+					case "cancel-during-read":
+						p.owner.service.Deps.CurrentUser = func() (system.User, error) {
+							cancel()
+							return owner()
+						}
+					case "deadline-during-read":
+						p.owner.workDeadline = time.Now().Add(20 * time.Millisecond)
+						p.owner.service.Deps.CurrentUser = func() (system.User, error) {
+							<-time.After(time.Until(p.owner.workDeadline) + time.Millisecond)
+							return owner()
+						}
+					case "storage":
+						wantReason = string(StartupReasonStorage)
+						p.owner.service.Deps.CurrentUser = func() (system.User, error) {
+							return system.User{}, errors.New(syntheticKey + " " + root)
+						}
+					case "presence-storage":
+						wantReason = string(StartupReasonStorage)
+						if err := os.WriteFile(p.owner.guard.p.Path("compose.yml"), []byte("services: ["), 0o600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if strings.HasPrefix(method, "info-") && mode != "presence-storage" {
+						if err := os.WriteFile(p.owner.guard.p.Path("compose.yml"), []byte("services: ["), 0o600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					deadline := p.owner.workDeadline
+					f.cleanupFailure = cleanupFailed
+					if strings.HasPrefix(method, "info-") {
+						_, err = view.Info(ctx)
+					} else if method == "key" {
+						_, err = view.GetAPIKey(ctx, "")
+					} else {
+						_, err = view.Credentials(ctx)
+					}
+					var operation *OperationError
+					if !errors.As(err, &operation) || operation.Reason() != wantReason {
+						t.Fatal("credential failure lost its typed Pair boundary")
+					}
+					if strings.Contains(err.Error(), syntheticKey) || strings.Contains(err.Error(), root) {
+						t.Fatal("private credential failure escaped")
+					}
+					if strings.HasPrefix(mode, "deadline") && !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatal("owner work deadline lost")
+					}
+					if strings.HasPrefix(mode, "cancel") && !errors.Is(err, context.Canceled) {
+						t.Fatal("caller cancellation lost")
+					}
+					if operation.CleanupError() != nil != cleanupFailed || p.owner.closed == cleanupFailed || !p.owner.pair.failed || !p.owner.workDeadline.Equal(deadline) {
+						t.Fatal("credential cleanup state or immutable deadline lost")
+					}
+					if cleanupFailed {
+						if len(f.containers) != 2 {
+							t.Fatal("failed cleanup did not retain resources")
+						}
+						if _, err := readOwnership(root); err != nil {
+							t.Fatal("cleanup recovery ownership lost")
+						}
+					}
+					assertDisabled := func() {
+						t.Helper()
+						before := len(f.runner.Calls())
+						for _, id := range []string{"consumer", "peer"} {
+							selected, _ := p.App(id)
+							if _, err := selected.GetAPIKey(t.Context(), ""); err == nil {
+								t.Fatal("failed owner exposed a selected key")
+							}
+							if _, err := selected.Credentials(t.Context()); err == nil {
+								t.Fatal("failed owner exposed selected credentials")
+							}
+							if _, err := selected.Info(t.Context()); err == nil {
+								t.Fatal("failed owner exposed selected Info")
+							}
+						}
+						if _, err := p.Inspect(t.Context()); err == nil {
+							t.Fatal("failed Pair remained inspectable")
+						}
+						if _, err := p.Setup(t.Context(), ""); err == nil {
+							t.Fatal("failed Pair accepted Setup")
+						}
+						if _, err := p.Remove(t.Context(), "peer"); err == nil {
+							t.Fatal("failed Pair accepted Remove")
+						}
+						if _, err := p.Install(t.Context(), "peer"); err == nil || len(f.runner.Calls()) != before {
+							t.Fatal("disabled owner reached its runner")
+						}
+					}
+					assertDisabled()
+					if cleanupFailed {
+						if err := p.Close(t.Context()); err == nil {
+							t.Fatal("failed credential cleanup retry was hidden")
+						}
+						assertDisabled()
+					}
+					f.cleanupFailure = false
+					if err := p.Close(t.Context()); err != nil || len(f.containers) != 0 {
+						t.Fatal("independent credential cleanup could not finish")
+					}
+					assertDisabled()
+				})
+			}
+		}
+	}
+}
+
+func TestPairSelectedCredentialsExpectedAbsenceAndManualRemainLive(t *testing.T) {
+	peer := pairFixtureApp{id: "peer"}
+	peer.setup = func(ctx context.Context, h *helpers.H) error {
+		if err := h.SetSecret(h.Key("api_key"), ""); err != nil {
+			return err
+		}
+		return h.Step(ctx, "manual", "finish fixture", helpers.StepSpec{Do: func(context.Context) error { return helpers.ErrManual }, Hint: "fixture prerequisite"})
+	}
+	p, _, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, _ := p.App("peer")
+	if _, err := view.GetAPIKey(t.Context(), ""); err == nil {
+		t.Fatal("missing key accepted")
+	}
+	if creds, err := view.Credentials(t.Context()); err != nil || creds.APIKey != "" {
+		t.Fatal("Manual credentials without an API key were rejected")
+	}
+	if result, err := p.Inspect(t.Context()); err != nil || result.Outcome != PairManual {
+		t.Fatal("ordinary missing key closed a Manual Pair")
+	}
+	if _, err := p.Remove(t.Context(), "peer"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := view.GetAPIKey(t.Context(), ""); err == nil {
+		t.Fatal("absent App exposed a key")
+	}
+	if _, err := view.Credentials(t.Context()); err == nil {
+		t.Fatal("absent App exposed credentials")
+	}
+	if _, err := view.Info(t.Context()); err == nil {
+		t.Fatal("absent App exposed Info")
+	}
+	if _, err := p.Install(t.Context(), "peer"); err != nil || p.owner.closed || p.owner.pair.failed {
+		t.Fatal("expected credential absence disabled the owner")
 	}
 }
 
