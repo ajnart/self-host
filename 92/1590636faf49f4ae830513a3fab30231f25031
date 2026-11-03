@@ -1,0 +1,54 @@
+docs/homarr-proxmox-proof.md
+  h_d6e478ca18e517 1-132
+internal/app/external_connections.go
+  h_d6e478ca18e517 1-12
+internal/apps/homarr/external_connections.go
+  h_d6e478ca18e517 1-148
+internal/apps/homarr/external_connections_test.go
+  h_d6e478ca18e517 1-376
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 1-15
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 53-62,141-143,670,672-680,700,703-707,860-862,913-931,938,1038-1041,1045-1046,1050-1086,1088-1089,1093-1103,1105,1108-1112,1126-1128,1152-1156,1161-1163,1179-1182,1217-1219,1316-1318,1377-1383,1393-1400
+internal/apps/homarr/ownership.go
+  h_d6e478ca18e517 43-66,88,90-92,94-102
+internal/apps/homarr/ownership_test.go
+  h_d6e478ca18e517 7,155-309
+internal/apps/homarr/shared_widgets.go
+  h_d6e478ca18e517 55-58,60,158-160
+internal/apps/homarr/target_proxmox.go
+  h_d6e478ca18e517 1-138
+internal/apps/homarr/target_proxmox_external_test.go
+  h_d6e478ca18e517 1-97
+internal/apps/homarr/target_proxmox_test.go
+  h_d6e478ca18e517 1-157
+internal/cli/cli.go
+  h_d6e478ca18e517 254
+internal/cli/connections.go
+  h_d6e478ca18e517 1-64
+internal/cli/connections_test.go
+  h_d6e478ca18e517 1-124
+internal/helpers/external_connections.go
+  h_d6e478ca18e517 1-15
+internal/helpers/helpers.go
+  h_d6e478ca18e517 83-85
+internal/service/connections.go
+  h_d6e478ca18e517 1-531
+internal/service/connections_test.go
+  h_d6e478ca18e517 1-383
+internal/service/service.go
+  h_d6e478ca18e517 243,304,332-335,438-444
+internal/service/status.go
+  h_d6e478ca18e517 64-68,100-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "921590636faf49f4ae830513a3fab30231f25031",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
