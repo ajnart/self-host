@@ -50,6 +50,7 @@ var repos = map[string]string{
 	"keycloak":             "keycloak/keycloak",
 	"kopia":                "kopia/kopia",
 	"lidarr":               "Lidarr/Lidarr",
+	"karakeep":             "karakeep-app/karakeep",
 	"linkwarden":           "linkwarden/linkwarden",
 	"lldap":                "lldap/lldap",
 	"loki":                 "grafana/loki",
