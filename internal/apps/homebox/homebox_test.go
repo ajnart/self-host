@@ -211,8 +211,8 @@ func TestHomeboxOfficialPersistentCompose(t *testing.T) {
 			t.Fatal("existing credential and identity recovery must remain optional and private")
 		}
 	}
-	if len(a.Links()) != 0 || !strings.Contains(a.StandaloneGuide(), "Registration starts disabled") || !strings.Contains(a.StandaloneGuide(), "not yet supported") {
-		t.Fatal("the independent App slice must not claim automatic bootstrap or Homarr coverage")
+	if len(a.Links()) != 0 || !strings.Contains(a.StandaloneGuide(), "Registration starts disabled") || !strings.Contains(a.StandaloneGuide(), "are not supported") {
+		t.Fatal("the independent App slice must not claim automatic bootstrap or key issuance")
 	}
 	for user, expected := range map[string]string{"admin": "admin@selfhost.local", "OWNER@EXAMPLE.TEST": "owner@example.test", "": ""} {
 		if a.AdminEmail(user) != expected {

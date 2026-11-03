@@ -5,9 +5,9 @@
 This is a partial App-only implementation for #156, based on official Homebox
 0.27.1 source revision `1fd28822634a3d5935c002d569559ef46530d4a0`.
 The App is not yet registered in the Catalog. Automatic first-account creation,
-dedicated key issuance and native Homarr wiring remain unimplemented pending
-reviewed shared contracts. Source/fake checks are not runtime, rendered-widget,
-Backup/Restore or lifecycle acceptance.
+dedicated key issuance remain Manual. The native Homarr `homebox` integration
+is implemented in source over the existing API key. Source/fake checks are not
+runtime, rendered-widget, Backup/Restore or lifecycle acceptance.
 
 ## Deployment and preservation
 
@@ -95,14 +95,16 @@ account with the known Admin login, then disable registration again. For
 existing data, restore its known login or matching private key/identity instead.
 Preserve data, pepper and the selected household throughout.
 
-Homarr's later exact `homebox` integration supports username/password or API key
-and only the Stats widget. Initial candidate metrics are `items`, `locations`
-and `users`; labels, warranty count and currency-formatted total value are
-optional. The provider fetches all six values even when fewer are displayed.
-Dedicated credential issuance, saved-integration identity, central advancing
-Stats verification, both installation orders and ownership-preserving
-removal/reconnect must be implemented and accepted separately. No native
-coverage is claimed by this App package.
+Homarr's exact `homebox` integration uses the existing account API key
+(`homebox.api_key`, with its matching `homebox.account_identity`) and only the
+Stats widget (`items`, `locations`, `users`). Homarr reads the key; it never
+logs in with the Admin password, issues, rotates or revokes a key. Homebox keys
+have no read-only scope and inherit the owner's write access; Homarr only reads.
+Without a known matching key and identity the link stays Manual with recovery
+hints and no Homarr mutation. The saved Homarr integration must read the same
+account ID as the saved identity, so equal counts never establish identity. Zero
+items are accepted; missing, non-count, negative or fractional values and zero
+users are rejected. Runtime and rendered-widget acceptance are not claimed.
 
 ## Primary sources
 
