@@ -48,13 +48,15 @@ func startupLock(ctx context.Context) (func(), error) {
 }
 
 type guardedRunner struct {
-	base     system.Runner
-	p        *project.Project
-	policy   project.FixturePolicy
-	ports    *portLease
-	prepared bool
-	plan     project.FixtureCompose
-	main     containerInfo
+	base       system.Runner
+	p          *project.Project
+	policy     project.FixturePolicy
+	ports      *portLease
+	prepared   bool
+	plan       project.FixtureCompose
+	main       containerInfo
+	containers map[string]containerInfo
+	admitted   *project.FixtureCompose
 }
 
 func composeVerb(args []string) (string, []string) {
@@ -98,6 +100,18 @@ func (p fixturePreparer) PrepareCompose(ctx context.Context, root, name string, 
 	if err != nil {
 		return nil, startupError(StartupReasonUnsupported, "testkit App Compose configuration is unsupported or unavailable")
 	}
+	if r.admitted != nil {
+		for _, service := range plan.Services {
+			if r.admitted.Images[service] != plan.Images[service] {
+				return nil, startupError(StartupReasonUnsupported, "testkit refuses services outside pair admission")
+			}
+		}
+		for _, port := range plan.Ports {
+			if !slices.Contains(r.admitted.Ports, port) {
+				return nil, startupError(StartupReasonPort, "testkit refuses publications outside pair admission")
+			}
+		}
+	}
 	for _, arg := range rest {
 		if !strings.HasPrefix(arg, "-") && !slices.Contains(plan.Services, arg) {
 			return nil, startupError(StartupReasonOwnership, "testkit service outside owned Compose")
@@ -137,6 +151,18 @@ func (r *guardedRunner) validate(cmd system.Cmd) error {
 			return startupError(StartupReasonOwnership, "testkit refuses unscoped Compose")
 		}
 		verb, _ := composeVerb(args[5:])
+		if verb == "rm" && r.admitted != nil {
+			_, rest := composeVerb(args[5:])
+			if len(rest) < 3 || rest[0] != "--stop" || rest[1] != "--force" {
+				return startupError(StartupReasonUnsupported, "testkit refuses removal overrides")
+			}
+			for _, service := range rest[2:] {
+				if !slices.Contains(r.plan.Services, service) || strings.HasPrefix(service, "-") {
+					return startupError(StartupReasonOwnership, "testkit refuses unselected removal")
+				}
+			}
+			return nil
+		}
 		if slices.Contains([]string{"up", "create", "start", "restart"}, verb) {
 			if !r.prepared {
 				return startupError(StartupReasonUnsupported, "testkit creation requires canonical preparation")
