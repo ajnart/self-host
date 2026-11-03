@@ -3,6 +3,7 @@ package catalog
 import (
 	"github.com/ajnart/self-host/internal/apps/lidarr"
 	"github.com/ajnart/self-host/internal/apps/navidrome"
+	"github.com/ajnart/self-host/internal/apps/plantit"
 	"github.com/ajnart/self-host/internal/apps/portainer"
 	"github.com/ajnart/self-host/internal/apps/sabnzbd"
 	"github.com/ajnart/self-host/internal/apps/scrypted"
@@ -16,6 +17,7 @@ func init() {
 	register(
 		lidarr.App{},
 		navidrome.App{},
+		plantit.App{},
 		portainer.App{},
 		sabnzbd.App{},
 		scrypted.App{},

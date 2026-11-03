@@ -41,6 +41,7 @@ func (c *Catalog) App(id string) (app.App, bool) {
 // VM, with the reason and the issue that tracks the way back (#493).
 var unavailable = map[string]string{
 	"passbolt": "it failed on real hosts (https://github.com/ajnart/self-host/issues/456)",
+	"plant-it": "upstream retired its server and offers only the unmaintained 0.10.0 image on MySQL 8.0 (https://github.com/ajnart/self-host/issues/171)",
 }
 
 // Unavailable returns why an App is hidden from new installs, or "" when it

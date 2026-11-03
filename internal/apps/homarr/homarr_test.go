@@ -242,6 +242,7 @@ func (f *fakeHomarr) handler() http.Handler {
 			map[string]any{"kind": "seerr", "requiredSecrets": [][]string{{"apiKey"}}},
 			map[string]any{"kind": "qBittorrent", "requiredSecrets": [][]string{{"apiKey"}, {"username", "password"}}},
 			map[string]any{"kind": "beszel", "requiredSecrets": [][]string{{"username", "password"}}},
+			map[string]any{"kind": "plantit", "requiredSecrets": [][]string{{"username", "password"}}},
 			map[string]any{"kind": "ntfy", "requiredSecrets": [][]string{{"topic"}, {"topic", "apiKey"}}},
 			map[string]any{"kind": "immich", "requiredSecrets": [][]string{{"apiKey"}}},
 		})
