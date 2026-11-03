@@ -1,0 +1,14 @@
+internal/project/directories.go
+  h_d6e478ca18e517 126,153-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91870c57311bcc0ca46416ef088353dfe2216223",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
