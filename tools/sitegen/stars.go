@@ -92,6 +92,7 @@ var repos = map[string]string{
 	"seerr":                "seerr-team/seerr",
 	"slskd":                "slskd/slskd",
 	"sonarr":               "Sonarr/Sonarr",
+	"sportarr":             "Sportarr/Sportarr",
 	"speedtest-tracker":    "alexjustesen/speedtest-tracker",
 	"stalwart-mail":        "stalwartlabs/stalwart",
 	"stirling-pdf":         "Stirling-Tools/Stirling-PDF",

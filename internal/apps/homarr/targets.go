@@ -20,6 +20,7 @@ func targets() []target {
 		nextcloudTarget(),
 		lidarrTarget(),
 		binderyTarget(),
+		sportarrTarget(),
 		embyTarget(),
 		piholeTarget(),
 		uptimeKumaTarget(),
