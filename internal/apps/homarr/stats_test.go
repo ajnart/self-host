@@ -28,6 +28,7 @@ type statsFixture struct {
 	afterRaw      string
 	retryAt       any
 	hasRetryAt    bool
+	keepValues    bool
 }
 
 func newStatsFixture() *statsFixture {
@@ -74,7 +75,7 @@ func (f *statsFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		values := f.values
-		if f.refreshes > 1 {
+		if f.refreshes > 1 && !f.keepValues {
 			values = map[string]any{"requests": float64(0)}
 		}
 		refreshed := map[string]any{"updatedAt": f.timestamp, "error": false, "stale": false, "values": values}

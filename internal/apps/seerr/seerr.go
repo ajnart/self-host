@@ -41,6 +41,7 @@ func (App) Info() app.Info {
 
 func (App) Inputs() []app.Input {
 	return []app.Input{
+		{Key: "media_server", Prompt: "Seerr media server: jellyfin, plex or emby", Help: "Choose explicitly when Plex, Emby or multiple media servers are installed. An existing backend is preserved; changing this input never migrates it. The existing single-Jellyfin default remains unchanged.", Validate: validateBackend},
 		{Key: "sonarr_profile", Prompt: "Sonarr quality profile ID or exact name", RecoveryOnly: true, Help: "Optional when Sonarr has one profile. With multiple profiles, choose an upstream profile ID or unique exact name; existing connections are preserved."},
 		{Key: "radarr_profile", Prompt: "Radarr quality profile ID or exact name", RecoveryOnly: true, Help: "Optional when Radarr has one profile. With multiple profiles, choose an upstream profile ID or unique exact name; existing connections are preserved."},
 	}
@@ -80,7 +81,7 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 func (App) Links() []app.Link {
-	return []app.Link{jellyfinLink(), serverLink(sonarr), serverLink(radarr)}
+	return []app.Link{jellyfinLink(), mediaBackendLink("plex"), mediaBackendLink("emby"), serverLink(sonarr), serverLink(radarr)}
 }
 
 func keyHeader(h *helpers.H) map[string]string {
@@ -94,11 +95,19 @@ type public struct {
 
 func readPublic(ctx context.Context, h *helpers.H) (public, error) {
 	var p public
-	resp, err := h.Expect(ctx, helpers.Request{Path: "/api/v1/settings/public"})
+	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/v1/settings/public", NoRedirect: true})
 	if err != nil {
 		return p, err
 	}
-	return p, resp.Decode(&p)
+	var raw struct {
+		Initialized     *bool `json:"initialized"`
+		MediaServerType *int  `json:"mediaServerType"`
+	}
+	if resp.Status != 200 || resp.Decode(&raw) != nil || raw.Initialized == nil || raw.MediaServerType == nil || *raw.MediaServerType < 1 || *raw.MediaServerType > mediaServerNone {
+		return p, errors.New("Seerr returned incomplete media-server state; review Setup before retrying, without replacing its backend")
+	}
+	p.Initialized, p.MediaServerType = *raw.Initialized, *raw.MediaServerType
+	return p, nil
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
@@ -191,18 +200,27 @@ func verifyJellyfinTarget(ctx context.Context, from, to *helpers.H) error {
 }
 
 func connected(ctx context.Context, h, to *helpers.H) (bool, error) {
-	p, err := readPublic(ctx, h)
-	if err != nil || !p.Initialized || p.MediaServerType != mediaServerJellyfin {
+	selected, p, err := selectedBackend(ctx, h)
+	if err != nil {
 		return false, err
+	}
+	if selected != "jellyfin" {
+		return true, nil
+	}
+	if !p.Initialized || p.MediaServerType != mediaServerJellyfin {
+		return false, nil
 	}
 	err = verifyJellyfinTarget(ctx, h, to)
 	return err == nil, err
 }
 
 func connect(ctx context.Context, from, to *helpers.H) error {
-	p, err := readPublic(ctx, from)
+	selected, p, err := selectedBackend(ctx, from)
 	if err != nil {
 		return err
+	}
+	if selected != "jellyfin" {
+		return nil
 	}
 	if p.MediaServerType != mediaServerNone && p.MediaServerType != mediaServerJellyfin {
 		from.Info("Seerr is already set up with another media server; its connection and library selections were left unchanged.")
@@ -245,7 +263,7 @@ func connect(ctx context.Context, from, to *helpers.H) error {
 }
 
 func jellyfinLink() app.Link {
-	return app.NewLink("link-jellyfin", "jellyfin", "media server: Jellyfin",
+	link := app.NewLink("link-jellyfin", "jellyfin", "media server: Jellyfin",
 		app.LinkStep{
 			Message: "connect Jellyfin and preserve existing library selections",
 			Check: func(ctx context.Context, from, to *helpers.H) (bool, error) {
@@ -257,6 +275,8 @@ func jellyfinLink() app.Link {
 					". For a new Seerr, open /setup, choose Jellyfin and sign in with the Admin login (any email). Do not replace an existing media server."
 			},
 		}, nil)
+	link.Applicable = backendApplicable("jellyfin")
+	return link
 }
 
 // server is Sonarr or Radarr as Seerr sees them.
@@ -374,7 +394,7 @@ func (s server) add(ctx context.Context, from, to *helpers.H) error {
 		return err
 	}
 	if !p.Initialized {
-		return errors.New("finish Seerr's media-server setup before adding a request service (see link-jellyfin for Jellyfin)")
+		return errors.New("finish Seerr's selected media-server Setup before adding a request service (link-jellyfin for Jellyfin, link-plex for Plex or link-emby for Emby)")
 	}
 	ids, err := s.findOwned(ctx, from, to)
 	if err != nil || len(ids) > 0 {
