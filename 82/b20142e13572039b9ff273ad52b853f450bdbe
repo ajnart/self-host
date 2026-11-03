@@ -1,0 +1,42 @@
+dcm/src/lib/selfhost.ts
+  h_d6e478ca18e517 55
+docs/catalog/traps/tandoor.md
+  h_d6e478ca18e517 1-183
+internal/apps/homarr/target_tandoor.go
+  h_d6e478ca18e517 1-40
+internal/apps/homarr/target_tandoor_test.go
+  h_d6e478ca18e517 1-133
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 46
+internal/apps/tandoor/homarr.go
+  h_d6e478ca18e517 1-276
+internal/apps/tandoor/homarr_test.go
+  h_d6e478ca18e517 1-489
+internal/apps/tandoor/inventory.go
+  h_d6e478ca18e517 1-99
+internal/apps/tandoor/issuance_response.go
+  h_d6e478ca18e517 1-105
+internal/apps/tandoor/owner.go
+  h_d6e478ca18e517 1-190
+internal/apps/tandoor/tandoor.go
+  h_d6e478ca18e517 1-161
+internal/apps/tandoor/tandoor_test.go
+  h_d6e478ca18e517 1-447
+internal/catalog/batch_misc2.go
+  h_d6e478ca18e517 15,33
+tools/sitegen/icons.go
+  h_d6e478ca18e517 97
+tools/sitegen/stars.go
+  h_d6e478ca18e517 97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82b20142e13572039b9ff273ad52b853f450bdbe",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
