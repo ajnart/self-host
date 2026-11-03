@@ -1,12 +1,14 @@
 package thingport
 
 import (
+	"context"
 	"errors"
 	"net/mail"
 	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/helpers"
 )
 
 type App struct{}
@@ -42,6 +44,20 @@ func (App) Secrets() []app.SecretSpec {
 		{Name: "auth_secret", Length: 64, Hex: true},
 		{Name: "db_password", Length: 48, Hex: true},
 	}
+}
+
+func (App) Preflight(ctx context.Context, h *helpers.H) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	uid, err := strconv.ParseUint(h.Settings["PUID"], 10, 32)
+	if err != nil {
+		return &helpers.ManualError{Hint: "Thingport needs a valid nonzero container PUID in the effective public Host settings before startup. Review or restore those settings without changing existing Project IDs or storage ownership, then retry."}
+	}
+	if uid == 0 {
+		return &helpers.ManualError{Hint: "Thingport's official backend cannot use container PUID 0, including self-host's rootless defaults. Use a rootful Docker Project with a nonzero PUID and correctly owned Thingport storage, or wait for a supported rootless configuration. Do not change existing Project IDs or recursively chown data to bypass this hold."}
+	}
+	return nil
 }
 
 func (App) Compose(rc app.RenderContext) string {

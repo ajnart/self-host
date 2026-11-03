@@ -26,6 +26,22 @@ upstream database migrations before becoming ready. Fresh generated database
 and signing secrets use the existing `SecretDeclarer` boundary; retries retain
 them. Only the backend and database receive their required secret values.
 
+Container PUID `0` is unsupported: the official backend entrypoint recreates
+`appuser`, and BusyBox cannot assign the already occupied root UID. This includes
+self-host's detected rootless defaults. The App's read-only Preflight returns a
+Manual hint before Install starts containers and before Restore removes or
+replaces anything, including paths that could restart original containers during
+rollback. It uses the effective public Host settings: current settings for an
+existing Project, archived settings for a fresh whole Restore. A missing or
+malformed PUID also remains Manual; no private-state inspection or guessed
+identity mapping is used.
+
+Use a rootful Docker Project with a nonzero PUID and correctly owned storage, or
+wait for a supported rootless configuration. Do not change existing Project IDs
+or recursively chown data to bypass the hold. The guard does not migrate storage
+or prove filesystem permissions. Supported nonzero defaults and repeated Install
+continue through owner verification without changing saved token identity.
+
 FlareSolverr is optional for provider imports, not required for login or library
 statistics. This minimal App does not install it, set a fetcher connection,
 connect a provider, import/download a model or start printing. Automatic
