@@ -1,0 +1,75 @@
+internal/apps/anchor/anchor.go
+  s_36f092184c883e::t_ed79f7f82d1dce 36-39,71,78-81
+internal/apps/anchor/anchor_test.go
+  s_0b63679bfab768::t_2ff3601926d65a 208
+internal/apps/anchor/homarr.go
+  s_3708f40cecd7da::t_3b0581665c874a 1-203
+internal/apps/anchor/homarr_test.go
+  s_0812986ae533ff::t_cdab4b01469a91 1-297
+internal/apps/anchor/setup.go
+  s_24f5d99ae33652::t_ddb712b52273dc 214-218
+internal/apps/homarr/target_anchor.go
+  s_0812986ae533ff::t_a30764f22c05a5 1-39
+internal/apps/homarr/target_anchor_test.go
+  s_0b63679bfab768::t_0b125d474d40b1 1-117
+internal/apps/homarr/targets.go
+  s_121da8e8a6b256::t_b1b10d330197ea 44
+internal/catalog/batch_misc2.go
+  s_0b63679bfab768::t_b1ab49aa235abe 5,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7f03cc9feef19ca44186d61b3072fd8d084378ba",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_121da8e8a6b256": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9cc6833-5f1d-42a9-aa64-89128db02c15",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_24f5d99ae33652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a6ee58b-155d-442c-bbc3-c476e21a9a21",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_36f092184c883e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1384766-24f2-4339-aac8-15bc80973fb7",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_3708f40cecd7da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e176a8-21e9-423d-9718-ddb371c05e43",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
