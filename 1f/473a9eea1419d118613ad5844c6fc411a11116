@@ -1,0 +1,22 @@
+docs/homarr-openmediavault-proof.md
+  h_d6e478ca18e517 1-21
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 5-7,38-39,43-56
+internal/apps/homarr/target_openmediavault.go
+  h_d6e478ca18e517 1-94
+internal/apps/homarr/target_openmediavault_test.go
+  h_d6e478ca18e517 1-141
+internal/apps/homarr/target_proxmox.go
+  h_d6e478ca18e517 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f473a9eea1419d118613ad5844c6fc411a11116",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
