@@ -317,13 +317,22 @@ func TestNZBGetLeafRemovalReinstallAndUncertainCreationPreserveOtherClients(t *t
 				t.Fatal("uncertain returned identity was accepted", err)
 			}
 			pending, requests := g.ownership(), g.rpcRequests()
-			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) || g.creates != 1 || g.ownership() != pending || g.rpcRequests() != requests {
+			schemas, resources, native, targetReads := g.schemaReads, g.resourceReads, g.nativeTests, g.targetSecrets.reads
+			intentWrites, targetWrites := g.consumerSecrets.writes, g.targetSecrets.writes
+			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) || g.creates != 1 || g.ownership() != pending || g.rpcRequests() != requests || g.schemaReads != schemas || g.resourceReads != resources || g.nativeTests != native || g.targetSecrets.reads != targetReads || g.consumerSecrets.writes != intentWrites || g.targetSecrets.writes != targetWrites {
 				t.Fatal("uncertain creation was duplicated or its intent was changed", err)
 			}
 			f := newNZBGetLinkFixture(t, consumer)
 			f.pathProbe.supported = true
 			f.backend.SeedDownloadClient(nzbgetSurvivor(consumer))
 			survivor := f.backend.DownloadClients()[0]
+			nzbgetSetClientField(survivor, "host", "qbittorrent")
+			nzbgetSetClientField(survivor, "username", "fixture-admin")
+			nzbgetSetClientField(survivor, "password", "fixture-qb-password")
+			survivorData, err := json.Marshal(survivor)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
@@ -337,8 +346,30 @@ func TestNZBGetLeafRemovalReinstallAndUncertainCreationPreserveOtherClients(t *t
 				t.Fatal(err)
 			}
 			personal["name"], personal["priority"] = "Personal NZBGet", float64(11)
+			nzbgetSetClientField(personal, "host", "personal-nzbget")
 			f.backend.SeedDownloadClient(personal)
 			personalID := personal["id"]
+			personalData, err := json.Marshal(personal)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ownedRecord := f.ownership()
+			for _, masked := range []bool{false, true} {
+				f.mask = masked
+				if err := f.link.Apply(context.Background(), f.from, f.to); err != nil || f.ownership() != ownedRecord || f.creates != 1 || f.updates != 0 {
+					t.Fatal("recorded owned multi-client rerun was treated as fresh selection", err)
+				}
+			}
+			f.mask = false
+			preserved, err := json.Marshal(personal)
+			if err != nil || string(preserved) != string(personalData) {
+				t.Fatal("recorded owned rerun changed a distinct enabled same-family survivor", err)
+			}
+			nzbgetSetClientField(personal, "host", "nzbget")
+			personalData, err = json.Marshal(personal)
+			if err != nil {
+				t.Fatal(err)
+			}
 			f.to.Secrets.Set("ADMIN_PASSWORD", "")
 			f.to.Config.Exec = nil
 			requests, tests, probes := f.rpcRequests(), f.nativeTests, len(f.pathProbe.observed)
@@ -350,19 +381,51 @@ func TestNZBGetLeafRemovalReinstallAndUncertainCreationPreserveOtherClients(t *t
 			if len(items) != 2 || items[0]["id"] != survivor["id"] || items[0]["protocol"] != consumer.survivorProtocol || items[1]["id"] != personalID || items[1]["priority"] != float64(11) || f.deletes != 1 || f.ownership() != "" || f.rpcRequests() != requests || f.nativeTests != tests || len(f.pathProbe.observed) != probes || f.targetSecrets.reads != reads || f.targetSecrets.writes != writes {
 				t.Fatal("recorded removal touched target/native prerequisites or another client")
 			}
+			for index, want := range [][]byte{survivorData, personalData} {
+				got, err := json.Marshal(items[index])
+				if err != nil || string(got) != string(want) || items[index]["enable"] != true {
+					t.Fatal("owned reruns/removal changed a complete enabled survivor DTO", err)
+				}
+			}
 			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.creates != 1 || f.rpcRequests() != requests {
 				t.Fatal("reinstall adopted or replaced the personal same-target resource", err)
 			}
 			nzbgetSetClientField(personal, "host", "personal-nzbget")
 			f.to.Secrets.Set("ADMIN_PASSWORD", password)
 			f.to.Config.Exec = f.pathProbe
-			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
+			before, err := json.Marshal(f.backend.DownloadClients())
+			if err != nil {
 				t.Fatal(err)
 			}
-			items = f.backend.DownloadClients()
-			if len(items) != 3 || items[2]["id"] == firstID || items[2]["protocol"] != consumer.protocol || items[0]["id"] != survivor["id"] || items[1]["id"] != personalID || f.creates != 2 {
-				t.Fatal("reinstall reclaimed the removed owned identity")
+			reads, writes = f.targetSecrets.reads, f.targetSecrets.writes
+			consumerWrites := f.consumerSecrets.writes
+			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || !strings.Contains(err.Error(), "enabled competing client") {
+				t.Fatal("an endpoint edit was misread as permission for same-family creation", err)
 			}
+			after, err := json.Marshal(f.backend.DownloadClients())
+			if err != nil || string(after) != string(before) || f.rpcRequests() != requests || f.nativeTests != tests || len(f.pathProbe.observed) != probes || f.targetSecrets.reads != reads || f.targetSecrets.writes != writes || f.consumerSecrets.writes != consumerWrites || f.ownership() != "" || f.creates != 1 || f.updates != 0 || f.deletes != 1 {
+				t.Fatal("same-family reinstall hold reached the target or changed authority/survivors", err)
+			}
+			t.Run("explicit-person-choice", func(t *testing.T) {
+				personal["enable"] = false
+				personalChoice, err := json.Marshal(personal)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
+					t.Fatal("explicit person choice did not permit fresh guarded creation", err)
+				}
+				items = f.backend.DownloadClients()
+				if len(items) != 3 || items[2]["id"] == firstID || items[2]["protocol"] != consumer.protocol || items[0]["id"] != survivor["id"] || items[1]["id"] != personalID || f.creates != 2 {
+					t.Fatal("explicit-choice reinstall reclaimed the removed owned identity")
+				}
+				for index, want := range [][]byte{survivorData, personalChoice} {
+					got, err := json.Marshal(items[index])
+					if err != nil || string(got) != string(want) || items[0]["enable"] != true {
+						t.Fatal("explicit-choice reinstall changed survivor DTOs beyond the person's choice", err)
+					}
+				}
+			})
 		})
 	}
 }

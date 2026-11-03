@@ -33,9 +33,30 @@ var nzbgetConsumerCases = []nzbgetConsumerCase{
 }
 
 func nzbgetSurvivor(consumer nzbgetConsumerCase) map[string]any {
+	category := consumer.id
+	if consumer.id == "sonarr" {
+		category = "tv-sonarr"
+	}
+	prefix := strings.TrimSuffix(consumer.categoryField, "Category")
+	priority := strings.ToUpper(prefix[:1]) + prefix[1:]
+	fields := []any{}
+	for _, field := range []struct {
+		name  string
+		value any
+	}{
+		{"host", "localhost"}, {"port", float64(8080)}, {"useSsl", false}, {"urlBase", nil},
+		{"username", nil}, {"password", nil}, {consumer.categoryField, category}, {prefix + "ImportedCategory", nil},
+		{"recent" + priority + "Priority", float64(0)}, {"older" + priority + "Priority", float64(0)},
+		{"initialState", float64(0)}, {"sequentialOrder", false}, {"firstAndLast", false}, {"contentLayout", float64(0)},
+	} {
+		fields = append(fields, map[string]any{"name": field.name, "value": field.value})
+	}
+	if consumer.version == "3.1.6.5079" {
+		fields = append(fields, map[string]any{"name": "apiKey", "value": nil})
+	}
 	return map[string]any{
-		"name": "Independent qBittorrent", "implementation": "QBittorrent", "configContract": "QBittorrentSettings", "protocol": consumer.survivorProtocol, "enable": true,
-		"fields": []any{map[string]any{"name": "host", "value": "qbittorrent"}},
+		"name": "Independent qBittorrent", "implementation": "QBittorrent", "configContract": "QBittorrentSettings", "protocol": consumer.survivorProtocol, "enable": true, "priority": float64(4), "tags": []any{float64(2)},
+		"fields": fields,
 	}
 }
 
@@ -193,6 +214,9 @@ func newNZBGetLinkFixture(t *testing.T, consumer nzbgetConsumerCase) *nzbgetLink
 		link: servarr.NZBGetLink(consumer.api, consumer.categoryField, consumer.category), pathProbe: &nzbgetImageIdentityFixture{}, mappings: []map[string]any{},
 		version: consumer.version, schemaStatus: http.StatusOK, resourceStatus: http.StatusOK,
 	}
+	survivorSchema := nzbgetSurvivor(consumer)
+	survivorSchema["name"], survivorSchema["enable"], survivorSchema["priority"], survivorSchema["tags"] = nil, false, float64(1), []any{}
+	f.schemas = []map[string]any{f.template, survivorSchema}
 	backend.AcceptDownloadProvider = func(item map[string]any) bool {
 		if item["implementation"] != "Nzbget" {
 			return true
