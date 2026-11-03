@@ -25,50 +25,24 @@ func selectedDownloadDaemon(ctx context.Context, s *helpers.Session) error {
 	if err != nil || !connected {
 		return downloadClientManual("the intended local daemon must already be connected; select it explicitly in Connection Manager")
 	}
-	response, err := rpc(ctx, s, "web.get_config")
+	selection, err := readDaemonSelection(ctx, s)
 	if err != nil {
-		return downloadClientManual("the saved daemon selection could not be read")
+		return downloadClientManual("the existing daemon selection could not be read or does not uniquely identify the intended local daemon")
 	}
-	var config struct {
-		DefaultDaemon *string `json:"default_daemon"`
-	}
-	if json.Unmarshal(response.Result, &config) != nil || config.DefaultDaemon == nil {
-		return downloadClientManual("the saved daemon selection is unreadable")
-	}
-	response, err = rpc(ctx, s, "web.get_hosts")
-	if err != nil {
-		return downloadClientManual("the existing daemon identities could not be read")
-	}
-	var hosts [][]json.RawMessage
-	if json.Unmarshal(response.Result, &hosts) != nil || hosts == nil {
-		return downloadClientManual("the existing daemon identities are unreadable")
-	}
-	selected := ""
 	ids := map[string]bool{}
-	for _, host := range hosts {
-		var id, address, username string
-		var port int
-		if len(host) != 4 || json.Unmarshal(host[0], &id) != nil || id == "" || ids[id] || json.Unmarshal(host[1], &address) != nil || json.Unmarshal(host[2], &port) != nil || json.Unmarshal(host[3], &username) != nil {
+	for _, host := range selection.hosts {
+		var username string
+		if host.id == "" || ids[host.id] || json.Unmarshal(host.username, &username) != nil {
 			return downloadClientManual("the existing daemon identities are invalid or ambiguous")
 		}
-		ids[id] = true
-		if port != 58846 || !slices.Contains([]string{"127.0.0.1", "localhost", "::1"}, address) || *config.DefaultDaemon != "" && id != *config.DefaultDaemon {
-			continue
-		}
-		if selected != "" {
-			return downloadClientManual("more than one local daemon matches the saved selection")
-		}
-		selected = id
+		ids[host.id] = true
 	}
-	if selected == "" {
-		return downloadClientManual("the saved selection does not identify the intended local daemon")
-	}
-	response, err = rpc(ctx, s, "web.get_host_status", selected)
+	response, err := rpc(ctx, s, "web.get_host_status", selection.id)
 	if err != nil {
 		return downloadClientManual("the selected local daemon could not be verified")
 	}
 	var status []string
-	if json.Unmarshal(response.Result, &status) != nil || len(status) != 3 || status[0] != selected || status[1] != "Connected" || strings.TrimSpace(status[2]) == "" {
+	if json.Unmarshal(response.Result, &status) != nil || len(status) != 3 || status[0] != selection.id || status[1] != "Connected" || strings.TrimSpace(status[2]) == "" {
 		return downloadClientManual("the Web session is not verified as connected to the selected local daemon")
 	}
 	return nil

@@ -12,7 +12,11 @@ import (
 )
 
 func DelugeLink(api, categoryField, category string) app.Link {
-	p := providerLink{api: api, path: "/downloadclient", target: "deluge", implementation: "Deluge", name: "Deluge", endpointField: "host", categoryField: categoryField, category: category, configContract: "DelugeSettings", protocol: "torrent"}
+	protocol := "torrent"
+	if api == V1 {
+		protocol = "TorrentDownloadProtocol"
+	}
+	p := providerLink{api: api, path: "/downloadclient", target: "deluge", implementation: "Deluge", name: "Deluge", endpointField: "host", categoryField: categoryField, category: category, configContract: "DelugeSettings", protocol: protocol}
 	p.connectionFields = func(from, to *helpers.H) ([]connectionField, error) {
 		password := deluge.WebPassword(to)
 		if password == "" || to.Service == "" || to.ContainerPort <= 0 || to.ContainerPort > 65535 {
@@ -22,6 +26,10 @@ func DelugeLink(api, categoryField, category string) app.Link {
 		return []connectionField{{"host", to.Service}, {"port", float64(to.ContainerPort)}, {"useSsl", false}, {"urlBase", ""}, {"password", password}}, nil
 	}
 	p.verify = func(ctx context.Context, from, to *helpers.H, item provider) error {
+		expected := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[from.App]
+		if expected == "" || expected != categoryField || from.App == "lidarr" && api != V1 || from.App != "lidarr" && api != V3 {
+			return p.manual(from, "the Deluge consumer API or category schema is unsupported")
+		}
 		importedField := strings.TrimSuffix(categoryField, "Category") + "ImportedCategory"
 		choices := map[string]string{}
 		fields, _ := item["fields"].([]any)

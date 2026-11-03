@@ -240,3 +240,52 @@ func TestDelugeDownloadPathsRetainGlobalAndLabelMoveSemantics(t *testing.T) {
 		})
 	}
 }
+
+func TestDelugeSetupAndLinkKeepDistinctDaemonSelectionPolicies(t *testing.T) {
+	for _, scenario := range []struct {
+		name                    string
+		hosts                   [][]any
+		defaultDaemon           string
+		setupManual, linkManual bool
+	}{
+		{"fresh", [][]any{{"local-daemon", "127.0.0.1", 58846, "localclient"}}, "", false, false},
+		{"localhost", [][]any{{"local-daemon", "localhost", 58846, "localclient"}}, "local-daemon", false, false},
+		{"ipv6", [][]any{{"local-daemon", "::1", 58846, "localclient"}}, "local-daemon", false, false},
+		{"selected-default", [][]any{{"other", "127.0.0.1", 58846, "other-user"}, {"local-daemon", "127.0.0.1", 58846, "localclient"}}, "local-daemon", false, false},
+		{"ambiguous", [][]any{{"other", "127.0.0.1", 58846, "other-user"}, {"local-daemon", "127.0.0.1", 58846, "localclient"}}, "", true, true},
+		{"remote-default", [][]any{{"local-daemon", "127.0.0.1", 58846, "localclient"}}, "remote-daemon", true, true},
+		{"unreadable-username", [][]any{{"local-daemon", "127.0.0.1", 58846, 17}}, "local-daemon", false, true},
+		{"duplicate-remote-id", [][]any{{"local-daemon", "127.0.0.1", 58846, "localclient"}, {"remote", "other.example", 58846, "user"}, {"remote", "elsewhere.example", 58846, "user"}}, "local-daemon", false, true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			f := newDelugeArrFixture()
+			f.allowSetup = true
+			f.hosts = scenario.hosts
+			f.web.connected = false
+			f.web.defaultDaemon = scenario.defaultDaemon
+			f.web.password = "deluge"
+			h := delugeArrHelper(t, f)
+			err := (deluge.App{}).Setup(context.Background(), h)
+			if scenario.setupManual {
+				if !errors.Is(err, helpers.ErrManual) || f.web.connects != 0 || f.web.configWrites != 0 {
+					t.Fatal("Setup changed an ambiguous or unsupported selection", err)
+				}
+			} else if err != nil || f.web.connects != 1 || f.web.defaultDaemon != "local-daemon" || f.web.rotations != 1 {
+				t.Fatal("existing fresh Setup selection/credential behavior changed", err)
+			}
+			f.allowSetup = false
+			connects, writes, rotations := f.web.connects, f.web.configWrites, f.web.rotations
+			_, err = deluge.DownloadPaths(context.Background(), h, "tv", "", "", "")
+			if scenario.linkManual {
+				if !errors.Is(err, helpers.ErrManual) {
+					t.Fatal("Link lost its stronger daemon identity checks", err)
+				}
+			} else if err != nil {
+				t.Fatal("Link rejected the explicitly connected local daemon", err)
+			}
+			if f.web.connects != connects || f.web.configWrites != writes || f.web.rotations != rotations {
+				t.Fatal("read-only Link inherited Setup mutation behavior")
+			}
+		})
+	}
+}

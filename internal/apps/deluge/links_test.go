@@ -94,7 +94,11 @@ func newDelugeLinkContract(t *testing.T, consumer app.App) *delugeLinkContract {
 	for _, category := range []string{"movies", "music", "chosen"} {
 		f.target.labels[category] = map[string]any{"apply_move_completed": false, "move_completed": false, "move_completed_path": ""}
 	}
-	f.template = map[string]any{"implementation": "Deluge", "configContract": "DelugeSettings", "protocol": "torrent", "priority": 1, "fields": []any{}}
+	protocol := "torrent"
+	if id == "lidarr" {
+		protocol = "TorrentDownloadProtocol"
+	}
+	f.template = map[string]any{"implementation": "Deluge", "configContract": "DelugeSettings", "protocol": protocol, "priority": 1, "fields": []any{}}
 	for name, value := range map[string]any{"host": "localhost", "port": 8112, "useSsl": false, "urlBase": nil, "password": "deluge", f.categoryField: "upstream-default", f.importedField: nil, "downloadDirectory": nil, "completedDirectory": nil, "addPaused": false} {
 		f.template["fields"] = append(f.template["fields"].([]any), map[string]any{"name": name, "value": value})
 	}
@@ -113,7 +117,7 @@ func newDelugeLinkContract(t *testing.T, consumer app.App) *delugeLinkContract {
 			}
 		}
 		password := arrtest.Field(client, "password")
-		return !f.rejectNative && arrtest.Field(client, "host") == "deluge" && arrtest.Field(client, "port") == float64(8112) && (password == f.target.web.password || password == "********")
+		return !f.rejectNative && client["protocol"] == protocol && arrtest.Field(client, "host") == "deluge" && arrtest.Field(client, "port") == float64(8112) && (password == f.target.web.password || password == "********")
 	}
 	base := f.backend.Handler()
 	f.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -240,6 +244,71 @@ func TestDelugeLinksAllConsumersPreserveActualChoicesAndOwnedIdentity(t *testing
 			}
 			if f.updates != 1 || f.backend.DownloadClients()[0]["id"] != id || arrtest.Field(f.backend.DownloadClients()[0], f.categoryField) != "chosen" {
 				t.Fatal("password recovery replaced the recorded client")
+			}
+		})
+	}
+}
+
+func TestDelugeConsumerProtocolsMatchUpstreamWithoutNormalization(t *testing.T) {
+	for _, scenario := range []struct {
+		consumer        app.App
+		protocol, other string
+	}{
+		{arr.Sonarr(), "torrent", "TorrentDownloadProtocol"},
+		{arr.Radarr(), "torrent", "TorrentDownloadProtocol"},
+		{lidarr.App{}, "TorrentDownloadProtocol", "torrent"},
+	} {
+		t.Run(scenario.consumer.Info().ID, func(t *testing.T) {
+			f := newDelugeLinkContract(t, scenario.consumer)
+			if f.template["protocol"] != scenario.protocol {
+				t.Fatal("fixture does not model the pinned upstream consumer protocol")
+			}
+			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
+				t.Fatal("actual consumer protocol rejected", err)
+			}
+			client := f.backend.DownloadClients()[0]
+			if client["protocol"] != scenario.protocol || f.nativeTests != 2 {
+				t.Fatal("protocol was normalized or native verification was skipped")
+			}
+			owned, tests := f.ownership(), f.nativeTests
+			client["protocol"] = scenario.other
+			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("wrong stored protocol accepted", err)
+			}
+			if f.nativeTests != tests || f.updates != 0 || f.ownership() != owned {
+				t.Fatal("wrong stored protocol reached native tests or changed ownership")
+			}
+			g := newDelugeLinkContract(t, scenario.consumer)
+			g.template["protocol"] = scenario.other
+			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("wrong schema protocol accepted", err)
+			}
+			if g.nativeTests != 0 || g.creates != 0 || g.ownership() != "" {
+				t.Fatal("wrong schema protocol reached native tests or resource creation")
+			}
+		})
+	}
+}
+
+func TestDelugeRejectsUnsupportedActualConsumerContracts(t *testing.T) {
+	for _, scenario := range []struct {
+		consumer app.App
+		actual   string
+	}{
+		{arr.Sonarr(), "readarr"},
+		{arr.Sonarr(), "radarr"},
+		{lidarr.App{}, "sonarr"},
+	} {
+		t.Run(scenario.consumer.Info().ID+"/"+scenario.actual, func(t *testing.T) {
+			f := newDelugeLinkContract(t, scenario.consumer)
+			from := *f.from
+			from.App = scenario.actual
+			f.secrets[from.Key("api_key")] = f.backend.Key
+			if err := f.link.Apply(context.Background(), &from, f.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("unsupported consumer API/category combination accepted", err)
+			}
+			if f.nativeTests != 0 || f.creates != 0 || len(f.target.calls) != 0 || f.secrets[from.Key("link_deluge_resource")] != "" {
+				t.Fatal("unsupported consumer reached target reads/native tests or acquired ownership")
 			}
 		})
 	}
