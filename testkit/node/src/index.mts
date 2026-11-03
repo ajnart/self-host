@@ -501,6 +501,13 @@ class AppHandle {
 			) {
 				throw fault("PROTOCOL");
 			}
+			if (
+				this.#app !== undefined &&
+				(value.id !== this.#app ||
+					!loopback(value.url) ||
+					value.url !== this.#url)
+			)
+				throw fault("PROTOCOL");
 			return {
 				id: value.id,
 				url: value.url,
@@ -546,11 +553,12 @@ function loopback(value: string): boolean {
 	}
 }
 
-function pairAppStatus(value: unknown, id: string): PairAppStatus {
+function pairAppStatus(value: unknown, id: string, url: string): PairAppStatus {
 	if (
 		!strings(value, ["id", "url", "state", "setup"]) ||
 		value.id !== id ||
 		!loopback(value.url) ||
+		value.url !== url ||
 		typeof value.installed !== "boolean" ||
 		![
 			"running",
@@ -597,6 +605,7 @@ function pairAppStatus(value: unknown, id: string): PairAppStatus {
 function pairInspection(
 	value: unknown,
 	ids: readonly string[],
+	urls: readonly string[],
 ): PairInspection {
 	if (
 		!strings(value, ["link", "outcome", "reason"]) ||
@@ -606,7 +615,9 @@ function pairInspection(
 	)
 		throw fault("PROTOCOL");
 	const rawApps = value.apps;
-	const apps = ids.map((id, index) => pairAppStatus(rawApps[index], id));
+	const apps = ids.map((id, index) =>
+		pairAppStatus(rawApps[index], id, urls[index] ?? ""),
+	);
 	const base = { link: value.link, apps };
 	if (value.outcome === "complete" && value.reason === "verified") {
 		if (
@@ -721,7 +732,10 @@ class PairHandle implements Pair {
 		return this.#target;
 	}
 	get initial() {
-		return pairInspection(this.#initial, this.#ids);
+		return pairInspection(this.#initial, this.#ids, [
+			this.#consumer.url,
+			this.#target.url,
+		]);
 	}
 	get recoveryPath() {
 		return this.#bridge.recoveryPath;
@@ -734,7 +748,10 @@ class PairHandle implements Pair {
 			this.#timeout + 1000,
 		);
 		try {
-			return pairInspection(result, this.#ids);
+			return pairInspection(result, this.#ids, [
+				this.#consumer.url,
+				this.#target.url,
+			]);
 		} catch (error) {
 			return this.#bridge.failAndClose(error);
 		}
@@ -973,7 +990,11 @@ class SelfHostHandle {
 				value.consumer.url === value.target.url
 			)
 				throw fault("PROTOCOL", undefined, this.#manifest);
-			const initial = pairInspection(value.initial, [consumer, target]);
+			const initial = pairInspection(
+				value.initial,
+				[consumer, target],
+				[value.consumer.url, value.target.url],
+			);
 			if (options.sonarrFilterWitness && value.sonarrFilterWitness !== 1)
 				throw fault("PROTOCOL");
 			if (this.#closed) throw fault("STATE", undefined, this.#manifest);

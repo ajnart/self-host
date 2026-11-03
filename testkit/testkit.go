@@ -377,6 +377,9 @@ func (a *App) closeLocked(ctx context.Context) error {
 	if a.closed {
 		return nil
 	}
+	if a.pair != nil {
+		a.pair.failed = true
+	}
 	cleanup, stop := context.WithDeadline(ctx, minTime(a.deadline, time.Now().Add(time.Minute)))
 	defer stop()
 	if err := inactive(cleanup, a.runner, a.marker.Name, true); err != nil {

@@ -180,6 +180,8 @@ remain explicit errors or Manual outcomes, not automatic skips.
   observations and `complete`, `manual`, `prerequisite` or `failed`. Missing,
   skipped or unready Links are never complete. Completion is the production
   recorded outcome, not a claim of rendered acceptance for every peer.
+  Selected Info and inspection results must retain the selected IDs and exact
+  loopback Addresses established at startup, including their frozen ports/paths.
 - `setup(app?)` retries production Setup for one/both selected Apps;
   `remove(app)` is non-purge and retains data; `install(app)` reinstalls only a
   selected admitted App with its original ports/options. No action renews the
@@ -201,6 +203,8 @@ remain explicit errors or Manual outcomes, not automatic skips.
   action/inspection or selected-view results likewise disable the owner and await
   owned cleanup before rejecting with `PROTOCOL`, retaining any secondary `cleanupFailed` flag.
   Retrying cleanup never re-enables Pair or selected-view actions.
+- Beginning explicit Pair close also permanently disables live actions and reads,
+  even if cleanup fails. Close remains retryable within the original lifetime.
 - `withPair` preserves exact primary failures, including `undefined`, over
   cleanup failure. Cleanup-only failures throw. Optional `onCleanupError` receives
   a sanitized cleanup error when there is already a primary failure; failure of

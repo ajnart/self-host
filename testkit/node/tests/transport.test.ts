@@ -804,6 +804,125 @@ for (const method of ["getApiKey", "credentials", "info"] as const) {
 	}
 }
 
+for (const mode of [
+	"info-id",
+	"info-sibling-id",
+	"info-remote",
+	"info-https",
+	"info-invalid",
+	"info-port",
+	"info-sibling-url",
+	"info-query",
+	"info-path",
+]) {
+	for (const selected of ["consumer", "target"] as const) {
+		for (const cleanupFailed of [false, true]) {
+			test(`pair selected Info scope ${mode} ${selected}, cleanup failure=${cleanupFailed}`, async () => {
+				const { selfHost, manifest } = fixture(1000, mode, cleanupFailed);
+				const pair = await selfHost.spinupPair("homarr", "sonarr", {
+					order: "consumer-first",
+				});
+				let caught: unknown;
+				try {
+					await pair[selected].info();
+				} catch (error) {
+					caught = error;
+				}
+				protocolFailure(caught, manifest, cleanupFailed);
+				const owner = ownedCleanup(manifest);
+				await disabledPair(pair, manifest);
+				if (cleanupFailed) {
+					await expect(pair.close()).rejects.toThrow("Fixture cleanup failed");
+					unlinkSync(`${manifest}.${owner}.failed`);
+				}
+				await pair.close();
+				await disabledPair(pair, manifest);
+			});
+		}
+	}
+}
+
+test("pair selected Info preserves cached fixture paths and metadata", async () => {
+	const { selfHost } = fixture(1000, "valid-paths");
+	const pair = await selfHost.spinupPair("homarr", "sonarr", {
+		order: "consumer-first",
+	});
+	for (const selected of [pair.consumer, pair.target]) {
+		const info = await selected.info();
+		expect(info.url).toBe(selected.url);
+		expect(info.url).toEndWith("/app/");
+		expect(info.image).toBe("peer:latest");
+		expect(info.imageId).toBe("sha256:test");
+		expect(info.repoDigests).toEqual(["peer@sha256:test"]);
+	}
+	expect((await pair.inspect()).outcome).toBe("complete");
+});
+
+for (const mode of ["info-id", "info-remote"]) {
+	test(`single App Info scope ${mode} retains legacy type-only validation`, async () => {
+		const { selfHost, manifest } = fixture(1000, mode);
+		const app = await selfHost.spinup("sonarr");
+		const info = await app.info();
+		if (mode === "info-id") expect(info.id).toBe("outside");
+		else expect(info.url).toBe("http://example.invalid:12345");
+		expect(await app.getApiKey()).toBeDefined();
+		expect(
+			events(manifest).filter((event) => event.method === "cleanup"),
+		).toHaveLength(0);
+	});
+}
+
+for (const method of ["inspect", "setup", "remove", "install"] as const) {
+	test(`pair inspection scope ${method} rejects loopback publication drift`, async () => {
+		const { selfHost, manifest } = fixture(1000, `bad-${method}-address`);
+		const pair = await selfHost.spinupPair("homarr", "sonarr", {
+			order: "consumer-first",
+		});
+		let caught: unknown;
+		try {
+			if (method === "inspect") await pair.inspect();
+			else await pair[method]("sonarr");
+		} catch (error) {
+			caught = error;
+		}
+		protocolFailure(caught, manifest, false);
+		ownedCleanup(manifest);
+		await disabledPair(pair, manifest);
+	});
+}
+
+test("pair startup inspection scope matches the selected address echo", async () => {
+	const { selfHost, manifest } = fixture(1000, "bad-initial-address");
+	let caught: unknown;
+	try {
+		await selfHost.spinupPair("homarr", "sonarr", {
+			order: "consumer-first",
+		});
+	} catch (error) {
+		caught = error;
+	}
+	protocolFailure(caught, manifest, false);
+	ownedCleanup(manifest);
+});
+
+test("pair direct failed close permanently disables all reads and actions", async () => {
+	const { selfHost, manifest } = fixture(1000, "valid", true);
+	const pair = await selfHost.spinupPair("homarr", "sonarr", {
+		order: "consumer-first",
+	});
+	await expect(pair.close()).rejects.toThrow("Fixture cleanup failed");
+	const owner = ownedCleanup(manifest);
+	await disabledPair(pair, manifest);
+	await expect(pair.close()).rejects.toThrow("Fixture cleanup failed");
+	await disabledPair(pair, manifest);
+	unlinkSync(`${manifest}.${owner}.failed`);
+	await pair.close();
+	await disabledPair(pair, manifest);
+	expect(
+		events(manifest).filter((event) => event.method === "cleanup"),
+	).toHaveLength(3);
+});
+
 test("shared scoped lifetime preserves single-App returns and both APIs' primitive failures", async () => {
 	const { binary, manifest } = fixture();
 	const options = { binary, manifest, timeoutMs: 1000 };

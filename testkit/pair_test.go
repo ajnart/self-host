@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -209,6 +210,110 @@ func TestPairActionsNeverRenewWorkDeadline(t *testing.T) {
 	}
 	if err := p.Close(t.Context()); err != nil {
 		t.Fatal("work deadline canceled reserved cleanup")
+	}
+}
+
+func TestPairDirectCloseFailurePermanentlyDisablesOwner(t *testing.T) {
+	p, f, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.cleanupFailure = true
+	t.Cleanup(func() { f.cleanupFailure = false })
+	workDeadline, deadline := p.owner.workDeadline, p.owner.deadline
+	started, release := make(chan bool, 1), make(chan struct{})
+	var once, unblock sync.Once
+	defer unblock.Do(func() { close(release) })
+	f.runner.OnFunc("docker container rm", func(cmd system.Cmd) system.Result {
+		once.Do(func() {
+			started <- p.owner.pair.failed
+			<-release
+		})
+		return f.run(cmd)
+	})
+	closed := make(chan error, 1)
+	go func() { closed <- p.Close(t.Context()) }()
+	select {
+	case disabled := <-started:
+		if !disabled {
+			t.Error("Pair was not disabled before cleanup began")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("fake cleanup did not reach its owned removal")
+	}
+	consumer, _ := p.App("consumer")
+	queued := make(chan struct{}, 2)
+	results := make(chan error, 2)
+	for _, action := range []func() error{
+		func() error { _, err := p.Inspect(t.Context()); return err },
+		func() error { _, err := consumer.GetAPIKey(t.Context(), ""); return err },
+	} {
+		go func() { queued <- struct{}{}; results <- action() }()
+	}
+	for range 2 {
+		<-queued
+	}
+	unblock.Do(func() { close(release) })
+	if err := <-closed; err == nil || p.owner.closed || !p.owner.pair.failed {
+		t.Fatal("direct failed close did not retain a disabled recoverable owner")
+	}
+	for range 2 {
+		if err := <-results; err == nil {
+			t.Fatal("a call queued during close resumed the owner")
+		}
+	}
+	assertDisabled := func() {
+		t.Helper()
+		before := len(f.runner.Calls())
+		storage, svc := p.owner.guard.p, p.owner.service
+		p.owner.guard.p, p.owner.service = nil, nil
+		defer func() { p.owner.guard.p, p.owner.service = storage, svc }()
+		for _, id := range []string{"consumer", "peer"} {
+			view, _ := p.App(id)
+			if _, err := view.GetAPIKey(t.Context(), ""); err == nil {
+				t.Fatal("closing owner exposed a key")
+			}
+			if _, err := view.Credentials(t.Context()); err == nil {
+				t.Fatal("closing owner exposed credentials")
+			}
+			if _, err := view.Info(t.Context()); err == nil {
+				t.Fatal("closing owner read storage for Info")
+			}
+		}
+		if _, err := p.Inspect(t.Context()); err == nil {
+			t.Fatal("closing Pair remained inspectable")
+		}
+		if _, err := p.Setup(t.Context(), ""); err == nil {
+			t.Fatal("closing Pair accepted Setup")
+		}
+		if _, err := p.Remove(t.Context(), "peer"); err == nil {
+			t.Fatal("closing Pair accepted Remove")
+		}
+		if _, err := p.Install(t.Context(), "peer"); err == nil {
+			t.Fatal("closing Pair accepted Install")
+		}
+		if _, err := p.CreateSonarrFilterWitness(t.Context()); err == nil {
+			t.Fatal("closing Pair accepted a witness create")
+		}
+		if _, err := p.ReadSonarrFilterWitness(t.Context()); err == nil || len(f.runner.Calls()) != before {
+			t.Fatal("closing Pair reached its runner")
+		}
+	}
+	assertDisabled()
+	if err := p.Close(t.Context()); err == nil {
+		t.Fatal("repeated failed cleanup was hidden")
+	}
+	assertDisabled()
+	if _, err := readOwnership(p.RecoveryPath()); err != nil {
+		t.Fatal("failed direct cleanup lost its recovery ownership")
+	}
+	f.cleanupFailure = false
+	if err := p.Close(t.Context()); err != nil || len(f.containers) != 0 || !p.owner.closed {
+		t.Fatal("direct cleanup retry could not finish")
+	}
+	assertDisabled()
+	if !p.owner.workDeadline.Equal(workDeadline) || !p.owner.deadline.Equal(deadline) {
+		t.Fatal("direct close renewed an owner clock")
 	}
 }
 

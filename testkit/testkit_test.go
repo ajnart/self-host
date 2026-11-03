@@ -326,6 +326,33 @@ func TestSingleAppCredentialFailuresKeepLegacySemantics(t *testing.T) {
 	}
 }
 
+func TestSingleAppDirectCloseFailureKeepsLegacyReads(t *testing.T) {
+	f := newFakeDocker(t)
+	a, err := startFake(t, f, fixtureApp{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		f.cleanupFailure = false
+		if err := a.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	f.cleanupFailure = true
+	if err := a.Close(t.Context()); err == nil || a.closed || a.pair != nil {
+		t.Fatal("legacy failed cleanup state changed")
+	}
+	if _, err := a.GetAPIKey(t.Context(), ""); err != nil {
+		t.Fatal("legacy failed cleanup disabled key reads")
+	}
+	if _, err := a.Credentials(t.Context()); err != nil {
+		t.Fatal("legacy failed cleanup disabled credential reads")
+	}
+	if _, err := a.Info(t.Context()); err != nil {
+		t.Fatal("legacy failed cleanup disabled Info")
+	}
+}
+
 func TestPartialCreationAndCancelledSetupCleanWithIndependentContext(t *testing.T) {
 	for _, mode := range []string{"partial", "cancel"} {
 		t.Run(mode, func(t *testing.T) {

@@ -43,13 +43,20 @@ const witnessReceipt = (mode = witnessMode) => {
 	if (mode === "null-receipt") return null;
 	return value;
 };
+const address = (id) => {
+	let port = 12345;
+	if (pair && id === pair.target) port = 12346;
+	let path = "";
+	if (witnessMode === "valid-paths") path = "/app/";
+	return `http://127.0.0.1:${port}${path}`;
+};
 const inspection = () => ({
 	outcome: installed.size === 2 ? "complete" : "prerequisite",
 	reason: installed.size === 2 ? "verified" : "absent",
 	link: "link-peer",
 	apps: [pair.consumer, pair.target].map((id, index) => ({
 		id,
-		url: `http://127.0.0.1:${12345 + index}`,
+		url: address(id),
 		installed: installed.has(id),
 		state: installed.has(id) ? "running" : "missing",
 		setup: installed.has(id) ? "ok" : "pending",
@@ -128,10 +135,12 @@ input.on("line", (line) => {
 		installed = new Set([pair.consumer]);
 		if (pair.order === "target-first") installed = new Set([pair.target]);
 		const initial = inspection();
+		if (witnessMode === "bad-initial-address")
+			initial.apps[1].url = "http://127.0.0.1:33333";
 		installed = new Set([pair.consumer, pair.target]);
 		reply(req, {
-			consumer: { id: pair.consumer, url: "http://127.0.0.1:12345" },
-			target: { id: pair.target, url: "http://127.0.0.1:12346" },
+			consumer: { id: pair.consumer, url: address(pair.consumer) },
+			target: { id: pair.target, url: address(pair.target) },
 			initial,
 			sonarrFilterWitness:
 				pair.sonarrFilterWitness && witnessMode !== "missing-echo"
@@ -212,6 +221,8 @@ input.on("line", (line) => {
 			witnessMode === `bad-${req.method}`
 		)
 			result.outcome = "imaginary";
+		if (witnessMode === `bad-${req.method}-address`)
+			result.apps[1].url = "http://127.0.0.1:33333";
 		reply(req, result);
 	} else if (pair && req.params.app && !installed.has(req.params.app)) {
 		process.stdout.write(
@@ -267,13 +278,28 @@ input.on("line", (line) => {
 	} else if (req.method === "getApiKey") {
 		reply(req, { apiKey: "private-test-api-key" });
 	} else if (req.method === "info") {
-		reply(req, {
+		const result = {
 			id: req.params.app ?? app,
-			url: "http://127.0.0.1:12345",
+			url: address(req.params.app ?? app),
 			image: "peer:latest",
 			imageId: "sha256:test",
 			repoDigests: ["peer@sha256:test"],
-		});
+		};
+		let sibling = pair?.consumer;
+		if (pair && req.params.app === pair.consumer) sibling = pair.target;
+		if (witnessMode === "info-id") result.id = "outside";
+		if (witnessMode === "info-sibling-id") result.id = sibling;
+		const urls = {
+			"info-remote": "http://example.invalid:12345",
+			"info-https": result.url.replace("http:", "https:"),
+			"info-invalid": "not a URL",
+			"info-port": "http://127.0.0.1:33333",
+			"info-query": `${result.url}?outside=1`,
+			"info-path": `${result.url}/outside`,
+		};
+		if (urls[witnessMode]) result.url = urls[witnessMode];
+		if (witnessMode === "info-sibling-url") result.url = address(sibling);
+		reply(req, result);
 	} else if (req.method === "close") {
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, result: { closed: true } })}\n`,
