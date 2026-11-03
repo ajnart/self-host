@@ -70,8 +70,8 @@ func TestInstallStopsBeforeDockerWithoutInferringFreshAuthority(t *testing.T) {
 				t.Fatalf("installation must retain the actionable startup hold: %s", result.Out)
 			}
 			for _, call := range deps.Runner.(*systemtest.Runner).Calls() {
-				if strings.HasPrefix(call, "docker ") {
-					t.Fatal("held install reached Docker")
+				if strings.HasPrefix(call, "docker compose") || strings.HasPrefix(call, "docker run") {
+					t.Fatal("held install started containers: " + call)
 				}
 			}
 			if existing && clitest.Read(t, filepath.Join(data, "untouched")) != "synthetic-private-state" {

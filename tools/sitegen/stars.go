@@ -36,6 +36,7 @@ var repos = map[string]string{
 	"freshrss":             "FreshRSS/FreshRSS",
 	"frigate":              "blakeblackshear/frigate",
 	"gatus":                "TwiN/gatus",
+	"changedetection":      "dgtlmoon/changedetection.io",
 	"glances":              "nicolargo/glances",
 	"gluetun":              "qdm12/gluetun",
 	"gotify":               "gotify/server",

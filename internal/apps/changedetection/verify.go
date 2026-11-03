@@ -121,3 +121,5 @@ func verifyLogin(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
+
+func VerifyHomarr(ctx context.Context, h *helpers.H) error { return verify(ctx, h) }

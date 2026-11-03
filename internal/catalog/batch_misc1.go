@@ -3,6 +3,7 @@ package catalog
 import (
 	"github.com/ajnart/self-host/internal/apps/borgmatic"
 	"github.com/ajnart/self-host/internal/apps/caddy"
+	"github.com/ajnart/self-host/internal/apps/changedetection"
 	"github.com/ajnart/self-host/internal/apps/gatus"
 	"github.com/ajnart/self-host/internal/apps/gotify"
 	"github.com/ajnart/self-host/internal/apps/lldap"
@@ -18,6 +19,7 @@ func init() {
 	register(
 		borgmatic.App{},
 		caddy.App{},
+		changedetection.App{},
 		gatus.App{},
 		gotify.App{},
 		lldap.App{},
