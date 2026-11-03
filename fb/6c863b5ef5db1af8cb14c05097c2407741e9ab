@@ -1,0 +1,20 @@
+docs/catalog/traps/sportarr.md
+  h_d6e478ca18e517 6-7
+internal/apps/sportarr/sportarr.go
+  h_d6e478ca18e517 41-44,59-63
+internal/apps/sportarr/sportarr_test.go
+  h_d6e478ca18e517 363,374,376,378,381-400,408-423
+internal/service/sportarr_directories_test.go
+  h_d6e478ca18e517 1-331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb6c863b5ef5db1af8cb14c05097c2407741e9ab",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
