@@ -26,14 +26,15 @@ type request struct {
 }
 
 type params struct {
-	App       string            `json:"app"`
-	TimeoutMS int64             `json:"timeoutMs"`
-	Image     string            `json:"image"`
-	Name      string            `json:"name"`
-	Consumer  string            `json:"consumer"`
-	Target    string            `json:"target"`
-	Order     string            `json:"order"`
-	Images    map[string]string `json:"images"`
+	App                 string            `json:"app"`
+	TimeoutMS           int64             `json:"timeoutMs"`
+	Image               string            `json:"image"`
+	Name                string            `json:"name"`
+	Consumer            string            `json:"consumer"`
+	Target              string            `json:"target"`
+	Order               string            `json:"order"`
+	Images              map[string]string `json:"images"`
+	SonarrFilterWitness bool              `json:"sonarrFilterWitness"`
 }
 
 type protocolError struct {
@@ -72,6 +73,8 @@ type pairFixture interface {
 	Setup(context.Context, string) (testkit.PairInspection, error)
 	Remove(context.Context, string) (testkit.PairInspection, error)
 	Install(context.Context, string) (testkit.PairInspection, error)
+	CreateSonarrFilterWitness(context.Context) (testkit.SonarrFilterWitness, error)
+	ReadSonarrFilterWitness(context.Context) (testkit.SonarrFilterWitness, error)
 	Close(context.Context) error
 }
 
@@ -80,15 +83,16 @@ type pairAdapter struct{ *testkit.Pair }
 func (p pairAdapter) View(id string) (fixtureView, error) { return p.Pair.App(id) }
 
 type bridge struct {
-	app        fixture
-	appCancel  context.CancelFunc
-	started    bool
-	manifest   string
-	owner      string
-	start      func(context.Context, testkit.Options) (fixture, error)
-	pair       pairFixture
-	pairFailed bool
-	startPair  func(context.Context, testkit.PairOptions) (pairFixture, error)
+	app                 fixture
+	appCancel           context.CancelFunc
+	started             bool
+	manifest            string
+	owner               string
+	start               func(context.Context, testkit.Options) (fixture, error)
+	pair                pairFixture
+	pairFailed          bool
+	sonarrFilterWitness bool
+	startPair           func(context.Context, testkit.PairOptions) (pairFixture, error)
 }
 
 type protocolWriter struct {
@@ -280,6 +284,14 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		res.Error = failure("PROTOCOL")
 		return res
 	}
+	if req.Method == "capabilities" {
+		if !emptyParams(req.Params) {
+			res.Error = failure("PROTOCOL")
+		} else {
+			res.Result = map[string]int{"sonarrFilterWitness": 1}
+		}
+		return res
+	}
 	if req.Method == "spinup" {
 		if b.started || p.App == "" || p.TimeoutMS < 0 || p.TimeoutMS > 840000 {
 			res.Error = failure("PROTOCOL")
@@ -320,6 +332,10 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 			res.Error = failure("PROTOCOL")
 			return res
 		}
+		if p.SonarrFilterWitness && (p.Consumer != "homarr" || p.Target != "sonarr") {
+			res.Error = failure("PROTOCOL")
+			return res
+		}
 		b.started = true
 		parent, err := registerParent(ctx, b.manifest, b.owner)
 		if err != nil {
@@ -332,7 +348,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 			timeout = time.Duration(p.TimeoutMS) * time.Millisecond
 		}
 		lifetime, cancel := context.WithCancel(ctx)
-		b.pair, err = b.startPair(lifetime, testkit.PairOptions{Consumer: p.Consumer, Target: p.Target, Order: testkit.PairOrder(p.Order), Images: p.Images, Timeout: timeout, RootParent: parent})
+		b.pair, err = b.startPair(lifetime, testkit.PairOptions{Consumer: p.Consumer, Target: p.Target, Order: testkit.PairOrder(p.Order), Images: p.Images, Timeout: timeout, RootParent: parent, SonarrFilterWitness: p.SonarrFilterWitness})
 		if err != nil {
 			cancel()
 			res.Error = failure("START")
@@ -353,7 +369,12 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 			res.Error = failure("STATE")
 			return res
 		}
-		res.Result = map[string]any{"consumer": map[string]string{"id": p.Consumer, "url": consumer.URL()}, "target": map[string]string{"id": p.Target, "url": target.URL()}, "initial": b.pair.Initial()}
+		result := map[string]any{"consumer": map[string]string{"id": p.Consumer, "url": consumer.URL()}, "target": map[string]string{"id": p.Target, "url": target.URL()}, "initial": b.pair.Initial()}
+		b.sonarrFilterWitness = p.SonarrFilterWitness
+		if p.SonarrFilterWitness {
+			result["sonarrFilterWitness"] = 1
+		}
+		res.Result = result
 		return res
 	}
 	if req.Method == "close" {
@@ -379,6 +400,31 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 			b.pair = nil
 		}
 		res.Result = map[string]bool{"closed": true}
+		return res
+	}
+	if req.Method == "createSonarrFilterWitness" || req.Method == "readSonarrFilterWitness" {
+		if !emptyParams(req.Params) {
+			res.Error = failure("PROTOCOL")
+			return res
+		}
+		if b.pair == nil || b.pairFailed || !b.sonarrFilterWitness {
+			res.Error = failure("STATE")
+			return res
+		}
+		opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		var value testkit.SonarrFilterWitness
+		var err error
+		if req.Method == "createSonarrFilterWitness" {
+			value, err = b.pair.CreateSonarrFilterWitness(opCtx)
+		} else {
+			value, err = b.pair.ReadSonarrFilterWitness(opCtx)
+		}
+		if err != nil {
+			res.Error = b.pairOperationFailure(err)
+		} else {
+			res.Result = value
+		}
 		return res
 	}
 	if req.Method == "inspect" || req.Method == "setup" || req.Method == "remove" || req.Method == "install" {
@@ -469,6 +515,14 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		}
 	}
 	return res
+}
+
+func emptyParams(data json.RawMessage) bool {
+	if len(data) == 0 {
+		return true
+	}
+	var fields map[string]json.RawMessage
+	return json.Unmarshal(data, &fields) == nil && fields != nil && len(fields) == 0
 }
 
 func (b *bridge) pairOperationFailure(err error) *protocolError {

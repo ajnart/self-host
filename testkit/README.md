@@ -113,6 +113,32 @@ The integrated Sonarr verifier registration is required for advancing Stats.
 No downloader adapter or Kuma fix is needed. Pair/native/rendered acceptance is
 not established by helper or transport tests; see the Node guide for boundaries.
 
+### Opt-in Sonarr preservation witness
+
+The unreleased matching Go helper and Node SDK expose
+`CreateSonarrFilterWitness` / `ReadSonarrFilterWitness` and
+`createSonarrFilterWitness()` / `readSonarrFilterWitness()`. Enable the capability
+explicitly with `PairOptions.SonarrFilterWitness` in Go or
+`sonarrFilterWitness: true` in Node, only for a Homarr consumer and Sonarr target.
+Select Sonarr through the existing `Images` / `images` option using a reviewed
+immutable `repository@sha256:...` reference. Default and standalone fixtures do
+not gain write permission or perform capability negotiation.
+
+The Node SDK checks the helper's static capability before starting that opted-in
+Pair. Creation then requires the complete owned fixture, authenticated Sonarr v4
+identity and an empty custom-filter collection. It writes exactly one unique,
+unselected saved series filter with empty predicates, returning only its original
+ID and opaque content hash. Reads address that original object and fail on
+missing/changed data or image drift; they never reseed after reinstall. A tag is
+not used because Sonarr housekeeping deletes unused tags.
+
+This capability is not an arbitrary HTTP/configuration writer and starts no
+series, provider, scan or download job. Non-purge target removals must retain the
+witness; normal final Pair cleanup removes the disposable fixture. Use requires
+separate approval of the actual image/source contract and runtime slot. Fake
+tests and compiled capability support do not prove native data preservation.
+See the [Node witness contract](node/README.md#sonarr-data-preservation-witness).
+
 ## Guides
 
 - [Node: mock replacement, API, CI and recovery](node/README.md)

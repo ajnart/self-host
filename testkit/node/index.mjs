@@ -222,6 +222,21 @@ class Bridge {
             });
         });
     }
+    async failAndClose(primary) {
+        let code = "PROTOCOL";
+        if (primary instanceof TestkitError)
+            code = primary.code;
+        this.#fail(code);
+        try {
+            await this.close();
+        }
+        catch {
+            if (primary instanceof TestkitError)
+                throw this.#fault(primary.code, primary.reason, true);
+            throw primary;
+        }
+        throw primary;
+    }
     close() {
         if (!this.#closing) {
             this.#closing = this.#close().catch((error) => {
@@ -398,6 +413,23 @@ function pairInspection(value, ids) {
         return { ...base, outcome: "prerequisite", reason: value.reason };
     throw fault("PROTOCOL");
 }
+function sonarrFilterWitness(value) {
+    if (!record(value) ||
+        Object.keys(value).length !== 3 ||
+        value.kind !== "sonarr-custom-filter-v1" ||
+        typeof value.objectId !== "number" ||
+        !Number.isSafeInteger(value.objectId) ||
+        value.objectId < 1 ||
+        value.objectId > 2147483647 ||
+        typeof value.contentSha256 !== "string" ||
+        !/^[a-f0-9]{64}$/.test(value.contentSha256))
+        throw fault("PROTOCOL");
+    return Object.freeze({
+        kind: "sonarr-custom-filter-v1",
+        objectId: value.objectId,
+        contentSha256: value.contentSha256,
+    });
+}
 class PairAppHandle {
     #view;
     constructor(bridge, id, url) {
@@ -432,11 +464,13 @@ class PairHandle {
     #timeout;
     #consumer;
     #target;
-    constructor(bridge, consumer, target, consumerURL, targetURL, initial, timeout) {
+    #witnessEnabled;
+    constructor(bridge, consumer, target, consumerURL, targetURL, initial, timeout, witnessEnabled) {
         this.#bridge = bridge;
         this.#ids = [consumer, target];
         this.#initial = initial;
         this.#timeout = timeout;
+        this.#witnessEnabled = witnessEnabled;
         this.#consumer = new PairAppHandle(bridge, consumer, consumerURL);
         this.#target = new PairAppHandle(bridge, target, targetURL);
     }
@@ -472,6 +506,23 @@ class PairHandle {
         if (!this.#ids.includes(app))
             return Promise.reject(fault("STATE"));
         return this.#action("install", app);
+    }
+    async #sonarrWitness(method) {
+        if (!this.#witnessEnabled)
+            throw fault("STATE");
+        const value = await this.#bridge.request(method);
+        try {
+            return sonarrFilterWitness(value);
+        }
+        catch (error) {
+            return this.#bridge.failAndClose(error);
+        }
+    }
+    createSonarrFilterWitness() {
+        return this.#sonarrWitness("createSonarrFilterWitness");
+    }
+    readSonarrFilterWitness() {
+        return this.#sonarrWitness("readSonarrFilterWitness");
     }
     close() {
         return this.#bridge.close();
@@ -581,6 +632,14 @@ class SelfHostHandle {
             !record(options) ||
             (options.order !== "consumer-first" && options.order !== "target-first"))
             throw fault("PROTOCOL");
+        if (options.sonarrFilterWitness !== undefined &&
+            (options.sonarrFilterWitness !== true ||
+                consumer !== "homarr" ||
+                target !== "sonarr" ||
+                typeof options.images?.sonarr !== "string" ||
+                !/^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}$/.test(options.images.sonarr) ||
+                options.images.sonarr.length > 512))
+            throw fault("PROTOCOL");
         if (options.images !== undefined &&
             (!record(options.images) ||
                 Object.entries(options.images).some(([id, image]) => (id !== consumer && id !== target) || typeof image !== "string")))
@@ -598,12 +657,20 @@ class SelfHostHandle {
     }
     async #spinupPair(bridge, consumer, target, options) {
         try {
+            if (options.sonarrFilterWitness) {
+                const capabilities = await bridge.request("capabilities", {}, Math.min(35000, this.#timeout));
+                if (!record(capabilities) ||
+                    Object.keys(capabilities).length !== 1 ||
+                    capabilities.sonarrFilterWitness !== 1)
+                    throw fault("PROTOCOL");
+            }
             const value = await bridge.request("spinupPair", {
                 consumer,
                 target,
                 order: options.order,
                 images: options.images,
                 timeoutMs: this.#timeout,
+                sonarrFilterWitness: options.sonarrFilterWitness,
             }, this.#timeout + 1000);
             if (!record(value) ||
                 !strings(value.consumer, ["id", "url"]) ||
@@ -615,18 +682,14 @@ class SelfHostHandle {
                 value.consumer.url === value.target.url)
                 throw fault("PROTOCOL", undefined, this.#manifest);
             const initial = pairInspection(value.initial, [consumer, target]);
+            if (options.sonarrFilterWitness && value.sonarrFilterWitness !== 1)
+                throw fault("PROTOCOL");
             if (this.#closed)
                 throw fault("STATE", undefined, this.#manifest);
-            return new PairHandle(bridge, consumer, target, value.consumer.url, value.target.url, initial, this.#timeout);
+            return new PairHandle(bridge, consumer, target, value.consumer.url, value.target.url, initial, this.#timeout, options.sonarrFilterWitness === true);
         }
         catch (error) {
-            try {
-                await bridge.close();
-            }
-            catch {
-                throw error;
-            }
-            throw error;
+            return bridge.failAndClose(error);
         }
     }
     close() {

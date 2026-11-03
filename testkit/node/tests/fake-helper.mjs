@@ -15,14 +15,34 @@ const event = (method) =>
 
 if (cleanup) {
 	event("cleanup");
+	event("cleanup-complete");
 	process.exit(existsSync(`${manifest}.${owner}.failed`) ? 1 : 0);
 }
 
 const input = createInterface({ input: process.stdin });
+const witnessMode = "valid";
+const cleanupFails = false;
 let app;
 let pair;
 let installed;
 let pairFailed = false;
+let witnessCreated = false;
+const witnessReceipt = (mode = witnessMode) => {
+	const value = {
+		kind: "sonarr-custom-filter-v1",
+		objectId: 17,
+		contentSha256: "a".repeat(64),
+	};
+	if (mode === "bad-kind") value.kind = "other";
+	if (mode === "bad-id-zero") value.objectId = 0;
+	if (mode === "bad-id-fraction") value.objectId = 1.5;
+	if (mode === "bad-id-range") value.objectId = 2147483648;
+	if (mode === "bad-hash") value.contentSha256 = "private-witness-body";
+	if (mode === "extra-receipt-field") value.label = "private-witness-body";
+	if (mode === "missing-receipt-field") value.contentSha256 = undefined;
+	if (mode === "null-receipt") return null;
+	return value;
+};
 const inspection = () => ({
 	outcome: installed.size === 2 ? "complete" : "prerequisite",
 	reason: installed.size === 2 ? "verified" : "absent",
@@ -48,7 +68,30 @@ const reply = (req, result) => {
 input.on("line", (line) => {
 	const req = JSON.parse(line);
 	event(req.method);
-	if (req.method === "spinup") {
+	if (req.method === "capabilities") {
+		if (witnessMode === "slow-capabilities") return;
+		if (witnessMode === "old-helper") {
+			process.stdout.write(
+				`${JSON.stringify({ version: 1, id: req.id, error: { code: "PROTOCOL", message: "private-witness-body" } })}\n`,
+			);
+			return;
+		}
+		if (witnessMode === "wrong-capability-envelope") {
+			process.stdout.write(
+				`${JSON.stringify({ version: 2, id: req.id, result: { sonarrFilterWitness: 1 } })}\n`,
+			);
+			return;
+		}
+		if (witnessMode === "missing-capability") return reply(req, {});
+		if (witnessMode === "false-capability")
+			return reply(req, { sonarrFilterWitness: false });
+		if (witnessMode === "string-capability")
+			return reply(req, { sonarrFilterWitness: "1" });
+		if (witnessMode === "wrong-capability-revision")
+			return reply(req, { sonarrFilterWitness: 2 });
+		if (witnessMode === "null-capabilities") return reply(req, null);
+		reply(req, { sonarrFilterWitness: 1 });
+	} else if (req.method === "spinup") {
 		app = req.params.app;
 		if (app === "exit") process.exit(1);
 		if (app === "slow") return;
@@ -79,9 +122,9 @@ input.on("line", (line) => {
 		reply(req, { url: "http://127.0.0.1:12345" });
 	} else if (req.method === "spinupPair") {
 		pair = req.params;
-		if (pair.consumer === "slow") return;
-		if (pair.consumer === "cleanup-failure")
+		if (pair.consumer === "cleanup-failure" || cleanupFails)
 			writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+		if (pair.consumer === "slow") return;
 		installed = new Set([pair.consumer]);
 		if (pair.order === "target-first") installed = new Set([pair.target]);
 		const initial = inspection();
@@ -90,11 +133,50 @@ input.on("line", (line) => {
 			consumer: { id: pair.consumer, url: "http://127.0.0.1:12345" },
 			target: { id: pair.target, url: "http://127.0.0.1:12346" },
 			initial,
+			sonarrFilterWitness:
+				pair.sonarrFilterWitness && witnessMode !== "missing-echo"
+					? 1
+					: undefined,
 		});
 	} else if (pairFailed && req.method !== "close") {
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
 		);
+	} else if (
+		["createSonarrFilterWitness", "readSonarrFilterWitness"].includes(
+			req.method,
+		)
+	) {
+		if (
+			!pair?.sonarrFilterWitness ||
+			(req.method === "createSonarrFilterWitness" && witnessCreated) ||
+			(req.method === "readSonarrFilterWitness" && !witnessCreated)
+		) {
+			process.stdout.write(
+				`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
+			);
+			return;
+		}
+		if (
+			witnessMode === "operation-failure" ||
+			witnessMode === "operation-cleanup"
+		) {
+			pairFailed = true;
+			event("owned-cleanup");
+			if (witnessMode === "operation-cleanup")
+				writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+			process.stdout.write(
+				`${JSON.stringify({ version: 1, id: req.id, error: { code: "OPERATION", reason: "SETUP", cleanupFailed: witnessMode === "operation-cleanup", message: "private-witness-body" } })}\n`,
+			);
+			return;
+		}
+		if (req.method === "createSonarrFilterWitness") witnessCreated = true;
+		let mode = witnessMode;
+		if (mode.startsWith("read-")) {
+			mode = mode.slice(5);
+			if (req.method === "createSonarrFilterWitness") mode = "valid";
+		}
+		reply(req, witnessReceipt(mode));
 	} else if (["inspect", "setup", "remove", "install"].includes(req.method)) {
 		if (req.method === "install" && pair.consumer.startsWith("action-")) {
 			pairFailed = true;
