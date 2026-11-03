@@ -13,6 +13,7 @@ import (
 func nzbgetTarget() target {
 	return target{
 		id: "nzbget", name: "NZBGet", kind: "nzbGet", internal: fixed("http://nzbget:6789"),
+		recovery: "NZBGet credential-safety hold #354: use Homarr 2.5.1 or newer 2.x with the shipped privacy fix. Back up Homarr before changing its version, then retry self-host setup homarr. Older, unreadable or unreviewed versions remain Manual; do not bypass the hold or create a manual integration.",
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{
 				{Kind: "username", Value: to.Secret(to.Key("homarr_username"))},

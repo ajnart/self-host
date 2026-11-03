@@ -11,10 +11,11 @@ import (
 func rommTarget() target {
 	return target{
 		id: "romm", name: "RomM", kind: "romm", internal: (*helpers.H).InternalURL,
-		secrets: func(_, _ *helpers.H) []secret { return []secret{} },
-		widgets: []widget{statWidget("platforms", "roms", "saves", "states", "screenshots", "totalFileSize")},
-		verify:  verifyRomm,
-		stats:   verifyRommStats,
+		recovery: "Run self-host setup romm to confirm RomM is reachable with authentication enabled and its administrator verified, then run self-host setup homarr. If RomM Stats are unavailable, use Homarr 2.x with the romm integration; do not disable authentication, import ROMs, expose assets or create a duplicate integration.",
+		secrets:  func(_, _ *helpers.H) []secret { return []secret{} },
+		widgets:  []widget{statWidget("platforms", "roms", "saves", "states", "screenshots", "totalFileSize")},
+		verify:   verifyRomm,
+		stats:    verifyRommStats,
 	}
 }
 

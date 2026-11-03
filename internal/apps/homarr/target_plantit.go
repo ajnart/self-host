@@ -15,6 +15,7 @@ const plantitRecoveryHint = "Run self-host setup plant-it to verify the saved ow
 func plantitTarget() target {
 	return target{
 		id: "plant-it", name: "Plant-it", kind: "plantit", internal: fixed("http://plant-it:8080"),
+		recovery: plantitRecoveryHint,
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "username", Value: to.Secret(to.Key("homarr_username"))}, {Kind: "password", Value: to.Secret(to.Key("homarr_password"))}}
 		},

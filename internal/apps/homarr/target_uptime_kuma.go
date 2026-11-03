@@ -40,6 +40,7 @@ func uptimeKumaTargetForFamily(family uptimeKumaNativeFamily) target {
 	slices.Sort(defaults)
 	descriptor := target{
 		id: "uptime-kuma", name: "Uptime Kuma", kind: "uptimeKuma", internal: fixed("http://uptime-kuma:3001"),
+		recovery: "Run self-host setup uptime-kuma to verify its administrator and explicitly selected existing status page, then run self-host setup homarr. If no page is selected, follow that Setup's approval-gated input recovery; do not publish private monitors, change Access or create a duplicate Homarr integration. A native widget/API mismatch needs a reviewed Homarr adapter update, not a metrics API key or another integration.",
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "slug", Value: uptimekuma.HomarrSlug(to)}}
 		},

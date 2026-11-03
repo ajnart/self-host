@@ -12,6 +12,7 @@ import (
 func frigateTarget() target {
 	return target{
 		id: "frigate", name: "Frigate", kind: "frigate", internal: fixed("https://frigate:8971"),
+		recovery: "Frigate's Homarr Link requires trusted HTTPS on authenticated port 8971. The default HTTP starter cannot be linked. Obtain explicit approval for Project-scoped private TLS and certificate trust in both Homarr and the CLI, then retry self-host setup frigate and self-host setup homarr. Keep authentication enabled on port 8971; do not use port 5000, bypass certificate verification, or enable public Access.",
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "username", Value: to.AdminUser()}, {Kind: "password", Value: to.AdminPassword()}}
 		},

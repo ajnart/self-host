@@ -15,6 +15,7 @@ const beszelRecoveryHint = "Run self-host setup beszel to verify the Hub login a
 func beszelTarget() target {
 	return target{
 		id: "beszel", name: "Beszel", kind: "beszel", internal: (*helpers.H).InternalURL,
+		recovery: beszelRecoveryHint,
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "username", Value: beszel.AdminEmail(to)}, {Kind: "password", Value: to.AdminPassword()}}
 		},

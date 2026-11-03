@@ -60,6 +60,7 @@ type target struct {
 	prepare         func(ctx context.Context, from, to *helpers.H) (target, error)
 	nullableStats   []string
 	integrationOnly bool
+	recovery        string
 }
 
 func fixed(u string) func(*helpers.H) string { return func(*helpers.H) string { return u } }
@@ -114,7 +115,7 @@ func existingTargets() []target {
 			widgets: []widget{plain("downloads"), statWidget("download", "upload", "paused")},
 		},
 		beszelTarget(),
-		{id: "ntfy", name: "ntfy", kind: "ntfy", internal: (*helpers.H).InternalURL, secrets: ntfySecret,
+		{id: "ntfy", name: "ntfy", recovery: "Run self-host setup ntfy to repair its saved Homarr token, then run self-host setup homarr.", kind: "ntfy", internal: (*helpers.H).InternalURL, secrets: ntfySecret,
 			widgets: []widget{plain("notifications"), statWidget("messages")}},
 		{id: "vaultwarden", name: "Vaultwarden", internal: (*helpers.H).InternalURL},
 	}
@@ -141,41 +142,8 @@ func (t target) hint(from *helpers.H) string {
 	if t.integrationOnly {
 		return externalConnectionRecovery
 	}
-	if t.id == "immich" {
-		return "Run self-host setup immich to verify the dedicated administrator-owned key with only user.read and server.statistics, then run self-host setup homarr. For a lost or mismatched key, restore its matching secret and ID through the Project secret boundary; never delete a key solely by name or create a duplicate Homarr integration. A no-op Stats refresh needs a Setup retry, not another key."
-	}
-	if t.id == "beszel" {
-		return beszelRecoveryHint
-	}
-	if t.id == "uptime-kuma" {
-		return "Run self-host setup uptime-kuma to verify its administrator and explicitly selected existing status page, then run self-host setup homarr. If no page is selected, follow that Setup's approval-gated input recovery; do not publish private monitors, change Access or create a duplicate Homarr integration. A native widget/API mismatch needs a reviewed Homarr adapter update, not a metrics API key or another integration."
-	}
-	if t.id == "gluetun" {
-		return gluetunPrivacyHint + " " + gluetunReadinessHint
-	}
-	if t.id == "ntfy" {
-		return "Run self-host setup ntfy to repair its saved Homarr token, then run self-host setup homarr."
-	}
-	if t.id == "navidrome" {
-		return navidromePrivacyHoldHint
-	}
-	if t.id == "plant-it" {
-		return plantitRecoveryHint
-	}
-	if t.id == "frigate" {
-		return "Frigate's Homarr Link requires trusted HTTPS on authenticated port 8971. The default HTTP starter cannot be linked. Obtain explicit approval for Project-scoped private TLS and certificate trust in both Homarr and the CLI, then retry self-host setup frigate and self-host setup homarr. Keep authentication enabled on port 8971; do not use port 5000, bypass certificate verification, or enable public Access."
-	}
-	if t.id == "nzbget" {
-		return "NZBGet credential-safety hold #354: use Homarr 2.5.1 or newer 2.x with the shipped privacy fix. Back up Homarr before changing its version, then retry self-host setup homarr. Older, unreadable or unreviewed versions remain Manual; do not bypass the hold or create a manual integration."
-	}
-	if t.id == "sabnzbd" {
-		return "SABnzbd credential-safety hold #363: use Homarr 2.5.1 or newer 2.x with the shipped privacy fix. Back up Homarr before changing its version, then retry self-host setup homarr. Older, unreadable or unreviewed versions remain Manual; do not bypass the hold or create a manual integration."
-	}
-	if t.id == "romm" {
-		return "Run self-host setup romm to confirm RomM is reachable with authentication enabled and its administrator verified, then run self-host setup homarr. If RomM Stats are unavailable, use Homarr 2.x with the romm integration; do not disable authentication, import ROMs, expose assets or create a duplicate integration."
-	}
-	if t.id == "patchmon" {
-		return patchmonNativeHint
+	if t.recovery != "" {
+		return t.recovery
 	}
 	if t.kind == "" {
 		return "Open " + from.URL + "/manage/apps, add the " + t.name + " app tile, then place it on a board."

@@ -15,6 +15,7 @@ const navidromePrivacyHoldHint = "Homarr Navidrome credential-safety hold #363: 
 func navidromeTarget() target {
 	return target{
 		id: "navidrome", name: "Navidrome", kind: "navidrome", internal: fixed("http://navidrome:4533"),
+		recovery: navidromePrivacyHoldHint,
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "username", Value: to.Secret(to.Key("homarr_username"))}, {Kind: "password", Value: to.Secret(to.Key("homarr_password"))}}
 		},
