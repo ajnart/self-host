@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
-	"net/url"
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -22,15 +19,8 @@ func proxmoxExternalTarget(c helpers.ExternalConnection) (target, error) {
 	if c.Kind != "proxmox" {
 		return target{}, errors.New("the Proxmox external adapter requires the exact proxmox kind")
 	}
-	u, err := url.Parse(c.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(c.Endpoint, "\r\n\t\\ #") {
-		return target{}, errors.New("Proxmox requires an approved trusted-HTTPS origin without embedded credentials, API/proxy paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return target{}, errors.New("the private Proxmox endpoint has an invalid port")
-		}
+	if err := externalHTTPSOrigin(c.Endpoint, "Proxmox"); err != nil {
+		return target{}, err
 	}
 	values := map[string]string{}
 	for _, credential := range c.Credentials {
