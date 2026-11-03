@@ -42,16 +42,12 @@ type homarrIntent struct {
 }
 
 type homarrEvidence struct {
-	Status    int    `json:"status"`
-	Response  string `json:"response"`
-	Uncertain bool   `json:"uncertain"`
-}
-
-type homarrCreated struct {
-	ID     string   `json:"id"`
-	Name   string   `json:"name"`
-	Key    string   `json:"key"`
-	Scopes []string `json:"scopes"`
+	Version   int       `json:"version"`
+	Status    int       `json:"status"`
+	Created   homarrKey `json:"created"`
+	Complete  bool      `json:"complete"`
+	Rejected  bool      `json:"rejected"`
+	Uncertain bool      `json:"uncertain"`
 }
 
 func homarrManual(reason string) error {
@@ -230,12 +226,13 @@ func ensureHomarrKey(ctx context.Context, h *helpers.H) error {
 				"name": homarrKeyName, "scopes": []string{"users:read"},
 			}},
 		})
-		evidence := homarrEvidence{Status: response.Status, Response: string(response.Body), Uncertain: requestErr != nil}
+		secret, evidence := captureHomarrCreation(response.Body)
+		evidence.Status, evidence.Uncertain = response.Status, requestErr != nil
 		data, err := json.Marshal(evidence)
 		if err != nil {
 			return homarrManual("Karakeep returned unresolved issuance evidence; the intent was preserved.")
 		}
-		if err := homarrIssuance.Capture(h, helpers.CredentialEvidence{Secret: capturedHomarrSecret(response.Body), Data: data}); err != nil {
+		if err := homarrIssuance.Capture(h, helpers.CredentialEvidence{Secret: secret, Data: data}); err != nil {
 			return err
 		}
 		pending, _, err := homarrIssuance.Pending(h)
@@ -249,20 +246,6 @@ func ensureHomarrKey(ctx context.Context, h *helpers.H) error {
 		return completeHomarrIssuance(ctx, h, owner, inventory, pending)
 	})
 	return err
-}
-
-func capturedHomarrSecret(body []byte) string {
-	var envelope struct {
-		Result struct {
-			Data struct {
-				JSON struct {
-					Key string `json:"key"`
-				} `json:"json"`
-			} `json:"data"`
-		} `json:"result"`
-	}
-	_ = json.Unmarshal(body, &envelope)
-	return envelope.Result.Data.JSON.Key
 }
 
 func completeHomarrIssuance(ctx context.Context, h *helpers.H, owner ownerIdentity, inventory []homarrKey, pending helpers.PendingCredential) error {
@@ -282,23 +265,12 @@ func completeHomarrIssuance(ctx context.Context, h *helpers.H, owner ownerIdenti
 		return homarrManual("Karakeep key issuance has an unresolved outcome; no second request was sent.")
 	}
 	var evidence homarrEvidence
-	if json.Unmarshal(pending.Issued.Data, &evidence) != nil || evidence.Uncertain || evidence.Status != http.StatusOK {
+	if json.Unmarshal(pending.Issued.Data, &evidence) != nil || evidence.Version != 1 || !evidence.Complete || evidence.Rejected || evidence.Uncertain || evidence.Status != http.StatusOK {
 		return homarrManual("Karakeep did not confirm a successful key issuance; captured private evidence was preserved.")
 	}
-	var envelope struct {
-		Error  json.RawMessage `json:"error"`
-		Result *struct {
-			Data *struct {
-				JSON *homarrCreated `json:"json"`
-			} `json:"data"`
-		} `json:"result"`
-	}
-	if json.Unmarshal([]byte(evidence.Response), &envelope) != nil || hasBodyError(envelope.Error) || envelope.Result == nil || envelope.Result.Data == nil || envelope.Result.Data.JSON == nil {
-		return homarrManual("Karakeep's captured issuance response is incomplete; its secret was not discarded.")
-	}
-	created := envelope.Result.Data.JSON
+	created := evidence.Created
 	keyID, valid := homarrKeyID(pending.Issued.Secret)
-	if !valid || strings.TrimSpace(created.ID) == "" || created.ID != strings.TrimSpace(created.ID) || created.Name != homarrKeyName || created.Key != pending.Issued.Secret || !homarrScopes(created.Scopes) || slices.Contains(intent.BeforeIDs, created.ID) || slices.Contains(intent.BeforeKey, keyID) {
+	if !valid || strings.TrimSpace(created.ID) == "" || created.ID != strings.TrimSpace(created.ID) || created.Name != homarrKeyName || created.KeyID != keyID || !homarrScopes(created.Scopes) || slices.Contains(intent.BeforeIDs, created.ID) || slices.Contains(intent.BeforeKey, keyID) {
 		return homarrManual("Karakeep's captured key does not establish a new exact read-only resource; the journal was preserved.")
 	}
 	ownership := homarrOwnership{

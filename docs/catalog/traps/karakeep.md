@@ -99,15 +99,24 @@ adopted, deleted or replaced. A rejected key or changed metadata stays Manual.
 
 Issuance uses the reviewed shared `helpers.CredentialIssuance` journal's four
 operations: Pending, Begin, Capture and Commit. A complete authenticated
-preinventory is recorded before the one non-idempotent request. Its returned
-one-time secret and complete private response are captured before accepting
-status, scopes, identifiers or bearer account identity. Verification then
+preinventory is recorded before the one non-idempotent request. A provider-local
+incremental decoder selects only `result.data.json.key` and bounded typed
+resource/name/scope metadata from at most 64 KiB. It retains a fully decoded
+one-time secret even when later fields or closing JSON are malformed. Capture
+stores that secret separately, the derived keyId and minimal status/completeness/
+rejection flags, never the whole response, unrelated tokens or raw errors.
+Duplicate fields/wrappers, truncation and malformed/oversized responses remain
+Manual without reissuance; the first selected secret is not overwritten by an
+ambiguous later field. Status, scopes, identifiers and bearer account identity
+are accepted only after durable Capture. Verification then
 requires the new resource/keyId to be absent from the preinventory, present in
 a fresh session-owned inventory with exact metadata, and authenticated as the
 recorded account. A timeout, lost capture, malformed response, storage failure
 or unresolved outcome never permits a second issuance. Captured, fully
 verifiable evidence can finish the same issuance after private storage is
-repaired; uncertainty remains Manual.
+repaired; uncertainty remains Manual. Legacy raw-response evidence is not
+automatically accepted by the new projection format; preserve it privately for
+independently verified recovery rather than clearing its hold.
 
 Keep `KARAKEEP_HOMARR_API_KEY`, `KARAKEEP_HOMARR_KEY_OWNERSHIP` and
 `KARAKEEP_HOMARR_KEY_PENDING` private. The corresponding optional private
@@ -128,12 +137,25 @@ The native kind is `karakeep`; its supported surface is shared Stats with
 `bookmarks`, `favorites`, `archived`, `highlights`, `lists` and `tags`, all in
 counts for the selected account. Homarr consumes the peer-owned API key at the
 internal `http://karakeep:3000` Address, separately from the browser Address.
-Its leaf freshly verifies credentials before mutation, then verifies the
-saved Homarr connection identifies the same account; equal zero counts alone
-do not prove that identity.
+Its leaf freshly verifies the local credential before mutation and checks the
+saved Homarr connection's account for diagnostics. **The managed Link remains
+Manual before Stats:** the inspected Karakeep account API does not return the
+authenticated keyId. Session-only `apiKeys.list` cannot identify the bearer
+credential Homarr actually saved; public `apiKeys.validate` only validates an
+explicit input key and returns a boolean. Homarr's request result exposes no
+saved-key identity either. A different valid key on the same account returns
+the same profile/counters; the common local fingerprint is not saved-key proof.
 
-The central Stats pipeline obtains one catalog and one advancing forced
-refresh per verification invocation. The leaf uses shared `countValue` and
+Keep the owned integration and all user resources. Resume managed verification
+only when an existing supported read-only saved-connection contract can
+authoritatively identify the recorded keyId. No upstream change, private
+database/encrypted-secret read, credential rotation or TLS bypass is performed
+to turn this hold into success. Retry `self-host setup homarr` after reviewing
+supported capabilities; a manual UI configuration is not managed acceptance.
+
+The retained central Stats pipeline would obtain one catalog and one advancing
+forced refresh after successful saved-key proof; the current Manual guard
+prevents those reads. The leaf retains shared `countValue` and
 `validCountStats`, exact count units, integral nonnegative values, successful
 retry metadata and bounded clock policy. Explicit zeros are valid; missing,
 null, negative, fractional, nonfinite or wrong-unit values are not zeros.
@@ -146,7 +168,8 @@ cross-kind entries. Retained user connections are released, never reclaimed on
 reconnect; removal does not need the peer's credential or a Stats refresh.
 Focused fake-backed checks are not native/rendered/runtime/lifecycle proof;
 both real installation orders, actual values and survivor behavior still need
-their centrally approved isolated attempt.
+their centrally approved isolated attempt after the key-proof blocker is
+resolved. Focused callback-only sample checks do not remove this blocker.
 
 ## Sources
 
@@ -162,3 +185,4 @@ their centrally approved isolated attempt.
 - [Scoped user procedures](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/routers/users.ts), [scope enforcement](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/index.ts)
 - [Session-only issuance/list and explicit scope default](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/routers/apiKeys.ts), [separate keyId/resource ID and key format](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/trpc/auth.ts)
 - [Resolved Homarr Karakeep provider](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/integrations/src/stats/providers/karakeep.ts)
+- [Account-only identity schema](https://github.com/karakeep-app/karakeep/blob/v0.34.1/packages/shared/types/users.ts), [Homarr saved-request output](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/api/src/router/integration/integration-request.ts)

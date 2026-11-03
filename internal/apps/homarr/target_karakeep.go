@@ -56,7 +56,7 @@ func verifyKarakeep(ctx context.Context, from, to *helpers.H, integrationID stri
 	if result["ok"] != true || result["status"] != float64(200) || result["error"] != nil || integration["id"] != integrationID || integration["kind"] != "karakeep" || profile["id"] != accountID || profile["localUser"] != true || profile["error"] != nil || !strings.EqualFold(email, to.Secret(to.Key("admin_email"))) {
 		return &helpers.ManualError{Hint: "Homarr's saved Karakeep connection did not identify the recorded account. Restore only that owned integration's known matching credential, preserving user integrations and widgets, then retry self-host setup homarr. Empty or equal counters do not establish account identity."}
 	}
-	return nil
+	return &helpers.ManualError{Hint: "Karakeep's account API does not identify Homarr's saved API key. This Link remains Manual until a supported read-only saved-connection contract authoritatively identifies the recorded keyId; matching accounts, counters and local fingerprints are insufficient. Preserve the owned integration, private key and journal, and user widgets. Do not rotate credentials or read private databases to bypass this hold. Review supported Karakeep/Homarr API capabilities, then retry self-host setup homarr; native Stats have not been verified."}
 }
 
 func verifyKarakeepStats(sample statsSample) error {

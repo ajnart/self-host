@@ -115,7 +115,7 @@ func TestKarakeepCapturePrecedesStatusScopeAndOwnerAcceptance(t *testing.T) {
 					t.Fatalf("unaccepted issuance did not remain Manual: %v", err)
 				}
 				pending, exists, err := karakeepJournal().Pending(box.h)
-				if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != karakeepTestKey || !strings.Contains(string(pending.Issued.Data), karakeepTestKey) {
+				if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != karakeepTestKey || strings.Contains(string(pending.Issued.Data), karakeepTestKey) {
 					t.Fatalf("one-time secret was not captured before rejection: %v", err)
 				}
 			}
@@ -157,6 +157,74 @@ func TestKarakeepUncertainRemoteOutcomeNeverReissues(t *testing.T) {
 	}
 	if box.fake.issued != 1 || box.secrets.Get("KARAKEEP_HOMARR_KEY_PENDING") == "" || box.secrets.Get("KARAKEEP_HOMARR_API_KEY") != "" {
 		t.Fatal("uncertain issuance lost its hold or issued again")
+	}
+}
+
+func TestKarakeepCaptureRecoversSelectedSecretFromDamagedResponses(t *testing.T) {
+	for _, scenario := range []struct {
+		name string
+		body string
+	}{
+		{name: "truncated after key", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `",`},
+		{name: "malformed trailing field", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `","scopes":[!`},
+		{name: "malformed trailing document", body: `{"result":{"data":{"json":{"id":"key-resource-1","name":"self-host Homarr statistics","scopes":["users:read"],"key":"` + karakeepTestKey + `"}}}} trailing-private-error`},
+		{name: "duplicate selected key", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `","key":"unrelated-private-token","id":"key-resource-1","name":"self-host Homarr statistics","scopes":["users:read"]}}}}`},
+		{name: "duplicate wrapper", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `","id":"key-resource-1","name":"self-host Homarr statistics","scopes":["users:read"]}}},"result":{"token":"unrelated-private-token"}}`},
+		{name: "duplicate resource ID", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `","id":"key-resource-1","id":"other-resource","name":"self-host Homarr statistics","scopes":["users:read"]}}}}`},
+		{name: "duplicate scope", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `","id":"key-resource-1","name":"self-host Homarr statistics","scopes":["users:read"],"scopes":["fullaccess"]}}}}`},
+		{name: "bounded oversized response", body: `{"result":{"data":{"json":{"key":"` + karakeepTestKey + `","id":"key-resource-1","name":"self-host Homarr statistics","scopes":["users:read"],"unrelated":"` + strings.Repeat("x", 64<<10) + `"}}}}`},
+		{name: "unknown values and provider error", body: `{"token":"unrelated-private-token","error":{"message":"trailing-private-error"},"result":{"data":{"json":{"key":"` + karakeepTestKey + `","id":"key-resource-1","name":"self-host Homarr statistics","scopes":["users:read"],"unrelated":{"key":"unrelated-private-token"}}}}}`},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			box := karakeepIssuanceHarness(t, &fakeKarakeep{createBody: scenario.body})
+			for range 2 {
+				err := (karakeep.App{}).Setup(t.Context(), box.h)
+				if !errors.Is(err, helpers.ErrManual) {
+					t.Fatalf("damaged evidence did not stay Manual: %v", err)
+				}
+				pending, exists, err := karakeepJournal().Pending(box.h)
+				if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != karakeepTestKey {
+					t.Fatalf("extractable one-time secret was not captured: %v", err)
+				}
+				for _, value := range box.secrets.values {
+					if strings.Contains(value, "unrelated-private-token") || strings.Contains(value, "trailing-private-error") || strings.Contains(value, `"response"`) {
+						t.Fatal("unselected response data was persisted")
+					}
+				}
+			}
+			if box.fake.issued != 1 || box.secrets.Get("KARAKEEP_HOMARR_API_KEY") != "" {
+				t.Fatal("damaged evidence was committed or caused reissuance")
+			}
+		})
+	}
+}
+
+func TestKarakeepCaptureStoresOnlyTypedProjectionAndResumesSameIssuance(t *testing.T) {
+	body := `{"token":"unrelated-private-token","result":{"data":{"json":{"id":"key-resource-1","name":"self-host Homarr statistics","key":"` + karakeepTestKey + `","scopes":["users:read"],"other":{"token":"unrelated-private-token"}},"meta":{"token":"unrelated-private-token"}}},"debug":"unrelated-private-token"}`
+	box := karakeepIssuanceHarness(t, &fakeKarakeep{createBody: body})
+	box.secrets.fail = "KARAKEEP_HOMARR_KEY_OWNERSHIP"
+	if err := (karakeep.App{}).Setup(t.Context(), box.h); err == nil {
+		t.Fatal("storage failure was ignored")
+	}
+	pending, exists, err := karakeepJournal().Pending(box.h)
+	if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != karakeepTestKey {
+		t.Fatalf("selected secret did not survive storage failure: %v", err)
+	}
+	want := `{"version":1,"status":200,"created":{"id":"key-resource-1","name":"self-host Homarr statistics","keyId":"` + karakeepTestKeyID + `","scopes":["users:read"]},"complete":true,"rejected":false,"uncertain":false}`
+	if string(pending.Issued.Data) != want {
+		t.Fatal("capture was not the exact minimal typed projection")
+	}
+	for _, value := range box.secrets.values {
+		if strings.Contains(value, "unrelated-private-token") {
+			t.Fatal("unselected response data was persisted")
+		}
+	}
+	box.secrets.fail = ""
+	if err := (karakeep.App{}).Setup(t.Context(), box.h); err != nil {
+		t.Fatal(err)
+	}
+	if box.fake.issued != 1 || box.secrets.Get("KARAKEEP_HOMARR_API_KEY") != karakeepTestKey || box.secrets.Get("KARAKEEP_HOMARR_KEY_PENDING") != "" {
+		t.Fatal("projection recovery did not complete the same captured issuance")
 	}
 }
 

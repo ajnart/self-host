@@ -1,6 +1,7 @@
 package homarr
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,6 +22,7 @@ import (
 )
 
 const karakeepFixtureKey = "ak2_aaaaaaaaaaaaaaaaaaaa_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+const karakeepFixtureOtherKey = "ak2_cccccccccccccccccccc_dddddddddddddddddddddddddddddddd"
 
 func karakeepPeerHelpers(t *testing.T) *helpers.H {
 	t.Helper()
@@ -34,7 +36,7 @@ func karakeepPeerHelpers(t *testing.T) *helpers.H {
 		case "GET /api/auth/get-session":
 			value = map[string]any{"user": user, "session": map[string]any{"userId": "selected-owner", "token": "karakeep-fixture-token", "expiresAt": "2099-01-01T00:00:00Z"}}
 		case "GET /api/v1/users/me":
-			if key := r.Header.Get("Authorization"); key != "" && key != "Bearer "+karakeepFixtureKey {
+			if key := r.Header.Get("Authorization"); key != "" && key != "Bearer "+karakeepFixtureKey && key != "Bearer "+karakeepFixtureOtherKey {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -42,7 +44,7 @@ func karakeepPeerHelpers(t *testing.T) *helpers.H {
 		case "GET /api/trpc/apiKeys.list":
 			value = map[string]any{"result": map[string]any{"data": map[string]any{"json": map[string]any{"keys": []any{map[string]any{
 				"id": "key-resource-1", "keyId": "aaaaaaaaaaaaaaaaaaaa", "name": "self-host Homarr statistics", "scopes": []string{"users:read"},
-			}}}}}}
+			}, map[string]any{"id": "key-resource-2", "keyId": "cccccccccccccccccccc", "name": "Existing same-account key", "scopes": []string{"users:read"}}}}}}}
 		case "POST /api/auth/sign-out":
 			value = map[string]any{"success": true}
 		default:
@@ -81,31 +83,54 @@ func karakeepNativeIdentity(id string) map[string]any {
 	return map[string]any{"ok": true, "status": float64(200), "integration": map[string]any{"id": id, "kind": "karakeep"}, "data": map[string]any{"id": "selected-owner", "email": "admin@selfhost.local", "localUser": true}}
 }
 
-func TestKarakeepDescriptorVerifiesIdentityAndOneCentralStatsSample(t *testing.T) {
+func TestKarakeepSavedSameAccountKeyCannotEstablishOwnedCredential(t *testing.T) {
+	peer := karakeepPeerHelpers(t)
+	for _, key := range []string{karakeepFixtureKey, karakeepFixtureOtherKey} {
+		t.Run(key[4:24], func(t *testing.T) {
+			statsRequests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasPrefix(r.URL.Path, "/api/trpc/widget.stats.") {
+					statsRequests++
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if r.URL.Path != "/api/trpc/integration.request" {
+					t.Errorf("unexpected Homarr request: %s", r.URL.Path)
+				}
+				response, err := peer.HTTP(r.Context(), helpers.Request{Path: "/api/v1/users/me", Header: map[string]string{"Authorization": "Bearer " + key}})
+				if err != nil || response.Status != http.StatusOK {
+					t.Error("saved fixture key did not authenticate")
+				}
+				var profile map[string]any
+				if response.Decode(&profile) != nil || profile["id"] != "selected-owner" {
+					t.Error("saved fixture key did not identify the same account")
+				}
+				identity := karakeepNativeIdentity("karakeep-owned")
+				identity["data"] = profile
+				json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": identity}}})
+			}))
+			t.Cleanup(server.Close)
+			from := helpers.New(helpers.Config{App: "homarr", BaseURL: server.URL, HTTP: server.Client(), Secrets: statsSecrets{"HOMARR_API_KEY": "fixture-key"}, Log: events.Discard()})
+			err := karakeepTarget().verifyData(t.Context(), from, peer, "karakeep-owned")
+			if !errors.Is(err, helpers.ErrManual) || statsRequests != 0 {
+				t.Fatalf("account-only response accepted a saved key without proof: %v; Stats requests %d", err, statsRequests)
+			}
+		})
+	}
+}
+
+func TestKarakeepDescriptorKeepsAccountDiagnosticsManualBeforeStats(t *testing.T) {
 	for _, scenario := range []struct {
-		name                string
-		change              func(*statsFixture, map[string]any)
-		fail                bool
-		catalogs, refreshes int
+		name   string
+		change func(map[string]any)
 	}{
-		{name: "meaningful explicit zeros", catalogs: 1, refreshes: 1},
-		{name: "overlapping favorites and archives with independent tags", catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) {
-			f.values = map[string]any{"bookmarks": float64(2), "favorites": float64(2), "archived": float64(2), "highlights": float64(8), "lists": float64(9), "tags": float64(12)}
-		}},
-		{name: "wrong saved account even with zeros", fail: true, change: func(_ *statsFixture, v map[string]any) { v["data"].(map[string]any)["id"] = "different-owner" }},
-		{name: "wrong returned integration", fail: true, change: func(_ *statsFixture, v map[string]any) { v["integration"].(map[string]any)["id"] = "user-owned" }},
-		{name: "wrong kind", fail: true, change: func(_ *statsFixture, v map[string]any) { v["integration"].(map[string]any)["kind"] = "linkwarden" }},
-		{name: "native body error", fail: true, change: func(_ *statsFixture, v map[string]any) { v["data"].(map[string]any)["error"] = "failed" }},
-		{name: "native outer error", fail: true, change: func(_ *statsFixture, v map[string]any) { v["error"] = "failed" }},
-		{name: "missing identity", fail: true, change: func(_ *statsFixture, v map[string]any) { delete(v, "data") }},
-		{name: "fractional tags", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { f.values["tags"] = 0.5 }},
-		{name: "missing count", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { delete(f.values, "highlights") }},
-		{name: "null count", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { f.values["tags"] = nil }},
-		{name: "wrong unit", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { f.metrics[0].(map[string]any)["unit"] = "bytes" }},
-		{name: "missing catalog entry", fail: true, catalogs: 1, change: func(f *statsFixture, _ map[string]any) { f.metrics = f.metrics[:5] }},
-		{name: "no-op refresh", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { f.advance = false }},
-		{name: "missing retry metadata", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { f.hasRetryAt = false }},
-		{name: "pending retry", fail: true, catalogs: 1, refreshes: 1, change: func(f *statsFixture, _ map[string]any) { f.retryAt = float64(1) }},
+		{name: "matching account with explicit zero counters"},
+		{name: "wrong saved account", change: func(v map[string]any) { v["data"].(map[string]any)["id"] = "different-owner" }},
+		{name: "wrong returned integration", change: func(v map[string]any) { v["integration"].(map[string]any)["id"] = "user-owned" }},
+		{name: "wrong kind", change: func(v map[string]any) { v["integration"].(map[string]any)["kind"] = "linkwarden" }},
+		{name: "native body error", change: func(v map[string]any) { v["data"].(map[string]any)["error"] = "failed" }},
+		{name: "native outer error", change: func(v map[string]any) { v["error"] = "failed" }},
+		{name: "missing identity", change: func(v map[string]any) { delete(v, "data") }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			fixture := newStatsFixture()
@@ -119,7 +144,7 @@ func TestKarakeepDescriptorVerifiesIdentityAndOneCentralStatsSample(t *testing.T
 			}
 			identity := karakeepNativeIdentity("karakeep-owned")
 			if scenario.change != nil {
-				scenario.change(fixture, identity)
+				scenario.change(identity)
 			}
 			from := fixture.helpers(t)
 			statsAddress, err := url.Parse(from.BaseURL)
@@ -146,14 +171,61 @@ func TestKarakeepDescriptorVerifiesIdentityAndOneCentralStatsSample(t *testing.T
 			from.BaseURL, from.Config.HTTP = server.URL, server.Client()
 			from.Now = func() time.Time { return time.UnixMilli(1700000000000) }
 			err = karakeepTarget().verifyData(t.Context(), from, karakeepPeerHelpers(t), "karakeep-owned")
-			if (err != nil) != scenario.fail {
+			if !errors.Is(err, helpers.ErrManual) {
 				t.Fatalf("verification = %v", err)
 			}
-			if nativeReads != 1 || fixture.catalogs != scenario.catalogs || fixture.refreshes != scenario.refreshes || fixture.snapshots != scenario.refreshes {
+			if nativeReads != 1 || fixture.catalogs != 0 || fixture.refreshes != 0 || fixture.snapshots != 0 {
 				t.Fatalf("native=%d catalogs=%d snapshots=%d refreshes=%d", nativeReads, fixture.catalogs, fixture.snapshots, fixture.refreshes)
 			}
+		})
+	}
+}
+
+func TestKarakeepCountCallbackRetainsOneCentralSampleContract(t *testing.T) {
+	for _, scenario := range []struct {
+		name      string
+		change    func(*statsFixture)
+		fail      bool
+		refreshes int
+	}{
+		{name: "explicit zeros", refreshes: 1},
+		{name: "overlapping favorites and archives", refreshes: 1, change: func(f *statsFixture) {
+			f.values = map[string]any{"bookmarks": float64(2), "favorites": float64(2), "archived": float64(2), "highlights": float64(8), "lists": float64(9), "tags": float64(12)}
+		}},
+		{name: "fractional tags", fail: true, refreshes: 1, change: func(f *statsFixture) { f.values["tags"] = 0.5 }},
+		{name: "missing count", fail: true, refreshes: 1, change: func(f *statsFixture) { delete(f.values, "highlights") }},
+		{name: "null count", fail: true, refreshes: 1, change: func(f *statsFixture) { f.values["tags"] = nil }},
+		{name: "wrong unit", fail: true, refreshes: 1, change: func(f *statsFixture) { f.metrics[0].(map[string]any)["unit"] = "bytes" }},
+		{name: "missing catalog entry", fail: true, change: func(f *statsFixture) { f.metrics = f.metrics[:5] }},
+		{name: "no-op refresh", fail: true, refreshes: 1, change: func(f *statsFixture) { f.advance = false }},
+		{name: "missing retry metadata", fail: true, refreshes: 1, change: func(f *statsFixture) { f.hasRetryAt = false }},
+		{name: "pending retry", fail: true, refreshes: 1, change: func(f *statsFixture) { f.retryAt = float64(1) }},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			fixture := newStatsFixture()
+			fixture.timestamp = 1700000000000 - 1
+			fixture.values, fixture.metrics = map[string]any{}, []any{}
+			fixture.hasRetryAt, fixture.retryAt = true, float64(0)
+			for _, metric := range karakeepStatsMetrics() {
+				fixture.values[metric] = float64(0)
+				fixture.metrics = append(fixture.metrics, map[string]any{"key": metric, "unit": "count"})
+			}
+			if scenario.change != nil {
+				scenario.change(fixture)
+			}
+			from := fixture.helpers(t)
+			from.Now = func() time.Time { return time.UnixMilli(1700000000000) }
+			callback := karakeepTarget()
+			callback.verify = func(context.Context, *helpers.H, *helpers.H, string) error { return nil }
+			err := callback.verifyData(t.Context(), from, nil, "karakeep-owned")
+			if (err != nil) != scenario.fail {
+				t.Fatalf("count callback = %v", err)
+			}
+			if fixture.catalogs != 1 || fixture.refreshes != scenario.refreshes || fixture.snapshots != scenario.refreshes {
+				t.Fatal("count callback did not use one central sample")
+			}
 			if fixture.refreshes > 0 && (!fixture.force || fixture.integrationID != "karakeep-owned") {
-				t.Fatal("shared refresh did not use the actual owned integration")
+				t.Fatal("shared refresh used the wrong integration")
 			}
 		})
 	}
