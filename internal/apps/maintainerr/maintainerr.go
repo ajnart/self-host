@@ -2,8 +2,6 @@ package maintainerr
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
@@ -50,40 +48,7 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-const storageHint = "Maintainerr stores connected-service credentials in its data directory. Have the Project storage owner review apps/maintainerr/data for mode 0700 and ownership writable by the selected runtime UID/GID, then retry the approved self-host install maintainerr. Preserve existing data, permissions and ACLs until explicit storage recovery is approved; never start with missing storage or recursively repair ownership."
-
-func (App) Preflight(ctx context.Context, h *helpers.H) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	for _, dir := range []string{h.Dir, filepath.Dir(h.Dir)} {
-		info, err := os.Lstat(dir)
-		if err != nil || !info.IsDir() {
-			return &helpers.ManualError{Hint: storageHint}
-		}
-	}
-	root, err := os.OpenRoot(h.Dir)
-	if err != nil {
-		return &helpers.ManualError{Hint: storageHint}
-	}
-	defer root.Close()
-	info, err := root.Lstat("data")
-	if err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
-		return &helpers.ManualError{Hint: storageHint}
-	}
-	return nil
-}
-
 func (a App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Step(ctx, "storage", "verify Maintainerr's private data directory", helpers.StepSpec{
-		Check: func(ctx context.Context) (bool, error) {
-			err := a.Preflight(ctx, h)
-			return err == nil, err
-		},
-		Hint: storageHint,
-	}); err != nil {
-		return err
-	}
 	if err := h.Ready(ctx, "/api/health/ready", helpers.WantStatus(200, 401, 403, 301, 302, 303, 307, 308), helpers.NoRedirect()); err != nil {
 		return err
 	}
@@ -96,10 +61,7 @@ func (a App) Setup(ctx context.Context, h *helpers.H) error {
 	})
 }
 
-func (a App) Check(ctx context.Context, h *helpers.H) error {
-	if err := a.Preflight(ctx, h); err != nil {
-		return err
-	}
+func (App) Check(ctx context.Context, h *helpers.H) error {
 	return verifyServer(ctx, h)
 }
 

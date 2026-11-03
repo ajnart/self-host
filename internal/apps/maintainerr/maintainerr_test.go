@@ -116,51 +116,8 @@ func TestMaintainerrDeclaresOnlyItsPrivateDataWithSelectedRuntimeIdentity(t *tes
 	if _, declaresFiles := any(maintainerr.App{}).(app.FileDeclarer); declaresFiles {
 		t.Fatal("directory preparation must not use a sentinel file declaration")
 	}
-}
-
-func TestMaintainerrPrivateDirectoryPreflightDoesNotMutate(t *testing.T) {
-	for _, kind := range []string{"missing", "file", "public", "symlink", "readonly", "private"} {
-		t.Run(kind, func(t *testing.T) {
-			dir := t.TempDir()
-			data := filepath.Join(dir, "data")
-			var err error
-			switch kind {
-			case "file":
-				err = os.WriteFile(data, []byte("keep"), 0o600)
-			case "public":
-				err = os.Mkdir(data, 0o755)
-			case "readonly":
-				err = os.Mkdir(data, 0o500)
-			case "private":
-				err = os.Mkdir(data, 0o700)
-			case "symlink":
-				err = os.Symlink(t.TempDir(), data)
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			before, beforeErr := os.Lstat(data)
-			h := helpers.New(helpers.Config{App: "maintainerr", Dir: dir, Log: events.Discard()})
-			err = (maintainerr.App{}).Preflight(t.Context(), h)
-			if kind == "private" {
-				if err != nil {
-					t.Fatal(err)
-				}
-			} else {
-				var manual *helpers.ManualError
-				if !errors.Is(err, helpers.ErrManual) || !errors.As(err, &manual) || !strings.Contains(manual.Hint, "0700") {
-					t.Fatalf("unsafe storage needs actionable Manual recovery: %v", err)
-				}
-			}
-			after, afterErr := os.Lstat(data)
-			if errors.Is(beforeErr, os.ErrNotExist) {
-				if !errors.Is(afterErr, os.ErrNotExist) {
-					t.Fatal("preflight created missing data")
-				}
-			} else if afterErr != nil || before.Mode() != after.Mode() || !os.SameFile(before, after) {
-				t.Fatal("preflight changed existing storage")
-			}
-		})
+	if _, preflights := any(maintainerr.App{}).(app.PreflightChecker); preflights {
+		t.Fatal("Maintainerr storage admission must belong to the shared Service validator")
 	}
 }
 
@@ -176,6 +133,9 @@ func TestMaintainerrConfiguredServerAllowsEmptyLibrariesAndPreservesSettings(t *
 				f.results = nil
 				if err := (maintainerr.App{}).Setup(t.Context(), f.h); err != nil {
 					t.Fatal(err)
+				}
+				if len(f.results) != 2 || f.results[0].ID != "ready" || f.results[1].ID != "media-server" {
+					t.Fatal("App Setup duplicated Service-owned directory admission")
 				}
 				for _, result := range f.results {
 					if result.Status != stepstatus.StepSkip {
