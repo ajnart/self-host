@@ -49,7 +49,7 @@ func TestSeerrReachesItsTargetsAtTheirContainerPorts(t *testing.T) {
 	deps := systemtest.NewDeps(t)
 	from := helpers.New(helpers.Config{
 		App: "seerr", Service: "seerr", BaseURL: server.URL, URL: server.URL, HTTP: server.Client(),
-		Inputs:  map[string]string{"sonarr_profile": "1"},
+		Inputs:  map[string]string{"sonarr_profile": "1", "media_server": "jellyfin"},
 		Secrets: secrets, Log: events.Discard(), Now: deps.Now, Sleep: deps.Sleep,
 	})
 	jellyfinServer := httptest.NewServer(arrtest.NewJellyfin().Handler())
