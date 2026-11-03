@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/healthchecks"
+	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -75,6 +76,7 @@ type healthchecksFaultSecrets struct {
 	name      string
 	failWrite int
 	writes    int
+	failure   error
 }
 
 func (s *healthchecksFaultSecrets) Get(key string) string { return s.stored[key] }
@@ -83,11 +85,64 @@ func (s *healthchecksFaultSecrets) Set(key, value string) error {
 	if key == s.name {
 		s.writes++
 		if s.writes == s.failWrite {
+			if s.failure != nil {
+				return s.failure
+			}
 			return errors.New("synthetic private storage failure")
 		}
 	}
 	s.stored[key] = value
 	return nil
+}
+
+func TestHealthchecksExistingKeyOwnershipStorageFailureDiscardsPrivateCause(t *testing.T) {
+	fake := newFake(t)
+	h, stored, records := harness(t, fake)
+	delete(stored, "HEALTHCHECKS_HOMARR_KEY_OWNERSHIP")
+	before := maps.Clone(stored)
+	private := "synthetic-unregistered-private-storage-detail"
+	storageErr := fmt.Errorf("%s: %s: %s", private, apiKey, healthchecksOwnership(apiKey))
+	h.Config.Secrets = &healthchecksFaultSecrets{stored: stored, name: "HEALTHCHECKS_HOMARR_KEY_OWNERSHIP", failWrite: 1, failure: storageErr}
+	var emitted []events.Event
+	h.Log.AddSink(events.SinkFunc(func(event events.Event) { emitted = append(emitted, event) }))
+	err := (healthchecks.App{}).Setup(t.Context(), h)
+	const failure = "Healthchecks verified credential ownership could not be saved; repair private storage and retry Setup without replacing the key"
+	if !errors.Is(err, helpers.ErrStepFailed) || errors.Is(err, storageErr) || !strings.Contains(err.Error(), failure) {
+		t.Fatal("ownership persistence did not return a fixed stage error without its private cause")
+	}
+	var inspect func(error)
+	inspect = func(cause error) {
+		if cause == nil {
+			return
+		}
+		for _, secret := range []string{private, apiKey, healthchecksOwnership(apiKey)} {
+			if strings.Contains(cause.Error(), secret) {
+				t.Fatal("private storage details survived in the returned error chain")
+			}
+		}
+		switch cause := cause.(type) {
+		case interface{ Unwrap() []error }:
+			for _, child := range cause.Unwrap() {
+				inspect(child)
+			}
+		case interface{ Unwrap() error }:
+			inspect(cause.Unwrap())
+		}
+	}
+	inspect(err)
+	if len(*records) == 0 || (*records)[len(*records)-1].Error != failure {
+		t.Fatal("Step did not record the fixed ownership persistence error")
+	}
+	for _, secret := range []string{private, apiKey, healthchecksOwnership(apiKey)} {
+		if strings.Contains(fmt.Sprint(*records, emitted), secret) {
+			t.Fatal("private storage details escaped through Step output")
+		}
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if !maps.Equal(stored, before) || fake.issuances != 0 {
+		t.Fatal("failed existing-key ownership persistence changed private records or issued a key")
+	}
 }
 
 func TestHealthchecksCapturedCredentialSurvivesCommitFailures(t *testing.T) {
@@ -133,6 +188,7 @@ func TestHealthchecksCapturePrecedesStatusAndCredentialSemantics(t *testing.T) {
 		secret     string
 	}{
 		{"HTTP failure carrying key", http.StatusInternalServerError, healthchecksCreatedModal(healthchecksIssuedKey), 1, healthchecksIssuedKey},
+		{"unrelated inputs outside selected modal", http.StatusInternalServerError, `<input readonly value="unrelated-before">` + healthchecksCreatedModal(healthchecksIssuedKey) + `<div><input readonly value="unrelated-after"></div>`, 1, healthchecksIssuedKey},
 		{"reordered readonly attribute", http.StatusInternalServerError, strings.ReplaceAll(healthchecksCreatedModal(healthchecksIssuedKey), `value="`+healthchecksIssuedKey+`" readonly`, `readonly value="`+healthchecksIssuedKey+`"`), 1, healthchecksIssuedKey},
 		{"malformed returned key", http.StatusOK, healthchecksCreatedModal("one-time-unexpected-secret"), 1, "one-time-unexpected-secret"},
 		{"ambiguous selected modal", http.StatusOK, healthchecksCreatedModal("first-one-time-secret") + healthchecksCreatedModal("second-one-time-secret"), 2, ""},
@@ -155,19 +211,95 @@ func TestHealthchecksCapturePrecedesStatusAndCredentialSemantics(t *testing.T) {
 			}
 			var evidence struct {
 				Status, CandidateCount int
-				Candidates             []string
+				Candidates             json.RawMessage
 			}
 			if json.Unmarshal(pending.Issued.Data, &evidence) != nil || evidence.Status != scenario.status || evidence.CandidateCount != scenario.candidates {
 				t.Fatal("provider outcome evidence did not survive")
 			}
-			if scenario.candidates == 2 && len(evidence.Candidates) != 2 {
-				t.Fatal("ambiguous one-time evidence was discarded")
+			if len(evidence.Candidates) != 0 {
+				t.Fatal("unselected candidate secrets were persisted")
 			}
 			fake.mu.Lock()
 			issued := fake.issuances
 			fake.mu.Unlock()
 			if issued != 1 || stored["HEALTHCHECKS_HOMARR_API_KEY"] != "" || stored["HEALTHCHECKS_HOMARR_KEY_OWNERSHIP"] != "" || scenario.secret != "" && strings.Contains(fmt.Sprint(*records), scenario.secret) {
 				t.Fatal("unaccepted evidence was committed, leaked or reissued")
+			}
+		})
+	}
+}
+
+func TestHealthchecksAmbiguousCandidatesAreOnlyRedactedInMemory(t *testing.T) {
+	for _, body := range []string{
+		healthchecksCreatedModal("first-one-time-secret") + healthchecksCreatedModal("second-one-time-secret"),
+		strings.Replace(healthchecksCreatedModal("first-one-time-secret"), ` readonly />`, ` readonly /><input readonly value="second-one-time-secret">`, 1),
+	} {
+		fake := newFake(t)
+		fake.issuanceBody = body
+		h, stored, records := harness(t, fake)
+		healthchecksFreshCredential(fake, stored)
+		for range 2 {
+			if err := (healthchecks.App{}).Setup(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("ambiguous issuance did not remain Manual")
+			}
+		}
+		journal := helpers.CredentialIssuance{SecretName: "homarr_api_key", OwnershipName: "homarr_key_ownership", PendingName: "homarr_key_pending"}
+		pending, exists, err := journal.Pending(h)
+		if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != "" || string(pending.Issued.Data) != `{"status":200,"transportFailed":false,"candidateCount":2}` {
+			t.Fatal("ambiguity did not persist only the nonsecret outcome projection")
+		}
+		for _, candidate := range []string{"first-one-time-secret", "second-one-time-secret"} {
+			if h.Log.Redact(candidate) != "[redacted]" || strings.Contains(fmt.Sprint(*records), candidate) {
+				t.Fatal("an ambiguous candidate was not registered for in-memory redaction")
+			}
+			for _, value := range stored {
+				if strings.Contains(value, candidate) {
+					t.Fatal("an unselected candidate escaped into private persistence")
+				}
+			}
+		}
+		fake.mu.Lock()
+		issued := fake.issuances
+		fake.mu.Unlock()
+		if issued != 1 || stored["HEALTHCHECKS_HOMARR_API_KEY"] != "" || stored["HEALTHCHECKS_HOMARR_KEY_OWNERSHIP"] != "" {
+			t.Fatal("ambiguous evidence was committed or reissued")
+		}
+	}
+}
+
+func TestHealthchecksTruncatedModalCapturesSelectedKeyWithoutCommitOrReissue(t *testing.T) {
+	modal := healthchecksCreatedModal(healthchecksIssuedKey)
+	inputEnd := strings.Index(modal, " />") + len(" />")
+	for _, suffix := range []string{"", "</div>", "</div></div>", `</div><div class="modal-footer"`, `</div><div class="modal-footer">Keep this key</div></div></div>`} {
+		t.Run(fmt.Sprint(len(suffix)), func(t *testing.T) {
+			fake := newFake(t)
+			fake.issuanceBody = modal[:inputEnd] + suffix
+			h, stored, records := harness(t, fake)
+			healthchecksFreshCredential(fake, stored)
+			if err := (healthchecks.App{}).Setup(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("truncated selected modal did not remain Manual")
+			}
+			journal := helpers.CredentialIssuance{SecretName: "homarr_api_key", OwnershipName: "homarr_key_ownership", PendingName: "homarr_key_pending"}
+			pending, exists, err := journal.Pending(h)
+			if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != healthchecksIssuedKey || string(pending.Issued.Data) != `{"status":200,"transportFailed":false,"candidateCount":1,"incomplete":true}` {
+				t.Fatal("the complete selected input was not captured with incomplete outcome metadata")
+			}
+			before := maps.Clone(stored)
+			if err := (healthchecks.App{}).Setup(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("incomplete captured outcome was accepted on retry")
+			}
+			if err := (healthchecks.App{}).Check(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("read-only Check accepted unfinished issuance")
+			}
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			if !maps.Equal(before, stored) || fake.issuances != 1 || stored["HEALTHCHECKS_HOMARR_API_KEY"] != "" || stored["HEALTHCHECKS_HOMARR_KEY_OWNERSHIP"] != "" || strings.Contains(fmt.Sprint(*records), healthchecksIssuedKey) {
+				t.Fatal("incomplete outcome was committed, changed, leaked or reissued")
+			}
+			for _, request := range fake.requests {
+				if strings.Contains(request, "/api/v3/") {
+					t.Fatal("incomplete outcome reached credential acceptance")
+				}
 			}
 		})
 	}

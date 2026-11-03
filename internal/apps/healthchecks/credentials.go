@@ -28,10 +28,10 @@ type keyOwnership struct {
 }
 
 type keyEvidence struct {
-	Status          int      `json:"status"`
-	TransportFailed bool     `json:"transportFailed"`
-	CandidateCount  int      `json:"candidateCount"`
-	Candidates      []string `json:"candidates,omitempty"`
+	Status          int  `json:"status"`
+	TransportFailed bool `json:"transportFailed"`
+	CandidateCount  int  `json:"candidateCount"`
+	Incomplete      bool `json:"incomplete,omitempty"`
 }
 
 var credentialJournal = helpers.CredentialIssuance{SecretName: "homarr_api_key", OwnershipName: "homarr_key_ownership", PendingName: "homarr_key_pending"}
@@ -39,8 +39,8 @@ var settingsRows = regexp.MustCompile(`(?s)<tr\b[^>]*>(.*?)</tr>`)
 var readOnlyLabel = regexp.MustCompile(`<td>\s*API key \(read-only\)\s*</td>`)
 var emptyReadOnly = regexp.MustCompile(`data-create-key=["']api_key_readonly["']`)
 var populatedReadOnly = regexp.MustCompile(`data-revoke-key=["']api_key_readonly["']`)
-var createdModal = regexp.MustCompile(`(?s)<div\b[^>]*\bid=["']key-created-modal["'][^>]*>(.*?)(?:</div>\s*</div>\s*</div>)`)
-var createdInputs = regexp.MustCompile(`<input\b[^>]*>`)
+var createdModal = regexp.MustCompile(`^<div\b[^>]*\bid=["']key-created-modal["'][^>]*>`)
+var createdTags = regexp.MustCompile(`<div\b[^>]*>|</div\s*>|<input\b[^>]*>`)
 var createdValue = regexp.MustCompile(`\bvalue\s*=\s*["']([^"']*)["']`)
 var createdReadOnly = regexp.MustCompile(`\sreadonly(?:\s|=|/?>)`)
 var issuedKeyPattern = regexp.MustCompile(`^hcr_[a-zA-Z0-9]{28}$`)
@@ -103,7 +103,10 @@ func ensureCredential(ctx context.Context, h *helpers.H) error {
 		if err != nil {
 			return errors.New("Healthchecks verified credential ownership could not be recorded")
 		}
-		return h.SetSecret(h.Key("homarr_key_ownership"), string(ownership))
+		if err := h.SetSecret(h.Key("homarr_key_ownership"), string(ownership)); err != nil {
+			return errors.New("Healthchecks verified credential ownership could not be saved; repair private storage and retry Setup without replacing the key")
+		}
+		return nil
 	}
 	path := "/projects/" + selection.ProjectID + "/settings/"
 	csrf, err := session.FormToken(ctx, path, "csrfmiddlewaretoken")
@@ -125,24 +128,37 @@ func ensureCredential(ctx context.Context, h *helpers.H) error {
 		Form:   url.Values{"csrfmiddlewaretoken": {csrf}, "create_key": {"api_key_readonly"}},
 		Header: map[string]string{"Referer": h.BaseURL + path},
 	})
-	var candidates []string
-	for _, modal := range createdModal.FindAllSubmatch(response.Body, -1) {
-		for _, input := range createdInputs.FindAll(modal[1], -1) {
-			value := createdValue.FindSubmatch(input)
-			if !createdReadOnly.Match(input) || len(value) != 2 {
+	evidence := keyEvidence{Status: response.Status, TransportFailed: requestErr != nil}
+	selected := ""
+	depth := 0
+	for _, tag := range createdTags.FindAll(response.Body, -1) {
+		if createdModal.Match(tag) {
+			evidence.Incomplete = evidence.Incomplete || depth != 0
+			depth = 1
+			continue
+		}
+		if depth == 0 {
+			continue
+		}
+		switch {
+		case bytes.HasPrefix(tag, []byte("</div")):
+			depth--
+		case bytes.HasPrefix(tag, []byte("<div")):
+			depth++
+		default:
+			value := createdValue.FindSubmatch(tag)
+			if !createdReadOnly.Match(tag) || len(value) != 2 {
 				continue
 			}
 			candidate := html.UnescapeString(string(value[1]))
 			h.Log.Secret(candidate)
-			candidates = append(candidates, candidate)
+			evidence.CandidateCount++
+			selected = candidate
 		}
 	}
-	evidence := keyEvidence{Status: response.Status, TransportFailed: requestErr != nil, CandidateCount: len(candidates)}
-	selected := ""
-	if len(candidates) == 1 {
-		selected = candidates[0]
-	} else {
-		evidence.Candidates = candidates
+	evidence.Incomplete = evidence.Incomplete || depth != 0
+	if evidence.CandidateCount != 1 {
+		selected = ""
 	}
 	data, err := json.Marshal(evidence)
 	if err != nil {
@@ -178,7 +194,7 @@ func finishCredential(ctx context.Context, h *helpers.H, selection projectSelect
 		return &helpers.ManualError{Hint: "Healthchecks captured issuance evidence is unreadable. " + keyHint}
 	}
 	canonical, err := json.Marshal(evidence)
-	if err != nil || !bytes.Equal(canonical, issued.Data) || evidence.Status != http.StatusOK || evidence.TransportFailed || evidence.CandidateCount != 1 || len(evidence.Candidates) != 0 || !issuedKeyPattern.MatchString(issued.Secret) {
+	if err != nil || !bytes.Equal(canonical, issued.Data) || evidence.Status != http.StatusOK || evidence.TransportFailed || evidence.Incomplete || evidence.CandidateCount != 1 || !issuedKeyPattern.MatchString(issued.Secret) {
 		return &helpers.ManualError{Hint: "Healthchecks captured key or issuance outcome needs explicit recovery; it will not be reissued. " + keyHint}
 	}
 	if err := verifyCredential(ctx, h, selection, issued.Secret); err != nil {
