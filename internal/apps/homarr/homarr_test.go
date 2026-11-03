@@ -731,7 +731,7 @@ func homarrH(t *testing.T, srv *httptest.Server, secrets fakeSecrets) *helpers.H
 
 var targetContainerPorts = map[string]int{
 	"sonarr": 8989, "radarr": 7878, "prowlarr": 9696, "jellyfin": 8096, "seerr": 5055,
-	"beszel": 8090, "ntfy": 80, "vaultwarden": 80, "caddy": 2015, "immich": 2283,
+	"beszel": 8090, "ntfy": 80, "vaultwarden": 80, "caddy": 2015, "immich": 2283, "spoolman": 8000,
 }
 
 func targetH(t *testing.T, srv *httptest.Server, id string, port int, secrets fakeSecrets) *helpers.H {

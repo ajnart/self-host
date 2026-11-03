@@ -88,6 +88,7 @@ var repos = map[string]string{
 	"slskd":                "slskd/slskd",
 	"sonarr":               "Sonarr/Sonarr",
 	"speedtest-tracker":    "alexjustesen/speedtest-tracker",
+	"spoolman":             "Donkie/Spoolman",
 	"stalwart-mail":        "stalwartlabs/stalwart",
 	"stirling-pdf":         "Stirling-Tools/Stirling-PDF",
 	"syncthing":            "syncthing/syncthing",
