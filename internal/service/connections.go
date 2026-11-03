@@ -173,11 +173,11 @@ func (s *Service) registerExternalConnectionFields(raw string) {
 }
 
 func (ss *session) externalConnectionRecords() (externalConnectionRecords, error) {
-	records := externalConnectionRecords{Version: 1, Connections: []externalConnectionRecord{}}
-	raw := ss.secrets.Get(externalConnectionsKey)
-	if raw == "" {
-		return records, nil
+	raw, present := ss.secrets.values[externalConnectionsKey]
+	if !present {
+		return externalConnectionRecords{Version: 1, Connections: []externalConnectionRecord{}}, nil
 	}
+	var records externalConnectionRecords
 	invalid := func() (externalConnectionRecords, error) {
 		return externalConnectionRecords{}, errors.Join(ErrManual, &helpers.ManualError{Hint: externalConnectionsRecovery})
 	}
