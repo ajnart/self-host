@@ -1,0 +1,41 @@
+internal/apps/homarr/target_trilium.go
+  s_0b63679bfab768::t_72f7fdeda4ab20 1-67
+internal/apps/homarr/target_trilium_test.go
+  s_36f092184c883e::t_a62fed89e4f286 1-108
+internal/apps/trilium/homarr.go
+  s_ba131a80713c58::t_e3fad8bee70bcc 1-11
+internal/apps/trilium/trilium.go
+  s_36f092184c883e::t_6ebf9b0563ea1d 15-17,64-65,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9745167195b37813adf73e73c6709c2be9c969aa",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_36f092184c883e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1384766-24f2-4339-aac8-15bc80973fb7",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_ba131a80713c58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "121b85d1-cd18-478c-85ef-57f67eee4d67",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
