@@ -6,6 +6,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/beszel"
 	"github.com/ajnart/self-host/internal/apps/cleanuparr"
 	"github.com/ajnart/self-host/internal/apps/deluge"
+	"github.com/ajnart/self-host/internal/apps/jackett"
 	"github.com/ajnart/self-host/internal/apps/nginxproxymanager"
 	"github.com/ajnart/self-host/internal/apps/oxynote"
 	"github.com/ajnart/self-host/internal/apps/pihole"
@@ -22,6 +23,7 @@ func init() {
 		beszel.App{},
 		cleanuparr.App{},
 		deluge.App{},
+		jackett.App{},
 		nginxproxymanager.App{},
 		oxynote.App{},
 		pihole.App{},
