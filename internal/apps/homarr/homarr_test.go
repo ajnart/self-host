@@ -61,9 +61,14 @@ type fakeHomarr struct {
 	rejectUpdates          bool
 	rejectBoardSaves       int
 	nextID                 int
+	sonarrKey              string
+	sonarrReads            []string
+	sonarrUpdated          map[string]float64
 }
 
-func newFake() *fakeHomarr { return &fakeHomarr{version: "2.4.1", step: "start", nextID: 1} }
+func newFake() *fakeHomarr {
+	return &fakeHomarr{version: "2.4.1", step: "start", nextID: 1, sonarrKey: "sonarr-secret", sonarrUpdated: map[string]float64{}}
+}
 
 func (f *fakeHomarr) id(prefix string) string {
 	id := prefix + "-" + strconv.Itoa(f.nextID)
@@ -107,8 +112,114 @@ func (f *fakeHomarr) keyOK(r *http.Request) bool {
 	return f.apiKey != "" && r.Header.Get("ApiKey") == f.apiKey
 }
 
+func (f *fakeHomarr) sonarrIntegration(id string) bool {
+	if f.sonarrKey == "" {
+		return false
+	}
+	for _, integration := range f.integrations {
+		if integration["id"] != id || integration["kind"] != "sonarr" {
+			continue
+		}
+		secrets, _ := integration["secrets"].([]any)
+		for _, raw := range secrets {
+			secret, _ := raw.(map[string]any)
+			if secret["kind"] == "apiKey" && secret["value"] == f.sonarrKey {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (f *fakeHomarr) handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v3/system/status", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.sonarrReads = append(f.sonarrReads, "identity")
+		if f.sonarrKey == "" || r.Header.Get("X-Api-Key") != f.sonarrKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"appName": "Sonarr", "version": "4.0.0"})
+	})
+	mux.HandleFunc("GET /api/trpc/widget.mediaOrganizer.getData", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if !f.keyOK(r) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var input struct {
+			JSON struct {
+				IntegrationIDs []string `json:"integrationIds"`
+				PageSize       int      `json:"pageSize"`
+			} `json:"json"`
+		}
+		if json.Unmarshal([]byte(r.URL.Query().Get("input")), &input) != nil || len(input.JSON.IntegrationIDs) != 1 || input.JSON.PageSize != 50 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		id := input.JSON.IntegrationIDs[0]
+		if !f.sonarrIntegration(id) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		f.sonarrReads = append(f.sonarrReads, "media/"+id)
+		trpc(w, []any{map[string]any{"integrationId": id, "missing": []any{}, "missingCount": 0, "queued": []any{}, "queuedCount": 0, "error": nil}})
+	})
+	stats := func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if !f.keyOK(r) {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var input map[string]any
+		if r.Method == http.MethodPost {
+			input = inputOf(r)
+		} else {
+			var envelope struct {
+				JSON map[string]any `json:"json"`
+			}
+			if json.Unmarshal([]byte(r.URL.Query().Get("input")), &envelope) != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			input = envelope.JSON
+		}
+		id, _ := input["integrationId"].(string)
+		if !f.sonarrIntegration(id) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		procedure := strings.TrimPrefix(r.URL.Path, "/api/trpc/widget.stats.")
+		f.sonarrReads = append(f.sonarrReads, procedure+"/"+id)
+		if procedure == "catalog" {
+			metrics := []any{}
+			for _, key := range []string{"shows", "downloaded", "missing", "queued"} {
+				metrics = append(metrics, map[string]any{"key": key, "unit": "count"})
+			}
+			trpc(w, map[string]any{"metrics": metrics})
+			return
+		}
+		timestamp := f.sonarrUpdated[id]
+		if timestamp == 0 {
+			timestamp = 1000
+		}
+		if procedure == "refresh" {
+			if input["force"] != true {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			timestamp++
+			f.sonarrUpdated[id] = timestamp
+		}
+		trpc(w, map[string]any{"updatedAt": timestamp, "error": false, "stale": false, "retryAt": nil, "values": map[string]any{"shows": 0, "downloaded": 0, "missing": 0, "queued": 0}})
+	}
+	mux.HandleFunc("GET /api/trpc/widget.stats.catalog", stats)
+	mux.HandleFunc("GET /api/trpc/widget.stats.snapshot", stats)
+	mux.HandleFunc("POST /api/trpc/widget.stats.refresh", stats)
 	mux.HandleFunc("GET /v1/account", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer ntfy-token" {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -815,6 +926,102 @@ func allSecrets() fakeSecrets {
 		"PROWLARR_API_KEY": "prowlarr-secret", "JELLYFIN_API_KEY": "jellyfin-secret",
 		"SEERR_API_KEY": "seerr-secret",
 		"NTFY_TOPIC":    "ntfy-topic", "NTFY_HOMARR_TOKEN": "ntfy-token",
+	}
+}
+
+func TestRegisteredSonarrRequiresAuthenticatedNativeAndAdvancingStats(t *testing.T) {
+	links := (homarr.App{}).Links()
+	count := 0
+	for _, link := range links {
+		if link.Target == "sonarr" {
+			count++
+		}
+	}
+	if count != 1 || links[0].Target != "sonarr" {
+		t.Fatal("Sonarr registration was duplicated or reordered")
+	}
+	for _, scenario := range []struct {
+		name      string
+		path      string
+		body      string
+		peerKey   string
+		wantError bool
+	}{
+		{name: "authenticated empty library and one refresh"},
+		{name: "rejected peer key", peerKey: "invalid-key", wantError: true},
+		{name: "wrong media integration", path: "/api/trpc/widget.mediaOrganizer.getData", body: `{"result":{"data":{"json":[{"integrationId":"another-integration","missing":[],"missingCount":0,"queued":[],"queuedCount":0}]}}}`, wantError: true},
+		{name: "missing native arrays", path: "/api/trpc/widget.mediaOrganizer.getData", body: `{"result":{"data":{"json":[{"integrationId":$ID,"missingCount":0,"queuedCount":0}]}}}`, wantError: true},
+		{name: "wrong count unit", path: "/api/trpc/widget.stats.catalog", body: `{"result":{"data":{"json":{"metrics":[{"key":"shows","unit":"bytes"},{"key":"downloaded","unit":"count"},{"key":"missing","unit":"count"},{"key":"queued","unit":"count"}]}}}}`, wantError: true},
+		{name: "null refreshed count", path: "/api/trpc/widget.stats.refresh", body: `{"result":{"data":{"json":{"updatedAt":$NEXT,"error":false,"stale":false,"values":{"shows":null,"downloaded":0,"missing":0,"queued":0}}}}}`, wantError: true},
+		{name: "no-op refresh", path: "/api/trpc/widget.stats.refresh", body: `{"result":{"data":{"json":{"updatedAt":$TIME,"error":false,"stale":false,"values":{"shows":0,"downloaded":0,"missing":0,"queued":0}}}}}`, wantError: true},
+		{name: "failed refresh", path: "/api/trpc/widget.stats.refresh", body: `{"result":{"data":{"json":{"updatedAt":$NEXT,"error":true,"stale":false,"values":{"shows":0,"downloaded":0,"missing":0,"queued":0}}}}}`, wantError: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			fake := newFake()
+			fake.apiKey = "keyid.secret"
+			base := fake.handler()
+			var fault atomic.Bool
+			var response string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if fault.Load() && r.URL.Path == scenario.path {
+					w.Write([]byte(response))
+					return
+				}
+				base.ServeHTTP(w, r)
+			}))
+			defer srv.Close()
+			secrets := allSecrets()
+			from := homarrH(t, srv, secrets)
+			to := targetH(t, srv, "sonarr", 8989, secrets)
+			link := linkFor(t, "sonarr")
+			if err := link.Apply(t.Context(), from, to); err != nil {
+				t.Fatal(err)
+			}
+			id := secrets["HOMARR_LINKED_SONARR"]
+			fake.mu.Lock()
+			previous := fake.sonarrUpdated[id]
+			fake.sonarrReads = nil
+			fake.mu.Unlock()
+			response = strings.NewReplacer("$ID", strconv.Quote(id), "$TIME", strconv.FormatFloat(previous, 'f', -1, 64), "$NEXT", strconv.FormatFloat(previous+1, 'f', -1, 64)).Replace(scenario.body)
+			if scenario.peerKey != "" {
+				secrets["SONARR_API_KEY"] = scenario.peerKey
+			}
+			fault.Store(true)
+			var status stepstatus.Step
+			from.Record = func(result helpers.StepResult) {
+				if result.ID == "link-sonarr" {
+					status = result.Status
+				}
+			}
+			err := link.Apply(t.Context(), from, to)
+			if (err != nil) != scenario.wantError {
+				t.Fatalf("registered verification error=%v wantError=%v", err, scenario.wantError)
+			}
+			fake.mu.Lock()
+			if id == "" || len(fake.integrations) != 1 || fake.integrations[0]["id"] != id || len(fake.apps) != 1 || len(fake.items) != 6 {
+				fake.mu.Unlock()
+				t.Fatal("registration rerun changed owned resource identities or counts")
+			}
+			if !scenario.wantError {
+				want := strings.Join([]string{"identity", "media/" + id, "catalog/" + id, "snapshot/" + id, "refresh/" + id}, ",")
+				if strings.Join(fake.sonarrReads, ",") != want || fake.sonarrUpdated[id] != previous+1 || status != stepstatus.StepSkip {
+					fake.mu.Unlock()
+					t.Fatal("registered Link did not use exactly one native/central Stats pipeline")
+				}
+			} else if status != stepstatus.StepFail {
+				fake.mu.Unlock()
+				t.Fatal("failed native/Stats verification did not fail the registered Link")
+			}
+			fake.mu.Unlock()
+			fault.Store(false)
+			secrets["SONARR_API_KEY"] = "sonarr-secret"
+			if err := link.Apply(t.Context(), from, to); err != nil {
+				t.Fatal("registered Link did not recover", err)
+			}
+			if secrets["HOMARR_LINKED_SONARR"] != id {
+				t.Fatal("recovery replaced the owned integration")
+			}
+		})
 	}
 }
 
@@ -1700,6 +1907,9 @@ func TestLinkReconcilesRotatedIntegrationCredential(t *testing.T) {
 		t.Fatal(err)
 	}
 	secrets["SONARR_API_KEY"] = "rotated-key"
+	fake.mu.Lock()
+	fake.sonarrKey = "rotated-key"
+	fake.mu.Unlock()
 	if err := link.Apply(context.Background(), from, to); err != nil {
 		t.Fatal(err)
 	}
@@ -1970,6 +2180,7 @@ func TestRejectedCredentialUpdateFailsAndRemainsRetryable(t *testing.T) {
 	}
 	secrets["SONARR_API_KEY"] = "rotated-key"
 	fake.mu.Lock()
+	fake.sonarrKey = "rotated-key"
 	fake.rejectUpdates = true
 	fake.mu.Unlock()
 	if err := link.Apply(context.Background(), from, to); err == nil {

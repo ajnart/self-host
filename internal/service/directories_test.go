@@ -325,10 +325,21 @@ func TestDirectoryGeneratedRefreshPreparesBeforeUpAndPreservesCustomCompose(t *t
 				}
 				return system.Result{}
 			})
-			if err := h.svc.Update(context.Background(), []string{"one"}); err != nil {
+			before := len(h.runner.Calls())
+			err := h.svc.Update(context.Background(), []string{"one"})
+			if customized {
+				if !errors.Is(err, helpers.ErrManual) {
+					t.Fatalf("customized definition must not prepare missing declared storage: %v", err)
+				}
+				assertNoDirectoryRepairOrStartup(t, h.runner.Calls()[before:])
+				data, readErr := os.ReadFile(filepath.Join(h.root(), "compose.yml"))
+				if readErr != nil || !strings.Contains(string(data), "example/person-selected:latest") {
+					t.Fatal("runtime admission adopted the customized definition")
+				}
+			} else if err != nil {
 				t.Fatal(err)
 			}
-			_, err := os.Stat(filepath.Join(h.root(), "apps", "one", "config"))
+			_, err = os.Stat(filepath.Join(h.root(), "apps", "one", "config"))
 			if customized && !os.IsNotExist(err) || !customized && err != nil {
 				t.Fatalf("refresh directory preparation did not respect generated ownership: %v", err)
 			}
@@ -520,6 +531,12 @@ func TestDirectoryServicePreservesPresentACLAndRejectsEntireBatch(t *testing.T) 
 	n, err := unix.Getxattr(leaf, "system.posix_acl_access", got)
 	if err != nil || string(got[:n]) != string(acl) {
 		t.Fatal("ACL was reset or changed")
+	}
+	assertNoDirectoryRepairOrStartup(t, h.runner.Calls()[callCount:])
+	a.directories = dirs
+	callCount = len(h.runner.Calls())
+	if err := h.svc.Start(t.Context(), []string{"one"}); !errors.Is(err, helpers.ErrManual) || !strings.Contains(err.Error(), "system.posix_acl_access") {
+		t.Fatalf("required-existing runtime validation admitted the ACL: %v", err)
 	}
 	assertNoDirectoryRepairOrStartup(t, h.runner.Calls()[callCount:])
 }
