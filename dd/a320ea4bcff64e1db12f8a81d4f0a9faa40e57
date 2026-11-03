@@ -1,0 +1,27 @@
+docs/catalog/traps/maintainerr.md
+  s_121da8e8a6b256::t_a9c47c8730256c 29,33-38
+internal/apps/homarr/target_maintainerr.go
+  s_121da8e8a6b256::t_af2fc73c840ed1 1-34
+internal/apps/homarr/target_maintainerr_test.go
+  s_121da8e8a6b256::t_f6343c84517122 1-59
+internal/apps/homarr/targets.go
+  s_121da8e8a6b256::t_17e854826aee2b 8
+internal/apps/maintainerr/maintainerr.go
+  s_121da8e8a6b256::t_f9fbd944688672 68-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dda320ea4bcff64e1db12f8a81d4f0a9faa40e57",
+  "prompts": {},
+  "sessions": {
+    "s_121da8e8a6b256": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9cc6833-5f1d-42a9-aa64-89128db02c15",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
