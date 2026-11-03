@@ -1,0 +1,20 @@
+docs/catalog/traps/autobrr.md
+  h_d6e478ca18e517 5,11-14,17-18
+internal/apps/autobrr/autobrr.go
+  h_d6e478ca18e517 41-44,55-59,130
+internal/apps/autobrr/autobrr_test.go
+  h_d6e478ca18e517 332,364-365,367,369-376,378-379
+internal/service/autobrr_directories_test.go
+  h_d6e478ca18e517 1-353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50f92e8fba11e42b12cbb5d2cc094a4e6a2277c7",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
