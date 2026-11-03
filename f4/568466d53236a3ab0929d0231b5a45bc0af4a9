@@ -1,0 +1,39 @@
+docs/catalog/traps/healthchecks.md
+  s_0b63679bfab768::t_5b51aa6b82cb74 1-37
+internal/apps/healthchecks/credentials.go
+  s_0b63679bfab768::t_9dce51bb055f4a 1-208
+internal/apps/healthchecks/credentials_test.go
+  s_0b63679bfab768::t_8228869efdcff6 1-419
+internal/apps/healthchecks/healthchecks.go
+  s_0b63679bfab768::t_51b51eea2a26f6 1-204
+internal/apps/healthchecks/healthchecks_test.go
+  s_0b63679bfab768::t_fa728756a03ed7 1-439
+internal/apps/healthchecks/setup.go
+  s_0b63679bfab768::t_61b8264fa72981 1-254
+internal/apps/homarr/target_healthchecks.go
+  s_0b63679bfab768::t_e76ae04dbd43b0 1-74
+internal/apps/homarr/target_healthchecks_test.go
+  s_0b63679bfab768::t_e5aa7e063a1d75 1-239
+internal/catalog/batch_multi1.go
+  s_0b63679bfab768::t_188764dadec614 8,20
+tools/sitegen/icons.go
+  s_0b63679bfab768::t_640cff2dfeb02e 38
+tools/sitegen/stars.go
+  s_0b63679bfab768::t_5746bcb1783b65 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4568466d53236a3ab0929d0231b5a45bc0af4a9",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
