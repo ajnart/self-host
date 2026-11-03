@@ -1,0 +1,20 @@
+docs/catalog/traps/karakeep.md
+  h_d6e478ca18e517 140-147,171-175
+internal/apps/homarr/target_karakeep.go
+  h_d6e478ca18e517 13-14,22-24,56
+internal/apps/homarr/target_karakeep_lifecycle_test.go
+  h_d6e478ca18e517 4-5,19-116,118,121-124,138,211-217,221-228
+internal/apps/homarr/target_karakeep_test.go
+  h_d6e478ca18e517 287,316-318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "872a3c10d132a87f9c1152834c4223328f5bcda0",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
