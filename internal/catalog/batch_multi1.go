@@ -7,6 +7,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/fireflyiii"
 	"github.com/ajnart/self-host/internal/apps/healthchecks"
 	"github.com/ajnart/self-host/internal/apps/immich"
+	"github.com/ajnart/self-host/internal/apps/jellystat"
 	"github.com/ajnart/self-host/internal/apps/keycloak"
 	"github.com/ajnart/self-host/internal/apps/linkwarden"
 )
@@ -19,6 +20,7 @@ func init() {
 		fireflyiii.App{},
 		healthchecks.App{},
 		immich.App{},
+		jellystat.App{},
 		keycloak.App{},
 		linkwarden.App{},
 	)
