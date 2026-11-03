@@ -17,6 +17,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/tailscale"
 	"github.com/ajnart/self-host/internal/apps/tandoor"
 	"github.com/ajnart/self-host/internal/apps/technitiumdns"
+	"github.com/ajnart/self-host/internal/apps/xteve"
 	"github.com/ajnart/self-host/internal/apps/zerotier"
 )
 
@@ -38,6 +39,7 @@ func init() {
 		tailscale.App{},
 		tandoor.App{},
 		technitiumdns.App{},
+		xteve.App{},
 		zerotier.App{},
 	)
 }

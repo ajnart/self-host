@@ -61,5 +61,6 @@ func targets() []target {
 		tubearchivistTarget(),
 		anchorTarget(),
 		plantitTarget(),
+		xteveTarget(),
 	)
 }
