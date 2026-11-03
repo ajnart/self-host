@@ -50,15 +50,16 @@ type target struct {
 	id   string
 	name string
 	// kind is the Homarr integration kind; empty means tile only.
-	kind          string
-	internal      func(to *helpers.H) string
-	secrets       func(from, to *helpers.H) []secret
-	widgets       []widget
-	preflight     func(ctx context.Context, from, to *helpers.H) error
-	verify        func(ctx context.Context, from, to *helpers.H, integrationID string) error
-	stats         func(statsSample) error
-	prepare       func(ctx context.Context, from, to *helpers.H) (target, error)
-	nullableStats []string
+	kind            string
+	internal        func(to *helpers.H) string
+	secrets         func(from, to *helpers.H) []secret
+	widgets         []widget
+	preflight       func(ctx context.Context, from, to *helpers.H) error
+	verify          func(ctx context.Context, from, to *helpers.H, integrationID string) error
+	stats           func(statsSample) error
+	prepare         func(ctx context.Context, from, to *helpers.H) (target, error)
+	nullableStats   []string
+	integrationOnly bool
 }
 
 func fixed(u string) func(*helpers.H) string { return func(*helpers.H) string { return u } }
@@ -137,6 +138,9 @@ func iconURL(id string) string {
 }
 
 func (t target) hint(from *helpers.H) string {
+	if t.integrationOnly {
+		return externalConnectionRecovery
+	}
 	if t.id == "immich" {
 		return "Run self-host setup immich to verify the dedicated administrator-owned key with only user.read and server.statistics, then run self-host setup homarr. For a lost or mismatched key, restore its matching secret and ID through the Project secret boundary; never delete a key solely by name or create a duplicate Homarr integration. A no-op Stats refresh needs a Setup retry, not another key."
 	}
@@ -334,9 +338,6 @@ func board(ctx context.Context, h *helpers.H) (map[string]any, error) {
 	record, _ := value.(map[string]any)
 	if record == nil {
 		return nil, errors.New("Homarr did not return the board")
-	}
-	if err := validateBoardOwnership(h, record); err != nil {
-		return nil, err
 	}
 	return record, nil
 }
@@ -666,9 +667,17 @@ func ensureIntegration(ctx context.Context, from, to *helpers.H, t target, appID
 	}
 	if id := match(integrations); id != "" {
 		if from.Secret(integrationFingerprintKey(from, id)) != integrationFingerprint(t, from, to) || !integrationAddressCurrent(integrations, id, internal) {
-			value, err := apiKeyWrite(ctx, from, "integration.update", map[string]any{
+			body := map[string]any{
 				"id": id, "name": t.name, "url": internal, "secrets": t.credentials(from, to), "appId": appID,
-			})
+			}
+			if t.integrationOnly {
+				association, err := t.externalIntegrationAppID(ctx, from, id)
+				if err != nil {
+					return "", err
+				}
+				body["appId"] = association
+			}
+			value, err := apiKeyWrite(ctx, from, "integration.update", body)
 			if err != nil {
 				return "", err
 			}
@@ -688,11 +697,14 @@ func ensureIntegration(ctx context.Context, from, to *helpers.H, t target, appID
 			return "", err
 		}
 	}
-	id, err := createIntegration(ctx, from, map[string]any{
+	body := map[string]any{
 		"name": t.name, "url": internal, "kind": t.kind,
 		"secrets": t.credentials(from, to), "attemptSearchEngineCreation": false,
-		"app": map[string]any{"id": appID},
-	})
+	}
+	if !t.integrationOnly {
+		body["app"] = map[string]any{"id": appID}
+	}
+	id, err := createIntegration(ctx, from, body)
 	if err != nil {
 		return "", err
 	}
@@ -845,6 +857,9 @@ func removeWidgets(ctx context.Context, h *helpers.H, integrationID string, widg
 	if err != nil {
 		return err
 	}
+	if err := validateBoardOwnership(h, current, owned); err != nil {
+		return err
+	}
 	kept := make([]map[string]any, 0, len(items))
 	removed := false
 	for _, item := range items {
@@ -894,29 +909,33 @@ func (t target) linked(ctx context.Context, from, to *helpers.H) (bool, error) {
 	if err := t.compatible(ctx, from, to); err != nil {
 		return false, err
 	}
-	browser, err := browserAddress(ctx, from, to)
-	if err != nil {
-		return false, err
-	}
 	internal := t.internal(to)
-	id, found, err := t.findApp(ctx, from, internal)
-	if err != nil || !found {
-		return false, err
-	}
-	apps, err := listApps(ctx, from)
-	if err != nil {
-		return false, err
-	}
-	for _, item := range apps {
-		if appID(item) == id && stringField(item, "href") != browser {
-			return false, nil
+	id := ""
+	if !t.integrationOnly {
+		browser, err := browserAddress(ctx, from, to)
+		if err != nil {
+			return false, err
+		}
+		var found bool
+		id, found, err = t.findApp(ctx, from, internal)
+		if err != nil || !found {
+			return false, err
+		}
+		apps, err := listApps(ctx, from)
+		if err != nil {
+			return false, err
+		}
+		for _, item := range apps {
+			if appID(item) == id && stringField(item, "href") != browser {
+				return false, nil
+			}
 		}
 	}
 	current, err := board(ctx, from)
 	if err != nil {
 		return false, err
 	}
-	if !hasTile(itemsOf(current), id) {
+	if !t.integrationOnly && !hasTile(itemsOf(current), id) {
 		return false, nil
 	}
 	if t.kind == "" {
@@ -1005,10 +1024,6 @@ func (t target) add(ctx context.Context, from, to *helpers.H) error {
 	if err := t.compatible(ctx, from, to); err != nil {
 		return err
 	}
-	browser, err := browserAddress(ctx, from, to)
-	if err != nil {
-		return err
-	}
 	internal := t.internal(to)
 	current, err := board(ctx, from)
 	if err != nil {
@@ -1020,72 +1035,80 @@ func (t target) add(ctx context.Context, from, to *helpers.H) error {
 		}
 	}
 	boardID := stringField(current, "id")
-	id, found, err := t.findApp(ctx, from, internal)
-	if err != nil {
-		return err
-	}
-	if !found {
-		previous := recorded[t.id]
-		retained := false
-		if previous != "" {
+	id := ""
+	items := itemsOf(current)
+	if !t.integrationOnly {
+		browser, err := browserAddress(ctx, from, to)
+		if err != nil {
+			return err
+		}
+		var found bool
+		id, found, err = t.findApp(ctx, from, internal)
+		if err != nil {
+			return err
+		}
+		if !found {
+			previous := recorded[t.id]
+			retained := false
+			if previous != "" {
+				apps, err := listApps(ctx, from)
+				if err != nil {
+					return err
+				}
+				for _, item := range apps {
+					if appID(item) == previous && strings.HasPrefix(stringField(item, "description"), retainedTileMarker) {
+						retained = true
+						break
+					}
+				}
+			}
+			if !retained {
+				if err := removeAppTiles(ctx, from, previous); err != nil {
+					return err
+				}
+			}
+			resp, err := from.Expect(ctx, helpers.Request{
+				Method: "POST", Path: "/api/apps", Header: apiKeyHeader(from),
+				JSON: map[string]any{
+					"name": t.name, "description": installedTileMarker + t.id, "iconUrl": iconURL(t.id),
+					"href": browser, "pingUrl": internal,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			var created map[string]any
+			if err := resp.Decode(&created); err != nil {
+				return err
+			}
+			id = appID(created)
+			if id == "" {
+				return errors.New("Homarr did not return an app id")
+			}
+		} else {
 			apps, err := listApps(ctx, from)
 			if err != nil {
 				return err
 			}
 			for _, item := range apps {
-				if appID(item) == previous && strings.HasPrefix(stringField(item, "description"), retainedTileMarker) {
-					retained = true
-					break
+				if appID(item) != id || stringField(item, "href") == browser {
+					continue
+				}
+				_, err := from.Expect(ctx, helpers.Request{Method: "PATCH", Path: "/api/apps/" + id, Header: apiKeyHeader(from), JSON: map[string]any{
+					"name": item["name"], "description": item["description"], "iconUrl": item["iconUrl"], "href": browser, "pingUrl": item["pingUrl"],
+				}})
+				if err != nil {
+					return err
 				}
 			}
 		}
-		if !retained {
-			if err := removeAppTiles(ctx, from, previous); err != nil {
+		if err := rememberAppID(from, t.id, id); err != nil {
+			return err
+		}
+		if !hasTile(items, id) {
+			if err := addTile(ctx, from, boardID, id); err != nil {
 				return err
 			}
-		}
-		resp, err := from.Expect(ctx, helpers.Request{
-			Method: "POST", Path: "/api/apps", Header: apiKeyHeader(from),
-			JSON: map[string]any{
-				"name": t.name, "description": installedTileMarker + t.id, "iconUrl": iconURL(t.id),
-				"href": browser, "pingUrl": internal,
-			},
-		})
-		if err != nil {
-			return err
-		}
-		var created map[string]any
-		if err := resp.Decode(&created); err != nil {
-			return err
-		}
-		id = appID(created)
-		if id == "" {
-			return errors.New("Homarr did not return an app id")
-		}
-	} else {
-		apps, err := listApps(ctx, from)
-		if err != nil {
-			return err
-		}
-		for _, item := range apps {
-			if appID(item) != id || stringField(item, "href") == browser {
-				continue
-			}
-			_, err := from.Expect(ctx, helpers.Request{Method: "PATCH", Path: "/api/apps/" + id, Header: apiKeyHeader(from), JSON: map[string]any{
-				"name": item["name"], "description": item["description"], "iconUrl": item["iconUrl"], "href": browser, "pingUrl": item["pingUrl"],
-			}})
-			if err != nil {
-				return err
-			}
-		}
-	}
-	if err := rememberAppID(from, t.id, id); err != nil {
-		return err
-	}
-	items := itemsOf(current)
-	if !hasTile(items, id) {
-		if err := addTile(ctx, from, boardID, id); err != nil {
-			return err
 		}
 	}
 	if t.kind != "" {
@@ -1099,6 +1122,9 @@ func (t target) add(ctx context.Context, from, to *helpers.H) error {
 		if err := t.addWidgets(ctx, from, to, boardID, integrationID, items); err != nil {
 			return err
 		}
+	}
+	if t.integrationOnly {
+		return nil
 	}
 	return ensureNotebook(ctx, from)
 }
@@ -1123,9 +1149,17 @@ func (t target) remove(ctx context.Context, from, to *helpers.H) error {
 	if err := validateOwnership(from); err != nil {
 		return err
 	}
+	if t.integrationOnly {
+		if err := t.externalRemovalReady(ctx, from); err != nil {
+			return err
+		}
+	}
 	recorded, err := managedAppIDs(from)
 	if err != nil {
 		return err
+	}
+	if t.integrationOnly && recorded[t.id] != "" {
+		return &helpers.ManualError{Hint: "An external connection unexpectedly records Homarr App ownership. Preserve that App and repair the explicit ownership record through the Project secret boundary before retrying removal."}
 	}
 	if recordedID := recorded[t.id]; recordedID != "" {
 		apps, err := listApps(ctx, from)
@@ -1142,7 +1176,10 @@ func (t target) remove(ctx context.Context, from, to *helpers.H) error {
 			return ensureNotebook(ctx, from)
 		}
 	}
-	internal := t.internal(to)
+	internal := ""
+	if !t.integrationOnly {
+		internal = t.internal(to)
+	}
 	keepIntegration := false
 	if t.kind != "" {
 		if id := from.Secret(from.Key("linked_" + t.id)); id != "" {
@@ -1176,6 +1213,9 @@ func (t target) remove(ctx context.Context, from, to *helpers.H) error {
 				}
 			}
 		}
+	}
+	if t.integrationOnly {
+		return t.releaseExternalConnection(from)
 	}
 	id, found, err := t.findApp(ctx, from, internal)
 	if err != nil {
@@ -1273,6 +1313,9 @@ func (t target) absent(ctx context.Context, from, to *helpers.H) (bool, error) {
 	if err := validateOwnership(from); err != nil {
 		return false, err
 	}
+	if t.integrationOnly {
+		return from.Secret(from.Key("linked_"+t.id)) == "", nil
+	}
 	recorded, err := managedAppIDs(from)
 	if err != nil {
 		return false, err
@@ -1331,7 +1374,13 @@ func (t target) link() app.Link {
 		title = "add a " + t.name + " tile"
 	}
 	hint := func(from, _ *helpers.H) string { return t.hint(from) }
-	return app.NewLink("link-"+t.id, t.id, title,
+	removeHint := hint
+	targetID := t.id
+	if t.integrationOnly {
+		targetID = ""
+		removeHint = func(_, _ *helpers.H) string { return externalConnectionRemovalRecovery }
+	}
+	return app.NewLink("link-"+t.id, targetID, title,
 		app.LinkStep{
 			Message: "add " + t.name + " to Homarr",
 			Check:   func(ctx context.Context, from, to *helpers.H) (bool, error) { return t.linked(ctx, from, to) },
@@ -1341,7 +1390,13 @@ func (t target) link() app.Link {
 		&app.LinkStep{
 			Message: "remove " + t.name + " from Homarr",
 			Check:   func(ctx context.Context, from, to *helpers.H) (bool, error) { return t.absent(ctx, from, to) },
-			Do:      func(ctx context.Context, from, to *helpers.H) error { return t.remove(ctx, from, to) },
-			Hint:    hint,
+			Do: func(ctx context.Context, from, to *helpers.H) error {
+				err := t.remove(ctx, from, to)
+				if err != nil && t.integrationOnly && !errors.Is(err, helpers.ErrManual) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+					return &helpers.ManualError{Hint: externalConnectionRemovalRecovery}
+				}
+				return err
+			},
+			Hint: removeHint,
 		})
 }

@@ -52,12 +52,12 @@ func (t target) verifyData(ctx context.Context, from, to *helpers.H, integration
 
 // Ownership stays per integration, even when several integrations share an item.
 func allOwnedWidgets(h *helpers.H) (map[string]bool, error) {
+	ids, err := ownedIntegrationIDs(h)
+	if err != nil {
+		return nil, err
+	}
 	owned := map[string]bool{}
-	for _, t := range targets() {
-		id := h.Secret(h.Key("linked_" + t.id))
-		if id == "" {
-			continue
-		}
+	for _, id := range ids {
 		widgets, err := ownedWidgets(h, id)
 		if err != nil {
 			return nil, err
@@ -154,6 +154,9 @@ func ensureSharedWidget(ctx context.Context, h *helpers.H, w widget, integration
 		if yes {
 			allOwned[id] = true
 		}
+	}
+	if err := validateBoardOwnership(h, current, allOwned); err != nil {
+		return err
 	}
 	var shared map[string]any
 	partitions := []map[string]any{}

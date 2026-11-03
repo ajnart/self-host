@@ -240,6 +240,7 @@ func (s *Service) open(ctx context.Context) (*session, error) {
 		return nil, err
 	}
 	registerSecrets(s.Log, secrets)
+	s.registerExternalConnectionFields(secrets[externalConnectionsKey])
 	state, err := p.LoadState()
 	if err != nil {
 		return nil, err
@@ -300,7 +301,7 @@ func (ss *session) helpers(a app.App) *helpers.H {
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 		appURL = AppURL(ss.settings, port, info.Path)
 	}
-	return helpers.New(helpers.Config{
+	h := helpers.New(helpers.Config{
 		App:           info.ID,
 		Service:       info.Service,
 		ContainerPort: info.ContainerPortFor(port),
@@ -328,6 +329,10 @@ func (ss *session) helpers(a app.App) *helpers.H {
 		Now:           ss.s.Deps.Now,
 		Sleep:         ss.s.Deps.Sleep,
 	})
+	if info.ID == dashboardAppID {
+		h.ExternalConnections = ss.externalConnections
+	}
+	return h
 }
 
 func (s *Service) pollInterval() time.Duration { return s.PollInterval }
@@ -429,6 +434,13 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 	if err == nil {
 		for _, link := range a.Links() {
 			ss.applyLink(ctx, a, link, installed)
+		}
+		if consumer, ok := a.(app.ExternalConnectionConsumer); ok {
+			removed, externalErr := consumer.SetupExternalConnections(ctx, h)
+			ss.reportUnexpected(h, "link-external-connections", externalErr)
+			if cleanupErr := ss.finishExternalConnectionRemovals(removed); cleanupErr != nil {
+				return nil, cleanupErr
+			}
 		}
 	}
 	st.Setup = setupResult(st)
