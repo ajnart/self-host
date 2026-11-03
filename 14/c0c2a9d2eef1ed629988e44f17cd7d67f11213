@@ -1,0 +1,276 @@
+cmd/self-host-testkit/main.go
+  h_d6e478ca18e517 29-37,41-44,62-84,86-95,162-168,199-201,274-275,287-294,330-379,393-401,405-465,470,476-484,487,489-494,499,501-506,511,513-518,529-566
+cmd/self-host-testkit/main_test.go
+  h_d6e478ca18e517 216-485
+dcm/src/data/selfhost.json
+  h_d6e478ca18e517 2017-2032,2087,3623-3638,3693,3951-3958,4015,4116-4131,4186
+docs/arr-sabnzbd-contract.md
+  h_d6e478ca18e517 1-54
+docs/catalog/adding-apps.md
+  h_d6e478ca18e517 13
+docs/catalog/media-setup.md
+  h_d6e478ca18e517 39-52
+docs/catalog/traps/deluge.md
+  h_d6e478ca18e517 8-21
+docs/catalog/traps/nzbget.md
+  h_d6e478ca18e517 8-15
+docs/catalog/traps/sabnzbd.md
+  h_d6e478ca18e517 11-16
+docs/catalog/traps/seerr.md
+  h_d6e478ca18e517 9-25
+docs/catalog/traps/transmission.md
+  h_d6e478ca18e517 11-23,38-44
+docs/catalog/traps/uptime-kuma.md
+  h_d6e478ca18e517 14,16,20-27,39-43
+docs/homarr-proxmox-proof.md
+  h_d6e478ca18e517 1-132
+internal/app/app.go
+  h_d6e478ca18e517 148-153
+internal/app/external_connections.go
+  h_d6e478ca18e517 1-12
+internal/apps/arr/arr.go
+  h_d6e478ca18e517 47,65
+internal/apps/arr/downloadclient_registration_test.go
+  h_d6e478ca18e517 1-29
+internal/apps/arr/links.go
+  h_d6e478ca18e517 14-15
+internal/apps/arr/links_test.go
+  h_d6e478ca18e517 6,9,54-79,82,84-89,96-98,113,123,125-134,139,157-181,186,189-192,204-249,252-254
+internal/apps/arr/sabnzbd_links_test.go
+  h_d6e478ca18e517 1-636
+internal/apps/arr/sabnzbd_protocol_test.go
+  h_d6e478ca18e517 1-471
+internal/apps/arrtest/arr.go
+  h_d6e478ca18e517 34-36,68,137-139,144-149,151-152,191-193,195-198,202,284-295,309,318-334,345-367
+internal/apps/arrtest/seerr.go
+  h_d6e478ca18e517 24-49,53,113-116,121-129,144,170-175
+internal/apps/deluge/deluge.go
+  h_d6e478ca18e517 207-217,220,226,230,234,236,239,244,246,250,253-254,256,258-279,288,294-295,302-305
+internal/apps/deluge/downloadclient.go
+  h_d6e478ca18e517 1-174
+internal/apps/deluge/downloadclient_test.go
+  h_d6e478ca18e517 1-291
+internal/apps/deluge/links_test.go
+  h_d6e478ca18e517 1-1022
+internal/apps/emby/homarr.go
+  h_d6e478ca18e517 20-24,27,30,34,36
+internal/apps/emby/libraries.go
+  h_d6e478ca18e517 1-72
+internal/apps/emby/libraries_test.go
+  h_d6e478ca18e517 1-122
+internal/apps/homarr/external_connections.go
+  h_d6e478ca18e517 1-148
+internal/apps/homarr/external_connections_test.go
+  h_d6e478ca18e517 1-376
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 1-15
+internal/apps/homarr/homarr.go
+  h_d6e478ca18e517 73,95-141,143-165,167-171,410-412
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 64-66,69-71,115-133,136-222,932-1027,1910-1912,2183
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 10,12-13,33-38,53-62,91,141-143,414-426,447-496,670,672-680,700,703-707,783-792,814-816,860-862,894-900,913-931,938,961-963,980-981,986-990,1005-1011,1038-1041,1045-1046,1050-1063,1065-1089,1093-1103,1105,1108-1112,1126-1128,1152-1156,1161-1163,1179-1182,1217-1219,1316-1318,1377-1383,1393-1400
+internal/apps/homarr/ownership.go
+  h_d6e478ca18e517 43-66,88,90-92,94-102
+internal/apps/homarr/ownership_test.go
+  h_d6e478ca18e517 7,155-309
+internal/apps/homarr/procedure_data.go
+  h_d6e478ca18e517 1-188
+internal/apps/homarr/procedure_data_test.go
+  h_d6e478ca18e517 1-198
+internal/apps/homarr/shared_widgets.go
+  h_d6e478ca18e517 30,55-58,60,158-160
+internal/apps/homarr/stats.go
+  h_d6e478ca18e517 8,42,75-76
+internal/apps/homarr/stats_test.go
+  h_d6e478ca18e517 31,78
+internal/apps/homarr/target_proxmox.go
+  h_d6e478ca18e517 1-138
+internal/apps/homarr/target_proxmox_external_test.go
+  h_d6e478ca18e517 1-97
+internal/apps/homarr/target_proxmox_test.go
+  h_d6e478ca18e517 1-157
+internal/apps/homarr/target_sonarr.go
+  h_d6e478ca18e517 1-138
+internal/apps/homarr/target_sonarr_test.go
+  h_d6e478ca18e517 1-240
+internal/apps/homarr/target_uptime_kuma.go
+  h_d6e478ca18e517 8-9,11-12,19-41,46-78,80,83-125,127-168,171-179,181,183-187,189-192,194-197,199-202,217,226,228-231,234,254-261,274-475,477-480,487-489,493
+internal/apps/homarr/target_uptime_kuma_common_test.go
+  h_d6e478ca18e517 1-221
+internal/apps/homarr/target_uptime_kuma_native_test.go
+  h_d6e478ca18e517 1-493
+internal/apps/homarr/target_uptime_kuma_review_test.go
+  h_d6e478ca18e517 1-247
+internal/apps/homarr/target_uptime_kuma_setup_test.go
+  h_d6e478ca18e517 1-95
+internal/apps/homarr/target_uptime_kuma_test.go
+  h_d6e478ca18e517 33,112,144
+internal/apps/lidarr/lidarr.go
+  h_d6e478ca18e517 37
+internal/apps/nzbget/downloadclient.go
+  h_d6e478ca18e517 1-111
+internal/apps/nzbget/downloadclient_test.go
+  h_d6e478ca18e517 1-239
+internal/apps/nzbget/links_positive_test.go
+  h_d6e478ca18e517 1-469
+internal/apps/nzbget/links_protocol_test.go
+  h_d6e478ca18e517 1-298
+internal/apps/nzbget/links_scheduler_test.go
+  h_d6e478ca18e517 1-159
+internal/apps/nzbget/links_test.go
+  h_d6e478ca18e517 1-509
+internal/apps/plex/libraries.go
+  h_d6e478ca18e517 1-39
+internal/apps/plex/libraries_test.go
+  h_d6e478ca18e517 1-97
+internal/apps/plex/plex.go
+  h_d6e478ca18e517 113,116,120,124,128,131,135,138,142,145-151,207-209,231,234,237-244
+internal/apps/sabnzbd/downloadclient.go
+  h_d6e478ca18e517 1-185
+internal/apps/sabnzbd/downloadclient_test.go
+  h_d6e478ca18e517 1-122
+internal/apps/seerr/backend.go
+  h_d6e478ca18e517 1-297
+internal/apps/seerr/backend_test.go
+  h_d6e478ca18e517 1-535
+internal/apps/seerr/links_test.go
+  h_d6e478ca18e517 52
+internal/apps/seerr/seerr.go
+  h_d6e478ca18e517 44,84,98,102-110,203-204,207-212,218,222-224,266,278-279,397
+internal/apps/servarr/deluge.go
+  h_d6e478ca18e517 1-71
+internal/apps/servarr/downloadclients.go
+  h_d6e478ca18e517 1-380
+internal/apps/servarr/downloadclients_test.go
+  h_d6e478ca18e517 1-1372
+internal/apps/servarr/downloadpaths.go
+  h_d6e478ca18e517 1-230
+internal/apps/servarr/downloadpaths_test.go
+  h_d6e478ca18e517 1-309
+internal/apps/servarr/links.go
+  h_d6e478ca18e517 66-69,137,210,213,217,220-230,232,238-239,244-246,249,252-273,277-279,316,336-338,388,401,422-425,447-463,483-490,512,515-517
+internal/apps/servarr/nzbget.go
+  h_d6e478ca18e517 1-46
+internal/apps/servarr/sabnzbd.go
+  h_d6e478ca18e517 1-52
+internal/apps/servarr/transmission.go
+  h_d6e478ca18e517 1-61
+internal/apps/servarr/transmission_scheduler_test.go
+  h_d6e478ca18e517 1-213
+internal/apps/servarr/transmission_test.go
+  h_d6e478ca18e517 1-759
+internal/apps/transmission/downloadclient.go
+  h_d6e478ca18e517 1-56
+internal/apps/uptimekuma/uptimekuma.go
+  h_d6e478ca18e517 101,105,120,129-139,141-156,204-206,208,211-212,217-220,223,227,236,238,240
+internal/apps/uptimekuma/uptimekuma_test.go
+  h_d6e478ca18e517 5,12-13,65-138
+internal/cli/cli.go
+  h_d6e478ca18e517 254
+internal/cli/connections.go
+  h_d6e478ca18e517 1-64
+internal/cli/connections_test.go
+  h_d6e478ca18e517 1-124
+internal/helpers/external_connections.go
+  h_d6e478ca18e517 1-15
+internal/helpers/helpers.go
+  h_d6e478ca18e517 83-85
+internal/project/directories.go
+  h_d6e478ca18e517 26-30,41,44-47,50,54-60,63-64,66,71-117,125,127-142,146-151,154,203
+internal/project/directories_test.go
+  h_d6e478ca18e517 507-617
+internal/project/fixture.go
+  h_d6e478ca18e517 19,132-138
+internal/project/fixture_test.go
+  h_d6e478ca18e517 105-117
+internal/service/connections.go
+  h_d6e478ca18e517 1-540
+internal/service/connections_test.go
+  h_d6e478ca18e517 1-602
+internal/service/directories_test.go
+  h_d6e478ca18e517 328-339,342,536-541
+internal/service/directory_validation_test.go
+  h_d6e478ca18e517 1-526
+internal/service/fragments.go
+  h_d6e478ca18e517 233-237
+internal/service/install.go
+  h_d6e478ca18e517 8,280,283,285,287-289,292,294-300,323-348,351-354,359-363,366,369-372,381,390-409,458-460,485,540-541,677-679,695,701-761
+internal/service/lifecycle.go
+  h_d6e478ca18e517 120-124
+internal/service/link_applicability_test.go
+  h_d6e478ca18e517 1-188
+internal/service/mutation.go
+  h_d6e478ca18e517 264-268
+internal/service/preflight_context_test.go
+  h_d6e478ca18e517 1-731
+internal/service/restore.go
+  h_d6e478ca18e517 224-239,257,465-467,481-493,837-846
+internal/service/secret_preflight_test.go
+  h_d6e478ca18e517 1-150
+internal/service/service.go
+  h_d6e478ca18e517 243,304,332-335,423-432,447-453,474-480,499-501,510-527
+internal/service/status.go
+  h_d6e478ca18e517 64-68,100-103
+internal/skill/guide.md
+  h_d6e478ca18e517 219-222,247-248,266-267,306,853-886
+internal/tui/onboarding_flow_test.go
+  h_d6e478ca18e517 4,27-52,54-78,80-87,92-115
+internal/tui/testdata/onboarding-what-selected-input-narrow.golden
+  h_d6e478ca18e517 22
+internal/tui/testdata/onboarding-what-selected-input.golden
+  h_d6e478ca18e517 28
+site/src/data/catalog.json
+  h_d6e478ca18e517 524-528,531-535,868-872,875-879,945-946,952-953,978-982,985-989
+testkit/README.md
+  h_d6e478ca18e517 100-141
+testkit/docker.go
+  h_d6e478ca18e517 96-97,107
+testkit/errors.go
+  h_d6e478ca18e517 49-66
+testkit/node/README.md
+  h_d6e478ca18e517 148-226,270-271,273-274,301-365
+testkit/node/examples/homarr-sonarr.mjs
+  h_d6e478ca18e517 1-66
+testkit/node/index.d.mts
+  h_d6e478ca18e517 30-78,86,90,92,96-98
+testkit/node/index.mjs
+  h_d6e478ca18e517 20-21,30-31,33,39,43-44,126-127,176-177,186-192,225-239,274-275,278,286-295,299-307,312-313,318-337,350-584,674-742,794,797,803,808-811,817-824
+testkit/node/pack.mjs
+  h_d6e478ca18e517 35
+testkit/node/package.json
+  h_d6e478ca18e517 23
+testkit/node/src/index.mts
+  h_d6e478ca18e517 44-100,119-120,134-135,145,152,155,161,170,172,283-288,342-343,353-367,401-414,450,452,455,466-474,477-484,489-490,495-518,535-829,836,933-1044,1104-1107,1111,1116,1119-1122,1127-1155
+testkit/node/tests/fake-helper.mjs
+  h_d6e478ca18e517 18,23-26,28-165,175-198,227-422,433-435,439-454
+testkit/node/tests/pair-types.mts
+  h_d6e478ca18e517 1-48
+testkit/node/tests/transport.test.ts
+  h_d6e478ca18e517 4,8,14-21,26-30,40-49,52,64-127,134-407,510-1174
+testkit/pair.go
+  h_d6e478ca18e517 1-483
+testkit/pair_test.go
+  h_d6e478ca18e517 1-691
+testkit/runtime.go
+  h_d6e478ca18e517 51-59,103-114,154-165
+testkit/sonarr_filter_witness.go
+  h_d6e478ca18e517 1-295
+testkit/sonarr_filter_witness_test.go
+  h_d6e478ca18e517 1-439
+testkit/testkit.go
+  h_d6e478ca18e517 16,48-58,70-73,81-88,169,212-220,222-230,232-235,238,255,284-295,299-312,315,319,321,342-346,348,351,354,357,373-376,380-382
+testkit/testkit_test.go
+  h_d6e478ca18e517 68,101-105,107,133-151,156-160,183-208,278-355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14c0c2a9d2eef1ed629988e44f17cd7d67f11213",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
