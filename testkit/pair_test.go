@@ -175,6 +175,86 @@ func TestPairExplicitManualAndFailedOutcomes(t *testing.T) {
 	}
 }
 
+func TestPairObservedFailuresPrecedeManualAndMissingPeers(t *testing.T) {
+	for _, order := range []string{"consumer-first", "target-first"} {
+		for _, failingID := range []string{"consumer", "peer"} {
+			for _, manual := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/manual=%t", order, failingID, manual), func(t *testing.T) {
+					consumer := pairFixtureApp{id: "consumer", consumer: true}
+					peer := pairFixtureApp{id: "peer"}
+					for _, selected := range []*pairFixtureApp{&consumer, &peer} {
+						selected.setup = func(ctx context.Context, h *helpers.H) error {
+							return h.Step(ctx, "observation", "observe fixture", helpers.StepSpec{Do: func(context.Context) error {
+								if h.App == failingID {
+									return errors.New("synthetic failure")
+								}
+								if manual {
+									return helpers.ErrManual
+								}
+								return nil
+							}, Hint: "fixture prerequisite"})
+						}
+					}
+					p, _, err := pairFake(t, order, consumer, peer)
+					if err != nil {
+						t.Fatal(err)
+					}
+					assertObserved := func(result PairInspection, required bool) {
+						t.Helper()
+						fails := 0
+						manualObserved := false
+						for _, item := range result.Apps {
+							if item.Setup == "manual" {
+								manualObserved = true
+							}
+							seen := map[string]bool{}
+							for _, step := range item.Steps {
+								if seen[step.ID] {
+									t.Fatal("producer duplicated a step within an App")
+								}
+								seen[step.ID] = true
+								if step.Status == "fail" {
+									fails++
+								}
+							}
+						}
+						if required && fails == 0 {
+							t.Fatal("producer dropped the observed failure")
+						}
+						if fails > 0 && (result.Outcome != PairFailed || result.Reason != "setup") {
+							t.Fatal("observed failure lost summary precedence")
+						}
+						if fails == 0 && manualObserved && result.Outcome != PairManual {
+							t.Fatal("ordinary Manual observation lost summary precedence")
+						}
+					}
+					assertObserved(p.Initial(), false)
+					for _, action := range []func() (PairInspection, error){
+						func() (PairInspection, error) { return p.Inspect(t.Context()) },
+						func() (PairInspection, error) { return p.Setup(t.Context(), "") },
+						func() (PairInspection, error) {
+							other := "consumer"
+							if failingID == "consumer" {
+								other = "peer"
+							}
+							return p.Remove(t.Context(), other)
+						},
+					} {
+						observed, err := action()
+						if err != nil {
+							t.Fatal(err)
+						}
+						assertObserved(observed, true)
+					}
+					if p.owner.closed || p.owner.pair.failed {
+						t.Fatal("ordinary failure observations disabled the Pair")
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestPairPartialStartupAndCancellationCleanOneOwner(t *testing.T) {
 	for _, mode := range []string{"partial", "canceled"} {
 		t.Run(mode, func(t *testing.T) {

@@ -578,6 +578,7 @@ function pairAppStatus(value: unknown, id: string, url: string): PairAppStatus {
 		!Array.isArray(value.steps)
 	)
 		throw fault("PROTOCOL");
+	const seen = new Set<string>();
 	const steps = value.steps.map(
 		(step: unknown): PairAppStatus["steps"][number] => {
 			if (
@@ -589,6 +590,8 @@ function pairAppStatus(value: unknown, id: string, url: string): PairAppStatus {
 					step.status !== "skip")
 			)
 				throw fault("PROTOCOL");
+			if (seen.has(step.id)) throw fault("PROTOCOL");
+			seen.add(step.id);
 			return { id: step.id, status: step.status };
 		},
 	);
@@ -619,6 +622,15 @@ function pairInspection(
 		pairAppStatus(rawApps[index], id, urls[index] ?? ""),
 	);
 	const base = { link: value.link, apps };
+	const failed = apps.some((app) =>
+		app.steps.some((step) => step.status === "fail"),
+	);
+	if ((value.outcome === "failed") !== failed) throw fault("PROTOCOL");
+	if (
+		!failed &&
+		(value.outcome === "manual") !== apps.some((app) => app.setup === "manual")
+	)
+		throw fault("PROTOCOL");
 	if (value.outcome === "complete" && value.reason === "verified") {
 		if (
 			apps.some(
@@ -646,8 +658,21 @@ function pairInspection(
 		(value.reason === "absent" ||
 			value.reason === "unready" ||
 			value.reason === "not-run")
-	)
+	) {
+		const absent = apps.some((app) => !app.installed);
+		const unready = apps.some((app) => app.setup !== "ok");
+		if (
+			(value.reason === "absent") !== absent ||
+			(!absent && (value.reason === "unready") !== unready) ||
+			(!absent &&
+				!unready &&
+				apps[0]?.steps.some(
+					(step) => step.id === base.link && step.status === "ok",
+				))
+		)
+			throw fault("PROTOCOL");
 		return { ...base, outcome: "prerequisite", reason: value.reason };
+	}
 	throw fault("PROTOCOL");
 }
 

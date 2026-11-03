@@ -1036,6 +1036,110 @@ for (const [status, outcome] of [
 	});
 }
 
+for (const kind of [
+	"fail-complete",
+	"fail-manual",
+	"fail-prerequisite",
+	"fail-peer-manual",
+	"fail-peer-prerequisite",
+	"duplicate-link-skip-ok",
+	"duplicate-link-ok-skip",
+	"duplicate-consumer",
+	"duplicate-peer",
+	"duplicate-manual",
+	"duplicate-failed",
+	"duplicate-prerequisite",
+	"failed-without-fail",
+	"manual-without-manual",
+	"prerequisite-manual",
+	"prerequisite-verified",
+	"prerequisite-absent-present",
+	"prerequisite-missing-notrun",
+	"prerequisite-ready-unready",
+	"prerequisite-pending-notrun",
+]) {
+	for (const stage of ["startup", "live"]) {
+		test(`pair observational integrity ${stage} rejects ${kind}`, async () => {
+			const cleanupFailed =
+				kind === "fail-manual" || kind === "duplicate-link-ok-skip";
+			const { selfHost, manifest } = fixture(
+				1000,
+				`integrity-${stage}-${kind}`,
+				cleanupFailed,
+			);
+			let pair: Pair | undefined;
+			let caught: unknown;
+			try {
+				pair = await selfHost.spinupPair("homarr", "sonarr", {
+					order: "consumer-first",
+				});
+				if (stage === "live") await pair.inspect();
+			} catch (error) {
+				caught = error;
+			}
+			protocolFailure(caught, manifest, cleanupFailed);
+			const owner = ownedCleanup(manifest);
+			if (stage === "startup") expect(pair).toBeUndefined();
+			if (pair) await disabledPair(pair, manifest);
+			if (cleanupFailed) {
+				await expect(selfHost.close()).rejects.toThrow(
+					"Fixture cleanup failed",
+				);
+				if (pair) await disabledPair(pair, manifest);
+				unlinkSync(`${manifest}.${owner}.failed`);
+			}
+			await selfHost.close();
+			if (pair) await disabledPair(pair, manifest);
+		});
+	}
+}
+
+for (const method of ["setup", "remove", "install"] as const) {
+	test(`pair observational integrity rejects contradictory ${method} results`, async () => {
+		const { selfHost, manifest } = fixture(1000, "integrity-live-fail-manual");
+		const pair = await selfHost.spinupPair("homarr", "sonarr", {
+			order: "consumer-first",
+		});
+		let caught: unknown;
+		try {
+			await pair[method]("sonarr");
+		} catch (error) {
+			caught = error;
+		}
+		protocolFailure(caught, manifest, false);
+		ownedCleanup(manifest);
+		await disabledPair(pair, manifest);
+	});
+}
+
+for (const [kind, outcome] of [
+	["fail-failed", "failed"],
+	["fail-peer-failed", "failed"],
+	["failed-with-manual", "failed"],
+	["manual-missing", "manual"],
+	["unique-per-app", "complete"],
+] as const) {
+	for (const stage of ["startup", "live"]) {
+		test(`pair observational integrity accepts ${stage} ${kind}`, async () => {
+			const { selfHost, manifest } = fixture(
+				1000,
+				`integrity-${stage}-${kind}`,
+			);
+			const pair = await selfHost.spinupPair("homarr", "sonarr", {
+				order: "consumer-first",
+			});
+			let observed = pair.initial;
+			if (stage === "live") observed = await pair.inspect();
+			expect(observed.outcome).toBe(outcome);
+			expect((await pair.consumer.info()).id).toBe("homarr");
+			expect((await pair.target.info()).id).toBe("sonarr");
+			expect(
+				events(manifest).filter((event) => event.method === "cleanup"),
+			).toHaveLength(0);
+		});
+	}
+}
+
 test("shared scoped lifetime preserves single-App returns and both APIs' primitive failures", async () => {
 	const { binary, manifest } = fixture();
 	const options = { binary, manifest, timeoutMs: 1000 };

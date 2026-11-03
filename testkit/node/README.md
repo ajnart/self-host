@@ -184,6 +184,9 @@ remain explicit errors or Manual outcomes, not automatic skips.
   loopback Addresses established at startup, including their frozen ports/paths.
   Inspections must also retain the startup-declared Link ID; response steps cannot
   nominate a replacement Link to satisfy completion.
+  Step IDs must be unique within each App. Summaries must agree with observed
+  failures, Manual Setup and prerequisite facts; contradictory results reject
+  through the same awaited whole-owner cleanup boundary.
 - `setup(app?)` retries production Setup for one/both selected Apps;
   `remove(app)` is non-purge and retains data; `install(app)` reinstalls only a
   selected admitted App with its original ports/options. No action renews the

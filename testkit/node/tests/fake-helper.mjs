@@ -68,6 +68,101 @@ const inspection = () => ({
 				: [],
 	})),
 });
+const integrity = (value) => {
+	const kind = witnessMode.replace(/^integrity-(?:startup|live)-/, "");
+	value.outcome = "complete";
+	value.reason = "verified";
+	for (const item of value.apps) {
+		item.installed = true;
+		item.state = "running";
+		item.setup = "ok";
+		item.steps = [];
+	}
+	const consumer = value.apps[0];
+	const peer = value.apps[1];
+	consumer.steps = [{ id: declaredLink, status: "ok" }];
+	if (kind.startsWith("fail-")) {
+		let failed = consumer;
+		let other = peer;
+		if (kind.startsWith("fail-peer-")) [failed, other] = [peer, consumer];
+		failed.steps.push({ id: "observation", status: "fail" });
+		value.outcome = kind.split("-").at(-1);
+		value.reason = "setup";
+		if (value.outcome === "complete") value.reason = "verified";
+		if (value.outcome === "manual") other.setup = "manual";
+		if (value.outcome === "prerequisite") {
+			other.installed = false;
+			other.setup = "pending";
+			other.state = "missing";
+			value.reason = "absent";
+		}
+	} else if (kind.startsWith("duplicate-link-")) {
+		consumer.steps = kind
+			.slice("duplicate-link-".length)
+			.split("-")
+			.map((status) => ({ id: declaredLink, status }));
+	} else if (kind.startsWith("duplicate-")) {
+		let selected = consumer;
+		if (kind === "duplicate-peer") selected = peer;
+		selected.steps.push({ id: "observation", status: "ok" });
+		selected.steps.push({ id: "observation", status: "ok" });
+		if (kind === "duplicate-manual") {
+			consumer.setup = "manual";
+			value.outcome = "manual";
+			value.reason = "setup";
+		}
+		if (kind === "duplicate-failed") {
+			selected.steps.at(-1).status = "fail";
+			value.outcome = "failed";
+			value.reason = "setup";
+		}
+		if (kind === "duplicate-prerequisite") {
+			peer.installed = false;
+			peer.setup = "pending";
+			value.outcome = "prerequisite";
+			value.reason = "absent";
+		}
+	} else if (kind === "failed-with-manual") {
+		consumer.steps.push({ id: "observation", status: "fail" });
+		peer.setup = "manual";
+		peer.steps = [{ id: "observation", status: "manual" }];
+		value.outcome = "failed";
+		value.reason = "setup";
+	} else if (kind === "manual-missing") {
+		consumer.setup = "manual";
+		consumer.steps = [{ id: declaredLink, status: "manual" }];
+		peer.installed = false;
+		peer.setup = "pending";
+		peer.state = "missing";
+		value.outcome = "manual";
+		value.reason = "setup";
+	} else if (
+		kind === "failed-without-fail" ||
+		kind === "manual-without-manual"
+	) {
+		value.outcome = kind.split("-")[0];
+		value.reason = "setup";
+	} else if (kind.startsWith("prerequisite-")) {
+		value.outcome = "prerequisite";
+		value.reason = "not-run";
+		if (kind !== "prerequisite-verified") consumer.steps = [];
+		if (kind === "prerequisite-manual") {
+			consumer.setup = "manual";
+			value.reason = "unready";
+		}
+		if (kind === "prerequisite-absent-present") value.reason = "absent";
+		if (kind === "prerequisite-missing-notrun") {
+			peer.installed = false;
+			peer.setup = "pending";
+		}
+		if (kind === "prerequisite-ready-unready") value.reason = "unready";
+		if (kind === "prerequisite-pending-notrun") consumer.setup = "pending";
+	} else if (kind === "unique-per-app") {
+		consumer.steps.push({ id: "observation", status: "ok" });
+		peer.steps.push({ id: "observation", status: "ok" });
+	}
+	return value;
+};
 const reply = (req, result) => {
 	const line = JSON.stringify({ version: 1, id: req.id, result });
 	process.stdout.write(`${line.slice(0, 5)}`);
@@ -149,6 +244,7 @@ input.on("line", (line) => {
 		};
 		if (Object.hasOwn(invalidLinks, witnessMode))
 			initial.link = invalidLinks[witnessMode];
+		if (witnessMode.startsWith("integrity-startup-")) integrity(initial);
 		installed = new Set([pair.consumer, pair.target]);
 		reply(req, {
 			consumer: { id: pair.consumer, url: address(pair.consumer) },
@@ -278,6 +374,7 @@ input.on("line", (line) => {
 				}
 			}
 		}
+		if (witnessMode.startsWith("integrity-live-")) integrity(result);
 		reply(req, result);
 	} else if (pair && req.params.app && !installed.has(req.params.app)) {
 		process.stdout.write(
