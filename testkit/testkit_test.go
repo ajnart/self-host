@@ -275,6 +275,84 @@ func TestFixturesIsolateOwnerEnvironmentPortsAndPrivateCredentials(t *testing.T)
 	}
 }
 
+func TestSingleAppCredentialFailuresKeepLegacySemantics(t *testing.T) {
+	for _, method := range []string{"key", "credentials", "info"} {
+		for _, mode := range []string{"deadline", "cancel", "storage"} {
+			t.Run(method+"/"+mode, func(t *testing.T) {
+				f := newFakeDocker(t)
+				a, err := startFake(t, f, fixtureApp{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := a.Close(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				a.workDeadline = time.Now().Add(-time.Second)
+				if mode == "cancel" {
+					cancel()
+				}
+				if mode == "storage" {
+					a.service.Deps.CurrentUser = func() (system.User, error) {
+						return system.User{}, errors.New(syntheticKey)
+					}
+				}
+				if method == "key" {
+					_, err = a.GetAPIKey(ctx, "")
+				} else if method == "info" {
+					_, err = a.Info(ctx)
+				} else {
+					_, err = a.Credentials(ctx)
+				}
+				wantError := mode != "deadline"
+				if method == "info" && mode == "storage" {
+					wantError = false
+				}
+				if (err != nil) != wantError || a.closed || len(f.containers) != 1 {
+					t.Fatal("legacy credential lifetime or cleanup changed")
+				}
+				var operation *OperationError
+				if errors.As(err, &operation) || mode == "cancel" && !errors.Is(err, context.Canceled) {
+					t.Fatal("legacy credential failure typing changed")
+				}
+				if err != nil && strings.Contains(err.Error(), syntheticKey) {
+					t.Fatal("legacy storage failure leaked")
+				}
+			})
+		}
+	}
+}
+
+func TestSingleAppDirectCloseFailureKeepsLegacyReads(t *testing.T) {
+	f := newFakeDocker(t)
+	a, err := startFake(t, f, fixtureApp{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		f.cleanupFailure = false
+		if err := a.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	f.cleanupFailure = true
+	if err := a.Close(t.Context()); err == nil || a.closed || a.pair != nil {
+		t.Fatal("legacy failed cleanup state changed")
+	}
+	if _, err := a.GetAPIKey(t.Context(), ""); err != nil {
+		t.Fatal("legacy failed cleanup disabled key reads")
+	}
+	if _, err := a.Credentials(t.Context()); err != nil {
+		t.Fatal("legacy failed cleanup disabled credential reads")
+	}
+	if _, err := a.Info(t.Context()); err != nil {
+		t.Fatal("legacy failed cleanup disabled Info")
+	}
+}
+
 func TestPartialCreationAndCancelledSetupCleanWithIndependentContext(t *testing.T) {
 	for _, mode := range []string{"partial", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
