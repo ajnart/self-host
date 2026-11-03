@@ -8,6 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/immich"
 	"github.com/ajnart/self-host/internal/apps/keycloak"
 	"github.com/ajnart/self-host/internal/apps/linkwarden"
+	"github.com/ajnart/self-host/internal/apps/mealie"
 )
 
 func init() {
@@ -19,5 +20,6 @@ func init() {
 		immich.App{},
 		keycloak.App{},
 		linkwarden.App{},
+		mealie.App{},
 	)
 }

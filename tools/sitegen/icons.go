@@ -52,6 +52,7 @@ var icons = map[string]string{
 	"linkwarden":           "",
 	"lldap":                "svg/lldap.svg",
 	"loki":                 "svg/loki.svg",
+	"mealie":               "svg/mealie.svg",
 	"mayan-edms":           "svg/mayan-edms.svg",
 	"minio":                "svg/minio.svg",
 	"navidrome":            "svg/navidrome.svg",

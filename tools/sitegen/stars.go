@@ -51,6 +51,7 @@ var repos = map[string]string{
 	"kopia":                "kopia/kopia",
 	"lidarr":               "Lidarr/Lidarr",
 	"linkwarden":           "linkwarden/linkwarden",
+	"mealie":               "mealie-recipes/mealie",
 	"lldap":                "lldap/lldap",
 	"loki":                 "grafana/loki",
 	"mayan-edms":           "mayan-edms/Mayan-EDMS",
