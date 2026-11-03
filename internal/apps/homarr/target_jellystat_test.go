@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -18,19 +20,31 @@ import (
 )
 
 type jellystatConnectorFixture struct {
-	mu              sync.Mutex
-	stats           *statsFixture
-	connection      map[string]any
-	config          map[string]any
-	masked          any
-	nativeStatus    int
-	nativeReads     int
-	savedReads      int
-	statsBeforeKey  bool
-	requestStatus   int
-	requestKind     string
-	requestID       string
-	keyBodyOverride any
+	mu                sync.Mutex
+	stats             *statsFixture
+	connection        map[string]any
+	config            map[string]any
+	masked            any
+	nativeStatus      int
+	nativeReads       int
+	savedReads        int
+	statsBeforeKey    bool
+	requestStatus     int
+	requestKind       string
+	requestID         string
+	keyBodyOverride   any
+	settingsWrites    int
+	updateBeforeProof bool
+}
+
+type jellystatConnectorStore struct {
+	statsSecrets
+	writes int
+}
+
+func (s *jellystatConnectorStore) Set(key, value string) error {
+	s.writes++
+	return s.statsSecrets.Set(key, value)
 }
 
 func newJellystatConnectorFixture() *jellystatConnectorFixture {
@@ -104,7 +118,7 @@ func (f *jellystatConnectorFixture) homarr(t *testing.T) *helpers.H {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		if strings.HasPrefix(r.URL.Path, "/api/trpc/widget.stats.") {
-			if f.savedReads != 2 {
+			if f.savedReads < 2 || f.savedReads%2 != 0 {
 				f.statsBeforeKey = true
 			}
 			f.stats.ServeHTTP(w, r)
@@ -118,6 +132,23 @@ func (f *jellystatConnectorFixture) homarr(t *testing.T) *helpers.H {
 		switch r.URL.Path {
 		case "/api/trpc/integration.byId":
 			value = f.connection
+		case "/api/trpc/integration.all":
+			value = []any{f.connection}
+		case "/api/trpc/integration.update":
+			f.settingsWrites++
+			f.updateBeforeProof = f.savedReads < 2
+			var input struct {
+				JSON struct {
+					ID      string   `json:"id"`
+					URL     string   `json:"url"`
+					Secrets []secret `json:"secrets"`
+				} `json:"json"`
+			}
+			if json.NewDecoder(r.Body).Decode(&input) != nil || input.JSON.ID != "jellystat-owned" || input.JSON.URL != "http://jellystat:3000" || len(input.JSON.Secrets) != 1 || input.JSON.Secrets[0].Value != "owned-peer-key" {
+				t.Error("common update did not retain the exact proven key and connection")
+			}
+			f.connection["url"] = input.JSON.URL
+			value = map[string]string{"id": "jellystat-owned"}
 		case "/api/trpc/integration.request":
 			f.savedReads++
 			var input struct {
@@ -227,6 +258,83 @@ func TestJellystatSharedCountValidationRejectsNonfiniteAndAcceptsZeros(t *testin
 		if (verifyJellystatStats(sample) == nil) != valid {
 			t.Fatal("Jellystat did not apply the accepted shared count semantics")
 		}
+	}
+}
+
+func TestJellystatRecordedSavedKeyProofPrecedesCheckAndApplyWrites(t *testing.T) {
+	for _, drift := range []string{"fingerprint", "Address", "both", "missing proof"} {
+		t.Run(drift, func(t *testing.T) {
+			f := newJellystatConnectorFixture()
+			f.masked = []any{map[string]string{"name": "another user's key", "key": "[REDACTED]"}, map[string]string{"name": "self-host Homarr statistics", "key": "owned-peer-key"}}
+			if drift == "Address" || drift == "both" {
+				f.connection["url"] = "http://user-edited.invalid:3000"
+			}
+			if drift == "missing proof" {
+				f.requestStatus = http.StatusForbidden
+			}
+			from, to := f.homarr(t), f.peer(t)
+			secrets := from.Secrets.(statsSecrets)
+			secrets[integrationFingerprintKey(from, "jellystat-owned")] = integrationFingerprint(jellystatTarget(), from, to)
+			if drift != "Address" {
+				secrets[integrationFingerprintKey(from, "jellystat-owned")] = "drifted-fingerprint"
+			}
+			before := maps.Clone(secrets)
+			store := &jellystatConnectorStore{statsSecrets: secrets}
+			from.Secrets = store
+			address := f.connection["url"]
+			descriptor := jellystatTarget()
+			if err := descriptor.preflight(t.Context(), from, to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("preflight trusted local key or fingerprint instead of saved key B: %v", err)
+			}
+			if _, err := descriptor.linked(t.Context(), from, to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("Check did not preserve the unproven recorded connection: %v", err)
+			}
+			if err := descriptor.link().Apply(t.Context(), from, to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("Apply did not independently preserve the unproven recorded connection: %v", err)
+			}
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.stats.refreshes != 0 || f.stats.catalogs != 0 || f.settingsWrites != 0 || store.writes != 0 || f.connection["url"] != address || !maps.Equal(before, secrets) {
+				t.Fatal("failed saved-key proof reached Stats or wrote credentials/settings/Address")
+			}
+		})
+	}
+}
+
+func TestJellystatPositiveSavedKeyProofAllowsCommonDriftRepair(t *testing.T) {
+	for _, addressDrift := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Address-drift-%v", addressDrift), func(t *testing.T) {
+			f := newJellystatConnectorFixture()
+			if addressDrift {
+				f.connection["url"] = "http://alternate-same-instance.invalid:3000"
+			}
+			from, to := f.homarr(t), f.peer(t)
+			store := &jellystatConnectorStore{statsSecrets: from.Secrets.(statsSecrets)}
+			from.Secrets = store
+			store.statsSecrets[integrationFingerprintKey(from, "jellystat-owned")] = "drifted-fingerprint"
+			descriptor := jellystatTarget()
+			if err := descriptor.preflight(t.Context(), from, to); err != nil {
+				t.Fatal(err)
+			}
+			f.mu.Lock()
+			provedReadOnly := f.savedReads == 2 && f.settingsWrites == 0 && store.writes == 0 && f.stats.refreshes == 0
+			f.mu.Unlock()
+			if !provedReadOnly {
+				t.Fatal("positive preflight did not prove the saved key read-only before mutation")
+			}
+			id, err := ensureIntegration(t.Context(), from, to, descriptor, "jellystat-app")
+			if err != nil || id != "jellystat-owned" {
+				t.Fatalf("proven recorded connection could not be updated: %v", err)
+			}
+			if err := descriptor.verifyData(t.Context(), from, to, id); err != nil {
+				t.Fatal(err)
+			}
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.settingsWrites != 1 || f.updateBeforeProof || store.writes != 1 || f.savedReads != 4 || f.stats.refreshes != 1 || f.statsBeforeKey {
+				t.Fatal("common drift repair did not follow positive proof and one central Stats sample")
+			}
+		})
 	}
 }
 

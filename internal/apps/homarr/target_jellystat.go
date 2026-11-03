@@ -26,6 +26,9 @@ func jellystatTarget() target {
 		widgets: []widget{statWidget(jellystatMetrics()...)},
 		preflight: func(ctx context.Context, from, to *helpers.H) error {
 			err := jellystat.VerifyHomarr(ctx, to)
+			if integrationID := from.Secret(from.Key("linked_jellystat")); err == nil && integrationID != "" {
+				err = verifyJellystatSavedKey(ctx, from, to, integrationID, false)
+			}
 			if errors.Is(err, helpers.ErrManual) {
 				from.Info(err.Error())
 			}
@@ -40,6 +43,10 @@ func verifyJellystat(ctx context.Context, from, to *helpers.H, integrationID str
 	if err := jellystat.VerifyHomarr(ctx, to); err != nil {
 		return err
 	}
+	return verifyJellystatSavedKey(ctx, from, to, integrationID, true)
+}
+
+func verifyJellystatSavedKey(ctx context.Context, from, to *helpers.H, integrationID string, requireCurrentAddress bool) error {
 	if integrationID == "" || from.Secret(from.Key("linked_jellystat")) != integrationID {
 		return jellystatConnectionManual("Homarr did not identify its recorded Jellystat integration.")
 	}
@@ -49,8 +56,11 @@ func verifyJellystat(ctx context.Context, from, to *helpers.H, integrationID str
 	}
 	connection, ok := value.(map[string]any)
 	credentials, _ := connection["secrets"].([]any)
-	if !ok || stringField(connection, "id") != integrationID || stringField(connection, "kind") != "jellystat" || stringField(connection, "url") != to.InternalURL() || len(credentials) != 1 {
+	if !ok || stringField(connection, "id") != integrationID || stringField(connection, "kind") != "jellystat" || stringField(connection, "url") == "" || len(credentials) != 1 {
 		return jellystatConnectionManual("Homarr returned a different Jellystat connection.")
+	}
+	if requireCurrentAddress && stringField(connection, "url") != to.InternalURL() {
+		return jellystatConnectionManual("Homarr retained a different Jellystat Address.")
 	}
 	credential, ok := credentials[0].(map[string]any)
 	secretValue, present := credential["value"]

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/status"
 )
 
 type jellystatKeyStore struct {
@@ -61,15 +62,16 @@ func (s *jellystatKeyStore) reopen() {
 }
 
 type jellystatKeyFixture struct {
-	mu            sync.Mutex
-	base          *jellystatFixture
-	keys          []keyRecord
-	posts         int
-	status        int
-	response      []byte
-	changeIssued  func([]keyRecord) []keyRecord
-	rejectIssued  bool
-	timeoutIssued bool
+	mu                sync.Mutex
+	base              *jellystatFixture
+	keys              []keyRecord
+	posts             int
+	status            int
+	response          []byte
+	changeIssued      func([]keyRecord) []keyRecord
+	rejectIssued      bool
+	timeoutIssued     bool
+	configReadFailure bool
 }
 
 func newJellystatKeyHarness(t *testing.T) (*helpers.H, *jellystatKeyFixture, *jellystatKeyStore) {
@@ -125,6 +127,10 @@ func newJellystatKeyHarness(t *testing.T) (*helpers.H, *jellystatKeyFixture, *je
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		if r.Method == http.MethodGet && f.configReadFailure {
+			json.NewEncoder(w).Encode([]keyRecord{})
+			return
+		}
 		json.NewEncoder(w).Encode(f.keys)
 	}))
 	t.Cleanup(srv.Close)
@@ -138,10 +144,10 @@ func newJellystatKeyHarness(t *testing.T) (*helpers.H, *jellystatKeyFixture, *je
 	client := *h.Config.HTTP
 	transport := client.Transport
 	client.Transport = jellystatTransport(func(r *http.Request) (*http.Response, error) {
-		response, err := transport.RoundTrip(r)
 		f.mu.Lock()
 		timedOut := f.timeoutIssued && r.Method == http.MethodPost && r.URL.Path == "/api/keys"
 		f.mu.Unlock()
+		response, err := transport.RoundTrip(r)
 		if timedOut && response != nil {
 			response.Body.Close()
 			return nil, errors.New("private simulated timeout after issuance")
@@ -200,11 +206,24 @@ func TestJellystatHomarrIssuanceUsesOnlyExactNewSelectedKey(t *testing.T) {
 	}
 }
 
-func TestJellystatHomarrExplicitEmptyInventoryIsNotMissingInventory(t *testing.T) {
-	h, fixture, store := newJellystatKeyHarness(t)
-	fixture.keys = []keyRecord{}
-	if err := (App{}).Setup(t.Context(), h); err != nil || fixture.postCount() != 1 || store.Get("JELLYSTAT_HOMARR_API_KEY") != "synthetic-key" {
-		t.Fatalf("an authenticated explicit empty inventory did not issue exactly one key: %v", err)
+func TestJellystatHomarrEmptyInventoryCannotAuthorizeIssuance(t *testing.T) {
+	for _, readFailure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("configuration-read-failure-%v", readFailure), func(t *testing.T) {
+			h, fixture, store := newJellystatKeyHarness(t)
+			fixture.configReadFailure = readFailure
+			if !readFailure {
+				fixture.keys = []keyRecord{}
+			}
+			before := store.snapshot()
+			for range 2 {
+				if err := (App{}).Setup(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+					t.Fatalf("ambiguous empty inventory did not remain Manual: %v", err)
+				}
+			}
+			if fixture.postCount() != 0 || len(store.writes) != 0 || !maps.Equal(before, store.snapshot()) {
+				t.Fatal("empty inventory or upstream read-failure fallback authorized Begin or POST")
+			}
+		})
 	}
 }
 
@@ -278,9 +297,29 @@ func TestJellystatHomarrJournalSurvivesEveryPrivateWriteBoundary(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/write-%d", failure, failAt), func(t *testing.T) {
 				h, fixture, store := newJellystatKeyHarness(t)
 				store.failure, store.failAt = failure, failAt
+				var results []helpers.StepResult
+				h.Record = func(result helpers.StepResult) { results = append(results, result) }
 				err := (App{}).Setup(t.Context(), h)
-				if !errors.Is(err, helpers.ErrManual) || strings.Contains(err.Error(), "private-storage-error") {
-					t.Fatalf("storage failure was not a secret-safe Manual hold: %v", err)
+				if !errors.Is(err, helpers.ErrStepFailed) || errors.Is(err, helpers.ErrManual) {
+					t.Fatalf("storage failure was not a failed step: %v", err)
+				}
+				last := results[len(results)-1]
+				wantError := "credential issuance evidence could not be saved; repair private storage and retry Setup without issuing another credential"
+				switch failAt {
+				case 4:
+					wantError = "credential ownership could not be saved; repair private storage and retry Setup without issuing another credential"
+				case 5:
+					wantError = "the captured credential could not be saved; repair private storage and retry Setup without issuing another credential"
+				case 6:
+					wantError = "credential issuance completion could not be saved; repair private storage and retry Setup without issuing another credential"
+				}
+				if last.ID != "homarr-key" || last.Status != status.StepFail || last.Error != wantError {
+					t.Fatal("journal storage error was not recorded as a failed credential step")
+				}
+				for _, raw := range []string{"private-storage-error", "synthetic-key", "private-other-one", "private-other-two"} {
+					if strings.Contains(err.Error(), raw) || strings.Contains(last.Error, raw) {
+						t.Fatal("storage failure exposed private state or its raw cause")
+					}
 				}
 				if failAt == 1 && fixture.postCount() != 0 || failAt > 1 && fixture.postCount() != 1 {
 					t.Fatal("remote issuance did not follow durable Begin")
@@ -295,6 +334,88 @@ func TestJellystatHomarrJournalSurvivesEveryPrivateWriteBoundary(t *testing.T) {
 				jellystatAssertNoOtherKeysPersisted(t, store)
 			})
 		}
+	}
+}
+
+func TestJellystatHomarrMalformedTrailingIssuanceCapturesOnlySelectedKey(t *testing.T) {
+	prefix := `[{"name":"unrelated-one","key":"private-other-one"},{"key":"private-other-two","name":"unrelated-two"},`
+	selected := `{"key":"synthetic-key","name":"self-host Homarr statistics"`
+	for _, scenario := range []struct {
+		name       string
+		body       string
+		secret     string
+		incomplete bool
+		duplicate  bool
+		failed     bool
+	}{
+		{"array tail", prefix + selected + `},`, "synthetic-key", true, false, true},
+		{"record tail", prefix + selected + `,"extra":`, "synthetic-key", true, false, true},
+		{"trailing document", prefix + selected + `}] {`, "synthetic-key", true, false, true},
+		{"duplicate selected record", prefix + selected + `},` + selected + `}]`, "", false, true, false},
+		{"duplicate key field", prefix + selected + `,"key":"private-new-other"}]`, "", true, true, true},
+		{"duplicate name field", prefix + selected + `,"name":"another"}]`, "", true, true, true},
+		{"byte bound", prefix + selected + `,"extra":"` + strings.Repeat("x", keyInventoryByteLimit) + `"}]`, "synthetic-key", true, false, true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			h, fixture, store := newJellystatKeyHarness(t)
+			fixture.response = []byte(scenario.body)
+			for range 2 {
+				if err := (App{}).Setup(t.Context(), h); !errors.Is(err, helpers.ErrManual) {
+					t.Fatalf("malformed or duplicate response did not remain held: %v", err)
+				}
+			}
+			pending, exists, err := homarrJournal.Pending(h)
+			if err != nil || !exists || pending.Issued == nil || pending.Issued.Secret != scenario.secret {
+				t.Fatal("projection lost a recoverable selected key or retained ambiguous evidence")
+			}
+			var flags struct{ Incomplete, Duplicate, Error bool }
+			if json.Unmarshal(pending.Issued.Data, &flags) != nil || flags.Incomplete != scenario.incomplete || flags.Error != scenario.failed || flags.Duplicate != scenario.duplicate {
+				t.Fatal("nonsecret incomplete/duplicate/error evidence was not retained")
+			}
+			if fixture.postCount() != 1 || store.Get("JELLYSTAT_HOMARR_API_KEY") != "" || store.Get("JELLYSTAT_HOMARR_OWNERSHIP") != "" || len(store.writes) != 2 {
+				t.Fatal("uncertain selected evidence was committed, rewritten or reissued on retry")
+			}
+			if len(store.Get("JELLYSTAT_HOMARR_PENDING")) > 2048 {
+				t.Fatal("projection persisted more than minimal selected evidence")
+			}
+			jellystatAssertNoOtherKeysPersisted(t, store)
+			for _, raw := range []string{"private-other-one", "private-other-two", "synthetic-key"} {
+				if strings.Contains(h.Log.Redact(raw), raw) {
+					t.Fatal("malformed array key was not registered in memory for redaction")
+				}
+			}
+		})
+	}
+}
+
+func TestJellystatHomarrKeyProjectionBoundsRecordsAndFields(t *testing.T) {
+	h, _, _ := newJellystatKeyHarness(t)
+	var fields strings.Builder
+	fields.WriteString(`[{"key":"synthetic-key","name":"self-host Homarr statistics"`)
+	for i := 0; i < keyInventoryFieldLimit; i++ {
+		fmt.Fprintf(&fields, `,"field%d":0`, i)
+	}
+	fields.WriteString(`}]`)
+	projection := projectKeyInventory(h, []byte(fields.String()))
+	if !projection.Incomplete || !projection.Error || projection.Duplicate || len(projection.Records) != 1 || projection.Records[0].Key != "synthetic-key" {
+		t.Fatal("bounded field projection lost the minimal recoverable key")
+	}
+	var records strings.Builder
+	records.WriteByte('[')
+	for i := 0; i <= keyInventoryRecordLimit; i++ {
+		if i > 0 {
+			records.WriteByte(',')
+		}
+		fmt.Fprintf(&records, `{"name":"key%d","key":"private-%d"}`, i, i)
+	}
+	records.WriteByte(']')
+	projection = projectKeyInventory(h, []byte(records.String()))
+	if !projection.Incomplete || !projection.Error || projection.Duplicate || len(projection.Records) != keyInventoryRecordLimit {
+		t.Fatal("inventory projection did not enforce its record bound")
+	}
+	lastKey := fmt.Sprintf("private-%d", keyInventoryRecordLimit)
+	if strings.Contains(h.Log.Redact(lastKey), lastKey) {
+		t.Fatal("a key beyond the projection bound was not registered for memory-only redaction")
 	}
 }
 

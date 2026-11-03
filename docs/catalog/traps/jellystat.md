@@ -55,9 +55,19 @@ technically read-only or pass it in a query string.
 
 The accepted `CredentialIssuance` helper owns Pending/Begin/Capture/Commit.
 Before POSTing `/api/keys`, Setup verifies the account and backend, reads the
-authenticated inventory, refuses an existing unowned creation name and records
-a durable intent. The response contains every key: only exactly one new entry
-with the selected name and an otherwise unchanged inventory is captured.
+authenticated nonempty inventory, refuses an existing unowned creation name and
+records a durable intent. An empty `[]` is also upstream's configuration-read
+failure fallback, not authoritative absence: it remains Manual before Begin or
+POST, even on an otherwise verified instance. A genuinely keyless instance is
+therefore not automatically provisioned by this slice.
+
+The response contains every key. A provider-owned incremental JSON projection
+retains only the unique new selected-name entry with every prior name/key pair
+preserved. It is bounded to 1 MiB, 1024 records and 32 fields per record. A
+recoverable selected key survives malformed trailing array/record data; capture
+also records nonsecret incomplete, duplicate and error flags. Such evidence stays
+held on retries and cannot commit or authorize another issuance. If the selected
+key is not uniquely recoverable within those bounds, only the hold is saved.
 Every decodable raw key is registered in memory for redaction, even on rejected
 responses. The journal retains only the selected new secret, its status and
 pinned identity, and aggregate pre-inventory count/digest; other users' raw keys,
@@ -69,19 +79,29 @@ Only an originally successful, unambiguous capture can commit after read-only
 key authentication, exact inventory membership and pinned-instance verification.
 Ownership binds the key fingerprint, App account/internal Address and selected
 backend Address/kind/administrator ID. Rejected or uncertain outcomes, malformed
-journals, lost ownership, changed identity and private-store failures remain
-Manual. Reruns may finish the same verified captured key but never issue a
+journals, lost ownership and changed identity remain Manual. Safe shared-journal
+storage errors pass through unchanged as failed steps, without their raw private
+causes; repair private storage before retrying the same evidence. Reruns may
+finish the same verified captured key but never issue a
 replacement, adopt a matching name or rotate a key. Preserve and privately
 reconcile `homarr_api_key`, `homarr_ownership` and `homarr_pending`; clearing a
 journal to cause another POST is not recovery. Upstream has no compare-and-set
 issuance API; concurrent independent credential administration is not proven.
 
-The Homarr leaf checks the recorded integration ID/kind/internal Address and the
-single private `apiKey` alternative. It then uses the supported saved-connection
-GETs for `/api/getconfig` and `/api/keys`. Homarr redacts only its configured
+In both Check and Apply, the Homarr preflight proves any existing recorded
+connection's ID/kind and single private `apiKey` alternative, then uses supported
+saved-connection GETs for `/api/getconfig` and `/api/keys`, before any common
+credential/settings writes. Homarr redacts only its configured
 secret: the unique selected key must be exactly `[REDACTED]`, while a different
 masked key is rejected. Thus another valid key to the same backend cannot pass
-as the issued key. No caller-supplied authentication override is sent. These
+as the issued key. Failed or unavailable proof preserves the other key, user
+Address edits and fingerprint drift, with no Stats request. Positive proof of
+the same pinned instance and issued key permits common drift repair; verification
+then requires the current internal Address. A stale recorded ID that cannot be
+read also remains Manual rather than being blindly replaced. New/unowned-resource
+guards and removal without peer access remain unchanged.
+
+No caller-supplied authentication override is sent. These
 read-only generic requests require explicitly granted full integration access;
 denied or unsupported access remains Manual, never bypassed.
 

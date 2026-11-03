@@ -1,10 +1,12 @@
 package jellystat
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"regexp"
 	"sort"
@@ -39,6 +41,9 @@ type keyCapture struct {
 	Status      int       `json:"status"`
 	Selected    bool      `json:"selected"`
 	Fingerprint string    `json:"fingerprint"`
+	Incomplete  bool      `json:"incomplete"`
+	Duplicate   bool      `json:"duplicate"`
+	Error       bool      `json:"error"`
 }
 
 type keyOwnership struct {
@@ -50,6 +55,21 @@ type keyOwnership struct {
 type keyRecord struct {
 	Name string `json:"name"`
 	Key  string `json:"key"`
+}
+
+const keyInventoryByteLimit = 1 << 20
+const keyInventoryRecordLimit = 1024
+const keyInventoryFieldLimit = 32
+
+type keyProjection struct {
+	Records    []keyRecord
+	Incomplete bool
+	Duplicate  bool
+	Error      bool
+}
+
+func (p keyProjection) valid() bool {
+	return !p.Incomplete && !p.Duplicate && !p.Error
 }
 
 func homarrManual(reason string) error {
@@ -75,23 +95,97 @@ func keyFingerprint(key string) string {
 }
 
 func parseKeyInventory(h *helpers.H, raw []byte) ([]keyRecord, error) {
-	RegisterKeySecrets(h, raw)
-	var records []keyRecord
-	err := json.Unmarshal(raw, &records)
-	for _, record := range records {
-		h.Log.Secret(record.Key)
+	projection := projectKeyInventory(h, raw)
+	if !projection.valid() {
+		return nil, homarrManual("Jellystat did not return a complete, unambiguous API-key inventory within the supported bounds.")
 	}
-	if err != nil || records == nil {
-		return nil, homarrManual("Jellystat did not return an explicit API-key inventory.")
+	return projection.Records, nil
+}
+
+func projectKeyInventory(h *helpers.H, raw []byte) keyProjection {
+	RegisterKeySecrets(h, raw)
+	projection := keyProjection{Incomplete: true}
+	bounded := len(raw) > keyInventoryByteLimit
+	if bounded {
+		raw = raw[:keyInventoryByteLimit]
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	if token, err := decoder.Token(); err != nil || token != json.Delim('[') {
+		projection.Error = true
+		return projection
 	}
 	seen := map[string]bool{}
-	for _, record := range records {
-		if strings.TrimSpace(record.Name) == "" || strings.TrimSpace(record.Key) == "" || strings.ContainsAny(record.Key, "\r\n\x00") || seen[record.Key] {
-			return nil, homarrManual("Jellystat returned an ambiguous API-key inventory.")
+	for count := 0; decoder.More(); count++ {
+		if count == keyInventoryRecordLimit {
+			projection.Error = true
+			return projection
 		}
-		seen[record.Key] = true
+		record, complete, duplicate, err := projectKeyRecord(h, decoder)
+		projection.Duplicate = projection.Duplicate || duplicate || seen[record.Key]
+		if strings.TrimSpace(record.Name) != "" && strings.TrimSpace(record.Key) != "" && !strings.ContainsAny(record.Key, "\r\n\x00") {
+			projection.Records = append(projection.Records, record)
+			seen[record.Key] = true
+		} else {
+			projection.Error = true
+		}
+		if !complete || err != nil {
+			projection.Error = true
+			return projection
+		}
 	}
-	return records, nil
+	if token, err := decoder.Token(); err != nil || token != json.Delim(']') {
+		projection.Error = true
+		return projection
+	}
+	if _, err := decoder.Token(); err != io.EOF || bounded {
+		projection.Error = true
+		return projection
+	}
+	projection.Incomplete = false
+	return projection
+}
+
+func projectKeyRecord(h *helpers.H, decoder *json.Decoder) (keyRecord, bool, bool, error) {
+	record := keyRecord{}
+	token, err := decoder.Token()
+	if err != nil || token != json.Delim('{') {
+		return record, false, false, err
+	}
+	seen := map[string]bool{}
+	for decoder.More() {
+		if len(seen) == keyInventoryFieldLimit {
+			return record, false, false, nil
+		}
+		token, err := decoder.Token()
+		name, ok := token.(string)
+		if err != nil || !ok {
+			return record, false, false, err
+		}
+		if seen[name] {
+			return keyRecord{}, false, true, nil
+		}
+		seen[name] = true
+		if name != "name" && name != "key" {
+			var ignored json.RawMessage
+			if err := decoder.Decode(&ignored); err != nil {
+				return record, false, false, err
+			}
+			continue
+		}
+		token, err = decoder.Token()
+		value, ok := token.(string)
+		if err != nil || !ok {
+			return record, false, false, err
+		}
+		if name == "name" {
+			record.Name = value
+		} else {
+			record.Key = value
+			h.Log.Secret(value)
+		}
+	}
+	token, err = decoder.Token()
+	return record, token == json.Delim('}'), false, err
 }
 
 func RegisterKeySecrets(h *helpers.H, raw []byte) {
@@ -123,9 +217,6 @@ func inventoryDigest(records []keyRecord) string {
 }
 
 func selectedIssuedKey(before, after []keyRecord) (string, bool) {
-	if len(after) != len(before)+1 {
-		return "", false
-	}
 	previous := map[string]string{}
 	for _, record := range before {
 		previous[record.Key] = record.Name
@@ -144,7 +235,10 @@ func selectedIssuedKey(before, after []keyRecord) (string, bool) {
 			return "", false
 		}
 	}
-	return selected, selected != "" && retained == len(before)
+	if retained != len(before) {
+		return "", false
+	}
+	return selected, selected != ""
 }
 
 func VerifyHomarr(ctx context.Context, h *helpers.H) error {
@@ -230,6 +324,9 @@ func setupHomarrKey(ctx context.Context, h *helpers.H) error {
 	if err != nil {
 		return err
 	}
+	if len(before) == 0 {
+		return homarrManual("Jellystat's empty API-key inventory also represents configuration read failure, so it cannot authorize issuance. Restore a readable nonempty inventory or reconcile a known key with its exact private ownership records.")
+	}
 	for _, record := range before {
 		if record.Name == homarrKeyName {
 			return homarrManual("An unowned Jellystat key already uses the selected creation name.")
@@ -241,24 +338,21 @@ func setupHomarrKey(ctx context.Context, h *helpers.H) error {
 		return homarrManual("The Jellystat issuance intent could not be encoded.")
 	}
 	if err := homarrJournal.Begin(h, encoded); err != nil {
-		return homarrManual("Private storage could not checkpoint Jellystat issuance; repair it before retrying.")
+		return err
 	}
 	response, issueErr := h.HTTP(ctx, helpers.Request{Method: http.MethodPost, Path: "/api/keys", Header: header, JSON: map[string]string{"name": homarrKeyName}, NoRedirect: true})
-	after, parseErr := parseKeyInventory(h, response.Body)
-	selected, valid := selectedIssuedKey(before, after)
-	valid = valid && parseErr == nil
-	if !valid {
-		selected = ""
-	}
-	capture := keyCapture{Intent: intent, Status: response.Status, Selected: valid, Fingerprint: keyFingerprint(selected)}
+	projection := projectKeyInventory(h, response.Body)
+	selected, consistent := selectedIssuedKey(before, projection.Records)
+	capture := keyCapture{Intent: intent, Status: response.Status, Selected: consistent, Fingerprint: keyFingerprint(selected),
+		Incomplete: projection.Incomplete, Duplicate: projection.Duplicate, Error: projection.Error || issueErr != nil}
 	data, err := json.Marshal(capture)
 	if err != nil {
 		return homarrManual("The selected Jellystat issuance evidence could not be encoded.")
 	}
 	if err := homarrJournal.Capture(h, helpers.CredentialEvidence{Secret: selected, Data: data}); err != nil {
-		return homarrManual("Private storage could not capture Jellystat issuance; preserve the journal and reconcile the original key.")
+		return err
 	}
-	if issueErr != nil || response.Status != http.StatusOK || !valid {
+	if capture.Error || capture.Incomplete || capture.Duplicate || response.Status != http.StatusOK || !consistent {
 		return homarrManual("Jellystat did not confirm one unambiguous successful issuance; the captured evidence remains held.")
 	}
 	pending, _, err := homarrJournal.Pending(h)
@@ -275,7 +369,7 @@ func resumeHomarrKey(ctx context.Context, h *helpers.H, pending helpers.PendingC
 		return homarrManual("The pending Jellystat issuance cannot be verified safely.")
 	}
 	key := pending.Issued.Secret
-	if intent.Name != homarrKeyName || intent.Identity != currentKeyIdentity(h) || intent.InventoryCount < 0 || len(intent.InventoryDigest) != 64 || capture.Intent != intent || capture.Status != http.StatusOK || !capture.Selected || key == "" || capture.Fingerprint != keyFingerprint(key) {
+	if intent.Name != homarrKeyName || intent.Identity != currentKeyIdentity(h) || intent.InventoryCount <= 0 || len(intent.InventoryDigest) != 64 || capture.Intent != intent || capture.Status != http.StatusOK || !capture.Selected || capture.Incomplete || capture.Duplicate || capture.Error || key == "" || capture.Fingerprint != keyFingerprint(key) {
 		return homarrManual("The captured Jellystat credential was rejected, uncertain or belongs to a different pinned instance.")
 	}
 	if err := verifyIssuedKey(ctx, h, key, intent.Identity); err != nil {
@@ -286,7 +380,7 @@ func resumeHomarrKey(ctx context.Context, h *helpers.H, pending helpers.PendingC
 		return homarrManual("The verified Jellystat key ownership could not be encoded.")
 	}
 	if err := homarrJournal.Commit(h, ownership); err != nil {
-		return homarrManual("Private storage could not finish Jellystat issuance; repair it and retry the same captured key.")
+		return err
 	}
 	return nil
 }
