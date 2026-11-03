@@ -70,6 +70,7 @@ export interface PairAppStatus {
 	readonly steps: ReadonlyArray<{
 		readonly id: string;
 		readonly status: "ok" | "manual" | "fail" | "skip";
+		readonly verified: boolean;
 	}>;
 }
 
@@ -587,12 +588,18 @@ function pairAppStatus(value: unknown, id: string, url: string): PairAppStatus {
 				(step.status !== "ok" &&
 					step.status !== "manual" &&
 					step.status !== "fail" &&
-					step.status !== "skip")
+					step.status !== "skip") ||
+				(step.verified !== undefined && typeof step.verified !== "boolean") ||
+				(step.verified === true && step.status !== "skip")
 			)
 				throw fault("PROTOCOL");
 			if (seen.has(step.id)) throw fault("PROTOCOL");
 			seen.add(step.id);
-			return { id: step.id, status: step.status };
+			return {
+				id: step.id,
+				status: step.status,
+				verified: step.verified === true,
+			};
 		},
 	);
 	return {
@@ -603,6 +610,10 @@ function pairAppStatus(value: unknown, id: string, url: string): PairAppStatus {
 		setup: value.setup,
 		steps,
 	};
+}
+
+function linked(step: PairAppStatus["steps"][number]): boolean {
+	return step.status === "ok" || (step.status === "skip" && step.verified);
 }
 
 function pairInspection(
@@ -641,9 +652,7 @@ function pairInspection(
 						(step) => step.status === "fail" || step.status === "manual",
 					),
 			) ||
-			!apps[0]?.steps.some(
-				(step) => step.id === base.link && step.status === "ok",
-			)
+			!apps[0]?.steps.some((step) => step.id === base.link && linked(step))
 		)
 			throw fault("PROTOCOL");
 		return { ...base, outcome: "complete", reason: "verified" };
@@ -666,9 +675,7 @@ function pairInspection(
 			(!absent && (value.reason === "unready") !== unready) ||
 			(!absent &&
 				!unready &&
-				apps[0]?.steps.some(
-					(step) => step.id === base.link && step.status === "ok",
-				))
+				apps[0]?.steps.some((step) => step.id === base.link && linked(step)))
 		)
 			throw fault("PROTOCOL");
 		return { ...base, outcome: "prerequisite", reason: value.reason };

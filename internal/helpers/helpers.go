@@ -54,6 +54,8 @@ type StepResult struct {
 	Msg    string
 	Error  string
 	Hint   string
+	// Verified marks a skip whose Check observed the outcome already holding.
+	Verified bool
 }
 
 // InstalledApp is the non-secret connection metadata for a Project App.
@@ -159,7 +161,7 @@ func (h *H) Step(ctx context.Context, id, msg string, spec StepSpec) error {
 				note = " (it already answered)"
 			}
 			h.Log.Emit(events.Event{Event: events.StepSkip, App: h.App, Step: id, Msg: msg + note})
-			h.Record(StepResult{ID: id, Status: status.StepSkip, Msg: msg})
+			h.Record(StepResult{ID: id, Status: status.StepSkip, Msg: msg, Verified: true})
 			return nil
 		}
 	}

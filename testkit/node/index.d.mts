@@ -49,6 +49,7 @@ export interface PairAppStatus {
     readonly steps: ReadonlyArray<{
         readonly id: string;
         readonly status: "ok" | "manual" | "fail" | "skip";
+        readonly verified: boolean;
     }>;
 }
 export type PairInspection = {

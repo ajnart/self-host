@@ -395,12 +395,18 @@ function pairAppStatus(value, id, url) {
             (step.status !== "ok" &&
                 step.status !== "manual" &&
                 step.status !== "fail" &&
-                step.status !== "skip"))
+                step.status !== "skip") ||
+            (step.verified !== undefined && typeof step.verified !== "boolean") ||
+            (step.verified === true && step.status !== "skip"))
             throw fault("PROTOCOL");
         if (seen.has(step.id))
             throw fault("PROTOCOL");
         seen.add(step.id);
-        return { id: step.id, status: step.status };
+        return {
+            id: step.id,
+            status: step.status,
+            verified: step.verified === true,
+        };
     });
     return {
         id,
@@ -410,6 +416,9 @@ function pairAppStatus(value, id, url) {
         setup: value.setup,
         steps,
     };
+}
+function linked(step) {
+    return step.status === "ok" || (step.status === "skip" && step.verified);
 }
 function pairInspection(value, ids, urls) {
     if (!strings(value, ["link", "outcome", "reason"]) ||
@@ -430,7 +439,7 @@ function pairInspection(value, ids, urls) {
         if (apps.some((app) => !app.installed ||
             app.setup !== "ok" ||
             app.steps.some((step) => step.status === "fail" || step.status === "manual")) ||
-            !apps[0]?.steps.some((step) => step.id === base.link && step.status === "ok"))
+            !apps[0]?.steps.some((step) => step.id === base.link && linked(step)))
             throw fault("PROTOCOL");
         return { ...base, outcome: "complete", reason: "verified" };
     }
@@ -447,7 +456,7 @@ function pairInspection(value, ids, urls) {
             (!absent && (value.reason === "unready") !== unready) ||
             (!absent &&
                 !unready &&
-                apps[0]?.steps.some((step) => step.id === base.link && step.status === "ok")))
+                apps[0]?.steps.some((step) => step.id === base.link && linked(step))))
             throw fault("PROTOCOL");
         return { ...base, outcome: "prerequisite", reason: value.reason };
     }

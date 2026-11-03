@@ -42,8 +42,13 @@ type PairOptions struct {
 }
 
 type PairStep struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
+	ID       string `json:"id"`
+	Status   string `json:"status"`
+	Verified bool   `json:"verified,omitempty"`
+}
+
+func (s PairStep) linked() bool {
+	return s.Status == string(stepstatus.StepOK) || s.Status == string(stepstatus.StepSkip) && s.Verified
 }
 
 type PairAppStatus struct {
@@ -292,7 +297,7 @@ func (a *App) inspectPair(ctx context.Context) (PairInspection, error) {
 				item.State = observed.State
 			}
 			for _, step := range observed.Steps {
-				item.Steps = append(item.Steps, PairStep{ID: step.ID, Status: string(step.Status)})
+				item.Steps = append(item.Steps, PairStep{ID: step.ID, Status: string(step.Status), Verified: step.Verified})
 			}
 		}
 		result.Apps = append(result.Apps, item)
@@ -322,7 +327,7 @@ func (a *App) inspectPair(ctx context.Context) (PairInspection, error) {
 		}
 	}
 	for _, step := range result.Apps[0].Steps {
-		if step.ID == result.Link && step.Status == string(stepstatus.StepOK) && result.Apps[0].Installed && result.Apps[1].Installed && result.Apps[0].Setup == "ok" && result.Apps[1].Setup == "ok" {
+		if step.ID == result.Link && step.linked() && result.Apps[0].Installed && result.Apps[1].Installed && result.Apps[0].Setup == "ok" && result.Apps[1].Setup == "ok" {
 			result.Outcome = "complete"
 			result.Reason = "verified"
 		}

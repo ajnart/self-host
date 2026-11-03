@@ -157,6 +157,10 @@ const integrity = (value) => {
 		}
 		if (kind === "prerequisite-ready-unready") value.reason = "unready";
 		if (kind === "prerequisite-pending-notrun") consumer.setup = "pending";
+	} else if (kind === "verified-skip") {
+		consumer.steps = [{ id: declaredLink, status: "skip", verified: true }];
+	} else if (kind === "unverified-skip") {
+		consumer.steps = [{ id: declaredLink, status: "skip" }];
 	} else if (kind === "unique-per-app") {
 		consumer.steps.push({ id: "observation", status: "ok" });
 		peer.steps.push({ id: "observation", status: "ok" });

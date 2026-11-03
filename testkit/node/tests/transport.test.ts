@@ -1057,6 +1057,7 @@ for (const kind of [
 	"prerequisite-missing-notrun",
 	"prerequisite-ready-unready",
 	"prerequisite-pending-notrun",
+	"unverified-skip",
 ]) {
 	for (const stage of ["startup", "live"]) {
 		test(`pair observational integrity ${stage} rejects ${kind}`, async () => {
@@ -1118,6 +1119,7 @@ for (const [kind, outcome] of [
 	["failed-with-manual", "failed"],
 	["manual-missing", "manual"],
 	["unique-per-app", "complete"],
+	["verified-skip", "complete"],
 ] as const) {
 	for (const stage of ["startup", "live"]) {
 		test(`pair observational integrity accepts ${stage} ${kind}`, async () => {

@@ -44,7 +44,11 @@ func (a pairFixtureApp) Links() []app.Link {
 	if target == "" {
 		target = "peer"
 	}
-	return []app.Link{app.NewLink("link-"+target, target, "pair fixture", app.LinkStep{Do: func(ctx context.Context, from, to *helpers.H) error {
+	linked := func(_ context.Context, from, to *helpers.H) (bool, error) {
+		owned := from.Secret(from.Key("owned_peer"))
+		return owned != "" && owned == to.Secret(to.Key("api_key")), nil
+	}
+	return []app.Link{app.NewLink("link-"+target, target, "pair fixture", app.LinkStep{Check: linked, Do: func(ctx context.Context, from, to *helpers.H) error {
 		if a.linkFailure {
 			return errors.New("synthetic-private-api-key")
 		}
@@ -92,8 +96,8 @@ func TestPairProductionOrdersAndLifecycle(t *testing.T) {
 				t.Fatal("per-App image was lost", err)
 			}
 			before, _ := consumer.Credentials(t.Context())
-			if _, err := p.Setup(t.Context(), ""); err != nil {
-				t.Fatal(err)
+			if rerun, err := p.Setup(t.Context(), ""); err != nil || rerun.Outcome != "complete" {
+				t.Fatalf("a verified Link rerun must stay complete: %+v error=%v", rerun, err)
 			}
 			for range 2 {
 				removed, err := p.Remove(t.Context(), "peer")

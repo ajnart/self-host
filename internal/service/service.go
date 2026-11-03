@@ -349,7 +349,7 @@ func (ss *session) recorder(id string) func(helpers.StepResult) {
 		if _, seen := st.Steps[r.ID]; !seen {
 			st.StepOrder = append(st.StepOrder, r.ID)
 		}
-		st.Steps[r.ID] = project.StepRecord{Status: r.Status, Msg: ss.s.Log.Redact(r.Msg), Error: ss.s.Log.Redact(r.Error), Hint: ss.s.Log.Redact(r.Hint)}
+		st.Steps[r.ID] = project.StepRecord{Status: r.Status, Msg: ss.s.Log.Redact(r.Msg), Error: ss.s.Log.Redact(r.Error), Hint: ss.s.Log.Redact(r.Hint), Verified: r.Verified}
 	}
 }
 

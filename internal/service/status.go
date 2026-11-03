@@ -15,11 +15,12 @@ import (
 )
 
 type StepStatus struct {
-	ID     string          `json:"id"`
-	Status stepstatus.Step `json:"status"`
-	Msg    string          `json:"msg,omitempty"`
-	Error  string          `json:"error,omitempty"`
-	Hint   string          `json:"hint,omitempty"`
+	ID       string          `json:"id"`
+	Status   stepstatus.Step `json:"status"`
+	Msg      string          `json:"msg,omitempty"`
+	Error    string          `json:"error,omitempty"`
+	Hint     string          `json:"hint,omitempty"`
+	Verified bool            `json:"verified,omitempty"`
 }
 
 type AppStatus struct {
@@ -162,7 +163,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 				if omitAbsentPeerWait(a, stepID, r, ids) {
 					continue
 				}
-				as.Steps = append(as.Steps, StepStatus{ID: stepID, Status: r.Status, Msg: s.Log.Redact(r.Msg), Error: s.Log.Redact(r.Error), Hint: s.Log.Redact(r.Hint)})
+				as.Steps = append(as.Steps, StepStatus{ID: stepID, Status: r.Status, Msg: s.Log.Redact(r.Msg), Error: s.Log.Redact(r.Error), Hint: s.Log.Redact(r.Hint), Verified: r.Verified})
 			}
 		}
 		if psErr != nil {

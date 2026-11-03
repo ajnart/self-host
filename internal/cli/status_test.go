@@ -185,7 +185,8 @@ func TestStatusJSONGoldenForAnAppInstalledThroughARecipe(t *testing.T) {
         {
           "id": "configure",
           "status": "skip",
-          "msg": "configure echo"
+          "msg": "configure echo",
+          "verified": true
         },
         {
           "id": "check",
