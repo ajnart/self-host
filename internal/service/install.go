@@ -674,19 +674,9 @@ func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files 
 			if _, compiled := ss.s.Catalog.App(id); !compiled || ss.p.IsExtra(id) {
 				return errors.New("directory preparation requires a compiled Catalog App")
 			}
-			var prepared []project.AppDirectory
-			seen := map[string]bool{}
-			for _, dir := range directories {
-				if dir.Path == "" || dir.Path == "." || dir.Path == ".." || strings.ContainsAny(dir.Path, "/\\\x00") || seen[dir.Path] || dir.Mode&^uint32(0o777) != 0 || dir.Mode&0o700 != 0o700 {
-					return errors.New("App directory declarations need distinct relative components and explicit owner rwx permission bits")
-				}
-				seen[dir.Path] = true
-				uid, uidErr := appDirectoryID(dir.UID)
-				gid, gidErr := appDirectoryID(dir.GID)
-				if uidErr != nil || gidErr != nil {
-					return errors.New("App directory declarations need explicit numeric container UID/GID")
-				}
-				prepared = append(prepared, project.AppDirectory{Path: dir.Path, Mode: os.FileMode(dir.Mode), UID: uid, GID: gid})
+			prepared, err := ss.s.resolveAppDirectories(ctx, id, directories)
+			if err != nil {
+				return err
 			}
 			for _, file := range files {
 				clean := path.Clean(file.Path)
@@ -702,30 +692,71 @@ func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files 
 					return &helpers.ManualError{Hint: "Nested compiled files cannot safely share directory preparation for " + id + " because the existing file writer follows directory aliases. Preserve existing files and ownership; use a corrected App definition with only disjoint top-level files, then retry self-host install " + id}
 				}
 			}
-			namespace, err := host.MediaUserNamespace(ctx, ss.s.Deps)
-			if err != nil {
-				return &helpers.ManualError{Hint: "Verify the local Docker runtime UID/GID mapping before preparing " + id + " directories: " + err.Error() + ". Preserve existing storage and retry self-host install " + id}
-			}
-			for i := range prepared {
-				dir := &prepared[i]
-				dir.UID, err = namespace.HostUID(dir.UID)
-				if err == nil {
-					dir.GID, err = namespace.HostGID(dir.GID)
-				}
-				if err != nil {
-					return &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
-				}
-			}
-			if err := ss.p.PrepareAppDirectories(id, prepared); err != nil {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
-					return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s and all existing or partly prepared directories. Directory admission requires a held Project lock, trusted nonshared parents, inspectable local filesystem/ACL semantics and matching mapped ownership/modes %+v: %s. Review storage explicitly, then retry self-host install %s; no ACL reset, recursive ownership repair or pathname cleanup was attempted", id, prepared, err, id)}
-				}
-				return err
-			}
-			return nil
+			return appDirectoryError(id, prepared, ss.p.PrepareAppDirectories(id, prepared))
 		},
 		Hint: "Preserve existing App data and review its declared directory ownership and permissions before retrying the approved install",
 	})
+}
+
+func (s *Service) resolveAppDirectories(ctx context.Context, id string, directories []app.Directory) ([]project.AppDirectory, error) {
+	var prepared []project.AppDirectory
+	seen := map[string]bool{}
+	for _, dir := range directories {
+		if dir.Path == "" || dir.Path == "." || dir.Path == ".." || strings.ContainsAny(dir.Path, "/\\\x00") || seen[dir.Path] || dir.Mode&^uint32(0o777) != 0 || dir.Mode&0o700 != 0o700 {
+			return nil, errors.New("App directory declarations need distinct relative components and explicit owner rwx permission bits")
+		}
+		seen[dir.Path] = true
+		uid, uidErr := appDirectoryID(dir.UID)
+		gid, gidErr := appDirectoryID(dir.GID)
+		if uidErr != nil || gidErr != nil {
+			return nil, errors.New("App directory declarations need explicit numeric container UID/GID")
+		}
+		prepared = append(prepared, project.AppDirectory{Path: dir.Path, Mode: os.FileMode(dir.Mode), UID: uid, GID: gid})
+	}
+	if len(prepared) == 0 {
+		return nil, nil
+	}
+	namespace, err := host.MediaUserNamespace(ctx, s.Deps)
+	if err != nil {
+		return nil, &helpers.ManualError{Hint: "Verify the local Docker runtime UID/GID mapping before admitting " + id + " directories: " + err.Error() + ". Preserve existing storage and retry self-host install " + id}
+	}
+	for i := range prepared {
+		dir := &prepared[i]
+		dir.UID, err = namespace.HostUID(dir.UID)
+		if err == nil {
+			dir.GID, err = namespace.HostGID(dir.GID)
+		}
+		if err != nil {
+			return nil, &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
+		}
+	}
+	return prepared, nil
+}
+
+func (s *Service) validateAppDirectories(ctx context.Context, p *project.Project, a app.App, record *project.AppState, settings map[string]string) error {
+	declarer, found := a.(app.DirectoryDeclarer)
+	if !found {
+		return nil
+	}
+	if record == nil {
+		return fmt.Errorf("missing configuration record for %s directory validation", a.Info().ID)
+	}
+	rc, err := s.renderContext(ctx, a, record.Port, publicInputs(a, record.Inputs), maps.Clone(settings))
+	if err != nil {
+		return err
+	}
+	dirs, err := s.resolveAppDirectories(ctx, a.Info().ID, declarer.Directories(rc))
+	if err != nil {
+		return err
+	}
+	return appDirectoryError(a.Info().ID, dirs, p.ValidateAppDirectories(a.Info().ID, dirs))
+}
+
+func appDirectoryError(id string, dirs []project.AppDirectory, err error) error {
+	if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+		return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s and all existing or partly prepared directories. Directory admission requires trusted nonshared parents, inspectable local filesystem/ACL semantics and matching mapped ownership/modes %+v: %s. Review storage explicitly, then retry the approved self-host install %s; no ACL reset, recursive ownership repair or pathname cleanup was attempted", id, dirs, err, id)}
+	}
+	return err
 }
 
 func appDirectoryID(value string) (int, error) {
