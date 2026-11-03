@@ -1,0 +1,32 @@
+docs/catalog/traps/stash.md
+  h_d6e478ca18e517 1-107
+internal/apps/homarr/target_stash.go
+  h_d6e478ca18e517 1-59
+internal/apps/homarr/target_stash_test.go
+  h_d6e478ca18e517 1-119
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 52
+internal/apps/stash/api.go
+  h_d6e478ca18e517 1-108
+internal/apps/stash/stash.go
+  h_d6e478ca18e517 1-81
+internal/apps/stash/stash_test.go
+  h_d6e478ca18e517 1-317
+internal/catalog/batch_multi2.go
+  h_d6e478ca18e517 9,21
+tools/sitegen/icons.go
+  h_d6e478ca18e517 104
+tools/sitegen/stars.go
+  h_d6e478ca18e517 103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9807e269c238f261b74237d0d008f43f90d878af",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
