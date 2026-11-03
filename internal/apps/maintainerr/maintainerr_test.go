@@ -106,6 +106,18 @@ func TestMaintainerrDeploymentContract(t *testing.T) {
 	}
 }
 
+func TestMaintainerrDeclaresOnlyItsPrivateDataWithSelectedRuntimeIdentity(t *testing.T) {
+	for _, ids := range [][2]string{{"1000", "1001"}, {"0", "0"}, {"", ""}} {
+		dirs := (maintainerr.App{}).Directories(app.RenderContext{Settings: map[string]string{"PUID": ids[0], "PGID": ids[1]}})
+		if len(dirs) != 1 || dirs[0] != (app.Directory{Path: "data", Mode: 0o700, UID: ids[0], GID: ids[1]}) {
+			t.Fatalf("directory does not follow the declared Compose identity: %+v", dirs)
+		}
+	}
+	if _, declaresFiles := any(maintainerr.App{}).(app.FileDeclarer); declaresFiles {
+		t.Fatal("directory preparation must not use a sentinel file declaration")
+	}
+}
+
 func TestMaintainerrPrivateDirectoryPreflightDoesNotMutate(t *testing.T) {
 	for _, kind := range []string{"missing", "file", "public", "symlink", "readonly", "private"} {
 		t.Run(kind, func(t *testing.T) {

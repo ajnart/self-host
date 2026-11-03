@@ -26,6 +26,10 @@ func (App) Info() app.Info {
 
 func (App) Inputs() []app.Input { return nil }
 
+func (App) Directories(rc app.RenderContext) []app.Directory {
+	return []app.Directory{{Path: "data", Mode: 0o700, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}
+}
+
 func (App) Compose(rc app.RenderContext) string {
 	return `services:
   maintainerr:
@@ -46,7 +50,7 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-const storageHint = "Maintainerr stores connected-service credentials in its data directory. Have the Project storage owner prepare apps/maintainerr/data with mode 0700 and ownership writable by the selected runtime UID/GID, then retry self-host install maintainerr. Private-directory provisioning is not automatic yet; preserve existing data and permissions until an explicit storage recovery is approved."
+const storageHint = "Maintainerr stores connected-service credentials in its data directory. Have the Project storage owner review apps/maintainerr/data for mode 0700 and ownership writable by the selected runtime UID/GID, then retry the approved self-host install maintainerr. Preserve existing data, permissions and ACLs until explicit storage recovery is approved; never start with missing storage or recursively repair ownership."
 
 func (App) Preflight(ctx context.Context, h *helpers.H) error {
 	if err := ctx.Err(); err != nil {
