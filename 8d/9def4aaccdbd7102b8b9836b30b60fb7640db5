@@ -1,0 +1,37 @@
+docs/catalog/traps/anchor.md
+  s_0812986ae533ff::t_bfbe5fc2f6bd5c 1-33
+internal/apps/anchor/anchor.go
+  s_0812986ae533ff::t_ef4412079c7956 1-95
+internal/apps/anchor/anchor_test.go
+  s_0812986ae533ff::t_5d1507f7b6388b 1-523
+internal/apps/anchor/homarr.go
+  s_0812986ae533ff::t_9fdeccc1da316f 1-203
+internal/apps/anchor/homarr_test.go
+  s_0812986ae533ff::t_5a169b70493a60 1-297
+internal/apps/anchor/setup.go
+  s_0812986ae533ff::t_911c9db9410b5f 1-245
+internal/apps/homarr/target_anchor.go
+  s_0812986ae533ff::t_10b1958773f18d 1-39
+internal/apps/homarr/target_anchor_test.go
+  s_0812986ae533ff::t_7b950c257a1027 1-117
+internal/apps/homarr/targets.go
+  s_0812986ae533ff::t_29e9375aca2bee 61
+internal/catalog/batch_misc2.go
+  s_0812986ae533ff::t_a1adafadede40a 5,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d9def4aaccdbd7102b8b9836b30b60fb7640db5",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
