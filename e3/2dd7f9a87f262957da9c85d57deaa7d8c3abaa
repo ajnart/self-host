@@ -1,0 +1,20 @@
+docs/catalog/traps/komga.md
+  h_d6e478ca18e517 26,28-29
+internal/apps/homarr/target_komga.go
+  h_d6e478ca18e517 12-13,21-23,31-37,52
+internal/apps/homarr/target_komga_test.go
+  h_d6e478ca18e517 4-5,16-17,20,23,52,60-64,97,116,119,129-133,144-145,175-177,181-188,203-341
+internal/apps/komga/homarr.go
+  h_d6e478ca18e517 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e32dd7f9a87f262957da9c85d57deaa7d8c3abaa",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
