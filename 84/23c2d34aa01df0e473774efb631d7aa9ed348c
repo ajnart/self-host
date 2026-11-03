@@ -1,0 +1,14 @@
+internal/apps/deluge/links_test.go
+  h_d6e478ca18e517 356-376,452,728-747,754-756,760-779,804,811-819,821-831
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8423c2d34aa01df0e473774efb631d7aa9ed348c",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
