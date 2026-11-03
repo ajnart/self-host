@@ -16,6 +16,7 @@ type FixturePolicy struct {
 	Root    string
 	Service string
 	Image   string
+	Images  map[string]string
 }
 
 type FixturePort struct {
@@ -128,6 +129,13 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 			}
 		}
 		image := field(svc, "image")
+		if override, ok := policy.Images[name]; ok {
+			if !ValidFixtureImage(override) {
+				return out, errors.New("invalid selected image")
+			}
+			image = scalar(override)
+			put(svc, "image", image)
+		}
 		if name == policy.Service && policy.Image != "" {
 			if !ValidFixtureImage(policy.Image) {
 				return out, errors.New("invalid selected image")

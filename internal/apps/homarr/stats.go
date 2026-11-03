@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -38,7 +39,7 @@ func (t target) statsMetrics() []string {
 	return selected
 }
 
-func readStatsSample(ctx context.Context, h *helpers.H, integrationID string, selected []string) (statsSample, error) {
+func readStatsSample(ctx context.Context, h *helpers.H, integrationID string, selected []string, nullable ...string) (statsSample, error) {
 	value, err := apiKeyProcedure(ctx, h, "widget.stats.catalog", map[string]any{"integrationId": integrationID})
 	if err != nil {
 		return statsSample{}, err
@@ -71,7 +72,8 @@ func readStatsSample(ctx context.Context, h *helpers.H, integrationID string, se
 		return statsSample{}, err
 	}
 	for _, metric := range selected {
-		if sample.values[metric] == nil {
+		value, present := sample.values[metric]
+		if !present || value == nil && !slices.Contains(nullable, metric) {
 			return statsSample{}, fmt.Errorf("Homarr did not return refreshed %s Stats; retry self-host setup homarr", metric)
 		}
 	}
