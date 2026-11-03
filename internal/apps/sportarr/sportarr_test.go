@@ -360,7 +360,7 @@ func TestSportarrDeploymentUsesOfficialImageAndPreservesStorageChoices(t *testin
 				User        string            `yaml:"user"`
 				Restart     string            `yaml:"restart"`
 				Ports       []string          `yaml:"ports"`
-				Volumes     []string          `yaml:"volumes"`
+				Volumes     []yaml.Node       `yaml:"volumes"`
 				Environment map[string]string `yaml:"environment"`
 			} `yaml:"services"`
 		}
@@ -371,17 +371,53 @@ func TestSportarrDeploymentUsesOfficialImageAndPreservesStorageChoices(t *testin
 		if len(body.Services) != 1 || svc.Image != info.Image || svc.User != "${PUID}:${PGID}" || svc.Restart != "unless-stopped" || !reflect.DeepEqual(svc.Ports, []string{"${BIND_IP}:21867:1867"}) {
 			t.Fatal("deployment does not use the official non-root single-service contract")
 		}
-		mounts := []string{"./config:/config", "${MEDIA_ROOT}:/media", "${DOWNLOADS_ROOT}:/downloads"}
+		mounts := []string{"${MEDIA_ROOT}:/media", "${DOWNLOADS_ROOT}:/downloads"}
 		if shared {
-			mounts = []string{"./config:/config", "${DATA_ROOT}:/data"}
+			mounts = []string{"${DATA_ROOT}:/data"}
 		}
-		if !reflect.DeepEqual(svc.Volumes, mounts) || svc.Environment["UMASK"] != "${UMASK}" || svc.Environment["TZ"] != "${TZ}" {
+		if len(svc.Volumes) != len(mounts)+1 || svc.Environment["UMASK"] != "${UMASK}" || svc.Environment["TZ"] != "${TZ}" {
 			t.Fatal("storage, timezone or ownership defaults changed")
+		}
+		var config struct {
+			Type   string `yaml:"type"`
+			Source string `yaml:"source"`
+			Target string `yaml:"target"`
+			Bind   struct {
+				CreateHostPath *bool `yaml:"create_host_path"`
+			} `yaml:"bind"`
+		}
+		if err := svc.Volumes[0].Decode(&config); err != nil {
+			t.Fatal(err)
+		}
+		if config.Type != "bind" || config.Source != "./config" || config.Target != "/config" || config.Bind.CreateHostPath == nil || *config.Bind.CreateHostPath {
+			t.Fatal("Docker must not create Sportarr configuration storage implicitly")
+		}
+		for i, expected := range mounts {
+			var mount string
+			if err := svc.Volumes[i+1].Decode(&mount); err != nil || mount != expected {
+				t.Fatalf("media mount changed: %q, %v", mount, err)
+			}
 		}
 		for _, forbidden := range []string{"privileged:", "devices:", "docker.sock", "container_name:", "SPORTARR_API_KEY", "Sportarr__ApiKey", "SPORTARR_STARTUP_SCRIPT"} {
 			if strings.Contains(compose, forbidden) {
 				t.Fatalf("unexpected deployment setting %s", forbidden)
 			}
 		}
+	}
+}
+
+func TestSportarrConfigDirectoryUsesTheSelectedRuntimeIdentity(t *testing.T) {
+	var a app.App = sportarr.App{}
+	declarer, ok := a.(app.DirectoryDeclarer)
+	if !ok {
+		t.Fatal("Sportarr does not declare its writable non-root configuration storage")
+	}
+	rc := app.RenderContext{Settings: map[string]string{"PUID": "1207", "PGID": "204"}}
+	want := []app.Directory{{Path: "config", Mode: 0o755, UID: "1207", GID: "204"}}
+	if !reflect.DeepEqual(declarer.Directories(rc), want) {
+		t.Fatal("Sportarr directory owner differs from the direct user selected in Compose")
+	}
+	if _, sentinel := a.(app.FileDeclarer); sentinel {
+		t.Fatal("Sportarr configuration preparation must not write a sentinel file")
 	}
 }

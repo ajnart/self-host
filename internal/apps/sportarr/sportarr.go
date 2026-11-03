@@ -38,6 +38,10 @@ func (App) StandaloneGuide() string {
 	return "Keep /config writable by the selected user. In Settings > General > Security, require Forms authentication for every address and configure your administrator. Choose your sports library, profiles and download clients yourself; no events or downloads are added by self-host."
 }
 
+func (App) Directories(rc app.RenderContext) []app.Directory {
+	return []app.Directory{{Path: "config", Mode: 0o755, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}
+}
+
 func (App) Compose(rc app.RenderContext) string {
 	mounts := "      - ${MEDIA_ROOT}:/media\n      - ${DOWNLOADS_ROOT}:/downloads\n"
 	if mediastorage.Shared(rc.Settings) {
@@ -52,7 +56,11 @@ func (App) Compose(rc app.RenderContext) string {
       TZ: ${TZ}
       UMASK: ${UMASK}
     volumes:
-      - ./config:/config
+      - type: bind
+        source: ./config
+        target: /config
+        bind:
+          create_host_path: false
 ` + mounts + `    ports:
       - ${BIND_IP}:` + strconv.Itoa(rc.Port) + `:1867
     healthcheck:
