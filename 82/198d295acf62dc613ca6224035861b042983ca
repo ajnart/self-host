@@ -1,0 +1,16 @@
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 64-66,69-71,115-133,136-222,932-1027,1910-1912,2183
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82198d295acf62dc613ca6224035861b042983ca",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
