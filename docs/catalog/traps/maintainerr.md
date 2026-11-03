@@ -26,7 +26,13 @@
 
 ## Deferred native coverage
 
-- This is an App-only source slice, not complete #164 acceptance. Catalog/site/DCM registration and metadata/count updates remain coordinator-owned. No Homarr leaf is added yet.
+- Catalog/site/DCM registration and metadata/count updates remain coordinator-owned. Native, rendered and runtime acceptance are not performed.
 - The researched Homarr kind is `maintainerr`, with an advertised empty credential alternative and only shared Stats support. The planned metrics are `itemsHandled`, `episodesHandled`, `moviesHandled` (count) and `reclaimable` (bytes). No Stats/count/media-envelope implementation is copied into this App slice. [Homarr provider](https://github.com/homarr-labs/homarr/blob/df8d03b13452bb50c55a424187e1fa188ab510d2/packages/integrations/src/stats/providers/maintainerr.ts).
 - Later connector work must use reviewed shared dependencies and prove a genuinely advancing authenticated Homarr Stats refresh. Explicit zero history/reclaimable values can be valid only with positive configured-server verification; do not run cleanup or alter a rule to manufacture history. Native, rendered, both-order scheduling, preservation and lifecycle/runtime evidence remain unperformed.
 - Research-time release tags and resolved `latest` OCI revisions differed: Maintainerr release `v3.31.0` versus image source revision `aa0ed0d9e8e080799943e1344214159f84625355`, Homarr release `v2.10.1` versus image source revision `df8d03b13452bb50c55a424187e1fa188ab510d2`. Relevant inspected contracts matched, but actual runtime API versions must be recorded separately. Floating tags and release metadata are not runtime acceptance or a fixed compatibility allowlist.
+
+## Homarr leaf
+
+- The Homarr Link uses the exact `maintainerr` kind with no inbound secret (`secretKinds: [[]]`, `httpAuth: adapter`) and the shared Stats widget only. Preflight and verification reuse the App's read-only verifier, so an unconfigured or unverified media server, authentication, API or TLS failure is Manual before any Homarr mutation. Removal never queries Maintainerr or Stats.
+- Stats come from `GET /api/storage-metrics`: `itemsHandled`, `episodesHandled` and `moviesHandled` are historical handled totals (count; `itemsHandled` is not their sum of movies and episodes), and `reclaimable` is the active collection size with a positive `deleteAfterDays` (bytes). Explicit zeros are valid; missing, null, negative, non-finite or wrong-unit values are rejected. The expensive library-sizes endpoint is not used.
+- Homarr cannot supply inbound credentials to Maintainerr; keep private Access and any existing authenticating proxy.

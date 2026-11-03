@@ -65,6 +65,10 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	return verifyServer(ctx, h)
 }
 
+func VerifyHomarr(ctx context.Context, h *helpers.H) error {
+	return verifyServer(ctx, h)
+}
+
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {

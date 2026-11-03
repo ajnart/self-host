@@ -5,6 +5,7 @@ func targets() []target {
 		immichTarget(),
 		caddyTarget(),
 		gatusTarget(),
+		maintainerrTarget(),
 		prometheusTarget(),
 		gotifyTarget(),
 		technitiumDNSTarget(),
