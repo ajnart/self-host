@@ -48,6 +48,7 @@ var repos = map[string]string{
 	"immich":               "immich-app/immich",
 	"jellyfin":             "jellyfin/jellyfin",
 	"keycloak":             "keycloak/keycloak",
+	"komga":                "gotson/komga",
 	"kopia":                "kopia/kopia",
 	"lidarr":               "Lidarr/Lidarr",
 	"linkwarden":           "linkwarden/linkwarden",

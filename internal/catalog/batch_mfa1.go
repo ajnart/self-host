@@ -10,6 +10,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/frigate"
 	"github.com/ajnart/self-host/internal/apps/homeassistant"
 	"github.com/ajnart/self-host/internal/apps/homebridge"
+	"github.com/ajnart/self-host/internal/apps/komga"
 )
 
 func init() {
@@ -23,5 +24,6 @@ func init() {
 		frigate.App{},
 		homeassistant.App{},
 		homebridge.App{},
+		komga.App{},
 	)
 }

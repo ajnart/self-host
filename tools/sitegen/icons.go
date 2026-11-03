@@ -47,6 +47,7 @@ var icons = map[string]string{
 	"immich":               "svg/immich.svg",
 	"jellyfin":             "svg/jellyfin.svg",
 	"keycloak":             "svg/keycloak.svg",
+	"komga":                "svg/komga.svg",
 	"kopia":                "svg/kopia.svg",
 	"lidarr":               "svg/lidarr.svg",
 	"linkwarden":           "",
