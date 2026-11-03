@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -251,11 +252,9 @@ func (s libraryConnection) emptyLibrary(ctx context.Context, from *helpers.H) er
 	return nil
 }
 
-func (s libraryConnection) targetRead(ctx context.Context, from, to *helpers.H, resource string, value any) error {
-	response, err := to.HTTP(ctx, servarr.Request(to, servarr.V3, helpers.Request{Path: resource, NoRedirect: true}))
-	if err != nil {
-		return fmt.Errorf("the selected %s API could not be reached; retry its own Setup before Bazarr", s.name)
-	}
+type libraryReader func(ctx context.Context, resource string, value any) error
+
+func (s libraryConnection) decode(from *helpers.H, response helpers.Response, value any) error {
 	if response.Status != http.StatusOK {
 		return s.manual(from, "The selected "+s.name+" rejected an authenticated library read. Repair self-host setup "+s.id+" first; credentials and settings were preserved.")
 	}
@@ -268,20 +267,40 @@ func (s libraryConnection) targetRead(ctx context.Context, from, to *helpers.H, 
 	return nil
 }
 
+func (s libraryConnection) directReader(from, to *helpers.H) libraryReader {
+	return func(ctx context.Context, resource string, value any) error {
+		response, err := to.HTTP(ctx, servarr.Request(to, servarr.V3, helpers.Request{Path: resource, NoRedirect: true}))
+		if err != nil {
+			return fmt.Errorf("the selected %s API could not be reached; retry its own Setup before Bazarr", s.name)
+		}
+		return s.decode(from, response, value)
+	}
+}
+
+func (s libraryConnection) consumerReader(from, to *helpers.H) libraryReader {
+	return func(ctx context.Context, resource string, value any) error {
+		response, err := from.ConsumerGET(ctx, to, servarr.V3+resource, to.Secret(to.Key("api_key")))
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return s.manual(from, "Bazarr's own network context could not be admitted to read the selected "+s.name+" (a trusted single Project bridge network, the standard LinuxServer image with curl 8.4+ and GNU timeout, and one running replica of each App are required). The saved connection and all settings were preserved.")
+		}
+		return s.decode(from, response, value)
+	}
+}
+
 func libraryPath(value string) bool {
 	return strings.HasPrefix(value, "/") && value != "/" && path.Clean(value) == strings.TrimSuffix(value, "/") && !strings.ContainsAny(value, "\r\n\x00")
 }
 
-func (s libraryConnection) verifyTarget(ctx context.Context, from, to *helpers.H, snapshot connectionSnapshot) ([]string, error) {
-	if _, err := s.desired(from, to); err != nil {
-		return nil, err
-	}
+func (s libraryConnection) verifyLibrary(ctx context.Context, from *helpers.H, read libraryReader) ([]string, error) {
 	var status struct {
 		Name    string  `json:"appName"`
 		Version string  `json:"version"`
 		Base    *string `json:"urlBase"`
 	}
-	if err := s.targetRead(ctx, from, to, "/system/status", &status); err != nil {
+	if err := read(ctx, "/system/status", &status); err != nil {
 		return nil, err
 	}
 	if !strings.EqualFold(status.Name, s.name) || strings.TrimSpace(status.Version) == "" || status.Base == nil || (*status.Base != "" && *status.Base != "/") {
@@ -292,7 +311,7 @@ func (s libraryConnection) verifyTarget(ctx context.Context, from, to *helpers.H
 		Path       string `json:"path"`
 		Accessible *bool  `json:"accessible"`
 	}
-	if err := s.targetRead(ctx, from, to, "/rootfolder", &roots); err != nil {
+	if err := read(ctx, "/rootfolder", &roots); err != nil {
 		return nil, err
 	}
 	if len(roots) == 0 || len(roots) > 32 {
@@ -316,7 +335,7 @@ func (s libraryConnection) verifyTarget(ctx context.Context, from, to *helpers.H
 		Path string `json:"path"`
 		Root string `json:"rootFolderPath"`
 	}
-	if err := s.targetRead(ctx, from, to, collection, &items); err != nil {
+	if err := read(ctx, collection, &items); err != nil {
 		return nil, err
 	}
 	if items == nil || len(items) > 128 {
@@ -334,6 +353,17 @@ func (s libraryConnection) verifyTarget(ctx context.Context, from, to *helpers.H
 			return nil, s.manual(from, "A library item does not identify media under the selected existing roots; no roots or files were changed.")
 		}
 		itemIDs[item.ID] = true
+	}
+	return rootPaths, nil
+}
+
+func (s libraryConnection) verifyTarget(ctx context.Context, from, to *helpers.H, snapshot connectionSnapshot) ([]string, error) {
+	if _, err := s.desired(from, to); err != nil {
+		return nil, err
+	}
+	rootPaths, err := s.verifyLibrary(ctx, from, s.directReader(from, to))
+	if err != nil {
+		return nil, err
 	}
 	if len(snapshot.mappings) != 0 {
 		return nil, s.manual(from, "Custom path mappings need explicit same-media verification. They were preserved; Setup does not invent or rewrite mappings.")
@@ -398,5 +428,13 @@ func (s libraryConnection) verifyConfigured(ctx context.Context, from, to *helpe
 			return s.manual(from, "Bazarr's configured target did not return the expected existing directory. An empty browser response is not proof of authorization; review credentials and paths.")
 		}
 	}
-	return s.manual(from, "The owned connection settings are saved; enabled/disabled choices were preserved and no initial synchronization ran. Direct target identity/library reads and read-only root identity checks passed, but authenticated target identity and library enumeration from Bazarr's network context remain unverified. Keep this Link Manual until that verification is available; do not search or download subtitles to prove it.")
+	observed, err := s.verifyLibrary(ctx, from, s.consumerReader(from, to))
+	if err != nil {
+		return err
+	}
+	if !slices.Equal(observed, roots) {
+		return s.manual(from, "Bazarr's network context and the selected "+s.name+" disagree about the existing library roots; review the connection and mounts before trusting it.")
+	}
+	from.Info(s.name + " answered Bazarr's authenticated identity and library reads; enabled choices were preserved and no initial synchronization ran")
+	return nil
 }
