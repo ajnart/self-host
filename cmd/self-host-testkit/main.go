@@ -26,16 +26,21 @@ type request struct {
 }
 
 type params struct {
-	App       string `json:"app"`
-	TimeoutMS int64  `json:"timeoutMs"`
-	Image     string `json:"image"`
-	Name      string `json:"name"`
+	App       string            `json:"app"`
+	TimeoutMS int64             `json:"timeoutMs"`
+	Image     string            `json:"image"`
+	Name      string            `json:"name"`
+	Consumer  string            `json:"consumer"`
+	Target    string            `json:"target"`
+	Order     string            `json:"order"`
+	Images    map[string]string `json:"images"`
 }
 
 type protocolError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Reason  string `json:"reason,omitempty"`
+	Code          string `json:"code"`
+	Message       string `json:"message"`
+	Reason        string `json:"reason,omitempty"`
+	CleanupFailed bool   `json:"cleanupFailed,omitempty"`
 }
 
 type response struct {
@@ -53,13 +58,37 @@ type fixture interface {
 	Close(context.Context) error
 }
 
+type fixtureView interface {
+	URL() string
+	GetAPIKey(context.Context, string) (string, error)
+	Credentials(context.Context) (testkit.Credentials, error)
+	Info(context.Context) (testkit.Info, error)
+}
+
+type pairFixture interface {
+	View(string) (fixtureView, error)
+	Initial() testkit.PairInspection
+	Inspect(context.Context) (testkit.PairInspection, error)
+	Setup(context.Context, string) (testkit.PairInspection, error)
+	Remove(context.Context, string) (testkit.PairInspection, error)
+	Install(context.Context, string) (testkit.PairInspection, error)
+	Close(context.Context) error
+}
+
+type pairAdapter struct{ *testkit.Pair }
+
+func (p pairAdapter) View(id string) (fixtureView, error) { return p.Pair.App(id) }
+
 type bridge struct {
-	app       fixture
-	appCancel context.CancelFunc
-	started   bool
-	manifest  string
-	owner     string
-	start     func(context.Context, testkit.Options) (fixture, error)
+	app        fixture
+	appCancel  context.CancelFunc
+	started    bool
+	manifest   string
+	owner      string
+	start      func(context.Context, testkit.Options) (fixture, error)
+	pair       pairFixture
+	pairFailed bool
+	startPair  func(context.Context, testkit.PairOptions) (pairFixture, error)
 }
 
 type protocolWriter struct {
@@ -126,6 +155,13 @@ func main() {
 		}
 		return app, nil
 	}}
+	b.startPair = func(ctx context.Context, options testkit.PairOptions) (pairFixture, error) {
+		pair, err := testkit.StartPair(ctx, options)
+		if err != nil {
+			return nil, err
+		}
+		return pairAdapter{Pair: pair}, nil
+	}
 	if b.serve(ctx, os.Stdin, protocolWriter{ctx: ctx, output: output}) != nil {
 		os.Exit(1)
 	}
@@ -155,6 +191,9 @@ func (b *bridge) serve(ctx context.Context, input io.Reader, output io.Writer) (
 		defer cleanupCancel()
 		if b.app != nil {
 			result = errors.Join(result, b.app.Close(cleanupCtx))
+		}
+		if b.pair != nil {
+			result = errors.Join(result, b.pair.Close(cleanupCtx))
 		}
 	}()
 	lines := make(chan []byte, 1)
@@ -228,6 +267,8 @@ func failure(code string) *protocolError {
 		"INFO":        "Fixture information is not available.",
 		"CLEANUP":     "Fixture cleanup failed; run manifest cleanup.",
 		"TIMEOUT":     "Fixture operation timed out.",
+		"OPERATION":   "Fixture pair action or inspection failed.",
+		"CANCELED":    "Fixture operation was canceled.",
 	}
 	return &protocolError{Code: code, Message: messages[code]}
 }
@@ -274,6 +315,47 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		res.Result = map[string]string{"url": b.app.URL()}
 		return res
 	}
+	if req.Method == "spinupPair" {
+		if b.started || b.startPair == nil || p.Consumer == "" || p.Target == "" || p.TimeoutMS < 0 || p.TimeoutMS > 840000 {
+			res.Error = failure("PROTOCOL")
+			return res
+		}
+		b.started = true
+		parent, err := registerParent(ctx, b.manifest, b.owner)
+		if err != nil {
+			res.Error = failure("START")
+			res.Error.Reason = string(testkit.StartupReasonStorage)
+			return res
+		}
+		timeout := 12 * time.Minute
+		if p.TimeoutMS > 0 {
+			timeout = time.Duration(p.TimeoutMS) * time.Millisecond
+		}
+		lifetime, cancel := context.WithCancel(ctx)
+		b.pair, err = b.startPair(lifetime, testkit.PairOptions{Consumer: p.Consumer, Target: p.Target, Order: testkit.PairOrder(p.Order), Images: p.Images, Timeout: timeout, RootParent: parent})
+		if err != nil {
+			cancel()
+			res.Error = failure("START")
+			res.Error.Reason = string(testkit.StartupReasonSetup)
+			var safe *testkit.StartupError
+			if errors.As(err, &safe) {
+				res.Error.Reason = safe.Reason()
+			}
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				res.Error = failure("TIMEOUT")
+			}
+			return res
+		}
+		b.appCancel = cancel
+		consumer, consumerErr := b.pair.View(p.Consumer)
+		target, targetErr := b.pair.View(p.Target)
+		if consumerErr != nil || targetErr != nil {
+			res.Error = failure("STATE")
+			return res
+		}
+		res.Result = map[string]any{"consumer": map[string]string{"id": p.Consumer, "url": consumer.URL()}, "target": map[string]string{"id": p.Target, "url": target.URL()}, "initial": b.pair.Initial()}
+		return res
+	}
 	if req.Method == "close" {
 		if b.appCancel != nil {
 			defer b.appCancel()
@@ -287,38 +369,97 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 			}
 			b.app = nil
 		}
+		if b.pair != nil {
+			closeCtx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+			defer cancel()
+			if b.pair.Close(closeCtx) != nil {
+				res.Error = failure("CLEANUP")
+				return res
+			}
+			b.pair = nil
+		}
 		res.Result = map[string]bool{"closed": true}
+		return res
+	}
+	if req.Method == "inspect" || req.Method == "setup" || req.Method == "remove" || req.Method == "install" {
+		if b.pair == nil || b.pairFailed {
+			res.Error = failure("STATE")
+			return res
+		}
+		if req.Method != "inspect" && !(req.Method == "setup" && p.App == "") {
+			if _, err := b.pair.View(p.App); err != nil {
+				res.Error = failure("STATE")
+				return res
+			}
+		}
+		opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		if req.Method == "setup" || req.Method == "install" {
+			cancel()
+			opCtx, cancel = context.WithCancel(ctx)
+		}
+		defer cancel()
+		var value testkit.PairInspection
+		var err error
+		switch req.Method {
+		case "inspect":
+			value, err = b.pair.Inspect(opCtx)
+		case "setup":
+			value, err = b.pair.Setup(opCtx, p.App)
+		case "remove":
+			value, err = b.pair.Remove(opCtx, p.App)
+		case "install":
+			value, err = b.pair.Install(opCtx, p.App)
+		}
+		if err != nil {
+			res.Error = b.pairOperationFailure(err)
+		} else {
+			res.Result = value
+		}
 		return res
 	}
 	if req.Method != "getApiKey" && req.Method != "credentials" && req.Method != "info" {
 		res.Error = failure("PROTOCOL")
 		return res
 	}
-	if b.app == nil {
+	if b.app == nil && b.pair == nil || b.pairFailed {
 		res.Error = failure("STATE")
 		return res
 	}
 	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	var selected fixtureView = b.app
+	if b.pair != nil {
+		view, err := b.pair.View(p.App)
+		if err != nil {
+			res.Error = failure("STATE")
+			return res
+		}
+		selected = view
+	}
 	switch req.Method {
 	case "getApiKey":
-		key, err := b.app.GetAPIKey(opCtx, p.Name)
+		key, err := selected.GetAPIKey(opCtx, p.Name)
 		if err != nil {
 			res.Error = failure("CREDENTIALS")
 		} else {
 			res.Result = map[string]string{"apiKey": key}
 		}
 	case "credentials":
-		value, err := b.app.Credentials(opCtx)
+		value, err := selected.Credentials(opCtx)
 		if err != nil {
 			res.Error = failure("CREDENTIALS")
 		} else {
 			res.Result = map[string]string{"username": value.Username, "password": value.Password, "email": value.Email, "apiKey": value.APIKey}
 		}
 	case "info":
-		value, err := b.app.Info(opCtx)
+		value, err := selected.Info(opCtx)
 		if err != nil {
-			res.Error = failure("INFO")
+			var operation *testkit.OperationError
+			if errors.As(err, &operation) {
+				res.Error = b.pairOperationFailure(err)
+			} else {
+				res.Error = failure("INFO")
+			}
 		} else {
 			digests := value.RepoDigests
 			if digests == nil {
@@ -328,4 +469,34 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		}
 	}
 	return res
+}
+
+func (b *bridge) pairOperationFailure(err error) *protocolError {
+	b.pairFailed = true
+	var operation *testkit.OperationError
+	cleanupFailed := false
+	reason := string(testkit.StartupReasonSetup)
+	if errors.As(err, &operation) {
+		cleanupFailed = operation.CleanupError() != nil
+		reason = operation.Reason()
+	} else {
+		cleanup, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+		cleanupFailed = b.pair.Close(cleanup) != nil
+		cancel()
+	}
+	if b.appCancel != nil {
+		b.appCancel()
+	}
+	if !cleanupFailed {
+		b.pair = nil
+	}
+	result := failure("OPERATION")
+	result.Reason = reason
+	if errors.Is(err, context.DeadlineExceeded) {
+		result = failure("TIMEOUT")
+	} else if errors.Is(err, context.Canceled) {
+		result = failure("CANCELED")
+	}
+	result.CleanupFailed = cleanupFailed
+	return result
 }

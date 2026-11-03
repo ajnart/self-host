@@ -30,7 +30,7 @@ func uptimeKumaVerifyFixture(t *testing.T, stats *statsFixture, dashboard map[st
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": []any{map[string]any{"integrationId": "kuma-owned", "error": nil, "dashboard": dashboard}}}}})
+		json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": []any{map[string]any{"integrationId": "kuma-owned", "integrationUrl": "http://uptime-kuma:3001", "error": nil, "dashboard": dashboard}}}}})
 	}))
 	t.Cleanup(homarr.Close)
 	from.BaseURL = homarr.URL
@@ -109,7 +109,7 @@ func TestUptimeKumaVerifyDataUsesOneFreshSemanticSample(t *testing.T) {
 			stats := uptimeKumaStatsFixture()
 			scenario.change(stats)
 			from, to := uptimeKumaVerifyFixture(t, stats, uptimeKumaDashboard(), "chosen-page", false)
-			err := uptimeKumaTarget().verifyData(t.Context(), from, to, "kuma-owned")
+			err := uptimeKumaTargetForFamily(uptimeKumaLegacyDashboard).verifyData(t.Context(), from, to, "kuma-owned")
 			if (err != nil) != scenario.fail {
 				t.Fatalf("verifyData = %v, failure wanted %v", err, scenario.fail)
 			}
@@ -141,7 +141,7 @@ func TestUptimeKumaVerifyDataKeepsSelectionPrivacyAndNativeSemantics(t *testing.
 			dashboard := uptimeKumaDashboard()
 			scenario.change(dashboard)
 			from, to := uptimeKumaVerifyFixture(t, stats, dashboard, scenario.slug, scenario.private)
-			err := uptimeKumaTarget().verifyData(t.Context(), from, to, "kuma-owned")
+			err := uptimeKumaTargetForFamily(uptimeKumaLegacyDashboard).verifyData(t.Context(), from, to, "kuma-owned")
 			if err == nil {
 				t.Fatal("unselected, unavailable or invalid native data accepted")
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"slices"
@@ -276,24 +277,27 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	if err != nil {
 		return err
 	}
-	var previous map[string]map[string]string
+	resolveProjectInputs := func(p *project.Project) (map[string]map[string]string, error) {
+		state, err := p.LoadState()
+		if err != nil {
+			return nil, err
+		}
+		previous := map[string]map[string]string{}
+		for id, st := range state.Apps {
+			if st == nil {
+				return nil, fmt.Errorf("state.json: missing configuration record for %s", id)
+			}
+			previous[id] = st.Inputs
+		}
+		return resolveInputs(apps, opts.Sets, previous)
+	}
 	existed := p.Exists()
 	if !existed {
 		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
 			return err
 		}
 	}
-	if existed {
-		state, err := p.LoadState()
-		if err != nil {
-			return err
-		}
-		previous = map[string]map[string]string{}
-		for id, st := range state.Apps {
-			previous[id] = st.Inputs
-		}
-	}
-	preflightInputs, err := resolveInputs(apps, opts.Sets, previous)
+	preflightInputs, err := resolveProjectInputs(p)
 	if err != nil {
 		return err
 	}
@@ -316,24 +320,56 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	if opts.Exposure != "" && opts.Exposure != ExposureLAN && opts.Exposure != ExposureLocal {
 		return fmt.Errorf("--exposure must be %s or %s", ExposureLAN, ExposureLocal)
 	}
-	for _, a := range apps {
-		if preflight, ok := a.(app.PreflightChecker); ok {
-			h := helpers.New(helpers.Config{App: a.Info().ID, Dir: p.Path("apps", a.Info().ID), Inputs: publicInputs(a, preflightInputs[a.Info().ID]), Log: s.Log})
-			if err := preflight.Preflight(ctx, h); err != nil {
-				return err
+	var settings map[string]string
+	if p.Exists() {
+		settings, err = p.LoadSettings()
+		if err != nil {
+			return err
+		}
+	} else {
+		prepared := s.detectSettings(ctx, p.Owner, opts.Exposure)
+		applyInstallSettings(prepared, opts)
+		if err := normalizeMediaSettings(prepared); err != nil {
+			return err
+		}
+		settings = map[string]string{}
+		for _, key := range project.SettingKeys {
+			if value, ok := prepared[key]; ok {
+				settings[key] = value
 			}
 		}
+	}
+	checkPrerequisites := func(ctx context.Context, settings map[string]string, inputs map[string]map[string]string) error {
+		for _, a := range apps {
+			if preflight, ok := a.(app.PreflightChecker); ok {
+				h := helpers.New(helpers.Config{App: a.Info().ID, Dir: p.Path("apps", a.Info().ID), Inputs: publicInputs(a, inputs[a.Info().ID]), Settings: maps.Clone(settings), Log: s.Log})
+				if err := preflight.Preflight(ctx, h); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := checkPrerequisites(ctx, settings, preflightInputs); err != nil {
+		return err
 	}
 	if err := s.requireDocker(ctx); err != nil {
 		return err
 	}
-	if opts.EasyNames || opts.Settings[settingNames] == namesOn {
-		if opts.Exposure == ExposureLocal {
+	checkNames := func(ctx context.Context, settings map[string]string) error {
+		if settings[settingNames] != namesOn {
+			return nil
+		}
+		if settings["EXPOSURE"] == ExposureLocal {
 			return fmt.Errorf("Easy names need Home network")
 		}
-		if check := s.checkEasyNames(ctx, opts.Settings["LAN_IP"]); !check.Available {
+		if check := s.checkEasyNames(ctx, settings["LAN_IP"]); !check.Available {
 			return &NamesBlocked{check}
 		}
+		return nil
+	}
+	if err := checkNames(ctx, settings); err != nil {
+		return err
 	}
 
 	recipes := s.recipeOf(opts.Targets)
@@ -342,6 +378,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		names[i] = a.Info().ID
 	}
 	var nodes []string
+	var inputs map[string]map[string]string
 	run := s.run
 	if locked != nil {
 		run = func(ctx context.Context, c change) error { return s.runLocked(ctx, c, locked) }
@@ -350,7 +387,26 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		namesStart: func(ss *session) bool { return len(ss.state.Apps) == 0 && ss.namesOn() },
 		services:   func() []string { return nodes },
 		title:      "install " + strings.Join(names, " "),
-		initialize: func(p *project.Project) error { return s.createProject(ctx, p, opts) },
+		initialize: func(p *project.Project) error { return s.createProject(ctx, p, settings) },
+		preflight: func(ctx context.Context, p *project.Project) error {
+			effective := settings
+			if p.Exists() {
+				var err error
+				effective, err = p.LoadSettings()
+				if err != nil {
+					return err
+				}
+			}
+			var err error
+			inputs, err = resolveProjectInputs(p)
+			if err != nil {
+				return err
+			}
+			if err := checkPrerequisites(ctx, effective, inputs); err != nil {
+				return err
+			}
+			return checkNames(ctx, effective)
+		},
 		edit: func(ctx context.Context, ss *session) error {
 			ss.deferDashboard = opts.deferDashboard
 			if existed {
@@ -366,14 +422,6 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err != nil {
 					return err
 				}
-			}
-			previous := map[string]map[string]string{}
-			for id, st := range ss.state.Apps {
-				previous[id] = st.Inputs
-			}
-			inputs, err := resolveInputs(apps, opts.Sets, previous)
-			if err != nil {
-				return err
 			}
 			if err := ss.applyPrivateInputs(apps, opts, inputs); err != nil {
 				return err
@@ -400,15 +448,15 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				if err := ss.allocateInputPorts(a, values, opts.Sets, st.Inputs, port); err != nil {
 					return err
 				}
-				if err := ss.ensureSecrets(a); err != nil {
-					return err
-				}
 				previousPort, previousInputs := st.Port, st.Inputs
 				st.Port, st.Inputs = port, publicInputs(a, values)
 				if preflight, ok := a.(app.PreflightChecker); ok {
 					if err := preflight.Preflight(ctx, ss.helpers(a)); err != nil {
 						return err
 					}
+				}
+				if err := ss.ensureSecrets(a); err != nil {
+					return err
 				}
 				ss.emitStage([]string{info.ID}, events.Event{Event: events.StepStart, App: info.ID, Step: StageRender, Msg: "render " + info.ID})
 				rc, err := s.renderContext(ctx, a, port, values, ss.settings)
@@ -434,7 +482,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 					return err
 				}
 			}
-			_, err = ss.renderTailscale()
+			_, err := ss.renderTailscale()
 			if err != nil {
 				return err
 			}
@@ -489,9 +537,8 @@ func warnIgnoredProjectFlags(log *events.Logger, opts InstallOptions) {
 		Hint: "To change it, run: self-host config set " + strings.Join(fixes, " ")})
 }
 
-func (s *Service) createProject(ctx context.Context, p *project.Project, opts InstallOptions) error {
-	settings := s.detectSettings(ctx, p.Owner, opts.Exposure)
-	applyInstallSettings(settings, opts)
+func (s *Service) createProject(ctx context.Context, p *project.Project, prepared map[string]string) error {
+	settings := maps.Clone(prepared)
 	if err := s.initializeMediaSettings(ctx, settings); err != nil {
 		return err
 	}

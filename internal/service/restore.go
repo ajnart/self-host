@@ -221,6 +221,22 @@ func (rs *restoration) verifyArchive(ctx context.Context) error {
 	}
 	// Validate safely extracted prerequisites before inspecting or removing
 	// original containers. Runtime startup checks them again after replacement.
+	p, err := rs.s.Project()
+	if err != nil {
+		return err
+	}
+	settingsProject := p
+	if !p.Exists() && rs.all {
+		settingsProject = rs.staging.Records()
+	}
+	settings, err := settingsProject.LoadSettings()
+	if err != nil {
+		return err
+	}
+	return rs.validatePrerequisites(ctx, settings)
+}
+
+func (rs *restoration) validatePrerequisites(ctx context.Context, settings map[string]string) error {
 	for _, id := range rs.targets {
 		a, found := rs.s.Catalog.App(id)
 		if !found {
@@ -238,7 +254,7 @@ func (rs *restoration) verifyArchive(ctx context.Context) error {
 		if record == nil {
 			return fmt.Errorf("backup is missing the configuration record for %s", id)
 		}
-		h := helpers.New(helpers.Config{App: id, Dir: rs.staging.AppDir(id), Inputs: publicInputs(a, record.Inputs), Log: rs.s.Log})
+		h := helpers.New(helpers.Config{App: id, Dir: rs.staging.AppDir(id), Inputs: publicInputs(a, record.Inputs), Settings: maps.Clone(settings), Log: rs.s.Log})
 		if err := preflight.Preflight(ctx, h); err != nil {
 			return fmt.Errorf("backup prerequisites for %s: %w", id, err)
 		}
@@ -445,6 +461,9 @@ func (rs *restoration) preflight(ctx context.Context, p *project.Project) error 
 			}
 		}
 		state = current
+	}
+	if err := rs.validatePrerequisites(ctx, settings); err != nil {
+		return err
 	}
 	if err := rs.s.validateNames(ctx, settings, state); err != nil {
 		return err

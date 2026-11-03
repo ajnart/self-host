@@ -20,6 +20,25 @@ if (cleanup) {
 
 const input = createInterface({ input: process.stdin });
 let app;
+let pair;
+let installed;
+let pairFailed = false;
+const inspection = () => ({
+	outcome: installed.size === 2 ? "complete" : "prerequisite",
+	reason: installed.size === 2 ? "verified" : "absent",
+	link: "link-peer",
+	apps: [pair.consumer, pair.target].map((id, index) => ({
+		id,
+		url: `http://127.0.0.1:${12345 + index}`,
+		installed: installed.has(id),
+		state: installed.has(id) ? "running" : "missing",
+		setup: installed.has(id) ? "ok" : "pending",
+		steps:
+			index === 0 && installed.size === 2
+				? [{ id: "link-peer", status: "ok" }]
+				: [],
+	})),
+});
 const reply = (req, result) => {
 	const line = JSON.stringify({ version: 1, id: req.id, result });
 	process.stdout.write(`${line.slice(0, 5)}`);
@@ -58,6 +77,60 @@ input.on("line", (line) => {
 			writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
 		}
 		reply(req, { url: "http://127.0.0.1:12345" });
+	} else if (req.method === "spinupPair") {
+		pair = req.params;
+		if (pair.consumer === "slow") return;
+		if (pair.consumer === "cleanup-failure")
+			writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+		installed = new Set([pair.consumer]);
+		if (pair.order === "target-first") installed = new Set([pair.target]);
+		const initial = inspection();
+		installed = new Set([pair.consumer, pair.target]);
+		reply(req, {
+			consumer: { id: pair.consumer, url: "http://127.0.0.1:12345" },
+			target: { id: pair.target, url: "http://127.0.0.1:12346" },
+			initial,
+		});
+	} else if (pairFailed && req.method !== "close") {
+		process.stdout.write(
+			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
+		);
+	} else if (["inspect", "setup", "remove", "install"].includes(req.method)) {
+		if (req.method === "install" && pair.consumer.startsWith("action-")) {
+			pairFailed = true;
+			event("owned-cleanup");
+			const error = {
+				code: "OPERATION",
+				reason: "LIMITS",
+				cleanupFailed: false,
+				message: "private-test-raw-secret",
+			};
+			if (
+				pair.consumer === "action-timeout" ||
+				pair.consumer === "action-cancel"
+			) {
+				error.code = "CANCELED";
+				if (pair.consumer === "action-timeout") error.code = "TIMEOUT";
+				error.reason = undefined;
+			}
+			if (pair.consumer === "action-cleanup") {
+				error.cleanupFailed = true;
+				writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+			}
+			process.stdout.write(
+				`${JSON.stringify({ version: 1, id: req.id, error })}\n`,
+			);
+			return;
+		}
+		if (req.method === "remove") installed.delete(req.params.app);
+		if (req.method === "install") installed.add(req.params.app);
+		const result = inspection();
+		if (pair.consumer === "bad-inspection") result.outcome = "imaginary";
+		reply(req, result);
+	} else if (pair && req.params.app && !installed.has(req.params.app)) {
+		process.stdout.write(
+			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
+		);
 	} else if (req.method === "credentials") {
 		reply(req, {
 			username: "admin",
@@ -69,7 +142,7 @@ input.on("line", (line) => {
 		reply(req, { apiKey: "private-test-api-key" });
 	} else if (req.method === "info") {
 		reply(req, {
-			id: app,
+			id: req.params.app ?? app,
 			url: "http://127.0.0.1:12345",
 			image: "peer:latest",
 			imageId: "sha256:test",
