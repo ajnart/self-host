@@ -51,6 +51,7 @@ var repos = map[string]string{
 	"jellyfin":             "jellyfin/jellyfin",
 	"jellystat":            "CyferShepard/Jellystat",
 	"keycloak":             "keycloak/keycloak",
+	"komga":                "gotson/komga",
 	"kopia":                "kopia/kopia",
 	"bindery":              "vavallee/bindery",
 	"lidarr":               "Lidarr/Lidarr",
