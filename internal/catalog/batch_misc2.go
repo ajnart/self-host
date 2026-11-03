@@ -8,7 +8,9 @@ import (
 	"github.com/ajnart/self-host/internal/apps/beszel"
 	"github.com/ajnart/self-host/internal/apps/cleanuparr"
 	"github.com/ajnart/self-host/internal/apps/deluge"
+	"github.com/ajnart/self-host/internal/apps/homebox"
 	"github.com/ajnart/self-host/internal/apps/jackett"
+	"github.com/ajnart/self-host/internal/apps/maintainerr"
 	"github.com/ajnart/self-host/internal/apps/nginxproxymanager"
 	"github.com/ajnart/self-host/internal/apps/oxynote"
 	"github.com/ajnart/self-host/internal/apps/pihole"
@@ -17,7 +19,10 @@ import (
 	"github.com/ajnart/self-host/internal/apps/tailscale"
 	"github.com/ajnart/self-host/internal/apps/tandoor"
 	"github.com/ajnart/self-host/internal/apps/technitiumdns"
+	"github.com/ajnart/self-host/internal/apps/trilium"
+	"github.com/ajnart/self-host/internal/apps/unmanic"
 	"github.com/ajnart/self-host/internal/apps/xteve"
+	"github.com/ajnart/self-host/internal/apps/yourspotify"
 	"github.com/ajnart/self-host/internal/apps/zerotier"
 )
 
@@ -30,7 +35,9 @@ func init() {
 		beszel.App{},
 		cleanuparr.App{},
 		deluge.App{},
+		homebox.App{},
 		jackett.App{},
+		maintainerr.App{},
 		nginxproxymanager.App{},
 		oxynote.App{},
 		pihole.App{},
@@ -39,7 +46,10 @@ func init() {
 		tailscale.App{},
 		tandoor.App{},
 		technitiumdns.App{},
+		trilium.App{},
+		unmanic.App{},
 		xteve.App{},
+		yourspotify.App{},
 		zerotier.App{},
 	)
 }

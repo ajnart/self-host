@@ -20,7 +20,7 @@ type readerIdentity struct {
 	IsAdmin  *bool  `json:"is_admin"`
 }
 
-const readerRecoveryHint = "Miniflux Setup never creates or replaces accounts. Inspect the existing instance and preserve its feeds and read/unread state. Only after independently confirming that no account exists, use the documented interactive administrator creation in a real terminal: docker compose exec miniflux /usr/bin/miniflux -create-admin, from the Project directory. Use the Admin login shown by self-host credentials. If an account already exists, restore its matching credentials instead of creating another account or resetting its password. Then run self-host setup miniflux."
+const readerRecoveryHint = "Miniflux Setup never creates or replaces accounts. Inspect the existing instance and preserve its feeds and read/unread state. Only after independently confirming that no account exists, use the documented interactive administrator creation in a real terminal: docker compose exec miniflux miniflux -create-admin, from the Project directory. Use the Admin login shown by self-host credentials. If an account already exists, restore its matching credentials instead of creating another account or resetting its password. Then run self-host setup miniflux."
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -221,5 +221,5 @@ func authenticatedRequest(ctx context.Context, h *helpers.H, request helpers.Req
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "Administrator creation is deliberately disabled. Inspect existing accounts first; only after independently confirming no account exists, run docker compose exec miniflux /usr/bin/miniflux -create-admin in a real terminal. Never reset or replace an existing reader. Automatic feed polling and cleanup are disabled by DISABLE_SCHEDULER_SERVICE; review and approve any change before enabling outbound requests."
+	return "Administrator creation is deliberately disabled. Inspect existing accounts first; only after independently confirming no account exists, run docker compose exec miniflux miniflux -create-admin in a real terminal. Never reset or replace an existing reader. Automatic feed polling and cleanup are disabled by DISABLE_SCHEDULER_SERVICE; review and approve any change before enabling outbound requests."
 }

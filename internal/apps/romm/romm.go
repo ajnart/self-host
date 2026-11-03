@@ -139,5 +139,5 @@ func adminUser(h *helpers.H) string {
 }
 
 func (App) StandaloneGuide() string {
-	return "Create the romm directory inside ${MEDIA_ROOT} before starting; the library mount never creates its host path. After the first start, create the first administrator in the browser. Keep authentication and CSRF protection enabled. No ROMs, firmware, scans or metadata-provider credentials are required for an empty library. The media library is excluded from App backups; back it up separately."
+	return "Create ${DATA_PATH}/media/romm before starting; the library mount never creates its host path. After the first start, create the first administrator in the browser. Keep authentication and CSRF protection enabled. No ROMs, firmware, scans or metadata-provider credentials are required for an empty library. The media library is excluded from App backups; back it up separately."
 }

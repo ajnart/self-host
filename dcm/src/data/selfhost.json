@@ -69,6 +69,46 @@
    "notes": "After the first start, finish the install wizard in the browser: create the administrator and keep the admin port at 3000. This Compose publishes only that port: for DNS also publish 53/tcp and 53/udp, and if systemd-resolved already holds port 53, turn off its DNSStubListener (see the resolved section of AdGuard's Docker wiki)."
   },
   {
+   "id": "anchor",
+   "name": "Anchor",
+   "description": "Keep private notes and share selected notes with other people",
+   "category": "Productivity",
+   "icon": "svg/anchor.svg",
+   "image": "ghcr.io/zhfahim/anchor:latest",
+   "port": 3000,
+   "docs": "https://github.com/ZhFahim/anchor#self-hosting-with-docker",
+   "links": [],
+   "compose": "services:\n  anchor:\n    image: ghcr.io/zhfahim/anchor:latest\n    container_name: ${CONTAINER_PREFIX}anchor\n    restart: ${RESTART_POLICY}\n    environment:\n      APP_URL: http://${LAN_IP}:3000\n    volumes:\n      - ${CONFIG_PATH}/anchor/data:/data\n    ports:\n      - 3000:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "LAN_IP",
+     "default": "localhost",
+     "description": "Address you open this App at: this machine's IP on your network (for example 192.168.1.20) or a host name. The App uses it to build links it hands out, so the default only works on this machine",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "The image includes PostgreSQL and keeps its database, uploads and signing secret in ./data. On a genuinely new instance, deliberately create the intended first administrator; otherwise preserve and use the existing account. Registration is enabled by default: review registration in the administrator settings before allowing untrusted access. Configure APP_URL for the actual browser Address when using a proxy."
+  },
+  {
    "id": "archive-team-warrior",
    "name": "ArchiveTeam Warrior",
    "description": "Lend your spare internet time to help save websites before they disappear",
@@ -355,6 +395,58 @@
    "notes": "Sign in as akadmin with the ADMIN_PASSWORD value; the ADMIN_USER value only forms that account's email, followed by @selfhost.local."
   },
   {
+   "id": "autobrr",
+   "name": "Autobrr",
+   "description": "Watch release announcements and apply your chosen filters and actions",
+   "category": "Requests",
+   "icon": "svg/autobrr.svg",
+   "image": "ghcr.io/autobrr/autobrr:latest",
+   "port": 7474,
+   "docs": "https://autobrr.com/installation/docker/",
+   "links": [],
+   "compose": "services:\n  autobrr:\n    image: ghcr.io/autobrr/autobrr:latest\n    container_name: ${CONTAINER_PREFIX}autobrr\n    restart: ${RESTART_POLICY}\n    user: \"${PUID}:${PGID}\"\n    environment:\n      TZ: ${TZ}\n      AUTOBRR__HOST: 0.0.0.0\n    volumes:\n      - type: bind\n        source: ${CONFIG_PATH}/autobrr/config\n        target: /config\n        bind:\n          create_host_path: false\n    ports:\n      - 7474:7474\n    healthcheck:\n      test: [\"CMD\", \"curl\", \"--fail\", \"--silent\", \"http://127.0.0.1:7474/api/healthz/readiness\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/autobrr/config) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. For standalone Compose, prepare the configuration bind source for the selected non-root user with private permissions before starting; Docker will not create it. On the first visit create the intended administrator only if this instance has no user. Configure tracker accounts, filters and download clients yourself; no releases are downloaded by Setup. Keep the persistent configuration and database when updating or removing the container."
+  },
+  {
    "id": "bazarr",
    "name": "Bazarr",
    "description": "Automatically find subtitles for your movies and shows",
@@ -363,7 +455,16 @@
    "image": "lscr.io/linuxserver/bazarr:latest",
    "port": 6767,
    "docs": "https://wiki.bazarr.media/",
-   "links": [],
+   "links": [
+    {
+     "target": "sonarr",
+     "title": "verify the Sonarr library connection"
+    },
+    {
+     "target": "radarr",
+     "title": "verify the Radarr library connection"
+    }
+   ],
    "compose": "services:\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: ${CONTAINER_PREFIX}bazarr\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/bazarr/config:/config\n      - ${DATA_PATH}/media:/data/media\n    ports:\n      - 6767:6767\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
    "env": [
     {
@@ -416,7 +517,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, turn on authentication in Settings > General > Authentication (Basic, with a username and password)."
+   "notes": "After the first start, turn on authentication in Settings > General > Authentication (Basic, with a username and password). It works with other Apps (verify the Sonarr library connection; verify the Radarr library connection), but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "beszel",
@@ -470,6 +571,58 @@
    ],
    "standalone": true,
    "notes": "After the first start, create the administrator on the hub's first visit. The agent needs the key and token the hub shows when you add a system: add one in the hub's web page, set BESZEL_AGENT_KEY and BESZEL_AGENT_TOKEN, then run docker compose up -d again."
+  },
+  {
+   "id": "bindery",
+   "name": "Bindery",
+   "description": "Find and organize ebooks and audiobooks in your own library",
+   "category": "Requests",
+   "icon": "",
+   "image": "ghcr.io/vavallee/bindery:latest",
+   "port": 8787,
+   "docs": "https://github.com/vavallee/bindery/blob/main/docs/DEPLOYMENT.md",
+   "links": [],
+   "compose": "services:\n  bindery:\n    image: ghcr.io/vavallee/bindery:latest\n    container_name: ${CONTAINER_PREFIX}bindery\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      BINDERY_LIBRARY_DIR: /data/media/books\n      BINDERY_DOWNLOAD_DIR: /data/torrents\n      BINDERY_TELEMETRY_DISABLED: \"true\"\n      BINDERY_DOWNLOAD_RETENTION_DAYS: \"0\"\n    volumes:\n      - type: bind\n        source: ${CONFIG_PATH}/bindery/config\n        target: /config\n        bind:\n          create_host_path: false\n      - ${DATA_PATH}:/data\n    ports:\n      - 8787:8787\n    healthcheck:\n      test: [\"CMD\", \"/bindery\", \"healthcheck\"]\n      interval: 30s\n      timeout: 5s\n      retries: 3\n      start_period: 20s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/bindery/config) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. Before starting, create the config folder and the shared media/download parent with the UID/GID selected by user:. The image is distroless; PUID/PGID environment variables cannot change its user. Finish first-administrator creation in Bindery, then review existing library roots and profiles before selecting books folders. No downloader, indexer, scan, import or release feed is configured automatically. Telemetry is disabled before the first ping and download-history retention is disabled. Configuration persists under /config; media needs its own backup."
   },
   {
    "id": "bookstack",
@@ -618,6 +771,46 @@
    ],
    "standalone": false,
    "notes": "Needs files this Compose does not create before the first start (caddyfile), expected in ${CONFIG_PATH}/caddy/; without them it does not start."
+  },
+  {
+   "id": "changedetection",
+   "name": "Changedetection.io",
+   "description": "Watch web pages for changes and receive notifications",
+   "category": "Monitoring",
+   "icon": "svg/changedetection.svg",
+   "image": "ghcr.io/dgtlmoon/changedetection.io:latest",
+   "port": 5050,
+   "docs": "https://github.com/dgtlmoon/changedetection.io#installation",
+   "links": [],
+   "compose": "services:\n  changedetection:\n    image: ghcr.io/dgtlmoon/changedetection.io:latest\n    container_name: ${CONTAINER_PREFIX}changedetection\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      DISABLE_VERSION_CHECK: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/changedetection/data:/datastore\n    ports:\n      - 5050:5000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Do not start this Compose on a fresh datastore: the official image creates and fetches external demo watches. Managed startup remains held until an approved upstream-supported no-demo bootstrap exists. Do not delete matching watches or edit the datastore to bypass this hold. Keep the complete /datastore private and persistent. Existing-instance verification requires password protection and the existing write-capable API key from Settings > API; Setup does not create or reset either credential. A browser backend is optional for JavaScript watches, not required for API statistics."
   },
   {
    "id": "cleanuparr",
@@ -955,6 +1148,58 @@
    ],
    "standalone": true,
    "notes": "After the first start, finish the first-run wizard and create the administrator."
+  },
+  {
+   "id": "fileflows",
+   "name": "FileFlows",
+   "description": "Process and convert files with flows you control",
+   "category": "Media",
+   "icon": "svg/fileflows.svg",
+   "image": "revenz/fileflows:stable",
+   "port": 19200,
+   "docs": "https://fileflows.com/docs/installation/docker/",
+   "links": [],
+   "compose": "services:\n  fileflows:\n    image: revenz/fileflows:stable\n    container_name: ${CONTAINER_PREFIX}fileflows\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/fileflows/data:/app/Data\n      - ${CONFIG_PATH}/fileflows/logs:/app/Logs\n      - ${CONFIG_PATH}/fileflows/temp:/temp\n    ports:\n      - 19200:5000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "After the first start, review and accept the EULA on the first-run page, then set up users and security before exposing it."
   },
   {
    "id": "firefly-iii",
@@ -1464,6 +1709,60 @@
    "notes": "Needs files this Compose does not create before the first start (config.yaml), expected in ${CONFIG_PATH}/headscale/; without them it does not start."
   },
   {
+   "id": "healthchecks",
+   "name": "Healthchecks",
+   "description": "Know when scheduled jobs stop running or finish late",
+   "category": "Monitoring",
+   "icon": "svg/healthchecks.svg",
+   "image": "healthchecks/healthchecks:latest",
+   "port": 8000,
+   "docs": "https://healthchecks.io/docs/self_hosted_docker/",
+   "links": [],
+   "compose": "services:\n  healthchecks:\n    image: healthchecks/healthchecks:latest\n    container_name: ${CONTAINER_PREFIX}healthchecks\n    restart: ${RESTART_POLICY}\n    environment:\n      DB: postgres\n      DB_HOST: healthchecks-db\n      DB_PORT: \"5432\"\n      DB_NAME: healthchecks\n      DB_USER: healthchecks\n      DB_PASSWORD: ${HEALTHCHECKS_DB_PASSWORD}\n      SECRET_KEY: ${HEALTHCHECKS_SECRET_KEY}\n      DEBUG: \"False\"\n      REGISTRATION_OPEN: \"False\"\n      INTEGRATIONS_ALLOW_PRIVATE_IPS: \"False\"\n      GUNICORN_WORKERS: \"2\"\n      SITE_ROOT: \"http://${LAN_IP}:8000\"\n      PING_ENDPOINT: \"http://${LAN_IP}:8000/ping/\"\n      ALLOWED_HOSTS: \"healthchecks,127.0.0.1,localhost,${LAN_IP}\"\n    ports:\n      - 8000:8000\n    depends_on:\n      healthchecks-db:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  healthchecks-db:\n    image: postgres:16\n    container_name: ${CONTAINER_PREFIX}healthchecks-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: healthchecks\n      POSTGRES_USER: healthchecks\n      POSTGRES_PASSWORD: ${HEALTHCHECKS_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/healthchecks/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U healthchecks -d healthchecks\"]\n      interval: 5s\n      timeout: 5s\n      retries: 12\n      start_period: 10s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "HEALTHCHECKS_DB_PASSWORD",
+     "default": "",
+     "description": "Healthchecks secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "HEALTHCHECKS_SECRET_KEY",
+     "default": "",
+     "description": "Healthchecks secret: secret key",
+     "secret": true,
+     "bytes": 32
+    },
+    {
+     "key": "LAN_IP",
+     "default": "localhost",
+     "description": "Address you open this App at: this machine's IP on your network (for example 192.168.1.20) or a host name. The App uses it to build links it hands out, so the default only works on this machine",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "After starting both services, run the image's interactive createsuperuser management command in the healthchecks service, then sign in. Registration is closed. Preserve the database and SECRET_KEY. Choose a project and create a read-only API key in Project Settings. Outbound email, notification delivery and real job pings require separate configuration; Setup never sends test pings."
+  },
+  {
    "id": "homarr",
    "name": "Homarr",
    "description": "Put all your apps on one home page, each a click away",
@@ -1514,12 +1813,24 @@
      "title": "link Immich"
     },
     {
+     "target": "jellystat",
+     "title": "link Jellystat"
+    },
+    {
      "target": "caddy",
      "title": "link Caddy"
     },
     {
      "target": "gatus",
      "title": "link Gatus"
+    },
+    {
+     "target": "maintainerr",
+     "title": "link Maintainerr"
+    },
+    {
+     "target": "changedetection",
+     "title": "link Changedetection.io"
     },
     {
      "target": "prometheus",
@@ -1562,12 +1873,28 @@
      "title": "link Linkwarden"
     },
     {
+     "target": "mealie",
+     "title": "link Mealie"
+    },
+    {
+     "target": "karakeep",
+     "title": "link Karakeep"
+    },
+    {
      "target": "nextcloud",
      "title": "link Nextcloud"
     },
     {
      "target": "lidarr",
      "title": "link Lidarr"
+    },
+    {
+     "target": "bindery",
+     "title": "link Bindery"
+    },
+    {
+     "target": "sportarr",
+     "title": "link Sportarr"
     },
     {
      "target": "emby",
@@ -1654,6 +1981,10 @@
      "title": "link Tracearr"
     },
     {
+     "target": "romm",
+     "title": "link RomM"
+    },
+    {
      "target": "slskd",
      "title": "link Slskd"
     },
@@ -1664,6 +1995,62 @@
     {
      "target": "patchmon",
      "title": "link PatchMon"
+    },
+    {
+     "target": "jackett",
+     "title": "link Jackett"
+    },
+    {
+     "target": "healthchecks",
+     "title": "link Healthchecks"
+    },
+    {
+     "target": "tandoor",
+     "title": "link Tandoor"
+    },
+    {
+     "target": "autobrr",
+     "title": "link Autobrr"
+    },
+    {
+     "target": "homebox",
+     "title": "link Homebox"
+    },
+    {
+     "target": "stash",
+     "title": "link Stash"
+    },
+    {
+     "target": "miniflux",
+     "title": "link Miniflux"
+    },
+    {
+     "target": "thingport",
+     "title": "link Thingport"
+    },
+    {
+     "target": "spoolman",
+     "title": "link Spoolman"
+    },
+    {
+     "target": "tubearchivist",
+     "title": "link Tube Archivist"
+    },
+    {
+     "target": "anchor",
+     "title": "link Anchor"
+    },
+    {
+     "target": "trilium",
+     "title": "link Trilium"
+    },
+    {
+     "target": "unmanic",
+     "title": "link Unmanic"
+    },
+    {
+     "target": "your-spotify",
+     "title": "link Your Spotify"
     }
    ],
    "compose": "services:\n  homarr:\n    image: ghcr.io/homarr-labs/homarr:latest\n    container_name: ${CONTAINER_PREFIX}homarr\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SECRET_ENCRYPTION_KEY: ${HOMARR_SECRET_ENCRYPTION_KEY}\n    volumes:\n      - ${CONFIG_PATH}/homarr/appdata:/appdata\n    ports:\n      - 7575:7575\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
@@ -1701,7 +2088,7 @@
     }
    ],
    "standalone": true,
-   "notes": "After the first start, finish the onboarding wizard and create the administrator. It works with 48 other Apps, but this Compose does not connect them; do that in each App's settings."
+   "notes": "After the first start, finish the onboarding wizard and create the administrator. It works with 70 other Apps, but this Compose does not connect them; do that in each App's settings."
   },
   {
    "id": "home-assistant",
@@ -1742,6 +2129,53 @@
    ],
    "standalone": true,
    "notes": "After the first start, finish the onboarding page and create the owner. Bridge networking publishes only the web UI, so devices found by mDNS or broadcast on your LAN do not show up; upstream's Docker install uses host networking."
+  },
+  {
+   "id": "homebox",
+   "name": "Homebox",
+   "description": "Keep track of your belongings, their locations and their warranties",
+   "category": "Productivity",
+   "icon": "svg/homebox.svg",
+   "image": "ghcr.io/sysadminsmedia/homebox:latest",
+   "port": 3100,
+   "docs": "https://homebox.software/en/quick-start/",
+   "links": [],
+   "compose": "services:\n  homebox:\n    image: ghcr.io/sysadminsmedia/homebox:latest\n    container_name: ${CONTAINER_PREFIX}homebox\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      HBOX_AUTH_API_KEY_PEPPER: ${HOMEBOX_API_KEY_PEPPER}\n      HBOX_DEMO: \"false\"\n      HBOX_OPTIONS_ALLOW_REGISTRATION: \"false\"\n      HBOX_OPTIONS_ALLOW_ANALYTICS: \"false\"\n      HBOX_OPTIONS_GITHUB_RELEASE_CHECK: \"false\"\n      HBOX_OTEL_ENABLED: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/homebox/data:/data\n    ports:\n      - 3100:7745\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "HOMEBOX_API_KEY_PEPPER",
+     "default": "",
+     "description": "Homebox secret: api key pepper",
+     "secret": true,
+     "bytes": 32
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Registration starts disabled. For a genuinely new inventory only, explicitly enable registration in the Compose file, create the intended account, then disable registration again. Otherwise sign in to the existing account without replacing it. Keep the complete data folder and HOMEBOX_API_KEY_PEPPER together in private backups; changing the pepper invalidates existing API keys. With self-host, a missing pepper needs explicit private provisioning for a new inventory or restoration of the original for existing data before generation or startup. Automatic first-account creation and API-key issuance are not supported. Homarr links through an existing account API key you restore privately; Homebox keys have no read-only scope, and Homarr only reads statistics."
   },
   {
    "id": "homebridge",
@@ -1825,6 +2259,64 @@
    "notes": "After the first start, create the administrator on the first visit."
   },
   {
+   "id": "jackett",
+   "name": "Jackett",
+   "description": "Connect your download apps to the torrent search sites you choose",
+   "category": "Requests",
+   "icon": "svg/jackett.svg",
+   "image": "ghcr.io/hotio/jackett:latest",
+   "port": 9117,
+   "docs": "https://hotio.dev/containers/jackett/",
+   "links": [],
+   "compose": "services:\n  jackett:\n    image: ghcr.io/hotio/jackett:latest\n    container_name: ${CONTAINER_PREFIX}jackett\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - ${CONFIG_PATH}/jackett/config:/config\n    ports:\n      - 9117:9117\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    },
+    {
+     "key": "UMASK",
+     "default": "022",
+     "description": "Permission mask for files the App creates",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before sharing access, set an administrator password in Jackett. Its login uses only a password, not a username. Keep the existing instance key and tracker settings; choose any trackers and accounts yourself. Setup does not set the first password, test trackers, search or download releases."
+  },
+  {
    "id": "jellyfin",
    "name": "Jellyfin",
    "description": "Stream your movies and shows to every screen in the house",
@@ -1895,6 +2387,107 @@
    "notes": "After the first start, finish the startup wizard: create the administrator and add your media library."
   },
   {
+   "id": "jellystat",
+   "name": "Jellystat",
+   "description": "See playback statistics for your Jellyfin or Emby server",
+   "category": "Media",
+   "icon": "svg/jellystat.svg",
+   "image": "cyfershepard/jellystat:latest",
+   "port": 3000,
+   "docs": "https://github.com/CyferShepard/Jellystat#readme",
+   "links": [],
+   "compose": "services:\n  jellystat:\n    image: cyfershepard/jellystat:latest\n    container_name: ${CONTAINER_PREFIX}jellystat\n    restart: ${RESTART_POLICY}\n    logging:\n      driver: local\n      options:\n        max-size: 10m\n        max-file: \"3\"\n    environment:\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: ${JELLYSTAT_DB_PASSWORD}\n      POSTGRES_IP: jellystat-db\n      POSTGRES_PORT: 5432\n      POSTGRES_DB: jfstat\n      JWT_SECRET: ${JELLYSTAT_JWT_SECRET}\n      TZ: ${TZ}\n      IS_EMBY_API: \"false\"\n    volumes:\n      - ${CONFIG_PATH}/jellystat/backup-data:/app/backend/backup-data\n    ports:\n      - 3000:3000\n    depends_on:\n      jellystat-db:\n        condition: service_healthy\n    healthcheck:\n      test: [\"CMD\", \"wget\", \"--no-verbose\", \"--tries=1\", \"--spider\", \"http://localhost:3000/auth/isConfigured\"]\n      interval: 60s\n      timeout: 30s\n      retries: 5\n      start_period: 30s\n\n  jellystat-db:\n    image: postgres:18\n    container_name: ${CONTAINER_PREFIX}jellystat-db\n    restart: ${RESTART_POLICY}\n    shm_size: 1gb\n    logging:\n      driver: local\n      options:\n        max-size: 10m\n        max-file: \"3\"\n    environment:\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: ${JELLYSTAT_DB_PASSWORD}\n      POSTGRES_DB: jfstat\n    volumes:\n      - ${CONFIG_PATH}/jellystat/database:/var/lib/postgresql\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"--dbname=jfstat\", \"--username=postgres\"]\n      interval: 10s\n      timeout: 5s\n      retries: 5\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "JELLYSTAT_DB_PASSWORD",
+     "default": "",
+     "description": "Jellystat secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "JELLYSTAT_JWT_SECRET",
+     "default": "",
+     "description": "Jellystat secret: jwt secret",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "After the first start, review the private instance and create its administrator, then deliberately connect the intended Jellyfin or Emby server. Configuration starts automatic monitoring and scheduled library synchronization; do not connect a real server or import playback history merely to test statistics."
+  },
+  {
+   "id": "karakeep",
+   "name": "Karakeep",
+   "description": "Save and organize bookmarks, notes and files",
+   "category": "Productivity",
+   "icon": "svg/karakeep.svg",
+   "image": "ghcr.io/karakeep-app/karakeep:release",
+   "port": 3000,
+   "docs": "https://docs.karakeep.app/installation/minimal-install/",
+   "links": [],
+   "compose": "services:\n  karakeep:\n    image: ghcr.io/karakeep-app/karakeep:release\n    container_name: ${CONTAINER_PREFIX}karakeep\n    restart: ${RESTART_POLICY}\n    environment:\n      DATA_DIR: /data\n      NEXTAUTH_SECRET: ${KARAKEEP_AUTH_SECRET}\n      NEXTAUTH_URL: http://${LAN_IP}:3000\n      DISABLE_SIGNUPS: \"true\"\n      DISABLE_NEW_RELEASE_CHECK: \"true\"\n      WORKERS_ENABLED_WORKERS: backup\n      WORKERS_DISABLED_WORKERS: backup\n      INFERENCE_ENABLE_AUTO_TAGGING: \"false\"\n      INFERENCE_ENABLE_AUTO_SUMMARIZATION: \"false\"\n      EMBEDDING_ENABLE_AUTO_INDEXING: \"false\"\n      OCR_LANGS: \"\"\n    volumes:\n      - ${CONFIG_PATH}/karakeep/data:/data\n    ports:\n      - 3000:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "KARAKEEP_AUTH_SECRET",
+     "default": "",
+     "description": "Karakeep secret: auth secret",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "LAN_IP",
+     "default": "localhost",
+     "description": "Address you open this App at: this machine's IP on your network (for example 192.168.1.20) or a host name. The App uses it to build links it hands out, so the default only works on this machine",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "This minimal installation stores the database and attachments in ./data. Signups start disabled with DISABLE_SIGNUPS=true. For a new private instance, explicitly approve first-account creation, briefly set DISABLE_SIGNUPS=false, create the first administrator, then restore DISABLE_SIGNUPS=true and recreate the container. Background workers, crawling, search, browser automation, AI and OCR start disabled; enable only the features you deliberately configure."
+  },
+  {
    "id": "keycloak",
    "name": "Keycloak",
    "description": "Manage logins in one place, so people sign in once to reach many apps",
@@ -1946,6 +2539,64 @@
     }
    ],
    "standalone": true
+  },
+  {
+   "id": "komga",
+   "name": "Komga",
+   "description": "Read your comics, manga and ebooks in a private library",
+   "category": "Media",
+   "icon": "svg/komga.svg",
+   "image": "gotson/komga:1.x",
+   "port": 25600,
+   "docs": "https://komga.org/docs/installation/docker/",
+   "links": [],
+   "compose": "services:\n  komga:\n    image: gotson/komga:1.x\n    container_name: ${CONTAINER_PREFIX}komga\n    restart: ${RESTART_POLICY}\n    user: \"${PUID}:${PGID}\"\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - type: bind\n        source: ${CONFIG_PATH}/komga/config\n        target: /config\n        bind:\n          create_host_path: false\n      - ${DATA_PATH}/media/books:/data:ro\n    ports:\n      - 25600:25600\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/komga/config) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. Create the first administrator on the first visit. Keep the configuration on a local filesystem. Books are mounted read-only; choose an existing library yourself when ready."
   },
   {
    "id": "kopia",
@@ -2267,6 +2918,58 @@
    "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/loki/data) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them."
   },
   {
+   "id": "maintainerr",
+   "name": "Maintainerr",
+   "description": "Review and manage how long movies and shows stay on your media server",
+   "category": "Media",
+   "icon": "svg/maintainerr.svg",
+   "image": "ghcr.io/maintainerr/maintainerr:latest",
+   "port": 6246,
+   "docs": "https://docs.maintainerr.info/installation/",
+   "links": [],
+   "compose": "services:\n  maintainerr:\n    image: ghcr.io/maintainerr/maintainerr:latest\n    container_name: ${CONTAINER_PREFIX}maintainerr\n    restart: ${RESTART_POLICY}\n    user: ${PUID}:${PGID}\n    environment:\n      TZ: ${TZ}\n      TELEMETRY: \"off\"\n    volumes:\n      - type: bind\n        source: ${CONFIG_PATH}/maintainerr/data\n        target: /opt/data\n        bind:\n          create_host_path: false\n    ports:\n      - 6246:6246\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/maintainerr/data) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. Before starting, prepare the data bind directory as a private mode-0700 directory writable by the selected runtime user. Maintainerr has no login; keep its Address private or behind existing authentication. Open Services to configure and test your chosen media server. Existing rules, collections and retention are preserved; no cleanup is triggered by self-host. Maintainerr's weekly telemetry is disabled in this definition."
+  },
+  {
    "id": "mayan-edms",
    "name": "Mayan EDMS",
    "description": "Store scanned paper documents, make them searchable and route them for review",
@@ -2345,6 +3048,105 @@
    ],
    "standalone": false,
    "notes": "Needs files this Compose does not create before the first start (redis-config), expected in ${CONFIG_PATH}/mayan-edms/; without them it does not start. Before the first start, create the folders it writes to (${CONFIG_PATH}/mayan-edms/redis) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them."
+  },
+  {
+   "id": "mealie",
+   "name": "Mealie",
+   "description": "Keep your recipes together and plan what to cook",
+   "category": "Productivity",
+   "icon": "svg/mealie.svg",
+   "image": "ghcr.io/mealie-recipes/mealie:latest",
+   "port": 9925,
+   "docs": "https://docs.mealie.io/documentation/getting-started/installation/sqlite/",
+   "links": [],
+   "compose": "services:\n  mealie:\n    image: ghcr.io/mealie-recipes/mealie:latest\n    container_name: ${CONTAINER_PREFIX}mealie\n    restart: ${RESTART_POLICY}\n    mem_limit: 1000m\n    environment:\n      DB_ENGINE: sqlite\n      ALLOW_SIGNUP: \"false\"\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/mealie/data:/app/data\n    ports:\n      - 9925:9000\n    healthcheck:\n      test: [\"CMD\", \"curl\", \"--fail\", \"--silent\", \"http://127.0.0.1:9000/api/app/about\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Mealie uses SQLite on local storage; keep the complete data folder across updates and removal. Finish the initial administrator in Mealie manually and keep authentication enabled. Plain Compose does not issue a Homarr token or configure its native integration; Mealie tokens inherit full account access without read-only scopes."
+  },
+  {
+   "id": "miniflux",
+   "name": "Miniflux",
+   "description": "Read your favorite feeds in one quiet place",
+   "category": "Productivity",
+   "icon": "svg/miniflux.svg",
+   "image": "docker.io/miniflux/miniflux:latest",
+   "port": 8080,
+   "docs": "https://miniflux.app/docs/docker.html",
+   "links": [],
+   "compose": "services:\n  miniflux:\n    image: docker.io/miniflux/miniflux:latest\n    container_name: ${CONTAINER_PREFIX}miniflux\n    restart: ${RESTART_POLICY}\n    environment:\n      DATABASE_URL: postgres://miniflux:${MINIFLUX_DB_PASSWORD}@miniflux-postgres:5432/miniflux?sslmode=disable\n      RUN_MIGRATIONS: \"1\"\n      CREATE_ADMIN: \"0\"\n      DISABLE_SCHEDULER_SERVICE: \"1\"\n      TZ: ${TZ}\n    ports:\n      - 8080:8080\n    depends_on:\n      miniflux-postgres:\n        condition: service_healthy\n    healthcheck:\n      test: [\"CMD\", \"/usr/bin/miniflux\", \"-healthcheck\", \"auto\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 30s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  miniflux-postgres:\n    image: docker.io/library/postgres:18\n    container_name: ${CONTAINER_PREFIX}miniflux-postgres\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_USER: miniflux\n      POSTGRES_DB: miniflux\n      POSTGRES_PASSWORD: ${MINIFLUX_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/miniflux/database:/var/lib/postgresql\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"miniflux\", \"-d\", \"miniflux\"]\n      interval: 5s\n      timeout: 5s\n      start_period: 30s\n      retries: 10\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "MINIFLUX_DB_PASSWORD",
+     "default": "",
+     "description": "Miniflux secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Administrator creation is deliberately disabled. Inspect existing accounts first; only after independently confirming no account exists, run docker compose exec miniflux miniflux -create-admin in a real terminal. Never reset or replace an existing reader. Automatic feed polling and cleanup are disabled by DISABLE_SCHEDULER_SERVICE; review and approve any change before enabling outbound requests."
   },
   {
    "id": "minio",
@@ -3763,6 +4565,73 @@
    "notes": "The container only runs restic version; run your backups against the repository yourself."
   },
   {
+   "id": "romm",
+   "name": "RomM",
+   "description": "Organize your game collection and play it in your browser",
+   "category": "Media",
+   "icon": "svg/romm.svg",
+   "image": "rommapp/romm:latest",
+   "port": 8080,
+   "docs": "https://docs.romm.app/latest/getting-started/quick-start/",
+   "links": [],
+   "compose": "services:\n  romm:\n    image: rommapp/romm:latest\n    container_name: ${CONTAINER_PREFIX}romm\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      DB_HOST: romm-db\n      DB_NAME: romm\n      DB_USER: romm-user\n      DB_PASSWD: ${ROMM_DB_PASSWORD}\n      ROMM_AUTH_SECRET_KEY: ${ROMM_AUTH_SECRET}\n      KIOSK_MODE: \"false\"\n      DISABLE_DOWNLOAD_ENDPOINT_AUTH: \"false\"\n      DISABLE_CSRF_PROTECTION: \"false\"\n      HASHEOUS_API_ENABLED: \"false\"\n      LAUNCHBOX_API_ENABLED: \"false\"\n      ENABLE_RESCAN_ON_FILESYSTEM_CHANGE: \"false\"\n      ENABLE_SCHEDULED_RESCAN: \"false\"\n      ENABLE_SCHEDULED_UPDATE_SWITCH_TITLEDB: \"false\"\n      ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA: \"false\"\n      ENABLE_SYNC_FOLDER_WATCHER: \"false\"\n      ENABLE_SYNC_PUSH_PULL: \"false\"\n      SENTRY_DSN: \"\"\n      OTEL_SDK_DISABLED: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/romm/data:/romm\n      - ${CONFIG_PATH}/romm/redis:/redis-data\n      - type: bind\n        source: ${DATA_PATH}/media/romm\n        target: /romm/library\n        bind:\n          create_host_path: false\n    ports:\n      - 8080:8080\n    depends_on:\n      romm-db:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  romm-db:\n    image: mariadb:11\n    container_name: ${CONTAINER_PREFIX}romm-db\n    restart: ${RESTART_POLICY}\n    environment:\n      MARIADB_ROOT_PASSWORD: ${ROMM_DB_ROOT_PASSWORD}\n      MARIADB_DATABASE: romm\n      MARIADB_USER: romm-user\n      MARIADB_PASSWORD: ${ROMM_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/romm/database:/var/lib/mysql\n    healthcheck:\n      test: [\"CMD\", \"healthcheck.sh\", \"--connect\", \"--innodb_initialized\"]\n      start_period: 30s\n      interval: 10s\n      timeout: 5s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "ROMM_AUTH_SECRET",
+     "default": "",
+     "description": "RomM secret: auth secret",
+     "secret": true,
+     "bytes": 32
+    },
+    {
+     "key": "ROMM_DB_PASSWORD",
+     "default": "",
+     "description": "RomM secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "ROMM_DB_ROOT_PASSWORD",
+     "default": "",
+     "description": "RomM secret: db root password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Create ${DATA_PATH}/media/romm before starting; the library mount never creates its host path. After the first start, create the first administrator in the browser. Keep authentication and CSRF protection enabled. No ROMs, firmware, scans or metadata-provider credentials are required for an empty library. The media library is excluded from App backups; back it up separately."
+  },
+  {
    "id": "sabnzbd",
    "name": "SABnzbd",
    "description": "Automatically fetch files from Usenet, a paid file-sharing service",
@@ -4251,6 +5120,117 @@
    "notes": "Needs files this Compose does not create before the first start (config/app.key, php-fpm-run), expected in ${CONFIG_PATH}/speedtest-tracker/; without them it does not start. Sign in with the email made of the ADMIN_USER value and @selfhost.local, and the ADMIN_PASSWORD value."
   },
   {
+   "id": "spoolman",
+   "name": "Spoolman",
+   "description": "Keep track of your 3D-printer filament spools and remaining material",
+   "category": "Productivity",
+   "icon": "svg/spoolman.svg",
+   "image": "ghcr.io/donkie/spoolman:latest",
+   "port": 7912,
+   "docs": "https://github.com/Donkie/Spoolman/wiki/Installation",
+   "links": [],
+   "compose": "services:\n  spoolman:\n    image: ghcr.io/donkie/spoolman:latest\n    container_name: ${CONTAINER_PREFIX}spoolman\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SPOOLMAN_DB_TYPE: postgres\n      SPOOLMAN_DB_HOST: spoolman-db\n      SPOOLMAN_DB_PORT: \"5432\"\n      SPOOLMAN_DB_NAME: spoolman\n      SPOOLMAN_DB_USERNAME: spoolman\n      SPOOLMAN_DB_PASSWORD: ${SPOOLMAN_DB_PASSWORD}\n      SPOOLMAN_AUTOMATIC_BACKUP: \"FALSE\"\n      SPOOLMAN_UPDATE_CHECK: \"FALSE\"\n      SPOOLMAN_METRICS_ENABLED: \"FALSE\"\n      EXTERNAL_DB_URL: \"\"\n    ports:\n      - 7912:8000\n    depends_on:\n      spoolman-db:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  spoolman-db:\n    image: docker.io/library/postgres:18-alpine\n    container_name: ${CONTAINER_PREFIX}spoolman-db\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      POSTGRES_DB: spoolman\n      POSTGRES_USER: spoolman\n      POSTGRES_PASSWORD: ${SPOOLMAN_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/spoolman/database:/var/lib/postgresql\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-h\", \"127.0.0.1\", \"-U\", \"spoolman\", \"-d\", \"spoolman\"]\n      interval: 5s\n      timeout: 5s\n      retries: 12\n      start_period: 20s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "SPOOLMAN_DB_PASSWORD",
+     "default": "",
+     "description": "Spoolman secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Spoolman has no built-in login: keep it private or behind an authenticated proxy. Inventory and settings are stored in the included PostgreSQL database; preserve its database folder and password and back them up together. The Spoolman image keeps its own non-root user; do not forward Host user IDs or change existing data ownership. External catalog downloads, update checks and metrics are disabled by default. No printer connection is required."
+  },
+  {
+   "id": "sportarr",
+   "name": "Sportarr",
+   "description": "Organize your sports event recordings and library",
+   "category": "Requests",
+   "icon": "svg/sportarr.svg",
+   "image": "sportarr/sportarr:latest",
+   "port": 1867,
+   "docs": "https://wiki.sportarr.net/getting-started/installation/",
+   "links": [],
+   "compose": "services:\n  sportarr:\n    image: sportarr/sportarr:latest\n    container_name: ${CONTAINER_PREFIX}sportarr\n    user: \"${PUID}:${PGID}\"\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      UMASK: ${UMASK}\n    volumes:\n      - type: bind\n        source: ${CONFIG_PATH}/sportarr/config\n        target: /config\n        bind:\n          create_host_path: false\n      - ${DATA_PATH}:/data\n    ports:\n      - 1867:1867\n    healthcheck:\n      test: [\"CMD-SHELL\", \"curl -fs -o /dev/null http://localhost:1867/ping || exit 1\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 60s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    },
+    {
+     "key": "UMASK",
+     "default": "022",
+     "description": "Permission mask for files the App creates",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/sportarr/config) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. Keep /config writable by the selected user. In Settings > General > Security, require Forms authentication for every address and configure your administrator. Choose your sports library, profiles and download clients yourself; no events or downloads are added by self-host."
+  },
+  {
    "id": "stalwart-mail",
    "name": "Stalwart Mail Server",
    "description": "Run your own email service, managed from a private admin page",
@@ -4314,6 +5294,52 @@
    ],
    "standalone": true,
    "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/stalwart-mail/configuration, ${CONFIG_PATH}/stalwart-mail/data) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. After the first start, finish the first-run setup wizard on the admin port to create the administrator; it runs again whenever the configuration folder is empty. STALWART_MAIL_RECOVERY_ADMIN optionally sets a recovery administrator as username:password. This Compose publishes only the admin port: to send and receive mail also publish ports 25, 465, 993, 995, 4190 and 443."
+  },
+  {
+   "id": "stash",
+   "name": "Stash",
+   "description": "Organize your private adult-media library",
+   "category": "Media",
+   "icon": "svg/stash.svg",
+   "image": "stashapp/stash:latest",
+   "port": 9999,
+   "docs": "https://docs.stashapp.cc/installation/docker/",
+   "links": [],
+   "compose": "services:\n  stash:\n    image: stashapp/stash:latest\n    container_name: ${CONTAINER_PREFIX}stash\n    restart: ${RESTART_POLICY}\n    entrypoint: [\"/bin/sh\", \"-c\", \"umask 077; exec stash \\\"$$@\\\"\", \"--\"]\n    environment:\n      STASH_CONFIG_FILE: /root/.stash/config.yml\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/stash/config:/root/.stash\n      - ${CONFIG_PATH}/stash/metadata:/metadata\n      - ${CONFIG_PATH}/stash/cache:/cache\n      - ${CONFIG_PATH}/stash/blobs:/blobs\n      - ${CONFIG_PATH}/stash/generated:/generated\n      - ${DATA_PATH}/media/adult:/data:ro\n    ports:\n      - 9999:9999\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Complete the first visit with authentication enabled and no library paths or scans. Keep configuration and the database in /root/.stash; select /metadata, /cache, /blobs and /generated for their corresponding storage when wanted. New writes use a private umask and content at /data is read-only; existing permissions are not changed. Preserve existing paths and the single unscoped instance API key; self-host does not bootstrap accounts or generate keys in this partial App slice."
   },
   {
    "id": "stirling-pdf",
@@ -4430,6 +5456,66 @@
    "notes": "Needs files this Compose does not create before the first start (keys/auth-key), expected in ${CONFIG_PATH}/tailscale/; without them it does not start."
   },
   {
+   "id": "tandoor",
+   "name": "Tandoor",
+   "description": "Keep recipes organized and share them with family and friends",
+   "category": "Productivity",
+   "icon": "svg/tandoor-recipes.svg",
+   "image": "docker.io/vabene1111/recipes:latest",
+   "port": 8080,
+   "docs": "https://docs.tandoor.dev/install/docker/",
+   "links": [],
+   "compose": "services:\n  tandoor:\n    image: docker.io/vabene1111/recipes:latest\n    container_name: ${CONTAINER_PREFIX}tandoor\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      SECRET_KEY: ${TANDOOR_SECRET_KEY}\n      DB_ENGINE: django.db.backends.postgresql\n      POSTGRES_HOST: tandoor-db\n      POSTGRES_PORT: \"5432\"\n      POSTGRES_DB: tandoor\n      POSTGRES_USER: tandoor\n      POSTGRES_PASSWORD: ${TANDOOR_DB_PASSWORD}\n      ALLOWED_HOSTS: \"localhost,127.0.0.1,[::1],tandoor,${LAN_IP}\"\n      ENABLE_SIGNUP: \"0\"\n      ENABLE_METRICS: \"0\"\n      DISABLE_EXTERNAL_CONNECTORS: \"1\"\n      SPACE_AI_ENABLED: \"0\"\n    volumes:\n      - ${CONFIG_PATH}/tandoor/mediafiles:/opt/recipes/mediafiles\n      - ${CONFIG_PATH}/tandoor/staticfiles:/opt/recipes/staticfiles\n    ports:\n      - 8080:80\n    depends_on:\n      tandoor-db:\n        condition: service_healthy\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  tandoor-db:\n    image: docker.io/library/postgres:16-alpine\n    container_name: ${CONTAINER_PREFIX}tandoor-db\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_DB: tandoor\n      POSTGRES_USER: tandoor\n      POSTGRES_PASSWORD: ${TANDOOR_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/tandoor/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U tandoor -d tandoor\"]\n      interval: 5s\n      timeout: 5s\n      retries: 20\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "LAN_IP",
+     "default": "localhost",
+     "description": "Address you open this App at: this machine's IP on your network (for example 192.168.1.20) or a host name. The App uses it to build links it hands out, so the default only works on this machine",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TANDOOR_DB_PASSWORD",
+     "default": "",
+     "description": "Tandoor secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "TANDOOR_SECRET_KEY",
+     "default": "",
+     "description": "Tandoor secret: secret key",
+     "secret": true,
+     "bytes": 32
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "After the first start, create the first administrator in Tandoor's setup page only for a known new installation. Preserve existing accounts and Spaces; Setup never creates or resets them automatically. Registration, external connectors, metrics and new-Space AI features are disabled by default. Review ALLOWED_HOSTS for your selected Access. Managed Homarr linking remains held because supported APIs cannot prove the exact saved token's identity, rights and expiry. Do not change upstream credentials to bypass that hold."
+  },
+  {
    "id": "tdarr",
    "name": "Tdarr",
    "description": "Shrink and convert your video files automatically to save space",
@@ -4534,6 +5620,72 @@
    ],
    "standalone": true,
    "notes": "Sign in as admin with the ADMIN_PASSWORD value. If systemd-resolved already holds port 53 on the host, the container cannot bind it: turn off its DNSStubListener."
+  },
+  {
+   "id": "thingport",
+   "name": "Thingport",
+   "description": "Organize your private collection of 3D printing models",
+   "category": "Productivity",
+   "icon": "svg/thingport.svg",
+   "image": "ghcr.io/tautvydasderzinskas/thingport-frontend:latest",
+   "port": 8786,
+   "docs": "https://thingport.net/docs/",
+   "links": [],
+   "compose": "services:\n  thingport:\n    image: ghcr.io/tautvydasderzinskas/thingport-frontend:latest\n    container_name: ${CONTAINER_PREFIX}thingport\n    restart: ${RESTART_POLICY}\n    ports:\n      - 8786:80\n    depends_on:\n      thingport-backend:\n        condition: service_healthy\n    networks:\n      default:\n      thingport-private:\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  thingport-backend:\n    image: ghcr.io/tautvydasderzinskas/thingport-backend:latest\n    container_name: ${CONTAINER_PREFIX}thingport-backend\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n      CHOWN_MODE: minimal\n      API_PORT: \"8000\"\n      AUTH_SECRET: ${THINGPORT_AUTH_SECRET}\n      FILE_STORAGE: /app/storage\n      DATABASE_URL: postgresql://thingport:${THINGPORT_DB_PASSWORD}@thingport-database:5432/thingport?schema=public\n      FLARESOLVERR_URL: \"\"\n      COLLECTION_SYNC_ENABLED: \"false\"\n      SYSTEM_NOTIFICATIONS_URL: \"\"\n      RELEASE_NOTES_URL: \"\"\n    volumes:\n      - ${CONFIG_PATH}/thingport/storage:/app/storage\n    depends_on:\n      thingport-database:\n        condition: service_healthy\n    healthcheck:\n      test: [\"CMD\", \"node\", \"-e\", \"fetch('http://127.0.0.1:8000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\"]\n      interval: 10s\n      timeout: 5s\n      start_period: 60s\n      retries: 12\n    networks:\n      thingport-private:\n        aliases:\n          - backend\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  thingport-database:\n    image: docker.io/library/postgres:16-alpine\n    container_name: ${CONTAINER_PREFIX}thingport-database\n    restart: ${RESTART_POLICY}\n    environment:\n      POSTGRES_USER: thingport\n      POSTGRES_DB: thingport\n      POSTGRES_PASSWORD: ${THINGPORT_DB_PASSWORD}\n    volumes:\n      - ${CONFIG_PATH}/thingport/database:/var/lib/postgresql/data\n    healthcheck:\n      test: [\"CMD\", \"pg_isready\", \"-U\", \"thingport\", \"-d\", \"thingport\"]\n      interval: 5s\n      timeout: 5s\n      retries: 12\n    networks:\n      thingport-private:\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "THINGPORT_AUTH_SECRET",
+     "default": "",
+     "description": "Thingport secret: auth secret",
+     "secret": true,
+     "bytes": 32
+    },
+    {
+     "key": "THINGPORT_DB_PASSWORD",
+     "default": "",
+     "description": "Thingport secret: db password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": false,
+   "notes": "Keeps its services on its own private network (thingport-private), which one shared Compose file cannot isolate; install it with self-host. Create the first instance owner on the private Thingport page. Automatic collection sync and remote announcements are disabled; no consume folder or optional FlareSolverr fetcher is configured. Provider connections, model imports and printing require separate choices. Keep the database and storage folders together when backing up."
   },
   {
    "id": "tracearr",
@@ -4722,6 +5874,130 @@
    "notes": "Set the default download folder to /data/torrents. Peers cannot connect in until you publish 51413 (tcp and udp) as well as the web port."
   },
   {
+   "id": "trilium",
+   "name": "Trilium",
+   "description": "Organize your notes and ideas in a private knowledge base",
+   "category": "Productivity",
+   "icon": "svg/triliumnext.svg",
+   "image": "triliumnext/trilium:v0.106.1",
+   "port": 8080,
+   "docs": "https://docs.triliumnotes.org/user-guide/setup/server/installation/docker.html",
+   "links": [],
+   "compose": "services:\n  trilium:\n    image: triliumnext/trilium:v0.106.1\n    container_name: ${CONTAINER_PREFIX}trilium\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/trilium/data:/home/node/trilium-data\n    ports:\n      - 8080:8080\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "On the first visit, choose a new notebook, sync an existing notebook or Restore a Backup, then set its password yourself. Trilium has one password, not a username. Keep the entire data folder and a separate Backup. The image is versioned because server and desktop sync protocols must remain compatible; review all clients before deliberately changing the image. ETAPI tokens grant full notebook API access, not read-only statistics access."
+  },
+  {
+   "id": "tubearchivist",
+   "name": "Tube Archivist",
+   "description": "Keep and watch your own archive of YouTube videos",
+   "category": "Media",
+   "icon": "png/tube-archivist.png",
+   "image": "bbilly1/tubearchivist:latest",
+   "port": 8000,
+   "docs": "https://docs.tubearchivist.com/installation/docker-compose/",
+   "links": [],
+   "compose": "services:\n  tubearchivist:\n    image: bbilly1/tubearchivist:latest\n    container_name: ${CONTAINER_PREFIX}tubearchivist\n    user: ${PUID}:${PGID}\n    restart: ${RESTART_POLICY}\n    environment:\n      TZ: ${TZ}\n      TA_HOST: \"http://127.0.0.1:8000 http://localhost:8000 http://tubearchivist:8000 http://${LAN_IP}:8000\"\n      TA_USERNAME: ${ADMIN_USER}\n      TA_PASSWORD: ${ADMIN_PASSWORD}\n      ES_URL: http://tubearchivist-es:9200\n      ELASTIC_PASSWORD: ${TUBEARCHIVIST_ELASTIC_PASSWORD}\n      REDIS_CON: redis://tubearchivist-redis:6379\n    volumes:\n      - ${CONFIG_PATH}/tubearchivist/cache:/cache\n      - ${DATA_PATH}/media/tubearchivist:/youtube\n    ports:\n      - 8000:8000\n    depends_on:\n      tubearchivist-redis:\n        condition: service_healthy\n      tubearchivist-es:\n        condition: service_started\n    healthcheck:\n      test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:8000/api/health/\"]\n      interval: 2m\n      timeout: 10s\n      retries: 3\n      start_period: 30s\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  tubearchivist-redis:\n    image: redis:8\n    container_name: ${CONTAINER_PREFIX}tubearchivist-redis\n    user: ${PUID}:${PGID}\n    restart: ${RESTART_POLICY}\n    command: [\"redis-server\", \"--appendonly\", \"yes\"]\n    volumes:\n      - ${CONFIG_PATH}/tubearchivist/redis:/data\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"ping\"]\n      interval: 10s\n      timeout: 5s\n      retries: 5\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  tubearchivist-es:\n    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5\n    container_name: ${CONTAINER_PREFIX}tubearchivist-es\n    user: ${PUID}:0\n    restart: ${RESTART_POLICY}\n    environment:\n      ELASTIC_PASSWORD: ${TUBEARCHIVIST_ELASTIC_PASSWORD}\n      ES_JAVA_OPTS: -Xms1g -Xmx1g\n      xpack.security.enabled: \"true\"\n      discovery.type: single-node\n      path.repo: /usr/share/elasticsearch/data/snapshot\n    volumes:\n      - ${CONFIG_PATH}/tubearchivist/elasticsearch:/usr/share/elasticsearch/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "ADMIN_PASSWORD",
+     "default": "",
+     "description": "Password of the administrator account the App creates on its first start",
+     "secret": true,
+     "bytes": 16
+    },
+    {
+     "key": "ADMIN_USER",
+     "default": "admin",
+     "description": "Username of the administrator account the App creates on its first start",
+     "secret": false
+    },
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "DATA_PATH",
+     "default": "/opt/appdata/data",
+     "description": "Host folder that holds every App's data, media and downloads",
+     "secret": false
+    },
+    {
+     "key": "LAN_IP",
+     "default": "localhost",
+     "description": "Address you open this App at: this machine's IP on your network (for example 192.168.1.20) or a host name. The App uses it to build links it hands out, so the default only works on this machine",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TUBEARCHIVIST_ELASTIC_PASSWORD",
+     "default": "",
+     "description": "Tube Archivist secret: elastic password",
+     "secret": true,
+     "bytes": 24
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Before the first start, create the folders it writes to (${CONFIG_PATH}/tubearchivist/cache, ${DATA_PATH}/media/tubearchivist, ${CONFIG_PATH}/tubearchivist/redis, ${CONFIG_PATH}/tubearchivist/elasticsearch) owned by ${PUID}:${PGID}; Docker would create them owned by root, and the container runs as that user, so it could not write to them. Before starting, verify Elasticsearch's Docker host or VM has vm.max_map_count of at least 1048576, a nonroot user with writable persistent folders, and memory above its 1 GiB Java heap. Review automatic schedules and outbound activity before allowing startup. Set TA_HOST to the intended browser origins. Initial administrator environment settings do not reset an existing account. Keep cache and both database folders; archived media needs a separate backup."
+  },
+  {
    "id": "umami",
    "name": "Umami",
    "description": "See how many people visit your websites, without tracking them",
@@ -4808,6 +6084,58 @@
     }
    ],
    "standalone": true
+  },
+  {
+   "id": "unmanic",
+   "name": "Unmanic",
+   "description": "Monitor and configure automated processing for your file libraries",
+   "category": "Media",
+   "icon": "png/unmanic.png",
+   "image": "josh5/unmanic:latest",
+   "port": 8888,
+   "docs": "https://docs.unmanic.app/",
+   "links": [],
+   "compose": "services:\n  unmanic:\n    image: josh5/unmanic:latest\n    container_name: ${CONTAINER_PREFIX}unmanic\n    restart: ${RESTART_POLICY}\n    environment:\n      PUID: ${PUID}\n      PGID: ${PGID}\n      TZ: ${TZ}\n    volumes:\n      - ${CONFIG_PATH}/unmanic/config:/config\n      - ${CONFIG_PATH}/unmanic/cache:/tmp/unmanic\n      - ${CONFIG_PATH}/unmanic/library:/library:ro\n    ports:\n      - 8888:8888\n    logging:\n      driver: json-file\n      options:\n        max-size: 10m\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    }
+   ],
+   "standalone": false,
+   "notes": "Needs files this Compose does not create before the first start (config/.unmanic/config/settings.json), expected in ${CONFIG_PATH}/unmanic/; without them it does not start."
   },
   {
    "id": "uptime-kuma",
@@ -5079,6 +6407,60 @@
    ],
    "standalone": true,
    "notes": "WUD watches a remote Docker endpoint over TLS: set WUD_DOCKER_HOST and put its CA certificate at ${CONFIG_PATH}/wud/tls/ca.pem."
+  },
+  {
+   "id": "your-spotify",
+   "name": "Your Spotify",
+   "description": "Explore your Spotify listening history after you choose to connect your account",
+   "category": "Media",
+   "icon": "svg/your-spotify.svg",
+   "image": "yooooomi/your_spotify_client:latest",
+   "port": 3000,
+   "docs": "https://github.com/Yooooomi/your_spotify#installation",
+   "links": [],
+   "compose": "services:\n  your-spotify:\n    image: yooooomi/your_spotify_client:latest\n    container_name: ${CONTAINER_PREFIX}your-spotify\n    restart: ${RESTART_POLICY}\n    environment:\n      API_ENDPOINT: \"http://127.0.0.1:8080\"\n    ports:\n      - 3000:3000\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n\n  your-spotify-server:\n    image: yooooomi/your_spotify_server:latest\n    container_name: ${CONTAINER_PREFIX}your-spotify-server\n    restart: \"no\"\n    profiles: [your-spotify-manual]\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n    depends_on:\n      - your-spotify-mongo\n    environment:\n      API_ENDPOINT: \"http://127.0.0.1:8080\"\n      CLIENT_ENDPOINT: \"http://127.0.0.1:3000\"\n      SPOTIFY_PUBLIC: ${YOUR_SPOTIFY_SPOTIFY_PUBLIC}\n      SPOTIFY_SECRET: ${YOUR_SPOTIFY_SPOTIFY_SECRET}\n      MONGO_ENDPOINT: mongodb://your-spotify-mongo:27017/your_spotify\n      TIMEZONE: ${TZ}\n      LOG_LEVEL: warn\n    ports:\n      - 8080:8080\n\n  your-spotify-mongo:\n    image: mongo:8\n    container_name: ${CONTAINER_PREFIX}your-spotify-mongo\n    restart: ${RESTART_POLICY}\n    volumes:\n      - ${CONFIG_PATH}/your-spotify/data:/data/db\n      - ${CONFIG_PATH}/your-spotify/configdb:/data/configdb\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    },
+    {
+     "key": "TZ",
+     "default": "UTC",
+     "description": "Time zone, for example Europe/Paris",
+     "secret": false
+    },
+    {
+     "key": "YOUR_SPOTIFY_SPOTIFY_PUBLIC",
+     "default": "",
+     "description": "Existing Spotify developer client ID. The developer application's client ID, not a public sharing token. Missing credentials remain Manual.",
+     "secret": true,
+     "external": true
+    },
+    {
+     "key": "YOUR_SPOTIFY_SPOTIFY_SECRET",
+     "default": "",
+     "description": "Existing Spotify developer client secret. Supply the existing developer secret privately; self-host never creates or replaces it.",
+     "secret": true,
+     "external": true
+    }
+   ],
+   "standalone": true,
+   "notes": "The API server is held behind the your-spotify-manual Compose profile with automatic restart disabled; the browser client alone is not a working account. Before deliberately starting the server, separately review backup and preservation of any existing history: upstream startup runs migrations, repair and duplicate deletion, then polls Spotify. Supply existing developer credentials privately and review the exact browser/API Addresses and callback ending in oauth/spotify/callback. Spotify OAuth, existing Premium eligibility and ingestion need the person's explicit consent; no account linking, subscriptions, history imports or playback are automatic. Keep LOG_LEVEL at warn or error before using a public token because default request logs expose query tokens. A public token is read-only but indefinite and account-wide; regenerating it revokes existing sharing links."
   },
   {
    "id": "zerotier",

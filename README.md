@@ -14,7 +14,7 @@
   <a href="https://github.com/ajnart/self-host/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ajnart/self-host?style=flat-square&label=release&color=7a57d3&labelColor=14121e"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-7a57d3?style=flat-square&labelColor=14121e"></a>
   <img alt="Platforms: Linux, macOS, WSL2" src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20WSL2-7a57d3?style=flat-square&labelColor=14121e">
-  <a href="https://self-host.fyi/apps"><img alt="94 Apps in the Catalog" src="https://img.shields.io/badge/Apps-94-00d787?style=flat-square&labelColor=14121e"></a>
+  <a href="https://self-host.fyi/apps"><img alt="118 Apps in the Catalog" src="https://img.shields.io/badge/Apps-118-00d787?style=flat-square&labelColor=14121e"></a>
 </p>
 
 <p align="center">
@@ -176,7 +176,7 @@ Checksums detect corruption or mismatched downloads, not compromise of the publi
 
 <p align="center"><img src="docs/assets/readme/replaces-meet.svg" width="600" alt="What it replaces: Netflix to Jellyfin, Spotify to Navidrome, Drive to Nextcloud, Dropbox to Syncthing, Photos to Immich, 1Password to Vaultwarden, Notion to Docmost, ChatGPT to Open WebUI. Every App is in the Catalog, with 82 more."></p>
 
-Choose Jellyfin for your media library, Immich for photos, Nextcloud for files or Vaultwarden for passwords, for example `self-host install immich`. Browse all 94 self-hosted Apps in the [Catalog](https://self-host.fyi/apps); see [Platforms and support](#platforms-and-support) for what has been verified.
+Choose Jellyfin for your media library, Immich for photos, Nextcloud for files or Vaultwarden for passwords, for example `self-host install immich`. Browse all 118 self-hosted Apps in the [Catalog](https://self-host.fyi/apps); see [Platforms and support](#platforms-and-support) for what has been verified.
 
 <p align="center"><img src="docs/assets/readme/hero-command.svg" width="880" alt="The install command, curl -fsSL self-host.fyi/install | bash, wired to nine Apps with data pulses travelling the wires: Jellyfin, Sonarr, Radarr, Immich, Nextcloud, Homarr, Vaultwarden, Navidrome and Home Assistant."></p>
 
@@ -193,7 +193,7 @@ Choose Jellyfin for your media library, Immich for photos, Nextcloud for files o
 
 | ✅ Does                                                                         | ❌ Doesn't                                                                      |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Ships the Catalog inside the binary: 94 Apps and 7 Recipes.                     | Install Docker for you. `self-host doctor` checks it.                           |
+| Ships the Catalog inside the binary: 118 Apps and 7 Recipes.                    | Install Docker for you. `self-host doctor` checks it.                           |
 | Sets up accounts, API keys and settings where supported.                        | Touch anything outside its one Compose Project in `~/.self-host`.               |
 | Wires Apps together with Links, and gives Homarr native tiles.                  | Back up media libraries or data outside App folders.                            |
 | Shows a five-tab Dashboard (Overview, Apps, Activity, Catalog, Settings).       | Run on native Windows. Use WSL2.                                                |

@@ -27,6 +27,7 @@ var (
 var plainEnv = map[string]string{
 	"BORG_PASSPHRASE_FILE":           "BORG_PASSPHRASE",
 	"DNS_SERVER_ADMIN_PASSWORD_FILE": "DNS_SERVER_ADMIN_PASSWORD",
+	"ELASTIC_PASSWORD_FILE":          "ELASTIC_PASSWORD",
 	"GOTIFY_DEFAULTUSER_PASS_FILE":   "GOTIFY_DEFAULTUSER_PASS",
 	"LLDAP_JWT_SECRET_FILE":          "LLDAP_JWT_SECRET",
 	"LLDAP_KEY_SEED_FILE":            "LLDAP_KEY_SEED",
@@ -43,6 +44,7 @@ var plainEnv = map[string]string{
 	"POSTGRES_PASSWORD_FILE":         "POSTGRES_PASSWORD",
 	"RESTIC_PASSWORD_FILE":           "RESTIC_PASSWORD",
 	"SERVER_SECRET_FILE":             "SERVER_SECRET",
+	"TA_PASSWORD_FILE":               "TA_PASSWORD",
 	"WEBPASSWORD_FILE":               "FTLCONF_webserver_api_password",
 }
 
@@ -65,7 +67,9 @@ type converter struct {
 	// refs maps a top-level Compose secret to the variable that feeds it.
 	refs    map[string]string
 	missing []string
-	dropped []string
+	// networks are the App's own top-level networks, which one shared Compose file cannot keep private.
+	networks []string
+	dropped  []string
 	// owned are the folders a container running as PUID:PGID writes to, which Docker would
 	// create owned by root.
 	owned []string
@@ -96,6 +100,13 @@ func (c *converter) convert(raw string) (string, error) {
 		case "secrets":
 			if err := c.topSecrets(value); err != nil {
 				return "", err
+			}
+		case "networks":
+			if value.Kind != yaml.MappingNode {
+				return "", fmt.Errorf("%s: networks is not a mapping", c.id)
+			}
+			for j := 0; j < len(value.Content); j += 2 {
+				c.networks = append(c.networks, value.Content[j].Value)
 			}
 		default:
 			return "", fmt.Errorf("%s: top-level key %q is not handled", c.id, key.Value)

@@ -62,5 +62,8 @@ func targets() []target {
 		anchorTarget(),
 		plantitTarget(),
 		xteveTarget(),
+		triliumTarget(),
+		unmanicTarget(),
+		yourSpotifyTarget(),
 	)
 }

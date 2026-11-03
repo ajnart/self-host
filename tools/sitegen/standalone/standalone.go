@@ -75,7 +75,7 @@ func Project(ap app.App) (Entry, error) {
 	for i, v := range vars {
 		env[i] = v.Env
 	}
-	return Entry{Compose: compose, Env: env, Links: links, Standalone: len(c.missing) == 0, Notes: notes}, nil
+	return Entry{Compose: compose, Env: env, Links: links, Standalone: len(c.missing) == 0 && len(c.networks) == 0, Notes: notes}, nil
 }
 
 // AvailableLinks lists an App's Links to Apps offered for new installs, never nil.
