@@ -1,0 +1,16 @@
+internal/apps/romm/romm_test.go
+  h_d6e478ca18e517 46,56
+internal/apps/romm/service_test.go
+  h_d6e478ca18e517 1-456
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36ac5abe8e6e385cccd5092144a25dbcf2b28dff",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
