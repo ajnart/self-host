@@ -16,28 +16,32 @@ func mealieTarget() target {
 		},
 		widgets: []widget{statWidget("recipes", "users", "categories", "tags")},
 		preflight: func(ctx context.Context, from, to *helpers.H) error {
-			_, err := mealie.VerifyHomarr(ctx, to)
-			if err != nil {
+			if _, err := mealie.VerifyHomarr(ctx, to); err != nil {
 				from.Info(mealie.HomarrRecoveryHint)
+				return &helpers.ManualError{Hint: "Mealie's App-owned credential could not be verified; private provider diagnostics were withheld. " + mealie.HomarrRecoveryHint}
 			}
-			return err
+			return mealieSavedTokenProofHold()
 		},
 		verify: verifyMealie,
 		stats:  verifyMealieStats,
 	}
 }
 
+func mealieSavedTokenProofHold() error {
+	return &helpers.ManualError{Hint: "Mealie native verification remains Manual: the supported Mealie/Homarr APIs cannot prove which exact private token Homarr currently stores. Another valid token for the same account has identical account and household data. Keep the saved integration, its token, the App-owned token and all settings unchanged. A reviewed supported token-specific saved-connection proof is required before retrying self-host setup homarr; account equality, token names, masked metadata and the local fingerprint do not clear this hold. Do not overwrite, revoke or reissue a token to bypass it."}
+}
+
 func verifyMealie(ctx context.Context, from, to *helpers.H, integrationID string) error {
 	identity, err := mealie.VerifyHomarr(ctx, to)
 	if err != nil {
-		return err
+		return &helpers.ManualError{Hint: "Mealie's App-owned credential could not be verified; private provider diagnostics were withheld. " + mealie.HomarrRecoveryHint}
 	}
 	for _, path := range []string{"/api/users/self", "/api/households/self"} {
 		value, err := apiKeyWrite(ctx, from, "integration.request", map[string]any{
 			"integrationId": integrationID, "method": "GET", "path": path,
 		})
 		if err != nil {
-			return err
+			return &helpers.ManualError{Hint: "Mealie's saved-connection identity check failed; private Homarr diagnostics were withheld. Preserve the saved connection and credentials, review access privately, then retry self-host setup homarr. A supported exact-token proof is still required; do not replace the saved token or weaken authentication."}
 		}
 		result, _ := value.(map[string]any)
 		integration, _ := result["integration"].(map[string]any)
@@ -52,7 +56,7 @@ func verifyMealie(ctx context.Context, from, to *helpers.H, integrationID string
 			return &helpers.ManualError{Hint: "Homarr's saved Mealie connection does not match the selected account and household. " + mealie.HomarrRecoveryHint}
 		}
 	}
-	return nil
+	return mealieSavedTokenProofHold()
 }
 
 func verifyMealieStats(sample statsSample) error {

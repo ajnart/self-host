@@ -1,13 +1,14 @@
 package homarr
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
-	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/mealie"
@@ -43,7 +44,7 @@ func mealiePeer(t *testing.T) *helpers.H {
 			w.WriteHeader(201)
 			json.NewEncoder(w).Encode(map[string]any{"id": 7, "name": "self-host Homarr statistics", "createdAt": "2026-11-02T12:00:00Z", "token": "mealie-key"})
 		case "GET /api/users/self", "GET /api/households/self":
-			if r.Header.Get("Authorization") != "Bearer mealie-session" && (!issued || r.Header.Get("Authorization") != "Bearer mealie-key") {
+			if r.Header.Get("Authorization") != "Bearer mealie-session" && (!issued || r.Header.Get("Authorization") != "Bearer mealie-key" && r.Header.Get("Authorization") != "Bearer mealie-key-B") {
 				w.WriteHeader(401)
 				return
 			}
@@ -54,6 +55,7 @@ func mealiePeer(t *testing.T) *helpers.H {
 			tokens := []any{}
 			if issued {
 				tokens = append(tokens, map[string]any{"id": 7, "name": "self-host Homarr statistics", "createdAt": "2026-11-02T12:00:00Z"})
+				tokens = append(tokens, map[string]any{"id": 8, "name": "person-owned token", "createdAt": "2026-11-02T12:01:00Z"})
 			}
 			json.NewEncoder(w).Encode(map[string]any{"id": mealiePeerUser, "groupId": mealiePeerGroup, "householdId": mealiePeerHousehold, "username": "owner", "email": "owner@example.test", "admin": true, "group": "Group", "household": "Household", "tokens": tokens})
 		default:
@@ -71,18 +73,15 @@ func mealiePeer(t *testing.T) *helpers.H {
 	return h
 }
 
-func TestMealieDescriptorVerifiesStoredIdentityBeforeOneFreshStatsSample(t *testing.T) {
+func TestMealieStatsPolicyUsesOneCentralSampleWithoutClaimingTokenProof(t *testing.T) {
 	for _, scenario := range []struct {
-		name                 string
-		change               func(*statsFixture)
-		wrongPath, wrongKind bool
-		wantOK               bool
-		refreshes            int
+		name      string
+		change    func(*statsFixture)
+		wantOK    bool
+		refreshes int
 	}{
 		{name: "empty recipes with real household user", wantOK: true, refreshes: 1},
 		{name: "populated", change: func(f *statsFixture) { f.values["recipes"] = 3; f.values["tags"] = 4 }, wantOK: true, refreshes: 1},
-		{name: "wrong stored household", wrongPath: true},
-		{name: "wrong stored integration kind", wrongKind: true},
 		{name: "zero users", change: func(f *statsFixture) { f.values["users"] = 0 }, refreshes: 1},
 		{name: "missing recipes", change: func(f *statsFixture) { delete(f.values, "recipes") }, refreshes: 1},
 		{name: "null tags", change: func(f *statsFixture) { f.values["tags"] = nil }, refreshes: 1},
@@ -96,7 +95,6 @@ func TestMealieDescriptorVerifiesStoredIdentityBeforeOneFreshStatsSample(t *test
 		{name: "future timestamp", change: func(f *statsFixture) { f.timestamp = 9e15 }, refreshes: 1},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			peer := mealiePeer(t)
 			fixture := newStatsFixture()
 			fixture.values = map[string]any{"recipes": 0, "users": 1, "categories": 0, "tags": 0}
 			fixture.metrics = []any{}
@@ -109,52 +107,137 @@ func TestMealieDescriptorVerifiesStoredIdentityBeforeOneFreshStatsSample(t *test
 				scenario.change(fixture)
 			}
 			from := fixture.helpers(t)
-			u, _ := url.Parse(from.BaseURL)
-			proxy := httputil.NewSingleHostReverseProxy(u)
-			identityReads := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/api/trpc/integration.request" {
-					proxy.ServeHTTP(w, r)
-					return
-				}
-				var input struct {
-					JSON struct{ IntegrationID, Method, Path string } `json:"json"`
-				}
-				if r.Method != "POST" || r.Header.Get("ApiKey") != "fixture-key" || json.NewDecoder(r.Body).Decode(&input) != nil || input.JSON.IntegrationID != "mealie-owned" || input.JSON.Method != "GET" {
-					w.WriteHeader(400)
-					return
-				}
-				identityReads++
-				data := map[string]any{"id": mealiePeerUser, "groupId": mealiePeerGroup, "householdId": mealiePeerHousehold, "admin": true}
-				if input.JSON.Path == "/api/households/self" {
-					data["id"] = mealiePeerHousehold
-				} else if input.JSON.Path != "/api/users/self" {
-					t.Error("unexpected integration path")
-				}
-				if scenario.wrongPath {
-					data["groupId"] = "another-group"
-				}
-				kind := "mealie"
-				if scenario.wrongKind {
-					kind = "linkwarden"
-				}
-				json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": map[string]any{"ok": true, "status": 200, "integration": map[string]any{"id": "mealie-owned", "kind": kind}, "data": data}}}})
-			}))
-			t.Cleanup(server.Close)
-			from.BaseURL, from.Config.HTTP = server.URL, server.Client()
 			descriptor := mealieTarget()
-			if descriptor.kind != "mealie" || descriptor.internal(peer) != "http://mealie:9000" || len(descriptor.credentials(from, peer)) != 1 || descriptor.credentials(from, peer)[0].Kind != "apiKey" {
-				t.Fatal("descriptor kind/address/credential drift")
-			}
-			err := descriptor.verifyData(t.Context(), from, peer, "mealie-owned")
+			descriptor.verify = func(context.Context, *helpers.H, *helpers.H, string) error { return nil }
+			err := descriptor.verifyData(t.Context(), from, from, "mealie-owned")
 			if (err == nil) != scenario.wantOK {
 				t.Fatalf("verification=%v wantOK=%v", err, scenario.wantOK)
 			}
 			if fixture.refreshes != scenario.refreshes || fixture.refreshes > 1 || fixture.refreshes > 0 && (!fixture.force || fixture.catalogs != 1 || fixture.snapshots != 1) {
 				t.Fatalf("refreshes=%d catalogs=%d snapshots=%d force=%v", fixture.refreshes, fixture.catalogs, fixture.snapshots, fixture.force)
 			}
-			if identityReads == 0 || scenario.wantOK && identityReads != 2 {
-				t.Fatal("stored integration identity was not verified")
+		})
+	}
+}
+
+func TestMealieSameAccountTokenSubstitutionCannotClearNativeProofHold(t *testing.T) {
+	for _, saved := range []string{"mealie-key", "mealie-key-B"} {
+		t.Run(saved, func(t *testing.T) {
+			peer := mealiePeer(t)
+			response, err := peer.HTTP(t.Context(), helpers.Request{Path: "/api/users/self", Header: map[string]string{"Authorization": "Bearer " + saved}})
+			if err != nil || response.Status != http.StatusOK {
+				t.Fatal("controlled saved token is not valid")
+			}
+			var identity map[string]any
+			if response.Decode(&identity) != nil || identity["id"] != mealiePeerUser || identity["groupId"] != mealiePeerGroup || identity["householdId"] != mealiePeerHousehold {
+				t.Fatal("controlled tokens do not have identical account scope")
+			}
+			storedToken := saved
+			requests, mutations, stats := 0, 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if strings.Contains(r.URL.Path, "widget.stats") {
+					stats++
+					w.WriteHeader(500)
+					return
+				}
+				if r.URL.Path != "/api/trpc/integration.request" {
+					mutations++
+					w.WriteHeader(500)
+					return
+				}
+				var input struct {
+					JSON struct{ IntegrationID, Method, Path string } `json:"json"`
+				}
+				if json.NewDecoder(r.Body).Decode(&input) != nil || input.JSON.IntegrationID != "mealie-owned" || input.JSON.Method != "GET" {
+					t.Error("unexpected native request")
+					w.WriteHeader(400)
+					return
+				}
+				response, err := peer.HTTP(r.Context(), helpers.Request{Path: input.JSON.Path, Header: map[string]string{"Authorization": "Bearer " + storedToken}})
+				var data any
+				if err != nil || response.Decode(&data) != nil {
+					t.Error("controlled saved connection failed")
+					w.WriteHeader(500)
+					return
+				}
+				json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": map[string]any{"ok": true, "status": response.Status, "integration": map[string]any{"id": "mealie-owned", "kind": "mealie"}, "data": data}}}})
+			}))
+			t.Cleanup(server.Close)
+			from := helpers.New(helpers.Config{App: "homarr", BaseURL: server.URL, HTTP: server.Client(), Log: events.Discard(), Secrets: statsSecrets{"HOMARR_API_KEY": "fixture-key"}})
+			descriptor := mealieTarget()
+			fingerprint := integrationFingerprint(descriptor, from, peer)
+			if err := from.SetSecret(integrationFingerprintKey(from, "mealie-owned"), fingerprint); err != nil {
+				t.Fatal(err)
+			}
+			if descriptor.kind != "mealie" || descriptor.internal(peer) != "http://mealie:9000" || descriptor.credentials(from, peer)[0].Kind != "apiKey" {
+				t.Fatal("descriptor contract drift")
+			}
+			err = descriptor.verifyData(t.Context(), from, peer, "mealie-owned")
+			var manual *helpers.ManualError
+			if !errors.As(err, &manual) || !strings.Contains(manual.Hint, "exact private token") || requests != 2 || stats != 0 {
+				t.Fatalf("account identity incorrectly cleared token proof: requests=%d stats=%d err=%v", requests, stats, err)
+			}
+			if err := descriptor.link().Apply(t.Context(), from, peer); !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("preflight did not hold before mutation: %v", err)
+			}
+			if requests != 2 || mutations != 0 || storedToken != saved || peer.Secret(peer.Key("homarr_api_key")) != "mealie-key" || from.Secret(integrationFingerprintKey(from, "mealie-owned")) != fingerprint {
+				t.Fatal("hold replaced a saved token, changed settings, trusted a local fingerprint or reached Stats")
+			}
+		})
+	}
+}
+
+type mealieDiagnosticRoundTrip func(*http.Request) (*http.Response, error)
+
+func (f mealieDiagnosticRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestMealieUntrustedHomarrErrorsNeverReachDiagnostics(t *testing.T) {
+	const private = "arbitrary-private-payload-not-a-registered-secret"
+	for _, scenario := range []string{"trpc message", "http body", "transport cause", "wrong saved household", "wrong saved kind"} {
+		t.Run(scenario, func(t *testing.T) {
+			peer := mealiePeer(t)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/trpc/integration.request" {
+					t.Error("unexpected request after failed identity check")
+				}
+				if scenario == "http body" {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					json.NewEncoder(w).Encode(map[string]string{"detail": private})
+					return
+				}
+				if scenario == "wrong saved household" || scenario == "wrong saved kind" {
+					kind, household := "mealie", private
+					if scenario == "wrong saved kind" {
+						kind, household = "linkwarden", mealiePeerHousehold
+					}
+					json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"data": map[string]any{"json": map[string]any{"ok": true, "status": 200, "integration": map[string]any{"id": "mealie-owned", "kind": kind}, "data": map[string]any{"id": mealiePeerUser, "groupId": mealiePeerGroup, "householdId": household, "admin": true, "detail": private}}}}})
+					return
+				}
+				json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"json": map[string]any{"message": private}}})
+			}))
+			t.Cleanup(server.Close)
+			var output bytes.Buffer
+			var records []helpers.StepResult
+			from := helpers.New(helpers.Config{App: "homarr", BaseURL: server.URL, HTTP: server.Client(), Log: events.New(events.JSON(&output)), Secrets: statsSecrets{"HOMARR_API_KEY": "fixture-key"}, Record: func(r helpers.StepResult) { records = append(records, r) }})
+			if scenario == "transport cause" {
+				from.Config.HTTP.Transport = mealieDiagnosticRoundTrip(func(*http.Request) (*http.Response, error) { return nil, errors.New(private) })
+			}
+			err := from.Step(t.Context(), "mealie-native", "verify Mealie", helpers.StepSpec{Do: func(ctx context.Context) error { return mealieTarget().verifyData(ctx, from, peer, "mealie-owned") }})
+			if !errors.Is(err, helpers.ErrManual) {
+				t.Fatalf("unsafe failure was not a fixed Manual boundary: %v", err)
+			}
+			serialized, marshalErr := json.Marshal(records)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			if strings.Contains(output.String()+string(serialized), private) {
+				t.Fatal("arbitrary private payload reached events or stored step diagnostics")
+			}
+			for cause := err; cause != nil; cause = errors.Unwrap(cause) {
+				if strings.Contains(cause.Error(), private) {
+					t.Fatal("arbitrary private error was retained as a cause")
+				}
 			}
 		})
 	}
