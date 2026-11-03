@@ -8,14 +8,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/apps/arr"
 	"github.com/ajnart/self-host/internal/apps/arrtest"
-	"github.com/ajnart/self-host/internal/apps/lidarr"
 	"github.com/ajnart/self-host/internal/apps/porttest"
 	"github.com/ajnart/self-host/internal/apps/qbittorrent"
 	"github.com/ajnart/self-host/internal/apps/sabnzbd"
@@ -145,9 +145,11 @@ type sabnzbdLinkExecutor struct {
 	helpers.Executor
 	distinct, missingPrerequisites    bool
 	downloadService, consumerDownload string
+	calls                             atomic.Int64
 }
 
 func (e *sabnzbdLinkExecutor) Exec(_ context.Context, service string, _ map[string]string, args ...string) (system.Result, error) {
+	e.calls.Add(1)
 	targetService := e.downloadService
 	if targetService == "" {
 		targetService = "sabnzbd"
@@ -191,20 +193,16 @@ func sabnzbdConsumerLink(t *testing.T, consumer app.App) app.Link {
 }
 
 func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T) {
-	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
-		t.Run(consumer.Info().ID, func(t *testing.T) {
-			id := consumer.Info().ID
-			protocol := "usenet"
-			if id == "lidarr" {
-				protocol = "UsenetDownloadProtocol"
-			}
+	for _, source := range sabnzbdConsumerSources() {
+		t.Run(source.name(), func(t *testing.T) {
+			id := source.id
 			backend := arrtest.NewArr(id)
 			backend.SeedRootFolder("/data/media/library")
 			key := "fixture-full-key"
 			backend.AcceptDownloadProvider = func(client map[string]any) bool {
-				return client["implementation"] == "Sabnzbd" && client["protocol"] == protocol && arrtest.Field(client, "host") == "sabnzbd" && arrtest.Field(client, "port") == float64(8080) && arrtest.Field(client, "apiKey") == key
+				return client["implementation"] == "Sabnzbd" && client["protocol"] == source.protocol && arrtest.Field(client, "host") == "sabnzbd" && arrtest.Field(client, "port") == float64(8080) && (arrtest.Field(client, "apiKey") == key || arrtest.Field(client, "apiKey") == "********")
 			}
-			server := httptest.NewServer(backend.Handler())
+			server := httptest.NewServer(sabnzbdCaptureWire(t, source, sabnzbdSourceHandler(t, backend, source)))
 			t.Cleanup(server.Close)
 			fixture := newSabnzbdLinkFixture()
 			target := httptest.NewServer(fixture.handler(t))
@@ -216,16 +214,25 @@ func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T
 			from.Config.Exec = exec
 			to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
 			to.ContainerPort, to.Port, to.Config.Exec = 8080, 18080, exec
-			link := sabnzbdConsumerLink(t, consumer)
+			targetSecrets := &sabnzbdTrackedSecrets{values: secrets}
+			to.Config.Secrets = targetSecrets
+			link := sabnzbdConsumerLink(t, source.consumer)
 			if err := link.Apply(context.Background(), from, to); err != nil {
 				t.Fatal(err)
 			}
 			owned := backend.DownloadClients()[0]
-			if owned["protocol"] != protocol {
+			if owned["protocol"] != source.protocol {
 				t.Fatal("SABnzbd resource did not retain its consumer's native protocol")
 			}
 			firstID := owned["id"]
-			field := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[id]
+			var ownership struct {
+				Fingerprint string `json:"fingerprint"`
+			}
+			if err := json.Unmarshal([]byte(secrets[from.Key("link_sabnzbd_resource")]), &ownership); err != nil || ownership.Fingerprint == "" {
+				t.Fatal("creation did not record its connection fingerprint", err)
+			}
+			secrets[from.Key("link_sabnzbd_resource")] = `{"id":` + strconv.Itoa(firstID.(int)) + `,"target":"sabnzbd","endpoint":"sabnzbd","fingerprint":"` + ownership.Fingerprint + `"}`
+			field := source.field
 			for _, raw := range owned["fields"].([]any) {
 				entry := raw.(map[string]any)
 				if entry["name"] == field {
@@ -233,11 +240,22 @@ func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T
 				}
 			}
 			owned["priority"] = float64(9)
+			owned["removeCompletedDownloads"] = false
+			record := secrets[from.Key("link_sabnzbd_resource")]
 			if err := link.Apply(context.Background(), from, to); err != nil {
 				t.Fatal(err)
 			}
-			if len(backend.DownloadClients()) != 1 || backend.DownloadClientTests() != 3 || owned["id"] != firstID || arrtest.Field(owned, field) != "chosen" || owned["priority"] != float64(9) {
+			if len(backend.DownloadClients()) != 1 || backend.DownloadClientTests() != 3 || owned["id"] != firstID || arrtest.Field(owned, field) != "chosen" || owned["priority"] != float64(9) || owned["removeCompletedDownloads"] != false || secrets[from.Key("link_sabnzbd_resource")] != record {
 				t.Fatal("rerun changed owned ID/category/options or skipped native verification")
+			}
+			for _, raw := range owned["fields"].([]any) {
+				entry := raw.(map[string]any)
+				if entry["name"] == "apiKey" {
+					entry["value"] = "********"
+				}
+			}
+			if err := link.Apply(context.Background(), from, to); err != nil || secrets[from.Key("link_sabnzbd_resource")] != record {
+				t.Fatal("masked credentials changed the old ownership record", err)
 			}
 			fixture.mu.Lock()
 			fixture.key = "renewed-accepted-key"
@@ -247,8 +265,11 @@ func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T
 			if err := link.Apply(context.Background(), from, to); err != nil {
 				t.Fatal(err)
 			}
-			if current := backend.DownloadClients()[0]; current["id"] != firstID || arrtest.Field(current, "apiKey") != key || arrtest.Field(current, field) != "chosen" {
+			if current := backend.DownloadClients()[0]; current["id"] != firstID || current["protocol"] != source.protocol || arrtest.Field(current, "apiKey") != key || arrtest.Field(current, field) != "chosen" || current["priority"] != float64(9) || current["removeCompletedDownloads"] != false {
 				t.Fatal("accepted target credential update replaced its owned ID or category")
+			}
+			if secrets[from.Key("link_sabnzbd_resource")] == record {
+				t.Fatal("accepted credential update did not advance its existing fingerprint")
 			}
 			testsBeforeFailure := backend.DownloadClientTests()
 			fixture.mu.Lock()
@@ -261,26 +282,44 @@ func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T
 			if backend.DownloadClientTests() != testsBeforeFailure || recorder.Status("link-sabnzbd") != stepstatus.StepManual || !strings.Contains(recorder.Hint(), "self-host setup sabnzbd") {
 				t.Fatal("authentication prerequisite ran native test or lost recovery")
 			}
+			delete(secrets, "SABNZBD_API_KEY")
+			target.Close()
+			targetSecrets.reads.Store(0)
+			exec.calls.Store(0)
 			if err := link.Remove(context.Background(), from, to); err != nil {
 				t.Fatal(err)
 			}
-			if len(backend.DownloadClients()) != 0 {
+			if len(backend.DownloadClients()) != 0 || targetSecrets.reads.Load() != 0 || targetSecrets.writes.Load() != 0 || exec.calls.Load() != 0 || backend.DownloadClientTests() != testsBeforeFailure || secrets[from.Key("link_sabnzbd_resource")] != "" {
 				t.Fatal("recorded resource was not removed without target readiness")
 			}
 			fixture.mu.Lock()
 			fixture.rejected = false
 			fixture.mu.Unlock()
+			target = httptest.NewServer(fixture.handler(t))
+			t.Cleanup(target.Close)
+			to.Config.BaseURL, to.Config.HTTP = target.URL, target.Client()
+			secrets["SABNZBD_API_KEY"] = key
 			if err := link.Apply(context.Background(), from, to); err != nil {
 				t.Fatal(err)
 			}
 			if len(backend.DownloadClients()) != 1 || backend.DownloadClients()[0]["id"] == firstID {
 				t.Fatal("reinstall reclaimed an old ID")
 			}
-			backend.SeedDownloadClient(map[string]any{"name": "Personal SABnzbd", "implementation": "Sabnzbd", "fields": []any{map[string]any{"name": "host", "value": "sabnzbd"}}})
+			personalData, err := json.Marshal(backend.DownloadClients()[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			var personal map[string]any
+			if err := json.Unmarshal(personalData, &personal); err != nil {
+				t.Fatal(err)
+			}
+			personal["name"] = "Personal SABnzbd"
+			backend.SeedDownloadClient(personal)
+			personalID := personal["id"]
 			if err := link.Remove(context.Background(), from, to); err != nil {
 				t.Fatal(err)
 			}
-			if clients := backend.DownloadClients(); len(clients) != 1 || clients[0]["name"] != "Personal SABnzbd" {
+			if clients := backend.DownloadClients(); len(clients) != 1 || clients[0]["id"] != personalID || clients[0]["name"] != "Personal SABnzbd" || clients[0]["protocol"] != source.protocol || arrtest.Field(clients[0], field) != source.category {
 				t.Fatal("removal changed a same-target person-owned client")
 			}
 			if err := link.Apply(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) {
@@ -353,16 +392,16 @@ func TestSABnzbdPathResolutionAndManualPrerequisites(t *testing.T) {
 }
 
 func TestSABnzbdExistingLegacyMappingForEachConsumer(t *testing.T) {
-	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
+	for _, source := range sabnzbdConsumerSources() {
 		for _, mappingHost := range []string{"selected-sabnzbd", "SELECTED-SABNZBD", "selected-sabnzbd.", "sabnzbd"} {
-			t.Run(consumer.Info().ID+"/"+mappingHost, func(t *testing.T) {
-				id := consumer.Info().ID
+			t.Run(source.name()+"/"+mappingHost, func(t *testing.T) {
+				id := source.id
 				backend := arrtest.NewArr(id)
 				backend.SeedRootFolder("/media/library")
 				backend.AcceptDownloadProvider = func(client map[string]any) bool {
 					return client["implementation"] == "Sabnzbd" && arrtest.Field(client, "apiKey") == "fixture-full-key"
 				}
-				handler := backend.Handler()
+				handler := sabnzbdSourceHandler(t, backend, source)
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if strings.HasSuffix(r.URL.Path, "/remotepathmapping") {
 						if r.Method != "GET" || r.Header.Get("X-Api-Key") != backend.Key {
@@ -386,7 +425,7 @@ func TestSABnzbdExistingLegacyMappingForEachConsumer(t *testing.T) {
 				from.Config.Exec = executor
 				to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "selected-sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
 				to.ContainerPort, to.Config.Exec = 8080, executor
-				err := sabnzbdConsumerLink(t, consumer).Apply(context.Background(), from, to)
+				err := sabnzbdConsumerLink(t, source.consumer).Apply(context.Background(), from, to)
 				if mappingHost == "selected-sabnzbd." || mappingHost == "sabnzbd" {
 					if !errors.Is(err, helpers.ErrManual) || backend.DownloadClientTests() != 0 || len(backend.DownloadClients()) != 0 || secrets[from.Key("link_sabnzbd_resource")] != "" {
 						t.Fatal("nonmatching provider host reached a native test or ownership write", err)
@@ -405,15 +444,15 @@ func TestSABnzbdExistingLegacyMappingForEachConsumer(t *testing.T) {
 }
 
 func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
-	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
+	for _, source := range sabnzbdConsumerSources() {
 		for _, scenario := range []string{"category", "library", "legacy", "upload-key", "missing-folders", "relative-incomplete", "relative-complete", "missing-default-category"} {
-			t.Run(consumer.Info().ID+"/"+scenario, func(t *testing.T) {
-				id := consumer.Info().ID
+			t.Run(source.name()+"/"+scenario, func(t *testing.T) {
+				id := source.id
 				backend := arrtest.NewArr(id)
 				if scenario != "library" {
 					backend.SeedRootFolder("/data/media/library")
 				}
-				server := httptest.NewServer(backend.Handler())
+				server := httptest.NewServer(sabnzbdSourceHandler(t, backend, source))
 				t.Cleanup(server.Close)
 				fixture := newSabnzbdLinkFixture()
 				fixture.missing = scenario == "category"
@@ -437,7 +476,7 @@ func TestSABnzbdConsumerManualBoundariesPrecedeNativeTests(t *testing.T) {
 				from.Config.Exec = executor
 				to := porttest.New(t, porttest.Options{App: "sabnzbd", Service: "sabnzbd", Secrets: secrets}, target, &porttest.Recorder{})
 				to.ContainerPort, to.Config.Exec = 8080, executor
-				if err := sabnzbdConsumerLink(t, consumer).Apply(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) {
+				if err := sabnzbdConsumerLink(t, source.consumer).Apply(context.Background(), from, to); !errors.Is(err, helpers.ErrManual) {
 					t.Fatal("unsafe prerequisite was not Manual", err)
 				}
 				if backend.DownloadClientTests() != 0 || len(backend.DownloadClients()) != 0 || secrets[from.Key("link_sabnzbd_resource")] != "" || recorder.Status("link-sabnzbd") != stepstatus.StepManual || !strings.Contains(recorder.Hint(), "Setup") && !strings.Contains(recorder.Hint(), "setup") {
@@ -481,11 +520,11 @@ func (r *sabnzbdLinkRunner) Run(ctx context.Context, cmd system.Cmd) (system.Res
 }
 
 func TestSABnzbdProductionSetupSchedulerBothOrdersAndLateReadiness(t *testing.T) {
-	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
+	for _, source := range sabnzbdConsumerSources() {
 		for _, order := range []string{"consumer-first", "target-first", "unready-target"} {
-			t.Run(consumer.Info().ID+"/"+order, func(t *testing.T) {
-				e := newEnv(t, consumer, sabnzbd.App{}, qbittorrent.App{})
-				id := consumer.Info().ID
+			t.Run(source.name()+"/"+order, func(t *testing.T) {
+				e := newEnv(t, source.consumer, sabnzbd.App{}, qbittorrent.App{})
+				id := source.id
 				backend := e.Sonarr
 				if id == "radarr" {
 					backend = e.Radarr
@@ -493,8 +532,8 @@ func TestSABnzbdProductionSetupSchedulerBothOrdersAndLateReadiness(t *testing.T)
 				if id == "lidarr" {
 					backend = arrtest.NewArr(id)
 					backend.SeedRootFolder("/data/media/music")
-					e.Serve(id, backend.Handler())
 				}
+				e.Serve(id, sabnzbdCaptureWire(t, source, sabnzbdSourceHandler(t, backend, source)))
 				f := newSabnzbdLinkFixture()
 				f.rejected = order == "unready-target"
 				e.Serve("sabnzbd", f.handler(t))
@@ -517,7 +556,7 @@ func TestSABnzbdProductionSetupSchedulerBothOrdersAndLateReadiness(t *testing.T)
 				}
 				backend.AcceptDownloadProvider = func(client map[string]any) bool {
 					if client["implementation"] == "Sabnzbd" {
-						return arrtest.Field(client, "apiKey") == f.key && arrtest.Field(client, "host") == "sabnzbd" && arrtest.Field(client, "port") == float64(8080)
+						return client["protocol"] == source.protocol && arrtest.Field(client, "apiKey") == f.key && arrtest.Field(client, "host") == "sabnzbd" && arrtest.Field(client, "port") == float64(8080)
 					}
 					user, password := e.QBittorrent.Credentials()
 					return arrtest.Field(client, "host") == "qbittorrent" && arrtest.Field(client, "username") == user && arrtest.Field(client, "password") == password
@@ -556,19 +595,37 @@ func TestSABnzbdProductionSetupSchedulerBothOrdersAndLateReadiness(t *testing.T)
 				if len(backend.DownloadClients()) != 2 || backend.DownloadClientTests() == 0 {
 					t.Fatal("production Setup scheduler did not create both download clients")
 				}
-				var survivor any
+				var survivor, firstSAB any
 				for _, client := range backend.DownloadClients() {
 					if client["implementation"] == "QBittorrent" {
 						survivor = client["id"]
+					} else if client["implementation"] == "Sabnzbd" {
+						firstSAB = client["id"]
 					}
+				}
+				if survivor == nil || firstSAB == nil {
+					t.Fatal("scheduler omitted an owned download-client identity")
 				}
 				result := e.Run("remove", "sabnzbd", "--yes", "--json")
 				if result.Code != 0 {
 					t.Fatal(result.Out)
 				}
 				clients := backend.DownloadClients()
-				if len(clients) != 1 || clients[0]["implementation"] != "QBittorrent" || clients[0]["id"] != survivor {
+				if len(clients) != 1 || clients[0]["implementation"] != "QBittorrent" || clients[0]["id"] != survivor || clients[0]["protocol"] != source.torrentProtocol {
 					t.Fatal("SAB removal changed the qBittorrent survivor")
+				}
+				result = e.Run("setup", id, "--json")
+				if result.Code != 0 || len(backend.DownloadClients()) != 1 || backend.DownloadClients()[0]["id"] != survivor {
+					t.Fatal("consumer Setup did not retain its independent qBittorrent Link")
+				}
+				result = e.Run("install", "sabnzbd", "--yes", "--json")
+				if result.Code != 0 || len(backend.DownloadClients()) != 2 {
+					t.Fatal("production scheduler did not reconnect the reinstalled SABnzbd", result.Out)
+				}
+				for _, client := range backend.DownloadClients() {
+					if client["implementation"] == "QBittorrent" && client["id"] != survivor || client["implementation"] == "Sabnzbd" && (client["id"] == firstSAB || client["protocol"] != source.protocol) {
+						t.Fatal("scheduler reinstall replaced a survivor or reused the old SABnzbd resource")
+					}
 				}
 				if _, err := os.Stat(filepath.Join(e.AppDir("sabnzbd"), "config", "sabnzbd.ini")); err != nil {
 					t.Fatal("target data was removed")
