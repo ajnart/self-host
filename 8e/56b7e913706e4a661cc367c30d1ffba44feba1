@@ -1,0 +1,39 @@
+internal/apps/homarr/external_targets.go
+  s_8798d885e6fc01::t_bf22b6fba02af1 13-14
+internal/apps/homarr/target_unifi_controller.go
+  s_ba131a80713c58::t_ed6717a0164f6d 1-140
+internal/apps/homarr/target_unifi_controller_test.go
+  s_3708f40cecd7da::t_593aebea310aea 1-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e56b7e913706e4a661cc367c30d1ffba44feba1",
+  "prompts": {},
+  "sessions": {
+    "s_3708f40cecd7da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e176a8-21e9-423d-9718-ddb371c05e43",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_8798d885e6fc01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646a8082-362d-4d41-b3ea-03e1433e4366",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_ba131a80713c58": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "121b85d1-cd18-478c-85ef-57f67eee4d67",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
