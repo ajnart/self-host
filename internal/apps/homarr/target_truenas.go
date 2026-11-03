@@ -34,7 +34,8 @@ func truenasExternalTarget(c helpers.ExternalConnection) (target, error) {
 		},
 		preflight: func(context.Context, *helpers.H, *helpers.H) error { return nil },
 		verify: func(ctx context.Context, from, _ *helpers.H, integrationID string) error {
-			if _, err := apiKeyWrite(ctx, from, "integration.testConnection", map[string]any{"id": integrationID}); err != nil {
+			tested, err := apiKeyProcedure(ctx, from, "integration.testConnection", map[string]any{"id": integrationID})
+			if result, ok := tested.(map[string]any); err != nil || !ok || result["success"] != true {
 				return &helpers.ManualError{Hint: truenasDataRecovery}
 			}
 			value, err := apiKeyProcedure(ctx, from, "widget.healthMonitoring.getSystemHealthStatus", map[string]any{"integrationIds": []string{integrationID}})

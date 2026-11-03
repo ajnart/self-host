@@ -161,12 +161,12 @@ func TestTrueNASVerifyTestsStoredCredentialsBeforeReadingData(t *testing.T) {
 			var input struct {
 				JSON map[string]any `json:"json"`
 			}
-			json.NewDecoder(r.Body).Decode(&input)
-			if input.JSON["id"] != "owned-truenas" || len(input.JSON) != 1 {
-				t.Error("connection test did not use only the owned integration ID")
+			json.Unmarshal([]byte(r.URL.Query().Get("input")), &input)
+			if r.Method != http.MethodGet || input.JSON["id"] != "owned-truenas" || len(input.JSON) != 1 {
+				t.Error("connection test was not a query for only the owned integration ID")
 			}
 			if !valid {
-				w.WriteHeader(http.StatusUnauthorized)
+				externalConnectionReply(w, map[string]any{"success": false, "error": "authorization"})
 				return
 			}
 			externalConnectionReply(w, map[string]any{"success": true})
