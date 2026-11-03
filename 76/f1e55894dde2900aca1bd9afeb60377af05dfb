@@ -1,0 +1,93 @@
+docs/catalog/traps/plant-it.md
+  s_55b5a31b8144fe::t_e51402e2c3679a 1-19
+internal/apps/homarr/homarr_test.go
+  s_2150b21c54582b::t_829afa5e6f6a2e 245
+internal/apps/homarr/links.go
+  s_0b63679bfab768::t_e74834a611852d 162-164
+internal/apps/homarr/target_plantit.go
+  s_2150b21c54582b::t_12093520f9ded3 1-110
+internal/apps/homarr/target_plantit_test.go
+  s_cc0d0c7c6cfa32::t_b6ad8aebb1fa8a 1-226
+internal/apps/homarr/targets.go
+  s_3fa5eebb7c1ab2::t_df99cb2c28ece2 44
+internal/apps/plantit/plantit.go
+  s_0b63679bfab768::t_a28918d8c294f5 1-276
+internal/apps/plantit/plantit_test.go
+  s_4924e985f5fca4::t_0819d8e110a78e 1-246
+internal/catalog/batch_mfa2.go
+  s_27fdae60a6a245::t_c6d712e975e4d1 6,20
+internal/catalog/catalog.go
+  s_24f5d99ae33652::t_532a18ffbc6141 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76f1e55894dde2900aca1bd9afeb60377af05dfb",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_2150b21c54582b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00f45e9d-1d2b-4fb4-8df0-e795e80b5f26",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_24f5d99ae33652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a6ee58b-155d-442c-bbc3-c476e21a9a21",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_27fdae60a6a245": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51d15e0d-7a54-4805-b528-1ecabca16967",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_3fa5eebb7c1ab2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36a1808e-e8e0-4b26-b734-197a1a29fe1e",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_4924e985f5fca4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c77abccb-11b5-44c5-bf2a-72ffef006666",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_55b5a31b8144fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a22d04dd-7d16-4c46-98f1-b94d3e92ce32",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_cc0d0c7c6cfa32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c08a3ced-de4f-4c33-9562-fa6b3677a90d",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
