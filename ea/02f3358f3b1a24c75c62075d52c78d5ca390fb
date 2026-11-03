@@ -1,0 +1,59 @@
+docs/catalog/traps/xteve.md
+  s_0b63679bfab768::t_0c720745fa6d92 1-19
+internal/apps/homarr/target_xteve.go
+  s_0b63679bfab768::t_2d7b966c53a2ff 1-52
+internal/apps/homarr/target_xteve_test.go
+  s_3708f40cecd7da::t_d0d4d7d707634d 1-217
+internal/apps/homarr/targets.go
+  s_0b63679bfab768::t_3c8ca213a1df2b 44
+internal/apps/xteve/api.go
+  s_3fa5eebb7c1ab2::t_7d2df4898c2fbd 1-155
+internal/apps/xteve/xteve.go
+  s_0b63679bfab768::t_d3e57575e95154 1-93
+internal/apps/xteve/xteve_test.go
+  s_3fa5eebb7c1ab2::t_81e90722e8281b 1-279
+internal/catalog/batch_misc2.go
+  s_9daf79148075b3::t_803be4a1ef6fb2 15,32
+internal/catalog/catalog.go
+  s_9daf79148075b3::t_069fc30b1bc2e1 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea02f3358f3b1a24c75c62075d52c78d5ca390fb",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_3708f40cecd7da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e176a8-21e9-423d-9718-ddb371c05e43",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_3fa5eebb7c1ab2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36a1808e-e8e0-4b26-b734-197a1a29fe1e",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_9daf79148075b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8af38df1-82e2-41bf-8a95-a5c16566dc3d",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
