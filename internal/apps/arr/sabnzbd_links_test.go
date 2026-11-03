@@ -194,11 +194,15 @@ func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T
 	for _, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
 		t.Run(consumer.Info().ID, func(t *testing.T) {
 			id := consumer.Info().ID
+			protocol := "usenet"
+			if id == "lidarr" {
+				protocol = "UsenetDownloadProtocol"
+			}
 			backend := arrtest.NewArr(id)
 			backend.SeedRootFolder("/data/media/library")
 			key := "fixture-full-key"
 			backend.AcceptDownloadProvider = func(client map[string]any) bool {
-				return client["implementation"] == "Sabnzbd" && arrtest.Field(client, "host") == "sabnzbd" && arrtest.Field(client, "port") == float64(8080) && arrtest.Field(client, "apiKey") == key
+				return client["implementation"] == "Sabnzbd" && client["protocol"] == protocol && arrtest.Field(client, "host") == "sabnzbd" && arrtest.Field(client, "port") == float64(8080) && arrtest.Field(client, "apiKey") == key
 			}
 			server := httptest.NewServer(backend.Handler())
 			t.Cleanup(server.Close)
@@ -217,6 +221,9 @@ func TestSABnzbdLinksAllThreeConsumersPreserveOwnedIDsAndCategories(t *testing.T
 				t.Fatal(err)
 			}
 			owned := backend.DownloadClients()[0]
+			if owned["protocol"] != protocol {
+				t.Fatal("SABnzbd resource did not retain its consumer's native protocol")
+			}
 			firstID := owned["id"]
 			field := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[id]
 			for _, raw := range owned["fields"].([]any) {

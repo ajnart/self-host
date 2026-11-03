@@ -11,8 +11,16 @@ import (
 )
 
 func SABnzbdLink(api, categoryField, category string) app.Link {
-	p := providerLink{api: api, path: "/downloadclient", target: "sabnzbd", implementation: "Sabnzbd", name: "SABnzbd", endpointField: "host", categoryField: categoryField, category: category, configContract: "SabnzbdSettings", protocol: "usenet"}
+	protocol := "usenet"
+	if api == V1 {
+		protocol = "UsenetDownloadProtocol"
+	}
+	p := providerLink{api: api, path: "/downloadclient", target: "sabnzbd", implementation: "Sabnzbd", name: "SABnzbd", endpointField: "host", categoryField: categoryField, category: category, configContract: "SabnzbdSettings", protocol: protocol}
 	p.connectionFields = func(from, to *helpers.H) ([]connectionField, error) {
+		expected := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[from.App]
+		if expected == "" || expected != categoryField || from.App == "lidarr" && api != V1 || from.App != "lidarr" && api != V3 {
+			return nil, p.manual(from, "the SABnzbd consumer API or category schema is unsupported")
+		}
 		key := to.Secret(to.Key("api_key"))
 		if key == "" || to.Service == "" || to.ContainerPort <= 0 || to.ContainerPort > 65535 {
 			return nil, &helpers.ManualError{Hint: "Run self-host setup sabnzbd to verify its existing full API key and internal Project Address, then self-host setup " + from.App + ". Preserve credentials and Access; the NZB upload-only key cannot configure this Link."}
