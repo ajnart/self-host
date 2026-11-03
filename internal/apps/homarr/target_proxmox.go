@@ -63,7 +63,7 @@ func proxmoxExternalTarget(c helpers.ExternalConnection) (target, error) {
 	}, nil
 }
 
-func proxmoxMetric(value any, integral bool) (float64, bool) {
+func measuredNumber(value any, integral bool) (float64, bool) {
 	number, ok := value.(float64)
 	return number, ok && !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0 && (!integral || number == math.Trunc(number) && number <= 1<<53-1)
 }
@@ -100,11 +100,11 @@ func proxmoxValidateNative(value any, selectedNode string) error {
 		}
 		cpu, _ := node["cpu"].(map[string]any)
 		memory, _ := node["memory"].(map[string]any)
-		usage, usageOK := proxmoxMetric(cpu["utilization"], false)
-		cores, coresOK := proxmoxMetric(cpu["cores"], true)
-		used, usedOK := proxmoxMetric(memory["used"], true)
-		total, totalOK := proxmoxMetric(memory["total"], true)
-		_, uptimeOK := proxmoxMetric(node["uptime"], true)
+		usage, usageOK := measuredNumber(cpu["utilization"], false)
+		cores, coresOK := measuredNumber(cpu["cores"], true)
+		used, usedOK := measuredNumber(memory["used"], true)
+		total, totalOK := measuredNumber(memory["total"], true)
+		_, uptimeOK := measuredNumber(node["uptime"], true)
 		if !usageOK || usage > 1 || !coresOK || cores == 0 || !usedOK || !totalOK || total == 0 || used > total || !uptimeOK {
 			return invalid()
 		}
@@ -119,7 +119,7 @@ func proxmoxValidateNative(value any, selectedNode string) error {
 }
 
 func proxmoxValidateStats(sample statsSample) error {
-	count, valid := proxmoxMetric(sample.values["nodes"], true)
+	count, valid := measuredNumber(sample.values["nodes"], true)
 	retry, retryOK := sample.retryAt.(float64)
 	if sample.units["nodes"] != "count" || !valid || count == 0 || !retryOK || retry != 0 || !validStatsTimestamp(sample.updatedAt) || sample.updatedAt > sample.completedAt+5000 || sample.updatedAt < sample.startedAt-60000 {
 		return &helpers.ManualError{Hint: "Proxmox Stats require a positive measured node count, count units and one successful genuinely advancing refresh with valid clock/retry metadata. Preserve the existing token and retry Homarr Setup after the native transport hold is resolved; do not invent nodes or use cached/no-op data as acceptance."}

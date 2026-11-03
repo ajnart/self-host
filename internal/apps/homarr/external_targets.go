@@ -43,6 +43,8 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 		return scrutinyExternalTarget(c)
 	case "readarr":
 		return readarrExternalTarget(c)
+	case "syncthingRelay":
+		return syncthingRelayExternalTarget(c)
 	}
 	return target{}, errors.New("unsupported external integration kind; use a supported exact Homarr kind")
 }
