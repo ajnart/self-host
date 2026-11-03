@@ -20,6 +20,8 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 		return opnsenseExternalTarget(c)
 	case "netalertx":
 		return netalertxExternalTarget(c)
+	case "unraid":
+		return unraidExternalTarget(c)
 	}
 	return target{}, errors.New("unsupported external integration kind; use a supported exact Homarr kind")
 }
