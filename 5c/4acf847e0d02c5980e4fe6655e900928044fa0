@@ -1,0 +1,18 @@
+internal/apps/servarr/downloadclients.go
+  h_d6e478ca18e517 18-58,60,69,77-116,120-159,166-167,171,178-182,310
+internal/apps/servarr/downloadclients_test.go
+  h_d6e478ca18e517 9-10,12,34-40,52,63-69,71,76-84,96-100,110-115,129-131,138,140,142,144-153,159-165,167,169,172,426-828
+internal/apps/servarr/links.go
+  h_d6e478ca18e517 67,223-229,237,251-261,505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c4acf847e0d02c5980e4fe6655e900928044fa0",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
