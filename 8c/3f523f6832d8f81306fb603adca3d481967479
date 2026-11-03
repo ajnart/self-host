@@ -1,0 +1,32 @@
+dcm/src/data/selfhost.json
+  h_d6e478ca18e517 2017-2032,2087,3623-3638,3693,3951-3958,4015,4116-4131,4186
+docs/arr-sabnzbd-contract.md
+  h_d6e478ca18e517 7,34,48-49
+docs/catalog/adding-apps.md
+  h_d6e478ca18e517 13
+docs/catalog/media-setup.md
+  h_d6e478ca18e517 39-40
+internal/apps/arr/downloadclient_registration_test.go
+  h_d6e478ca18e517 1-29
+internal/apps/deluge/links_test.go
+  h_d6e478ca18e517 879
+internal/apps/nzbget/links_scheduler_test.go
+  h_d6e478ca18e517 50,52-53
+internal/apps/servarr/downloadclients.go
+  h_d6e478ca18e517 15-21
+internal/apps/servarr/transmission_scheduler_test.go
+  h_d6e478ca18e517 124
+site/src/data/catalog.json
+  h_d6e478ca18e517 524-528,531-535,868-872,875-879,945-946,952-953,978-982,985-989
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c3f523f6832d8f81306fb603adca3d481967479",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
