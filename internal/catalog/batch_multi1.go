@@ -11,6 +11,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/keycloak"
 	"github.com/ajnart/self-host/internal/apps/linkwarden"
 	"github.com/ajnart/self-host/internal/apps/mealie"
+	"github.com/ajnart/self-host/internal/apps/romm"
 )
 
 func init() {
@@ -25,5 +26,6 @@ func init() {
 		keycloak.App{},
 		linkwarden.App{},
 		mealie.App{},
+		romm.App{},
 	)
 }

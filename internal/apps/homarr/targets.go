@@ -44,6 +44,7 @@ func targets() []target {
 		peanutTarget(),
 		tdarrTarget(),
 		tracearrTarget(),
+		rommTarget(),
 		slskdTarget(),
 		wudTarget(),
 		patchmonTarget(),
