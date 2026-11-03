@@ -1,0 +1,20 @@
+docs/homarr-unifi-controller-proof.md
+  h_d6e478ca18e517 1-70
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 31-32
+internal/apps/homarr/target_unifi_controller.go
+  h_d6e478ca18e517 1-140
+internal/apps/homarr/target_unifi_controller_test.go
+  h_d6e478ca18e517 1-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07de4fab2042803f2dd5867b9174203028fbb72b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
