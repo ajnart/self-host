@@ -1,6 +1,7 @@
 package homarr
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -161,5 +162,86 @@ func TestUptimeKumaReviewRequiresNativeSampleTimestamp(t *testing.T) {
 		if _, err := uptimeKumaTarget().prepare(t.Context(), from, to); err == nil || f.mutations != 0 {
 			t.Fatalf("invalid native sample timestamp was accepted: err=%v writes=%d", err, f.mutations)
 		}
+	}
+}
+
+func TestUptimeKumaAdmittedAgeDerivedStatusBoundaries(t *testing.T) {
+	for _, policy := range []struct {
+		name      string
+		intervals []time.Duration
+		cutoff    time.Duration
+	}{
+		{"ten-minute floor", []time.Duration{time.Minute}, 10 * time.Minute},
+		{"five median intervals", []time.Duration{3 * time.Minute}, 15 * time.Minute},
+		{"upper median of even intervals", []time.Duration{time.Hour, time.Minute, 3 * time.Minute, 2 * time.Minute}, 15 * time.Minute},
+		{"median of odd intervals", []time.Duration{30 * time.Minute, time.Minute, 3 * time.Minute}, 15 * time.Minute},
+		{"single heartbeat fallback", nil, 24 * time.Hour},
+	} {
+		for _, offset := range []time.Duration{-time.Millisecond, 0, time.Millisecond} {
+			for _, status := range []string{"up", "stale"} {
+				t.Run(fmt.Sprintf("%s/offset=%s/status=%s", policy.name, offset, status), func(t *testing.T) {
+					f, from, to := uptimeKumaNewContractFixture(t, uptimeKumaStatusPages)
+					sampledAt := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+					lastCheck := sampledAt.Add(-policy.cutoff - offset).UnixMilli()
+					times := make([]int64, len(policy.intervals)+1)
+					times[len(times)-1] = lastCheck
+					for index := len(policy.intervals) - 1; index >= 0; index-- {
+						times[index] = times[index+1] - policy.intervals[index].Milliseconds()
+					}
+					beats := make([]any, len(times))
+					for index, timestamp := range times {
+						beats[index] = map[string]any{"status": "up", "time": timestamp, "ping": 10}
+					}
+					monitor := uptimeKumaModernMonitors(f.results[0].(map[string]any)["statusPage"].(map[string]any))[0].(map[string]any)
+					monitor["status"], monitor["lastCheckAt"], monitor["statusSince"], monitor["uptime24h"], monitor["heartbeats"] = status, lastCheck, nil, nil, beats
+					from.Now = func() time.Time { return sampledAt.Add(365 * 24 * time.Hour) }
+					_, err := uptimeKumaTarget().prepare(t.Context(), from, to)
+					valid := status == "up" && offset <= 0 || status == "stale" && offset > 0
+					if (err == nil) != valid || f.mutations != 0 || f.stats.catalogs != 0 || f.stats.refreshes != 0 {
+						t.Fatalf("age-derived status valid=%v err=%v writes=%d Stats=%d/%d", valid, err, f.mutations, f.stats.catalogs, f.stats.refreshes)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestUptimeKumaAdmittedOldAndFreshStatusSince(t *testing.T) {
+	for _, scenario := range []struct {
+		name        string
+		age         time.Duration
+		latest      string
+		status      string
+		statusSince bool
+		valid       bool
+	}{
+		{"old up is not healthy", 72 * time.Hour, "up", "up", false, false},
+		{"old up becomes stale", 72 * time.Hour, "up", "stale", false, true},
+		{"fresh stale is not valid", time.Minute, "up", "stale", false, false},
+		{"old stale clears transition", 72 * time.Hour, "down", "stale", false, true},
+		{"old stale cannot retain transition", 72 * time.Hour, "down", "stale", true, false},
+		{"fresh down retains transition", time.Minute, "down", "down", true, true},
+		{"fresh down cannot omit transition", time.Minute, "down", "down", false, false},
+		{"fresh pending remains pending", time.Minute, "pending", "pending", true, true},
+		{"fresh maintenance remains maintenance", time.Minute, "maintenance", "maintenance", true, true},
+		{"fresh unknown remains unknown", time.Minute, "unknown", "unknown", true, true},
+		{"old pending becomes stale", 72 * time.Hour, "pending", "stale", false, true},
+		{"old unknown cannot avoid stale", 72 * time.Hour, "unknown", "unknown", true, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			f, from, to := uptimeKumaNewContractFixture(t, uptimeKumaStatusPages)
+			sampledAt := time.Date(2026, time.November, 2, 12, 0, 0, 0, time.UTC)
+			lastCheck := sampledAt.Add(-scenario.age).UnixMilli()
+			monitor := uptimeKumaModernMonitors(f.results[0].(map[string]any)["statusPage"].(map[string]any))[0].(map[string]any)
+			monitor["status"], monitor["lastCheckAt"], monitor["statusSince"], monitor["uptime24h"] = scenario.status, lastCheck, nil, nil
+			if scenario.statusSince {
+				monitor["statusSince"] = lastCheck
+			}
+			monitor["heartbeats"] = []any{map[string]any{"status": "up", "time": lastCheck - 60_000, "ping": 20}, map[string]any{"status": scenario.latest, "time": lastCheck, "ping": 10}}
+			_, err := uptimeKumaTarget().prepare(t.Context(), from, to)
+			if (err == nil) != scenario.valid || f.mutations != 0 || f.stats.catalogs != 0 || f.stats.refreshes != 0 {
+				t.Fatalf("statusSince valid=%v err=%v writes=%d Stats=%d/%d", scenario.valid, err, f.mutations, f.stats.catalogs, f.stats.refreshes)
+			}
+		})
 	}
 }

@@ -428,8 +428,17 @@ func uptimeKumaValidMonitor(monitor uptimeKumaNativeMonitor, sampledAt int64) bo
 	if !hasCheck || lastCheck != *latest.Time || !reflect.DeepEqual(monitor.Ping, latest.Ping) {
 		return false
 	}
-	if *monitor.Status == "stale" {
-		return !hasSince
+	staleAfter := float64((24 * time.Hour) / time.Millisecond)
+	if len(beats) > 1 {
+		intervals := make([]float64, len(beats)-1)
+		for index := 1; index < len(beats); index++ {
+			intervals[index-1] = *beats[index].Time - *beats[index-1].Time
+		}
+		slices.Sort(intervals)
+		staleAfter = math.Max(float64((10*time.Minute)/time.Millisecond), intervals[len(intervals)/2]*5)
+	}
+	if float64(sampledAt)-lastCheck > staleAfter {
+		return *monitor.Status == "stale" && !hasSince
 	}
 	if *monitor.Status != *latest.Status {
 		return false

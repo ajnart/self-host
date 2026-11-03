@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/app"
+	"github.com/ajnart/self-host/internal/apps/homarr"
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
 	stepstatus "github.com/ajnart/self-host/internal/status"
@@ -276,6 +279,9 @@ func TestExternalConnectionPrivateInputBoundaries(t *testing.T) {
 	h, _ := externalConnectionHarness(t, false)
 	for _, raw := range []string{
 		`null`, `[]`, `{}`, `{"endpoint":"https://one.example","endpoint":"https://two.example"}`,
+		`{"Endpoint":"https://private.example"}`,
+		`{"endpoint":"https://one.example","Endpoint":"https://two.example"}`,
+		`{"Endpoint":"https://one.example","endpoint":"https://two.example"}`,
 		`{"endpoint":"https://user:password@private.example"}`, `{"endpoint":"https://private.example?token=private"}`,
 		`{"endpoint":"https://private.example#private"}`, `{"endpoint":"https://private.example","kind":"testPeer"}`,
 		`{"endpoint":"https://private.example","credentials":[{"kind":"apiKey","value":"one"},{"kind":"apiKey","value":"two"}]}`,
@@ -332,24 +338,80 @@ func TestExternalConnectionRegistersPrivateFieldsOnLaterRead(t *testing.T) {
 }
 
 func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *testing.T) {
-	for _, scenario := range []string{"unknown-version", "duplicate", "truncated"} {
-		t.Run(scenario, func(t *testing.T) {
-			h, _ := externalConnectionHarness(t, false)
+	record := `{"id":"0123456789abcdef0123456789abcdef","kind":"testPeer","removing":false,"endpoint":"https://private-malformed.example:8006","credentials":[{"kind":"apiKey","value":"private-malformed-key"}],"selection":{"node":"private-malformed-node"}}`
+	valid := `{"version":1,"connections":[` + record + `]}`
+	scenarios := []struct {
+		name string
+		raw  string
+	}{
+		{"empty-object", `{}`},
+		{"missing-connections", `{"version":1}`},
+		{"missing-version", `{"connections":[]}`},
+		{"missing-version-with-record", `{"connections":[` + record + `]}`},
+		{"null-version", `{"version":null,"connections":[]}`},
+		{"null-version-with-record", `{"version":null,"connections":[` + record + `]}`},
+		{"null-connections", `{"version":1,"connections":null}`},
+		{"wrong-version-type", `{"version":"1","connections":[]}`},
+		{"wrong-connections-type", `{"version":1,"connections":{}}`},
+		{"null-record", `{"version":1,"connections":[null]}`},
+		{"empty-record", `{"version":1,"connections":[{}]}`},
+		{"unknown-version", strings.Replace(valid, `"version":1`, `"version":2`, 1)},
+		{"duplicate-version", strings.Replace(valid, `"version":1`, `"version":1,"version":1`, 1)},
+		{"duplicate-connections", strings.Replace(valid, `"connections":[`, `"connections":[],"connections":[`, 1)},
+		{"unknown-field", strings.TrimSuffix(valid, `}`) + `,"unexpected":true}`},
+		{"trailing-json", valid + `{}`},
+		{"truncated", strings.TrimSuffix(valid, `]}`)},
+		{"null", `null`},
+		{"array", `[]`},
+		{"blank", ""},
+		{"whitespace", " \n\t"},
+		{"reported-proxmox-inventory-overwritten-by-alias", `{"version":1,"connections":[{"id":"0123456789abcdef0123456789abcdef","kind":"proxmox"}],"Connections":[]}`},
+		{"uppercase-envelope", `{"VERSION":1,"CONNECTIONS":[]}`},
+		{"mixed-case-duplicates", `{"version":1,"Version":1,"connections":[],"Connections":[]}`},
+		{"unicode-folded-version", `{"ver\u017fion":1,"connections":[]}`},
+		{"unicode-folded-connections", `{"version":1,"connections":[` + record + `],"connection\u017f":[]}`},
+		{"unicode-folded-credential-kind", strings.Replace(valid, `"kind":"apiKey"`, `"\u212aind":"apiKey"`, 1)},
+	}
+	for _, field := range []struct {
+		name      string
+		canonical string
+		alias     string
+	}{
+		{"version", `"version":1`, `"Version":1`},
+		{"connections", `"connections":[` + record + `]`, `"Connections":[]`},
+		{"id", `"id":"0123456789abcdef0123456789abcdef"`, `"ID":"fedcba9876543210fedcba9876543210"`},
+		{"kind", `"kind":"testPeer"`, `"Kind":"proxmox"`},
+		{"removing", `"removing":false`, `"Removing":true`},
+		{"endpoint", `"endpoint":"https://private-malformed.example:8006"`, `"Endpoint":"https://private-malformed.example:8006"`},
+		{"credentials", `"credentials":[{"kind":"apiKey","value":"private-malformed-key"}]`, `"Credentials":[]`},
+		{"selection", `"selection":{"node":"private-malformed-node"}`, `"Selection":{"node":"private-malformed-node"}`},
+		{"credential-kind", `"kind":"apiKey"`, `"Kind":"apiKey"`},
+		{"credential-value", `"value":"private-malformed-key"`, `"Value":"private-malformed-key"`},
+	} {
+		scenarios = append(scenarios,
+			struct{ name, raw string }{field.name + "-alias", strings.Replace(valid, field.canonical, field.alias, 1)},
+			struct{ name, raw string }{field.name + "-canonical-first", strings.Replace(valid, field.canonical, field.canonical+","+field.alias, 1)},
+			struct{ name, raw string }{field.name + "-alias-first", strings.Replace(valid, field.canonical, field.alias+","+field.canonical, 1)},
+		)
+	}
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			h, consumer := externalConnectionHarness(t, true)
 			p, _ := h.svc.Project()
 			secrets, _ := p.LoadSecrets()
-			raw := `{"version":2,"connections":[{"id":"0123456789abcdef0123456789abcdef","kind":"testPeer","endpoint":"https://private-malformed.example:8006","credentials":[{"kind":"apiKey","value":"private-malformed-key"}],"selection":{"node":"private-malformed-node"}}]}`
-			if scenario == "duplicate" {
-				raw = strings.Replace(raw, `"version":2`, `"version":1,"version":1`, 1)
-			}
-			if scenario == "truncated" {
-				raw = strings.TrimSuffix(raw, "]}")
-			}
+			raw := scenario.raw
 			secrets[externalConnectionsKey] = raw
 			secrets[SecretKey("homarr", "linked_external-0123456789abcdef0123456789abcdef")] = "owned-preserved"
+			secrets[SecretKey("homarr", "widgets_owned-preserved")] = `{"external-shared-widget":true}`
 			if err := p.SaveSecrets(secrets); err != nil {
 				t.Fatal(err)
 			}
-			later := New(h.deps, events.Discard(), h.svc.Catalog)
+			later := New(h.deps, events.New(h.rec), h.svc.Catalog)
+			requests := 0
+			h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+				requests++
+				return nil, errors.New("unexpected request while external inventory is malformed")
+			})}
 			status, err := later.Status(t.Context())
 			if err != nil {
 				t.Fatal("malformed external record blocked ordinary status")
@@ -366,18 +428,175 @@ func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *test
 			if len(status.Connections) != 1 || status.Connections[0].Setup != stepstatus.SetupManual {
 				t.Fatal("ordinary status omitted the isolated connection recovery")
 			}
-			for _, value := range []string{"https://private-malformed.example:8006", "private-malformed.example", "private-malformed-key", "private-malformed-node"} {
-				if strings.Contains(later.Log.Redact(value), value) {
-					t.Fatal("malformed record skipped early private-field masking")
-				}
+			ss, err := later.open(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			reader := ss.helpers(consumer).ExternalConnections
+			if connections, err := reader(); !errors.Is(err, ErrManual) || !errors.Is(err, helpers.ErrManual) || connections != nil {
+				t.Fatal("ownership inventory reader interpreted malformed data as an empty desired set")
+			}
+			linksBefore, runsBefore := consumer.nativeLinks, consumer.externalRuns
+			if _, err := ss.runSetup(t.Context(), consumer); err != nil {
+				t.Fatal("malformed external inventory blocked core Setup")
+			}
+			if consumer.nativeLinks <= linksBefore || consumer.externalRuns != runsBefore+1 || !ss.ready(dashboardAppID) {
+				t.Fatal("external inventory disrupted ordinary Catalog Links or own readiness")
+			}
+			removed, err := (homarr.App{}).SetupExternalConnections(t.Context(), ss.helpers(consumer))
+			if !errors.Is(err, helpers.ErrManual) || len(removed) != 0 || ss.state.Apps[dashboardAppID].Steps["link-external-connections"].Status != stepstatus.StepManual || !ss.ready(dashboardAppID) {
+				t.Fatal("real Homarr consumer did not retain isolated Manual inventory recovery")
+			}
+			file := externalConnectionInputFile(t, "https://private-input.example", "private-input-key")
+			before := len(h.runner.Calls())
+			if id, err := later.AddConnection(t.Context(), "testPeer", ConnectionOptions{File: file, Approved: true}); !errors.Is(err, ErrManual) || id != "" {
+				t.Fatal("malformed inventory authorized add or overwrote the private record")
+			}
+			if err := later.UpdateConnection(t.Context(), "0123456789abcdef0123456789abcdef", ConnectionOptions{File: file, Approved: true}); !errors.Is(err, ErrManual) {
+				t.Fatal("malformed inventory became a not-found record during update")
 			}
 			if err := later.RemoveConnection(t.Context(), "0123456789abcdef0123456789abcdef", true); !errors.Is(err, ErrManual) {
 				t.Fatal("malformed record authorized removal")
 			}
-			stored, _ := p.LoadSecrets()
-			if stored[externalConnectionsKey] != raw || stored[SecretKey("homarr", "linked_external-0123456789abcdef0123456789abcdef")] != "owned-preserved" {
-				t.Fatal("unknown configuration discarded private records or ownership")
+			if len(h.runner.Calls()) != before || consumer.externalRuns != runsBefore+1 || consumer.removed != 0 || requests != 0 {
+				t.Fatal("malformed inventory actions invoked reconciliation or lifecycle work")
+			}
+			serialized, err := json.Marshal([]any{status, ss.state, h.rec.events})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []string{"https://private-malformed.example:8006", "private-malformed.example", "private-malformed-key", "private-malformed-node", "https://private-input.example", "private-input-key", "private-node-791"} {
+				if strings.Contains(string(serialized), value) {
+					t.Fatal("private inventory leaked through status, state or events")
+				}
+			}
+			if strings.Contains(raw, "private-malformed-key") {
+				for _, value := range []string{"https://private-malformed.example:8006", "private-malformed.example", "private-malformed-key", "private-malformed-node"} {
+					if strings.Contains(later.Log.Redact(value), value) {
+						t.Fatal("malformed record skipped early private-field masking")
+					}
+				}
+			}
+			stored, err := p.LoadSecrets()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(stored, secrets) {
+				t.Fatal("unknown configuration discarded private records or binding ownership")
 			}
 		})
+	}
+}
+
+func TestExternalConnectionAbsentAndExplicitEmptyInventoriesRemainValid(t *testing.T) {
+	for _, present := range []bool{false, true} {
+		t.Run(fmt.Sprintf("present-%t", present), func(t *testing.T) {
+			h, consumer := externalConnectionHarness(t, true)
+			p, _ := h.svc.Project()
+			if present {
+				secrets, err := p.LoadSecrets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				secrets[externalConnectionsKey] = `{"version":1,"connections":[]}`
+				if err := p.SaveSecrets(secrets); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ss, err := h.svc.open(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			records, err := ss.externalConnectionRecords()
+			if err != nil || records.Version != 1 || records.Connections == nil || len(records.Connections) != 0 {
+				t.Fatal("absent or explicitly empty inventory became invalid")
+			}
+			if statuses, err := h.svc.Connections(t.Context(), ""); err != nil || len(statuses) != 0 {
+				t.Fatal("empty inventory produced a Manual status")
+			}
+			reader := ss.helpers(consumer).ExternalConnections
+			if connections, err := reader(); err != nil || connections == nil || len(connections) != 0 {
+				t.Fatal("empty inventory reader failed")
+			}
+			id := "0123456789abcdef0123456789abcdef"
+			if _, err := h.svc.Connections(t.Context(), id); err == nil || errors.Is(err, ErrManual) {
+				t.Fatal("missing identity did not retain its distinct not-found status")
+			}
+			file := externalConnectionInputFile(t, "https://private-empty.example", "private-empty-key")
+			if err := h.svc.UpdateConnection(t.Context(), id, ConnectionOptions{File: file, Approved: true}); err == nil || errors.Is(err, ErrManual) {
+				t.Fatal("missing identity did not retain its distinct not-found update error")
+			}
+			if err := h.svc.RemoveConnection(t.Context(), id, true); err == nil || errors.Is(err, ErrManual) {
+				t.Fatal("missing identity did not retain its distinct not-found removal error")
+			}
+			id, err = h.svc.AddConnection(t.Context(), "testPeer", ConnectionOptions{File: file, Approved: true})
+			if err != nil || id == "" {
+				t.Fatal("valid empty inventory rejected add")
+			}
+			if err := h.svc.UpdateConnection(t.Context(), id, ConnectionOptions{File: file, Approved: true}); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.svc.RemoveConnection(t.Context(), id, true); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestExternalConnectionCanonicalFieldsPreserveOpaqueKeys(t *testing.T) {
+	h, _ := externalConnectionHarness(t, true)
+	input := externalConnectionInput{
+		Endpoint: "https://private-opaque.example",
+		Credentials: []externalCredentialRecord{
+			{Kind: "tokenId", Value: "private-token-id"},
+			{Kind: "opnsenseApiKey", Value: "private-opnsense-key"},
+			{Kind: "apiKey", Value: "private-lowercase-key"},
+			{Kind: "ApiKey", Value: "private-uppercase-key"},
+		},
+		Selection: map[string]string{
+			"node": "private-node-lowercase", "Node": "private-node-uppercase",
+			"Connections": "private-connections", "ſelection": "private-selection",
+		},
+	}
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.deps.In = strings.NewReader(string(raw))
+	id, err := h.svc.AddConnection(t.Context(), "testPeer", ConnectionOptions{File: "-", Approved: true})
+	if err != nil || id == "" {
+		t.Fatal("canonical input rejected opaque credential kinds or selection keys")
+	}
+	ss, err := h.svc.open(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := ss.externalConnectionRecords()
+	if err != nil || len(records.Connections) != 1 || !reflect.DeepEqual(records.Connections[0].externalConnectionInput, input) {
+		t.Fatal("canonical inventory normalized or discarded opaque private keys or values")
+	}
+	h.deps.In = strings.NewReader(string(raw))
+	if err := h.svc.UpdateConnection(t.Context(), id, ConnectionOptions{File: "-", Approved: true}); err != nil {
+		t.Fatal("canonical update rejected opaque private keys")
+	}
+	if err := h.svc.RemoveConnection(t.Context(), id, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExternalConnectionStorageFailureIsNotInventoryRecovery(t *testing.T) {
+	h, _ := externalConnectionHarness(t, true)
+	p, err := h.svc.Project()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(p.Path(".env"), p.Path("private-storage-backup")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(p.Path(".env"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.Connections(t.Context(), ""); err == nil || errors.Is(err, ErrManual) || errors.Is(err, helpers.ErrManual) {
+		t.Fatal("storage failure was converted to an empty inventory or Manual inventory recovery")
 	}
 }

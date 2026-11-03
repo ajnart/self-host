@@ -68,7 +68,7 @@ func (c externalConnectionRecord) connection() helpers.ExternalConnection {
 	return helpers.ExternalConnection{ID: c.ID, Kind: c.Kind, Endpoint: c.Endpoint, Credentials: credentials, Selection: c.Selection, Removing: c.Removing}
 }
 
-func externalConnectionJSONValue(d *json.Decoder, depth int) error {
+func externalConnectionJSONValue(d *json.Decoder, depth int, field string) error {
 	if depth > 12 {
 		return errors.New("external connection JSON is too deeply nested")
 	}
@@ -82,6 +82,7 @@ func externalConnectionJSONValue(d *json.Decoder, depth int) error {
 	}
 	seen := map[string]bool{}
 	for d.More() {
+		next := ""
 		if delim == '{' {
 			key, err := d.Token()
 			if err != nil {
@@ -91,9 +92,17 @@ func externalConnectionJSONValue(d *json.Decoder, depth int) error {
 			if !ok || seen[name] {
 				return errors.New("duplicate external connection JSON field")
 			}
+			if field != "selection" {
+				for _, char := range name {
+					if char < 'a' || char > 'z' {
+						return errors.New("noncanonical external connection JSON field")
+					}
+				}
+			}
 			seen[name] = true
+			next = name
 		}
-		if err := externalConnectionJSONValue(d, depth+1); err != nil {
+		if err := externalConnectionJSONValue(d, depth+1, next); err != nil {
 			return err
 		}
 	}
@@ -103,7 +112,7 @@ func externalConnectionJSONValue(d *json.Decoder, depth int) error {
 
 func decodeExternalConnectionJSON(raw string, into any) error {
 	d := json.NewDecoder(strings.NewReader(raw))
-	if err := externalConnectionJSONValue(d, 0); err != nil {
+	if err := externalConnectionJSONValue(d, 0, ""); err != nil {
 		return errors.New("invalid or duplicate external connection JSON fields")
 	}
 	if _, err := d.Token(); err != io.EOF {
@@ -142,9 +151,9 @@ func (s *Service) registerExternalConnectionFields(raw string) {
 			return false
 		}
 		if value, ok := token.(string); ok {
-			if field == "endpoint" {
+			if strings.EqualFold(field, "endpoint") {
 				s.registerExternalConnection(externalConnectionRecord{externalConnectionInput: externalConnectionInput{Endpoint: value}})
-			} else if private || field == "value" {
+			} else if private || strings.EqualFold(field, "value") {
 				s.Log.Secret(value)
 			}
 			return true
@@ -162,7 +171,7 @@ func (s *Service) registerExternalConnectionFields(raw string) {
 				}
 				name, _ = key.(string)
 			}
-			if !visit(depth+1, private || name == "selection", name) {
+			if !visit(depth+1, private || strings.EqualFold(name, "selection"), name) {
 				return false
 			}
 		}
@@ -173,11 +182,11 @@ func (s *Service) registerExternalConnectionFields(raw string) {
 }
 
 func (ss *session) externalConnectionRecords() (externalConnectionRecords, error) {
-	records := externalConnectionRecords{Version: 1, Connections: []externalConnectionRecord{}}
-	raw := ss.secrets.Get(externalConnectionsKey)
-	if raw == "" {
-		return records, nil
+	raw, present := ss.secrets.values[externalConnectionsKey]
+	if !present {
+		return externalConnectionRecords{Version: 1, Connections: []externalConnectionRecord{}}, nil
 	}
+	var records externalConnectionRecords
 	invalid := func() (externalConnectionRecords, error) {
 		return externalConnectionRecords{}, errors.Join(ErrManual, &helpers.ManualError{Hint: externalConnectionsRecovery})
 	}

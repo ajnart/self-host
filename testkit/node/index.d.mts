@@ -33,6 +33,12 @@ export interface SelfHost {
 export interface PairOptions {
     order: "consumer-first" | "target-first";
     images?: Readonly<Record<string, string>>;
+    sonarrFilterWitness?: true;
+}
+export interface SonarrFilterWitness {
+    readonly kind: "sonarr-custom-filter-v1";
+    readonly objectId: number;
+    readonly contentSha256: string;
 }
 export interface PairAppStatus {
     readonly id: string;
@@ -68,6 +74,8 @@ export interface Pair {
     setup(app?: string): Promise<PairInspection>;
     remove(app: string): Promise<PairInspection>;
     install(app: string): Promise<PairInspection>;
+    createSonarrFilterWitness(): Promise<SonarrFilterWitness>;
+    readSonarrFilterWitness(): Promise<SonarrFilterWitness>;
     close(): Promise<void>;
 }
 export interface SelfHostOptions {
