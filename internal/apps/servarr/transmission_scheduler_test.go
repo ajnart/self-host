@@ -20,15 +20,6 @@ import (
 	"github.com/ajnart/self-host/internal/system"
 )
 
-type transmissionScheduledConsumer struct {
-	app.App
-	link app.Link
-}
-
-func (a transmissionScheduledConsumer) Links() []app.Link {
-	return append(a.App.Links(), a.link)
-}
-
 type transmissionScheduledRPC struct {
 	mu             sync.Mutex
 	t              *testing.T
@@ -130,8 +121,7 @@ func TestTransmissionProductionSchedulerPreservesBothLidarrWireFamilies(t *testi
 		for _, order := range []string{"consumer-first", "target-first", "unready-target"} {
 			t.Run(source.consumer.Info().ID+"/"+source.version+"/"+order, func(t *testing.T) {
 				id := source.consumer.Info().ID
-				consumer := transmissionScheduledConsumer{App: source.consumer, link: servarr.TransmissionLink(source.api, source.field, source.category)}
-				e := arrtest.New(t, catalog.New([]app.App{consumer, transmission.App{}}, nil))
+				e := arrtest.New(t, catalog.New([]app.App{source.consumer, transmission.App{}}, nil))
 				backend := arrtest.NewArr(id)
 				backend.SeedRootFolder("/data/media/" + source.category)
 				backend.FolderExists = func(string) bool { return true }

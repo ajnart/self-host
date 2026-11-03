@@ -521,10 +521,18 @@
    "img": "lscr.io/linuxserver/lidarr:latest",
    "p": 8686,
    "l": [
-    "qbittorrent"
+    "qbittorrent",
+    "sabnzbd",
+    "nzbget",
+    "deluge",
+    "transmission"
    ],
    "lt": [
-    "download client: qBittorrent"
+    "download client: qBittorrent",
+    "download client: SABnzbd",
+    "download client: NZBGet",
+    "download client: Deluge",
+    "download client: Transmission"
    ],
    "i": "svg/lidarr.svg"
   },
@@ -857,10 +865,18 @@
    "img": "lscr.io/linuxserver/radarr:latest",
    "p": 7878,
    "l": [
-    "qbittorrent"
+    "qbittorrent",
+    "sabnzbd",
+    "nzbget",
+    "deluge",
+    "transmission"
    ],
    "lt": [
-    "download client: qBittorrent"
+    "download client: qBittorrent",
+    "download client: SABnzbd",
+    "download client: NZBGet",
+    "download client: Deluge",
+    "download client: Transmission"
    ],
    "i": "svg/radarr.svg"
   },
@@ -926,11 +942,15 @@
    "p": 5055,
    "l": [
     "jellyfin",
+    "plex",
+    "emby",
     "sonarr",
     "radarr"
    ],
    "lt": [
     "media server: Jellyfin",
+    "media server: Plex",
+    "media server: Emby",
     "requests go to Sonarr",
     "requests go to Radarr"
    ],
@@ -955,10 +975,18 @@
    "img": "lscr.io/linuxserver/sonarr:latest",
    "p": 8989,
    "l": [
-    "qbittorrent"
+    "qbittorrent",
+    "sabnzbd",
+    "nzbget",
+    "deluge",
+    "transmission"
    ],
    "lt": [
-    "download client: qBittorrent"
+    "download client: qBittorrent",
+    "download client: SABnzbd",
+    "download client: NZBGet",
+    "download client: Deluge",
+    "download client: Transmission"
    ],
    "i": "svg/sonarr.svg"
   },
