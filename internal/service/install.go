@@ -276,24 +276,27 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 	if err != nil {
 		return err
 	}
-	var previous map[string]map[string]string
+	resolveProjectInputs := func(p *project.Project) (map[string]map[string]string, error) {
+		state, err := p.LoadState()
+		if err != nil {
+			return nil, err
+		}
+		previous := map[string]map[string]string{}
+		for id, st := range state.Apps {
+			if st == nil {
+				return nil, fmt.Errorf("state.json: missing configuration record for %s", id)
+			}
+			previous[id] = st.Inputs
+		}
+		return resolveInputs(apps, opts.Sets, previous)
+	}
 	existed := p.Exists()
 	if !existed {
 		if err := host.UnraidInstall(s.Deps, p.Root); err != nil {
 			return err
 		}
 	}
-	if existed {
-		state, err := p.LoadState()
-		if err != nil {
-			return err
-		}
-		previous = map[string]map[string]string{}
-		for id, st := range state.Apps {
-			previous[id] = st.Inputs
-		}
-	}
-	preflightInputs, err := resolveInputs(apps, opts.Sets, previous)
+	preflightInputs, err := resolveProjectInputs(p)
 	if err != nil {
 		return err
 	}
@@ -335,7 +338,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			}
 		}
 	}
-	checkPrerequisites := func(settings map[string]string, inputs map[string]map[string]string) error {
+	checkPrerequisites := func(ctx context.Context, settings map[string]string, inputs map[string]map[string]string) error {
 		for _, a := range apps {
 			if preflight, ok := a.(app.PreflightChecker); ok {
 				h := helpers.New(helpers.Config{App: a.Info().ID, Dir: p.Path("apps", a.Info().ID), Inputs: publicInputs(a, inputs[a.Info().ID]), Settings: maps.Clone(settings), Log: s.Log})
@@ -346,19 +349,26 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		}
 		return nil
 	}
-	if err := checkPrerequisites(settings, preflightInputs); err != nil {
+	if err := checkPrerequisites(ctx, settings, preflightInputs); err != nil {
 		return err
 	}
 	if err := s.requireDocker(ctx); err != nil {
 		return err
 	}
-	if settings[settingNames] == namesOn {
+	checkNames := func(ctx context.Context, settings map[string]string) error {
+		if settings[settingNames] != namesOn {
+			return nil
+		}
 		if settings["EXPOSURE"] == ExposureLocal {
 			return fmt.Errorf("Easy names need Home network")
 		}
 		if check := s.checkEasyNames(ctx, settings["LAN_IP"]); !check.Available {
 			return &NamesBlocked{check}
 		}
+		return nil
+	}
+	if err := checkNames(ctx, settings); err != nil {
+		return err
 	}
 
 	recipes := s.recipeOf(opts.Targets)
@@ -367,6 +377,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		names[i] = a.Info().ID
 	}
 	var nodes []string
+	var inputs map[string]map[string]string
 	run := s.run
 	if locked != nil {
 		run = func(ctx context.Context, c change) error { return s.runLocked(ctx, c, locked) }
@@ -376,23 +387,29 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 		services:   func() []string { return nodes },
 		title:      "install " + strings.Join(names, " "),
 		initialize: func(p *project.Project) error { return s.createProject(ctx, p, settings) },
+		preflight: func(ctx context.Context, p *project.Project) error {
+			effective := settings
+			if p.Exists() {
+				var err error
+				effective, err = p.LoadSettings()
+				if err != nil {
+					return err
+				}
+			}
+			var err error
+			inputs, err = resolveProjectInputs(p)
+			if err != nil {
+				return err
+			}
+			if err := checkPrerequisites(ctx, effective, inputs); err != nil {
+				return err
+			}
+			return checkNames(ctx, effective)
+		},
 		edit: func(ctx context.Context, ss *session) error {
 			ss.deferDashboard = opts.deferDashboard
 			if existed {
 				warnIgnoredProjectFlags(s.Log, opts)
-			}
-			previous := map[string]map[string]string{}
-			for id, st := range ss.state.Apps {
-				previous[id] = st.Inputs
-			}
-			inputs, err := resolveInputs(apps, opts.Sets, previous)
-			if err != nil {
-				return err
-			}
-			if !maps.Equal(settings, ss.settings) {
-				if err := checkPrerequisites(ss.settings, inputs); err != nil {
-					return err
-				}
 			}
 			if err := ss.prepareMedia(ctx, apps); err != nil {
 				return err
@@ -464,7 +481,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 					return err
 				}
 			}
-			_, err = ss.renderTailscale()
+			_, err := ss.renderTailscale()
 			if err != nil {
 				return err
 			}
