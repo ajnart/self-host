@@ -8,6 +8,8 @@ import (
 
 func externalTarget(c helpers.ExternalConnection) (target, error) {
 	switch c.Kind {
+	case "ical":
+		return icalExternalTarget(c)
 	case "proxmox":
 		return proxmoxExternalTarget(c)
 	}
