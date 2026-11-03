@@ -1,0 +1,47 @@
+README.md
+  s_0812986ae533ff::t_ba4d69331d11ca 17,179,196
+dcm/src/data/selfhost.json
+  s_0812986ae533ff::t_3eb162ca9ef115 71-110,397-448,458-467,520,575-626,775-814,1152-1203,1711-1764,1815-1818,1827-1834,1875-1882,1892-1901,1983-1986,1998-2053,2091,2133-2179,2261-2318,2389-2489,2543-2600,2921-2978,3052-3150,4567-4633,5123-5130,5132,5153,5155,5157,5167,5170-5177,5179,5193-5210,5216-5227,5231-5376,5458-5517,5624-5689,5876-5999,6088-6139,6411-6464
+e2e/acceptance.md
+  s_0812986ae533ff::t_b26067c62c52bf 3
+e2e/acceptance_fixture_test.go
+  s_0812986ae533ff::t_5f0f6c09ce69a3 24
+e2e/testdata/inventory.json
+  s_0812986ae533ff::t_8d77804380140a 16-22,58-64,79-85,107-113,163-169,247-253,268-274,289-295,303-316,324-330,366-372,380-393,527-533,597-603,653-666,674-680,702-708,723-729,751-764,779-785,828-841
+internal/apps/homarr/targets.go
+  s_0812986ae533ff::t_5a88a8ec2bf757 65-67
+internal/apps/miniflux/miniflux.go
+  s_0812986ae533ff::t_da1d613b1097ac 23,224
+internal/apps/romm/romm.go
+  s_0812986ae533ff::t_498ee5bacec9e4 142
+internal/catalog/batch_misc2.go
+  s_0812986ae533ff::t_bb23ed9c6f0c4f 11,13,22-23,25,38,40,49-50,52
+site/src/data/catalog.json
+  s_0812986ae533ff::t_8a9df3e3146056 25-35,91-101,109-116,130-139,173-183,268-278,401-411,430,433-434,445-446,449-450,472,475-489,502,505-506,517-518,521-522,544,547-561,576-586,609-619,631-652,664-674,742-752,765-786,1107-1117,1217-1238,1250-1260,1295-1305,1328-1338,1372-1393,1417-1427,1496-1506
+tools/sitegen/icons.go
+  s_0812986ae533ff::t_d25396e2217833 16,22,25,29,37,49,52,66,68-69,89,99,108,110,117,121-122,125,132-133
+tools/sitegen/standalone/compose.go
+  s_0812986ae533ff::t_6bd77aedd12075 30,47,70-72,104-110
+tools/sitegen/standalone/notes.go
+  s_0812986ae533ff::t_8e556c3edf244b 34-37
+tools/sitegen/standalone/standalone.go
+  s_0812986ae533ff::t_01d847230dd4ec 78
+tools/sitegen/stars.go
+  s_0812986ae533ff::t_85aa60ed7d385e 18,24,27,31,39,50,53,59,67,69-70,98,107,109,116,120-121,124,131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8794e98037d3902fe801764bd8b04fcfc62174f7",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
