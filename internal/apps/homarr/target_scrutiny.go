@@ -66,6 +66,9 @@ func scrutinyExternalTarget(c helpers.ExternalConnection) (target, error) {
 		preflight: func(ctx context.Context, from, _ *helpers.H) error {
 			return scrutinyPreflight(ctx, from, c.Endpoint)
 		},
+		verify: func(ctx context.Context, from, _ *helpers.H, _ string) error {
+			return scrutinyPreflight(ctx, from, c.Endpoint)
+		},
 		stats: scrutinyValidateStats,
 	}, nil
 }

@@ -45,6 +45,9 @@ func wazuhExternalTarget(c helpers.ExternalConnection) (target, error) {
 			}
 			return &helpers.ManualError{Hint: wazuhTransportHold}
 		},
+		verify: func(ctx context.Context, from, _ *helpers.H, _ string) error {
+			return wazuhProbe(ctx, from, c.Endpoint, username, password)
+		},
 		stats: wazuhValidateStats,
 	}, nil
 }

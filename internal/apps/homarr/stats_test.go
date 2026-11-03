@@ -291,3 +291,19 @@ func TestStatsVerificationStopsAfterNativeFailure(t *testing.T) {
 		t.Fatalf("native failure must stop before Stats: err=%v catalogs=%d refreshes=%d", err, fixture.catalogs, fixture.refreshes)
 	}
 }
+
+func TestStatsTargetsVerifyBeforeTheirStatsRun(t *testing.T) {
+	descriptors := targets()
+	for _, c := range []helpers.ExternalConnection{scrutinyTestConnection(), wazuhTestConnection()} {
+		d, err := externalConnectionDescriptor(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		descriptors = append(descriptors, d)
+	}
+	for _, d := range descriptors {
+		if d.stats != nil && d.verify == nil {
+			t.Errorf("%s validates Stats without a verifier, so its Stats never run", d.name)
+		}
+	}
+}
