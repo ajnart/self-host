@@ -1,0 +1,27 @@
+docs/catalog/traps/unmanic.md
+  s_0b63679bfab768::t_afc31cbcdc26a4 1-22
+internal/apps/homarr/target_unmanic.go
+  s_0b63679bfab768::t_60b405a0298e13 1-46
+internal/apps/homarr/target_unmanic_test.go
+  s_0b63679bfab768::t_f7a982f15440e6 1-99
+internal/apps/unmanic/unmanic.go
+  s_0b63679bfab768::t_d4e7906621c0cd 1-193
+internal/apps/unmanic/unmanic_test.go
+  s_0b63679bfab768::t_ac61c3ecaf3c4d 1-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc24ad3ed6d002fbc2956cf80f158529437afaeb",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
