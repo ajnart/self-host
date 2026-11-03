@@ -49,5 +49,6 @@ func targets() []target {
 		tandoorTarget(),
 		autobrrTarget(),
 		homeboxTarget(),
+		stashTarget(),
 	)
 }

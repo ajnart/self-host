@@ -100,6 +100,7 @@ var repos = map[string]string{
 	"tandoor":              "TandoorRecipes/recipes",
 	"tdarr":                "HaveAGitGat/Tdarr",
 	"technitium-dns":       "TechnitiumSoftware/DnsServer",
+	"stash":                "stashapp/stash",
 	"tracearr":             "connorgallopo/Tracearr",
 	"traefik":              "traefik/traefik",
 	"transmission":         "transmission/transmission",
