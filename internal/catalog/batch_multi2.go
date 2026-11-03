@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"github.com/ajnart/self-host/internal/apps/mayanedms"
+	"github.com/ajnart/self-host/internal/apps/miniflux"
 	"github.com/ajnart/self-host/internal/apps/nextcloud"
 	"github.com/ajnart/self-host/internal/apps/paperlessngx"
 	"github.com/ajnart/self-host/internal/apps/patchmon"
@@ -14,6 +15,7 @@ import (
 func init() {
 	register(
 		mayanedms.App{},
+		miniflux.App{},
 		nextcloud.App{},
 		paperlessngx.App{},
 		patchmon.App{},

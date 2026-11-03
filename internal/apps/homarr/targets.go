@@ -53,5 +53,6 @@ func targets() []target {
 		autobrrTarget(),
 		homeboxTarget(),
 		stashTarget(),
+		minifluxTarget(),
 	)
 }
