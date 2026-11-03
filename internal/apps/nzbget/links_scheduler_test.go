@@ -41,10 +41,19 @@ func (r nzbgetScheduledRunner) Run(ctx context.Context, cmd system.Cmd) (system.
 }
 
 func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T) {
-	for index, consumer := range []app.App{arr.Sonarr(), arr.Radarr(), lidarr.App{}} {
+	for _, source := range nzbgetConsumerCases {
+		var consumer app.App
+		switch source.id {
+		case "sonarr":
+			consumer = arr.Sonarr()
+		case "radarr":
+			consumer = arr.Radarr()
+		case "lidarr":
+			consumer = lidarr.App{}
+		}
 		for _, order := range []string{"consumer-first", "target-first", "unready-target"} {
-			t.Run(consumer.Info().ID+"/"+order, func(t *testing.T) {
-				f := newNZBGetLinkFixture(t, nzbgetConsumerCases[index])
+			t.Run(source.id+"/"+source.version+"/"+order, func(t *testing.T) {
+				f := newNZBGetLinkFixture(t, source)
 				f.pathProbe.supported = true
 				id := consumer.Info().ID
 				assembled := nzbgetScheduledConsumer{App: consumer, nzbgetLink: f.link}
@@ -84,7 +93,7 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 						t.Fatal(err)
 					}
 				}
-				f.backend.SeedDownloadClient(map[string]any{"name": "Independent qBittorrent", "implementation": "QBittorrent", "enable": true, "fields": []any{map[string]any{"name": "host", "value": "qbittorrent"}}})
+				f.backend.SeedDownloadClient(nzbgetSurvivor(source))
 				survivor := f.backend.DownloadClients()[0]["id"]
 				if order == "consumer-first" {
 					result := e.Run("install", id, "--yes", "--json", "--exposure", "local")
@@ -119,8 +128,11 @@ func TestNZBGetProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 				if len(f.backend.DownloadClients()) != 2 || f.nativeTests < 2 || f.pathProbe.wrongIdentity != 0 {
 					t.Fatal("production scheduler did not run the guarded real NZBGet leaf")
 				}
+				if source.id == "lidarr" && (f.version != source.version || f.statusReads == 0) {
+					t.Fatal("Lidarr Setup did not verify the matching source family's authenticated status")
+				}
 				for _, client := range f.backend.DownloadClients() {
-					if client["implementation"] == "Nzbget" && client["protocol"] != nzbgetConsumerCases[index].protocol {
+					if client["implementation"] == "Nzbget" && client["protocol"] != source.protocol {
 						t.Fatal("production scheduler normalized the consumer's protocol")
 					}
 				}

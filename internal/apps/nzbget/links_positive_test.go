@@ -31,7 +31,7 @@ func (f *nzbgetLinkFixture) rpcRequests() int64 {
 
 func TestNZBGetLinksAllConsumersPreserveIdentityChoicesAndAcceptedPasswordRecovery(t *testing.T) {
 	for _, consumer := range nzbgetConsumerCases {
-		t.Run(consumer.id, func(t *testing.T) {
+		t.Run(consumer.id+"/"+consumer.version, func(t *testing.T) {
 			f := newNZBGetLinkFixture(t, consumer)
 			f.pathProbe.supported = true
 			f.from.Settings["MEDIA_LAYOUT"], f.to.Settings["MEDIA_LAYOUT"] = "shared", "shared"
@@ -80,13 +80,20 @@ func TestNZBGetLinksAllConsumersPreserveIdentityChoicesAndAcceptedPasswordRecove
 			if current["id"] != firstID || current["protocol"] != consumer.protocol || f.updates != 1 || f.creates != 1 || arrtest.Field(current, "password") != "renewed-accepted-control-password" || arrtest.Field(current, consumer.categoryField) != "Music" || current["priority"] != float64(7) || arrtest.Field(current, "addPaused") != true {
 				t.Fatal("accepted password recovery replaced the client or noncredential choices")
 			}
+			for _, requests := range [][]map[string]any{f.nativeItems, f.createdItems, f.updatedItems} {
+				for _, item := range requests {
+					if item["protocol"] != consumer.protocol {
+						t.Fatal("a submitted DTO changed the schema's exact protocol")
+					}
+				}
+			}
 		})
 	}
 }
 
 func TestNZBGetConsumerProtocolsMatchUpstreamWithoutNormalization(t *testing.T) {
 	for _, consumer := range nzbgetConsumerCases {
-		t.Run(consumer.id, func(t *testing.T) {
+		t.Run(consumer.id+"/"+consumer.version, func(t *testing.T) {
 			f := newNZBGetLinkFixture(t, consumer)
 			f.pathProbe.supported = true
 			if f.template["protocol"] != consumer.protocol {
@@ -100,7 +107,7 @@ func TestNZBGetConsumerProtocolsMatchUpstreamWithoutNormalization(t *testing.T) 
 				t.Fatal("actual protocol was normalized or native verification was skipped")
 			}
 			other := "UsenetDownloadProtocol"
-			if consumer.id == "lidarr" {
+			if consumer.protocol == "UsenetDownloadProtocol" {
 				other = "usenet"
 			}
 			owned, native, requests := f.ownership(), f.nativeTests, f.rpcRequests()
@@ -113,7 +120,7 @@ func TestNZBGetConsumerProtocolsMatchUpstreamWithoutNormalization(t *testing.T) 
 			}
 			g := newNZBGetLinkFixture(t, consumer)
 			g.pathProbe.supported = true
-			g.template["protocol"] = other
+			g.template["protocol"] = "TorrentDownloadProtocol"
 			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) {
 				t.Fatal("wrong schema protocol accepted", err)
 			}
@@ -134,26 +141,37 @@ func TestNZBGetRejectsUnsupportedActualConsumerContractsBeforePeerReads(t *testi
 		{nzbgetConsumerCases[0], "lidarr"},
 		{nzbgetConsumerCases[2], "sonarr"},
 	} {
-		t.Run(scenario.consumer.id+"/"+scenario.actual, func(t *testing.T) {
-			f := newNZBGetLinkFixture(t, scenario.consumer)
-			f.pathProbe.supported = true
-			from := *f.from
-			from.App = scenario.actual
-			f.secrets[from.Key("api_key")] = f.backend.Key
-			if err := f.link.Apply(context.Background(), &from, f.to); !errors.Is(err, helpers.ErrManual) {
-				t.Fatal("unsupported consumer/API/category-field combination was accepted", err)
-			}
-			if f.nativeTests != 0 || f.creates != 0 || f.rpcRequests() != 0 || f.secrets[from.Key("link_nzbget_resource")] != "" || len(f.pathProbe.observed) != 0 {
-				t.Fatal("unsupported consumer reached peer/native reads or acquired ownership")
-			}
-		})
+		for _, removing := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/%s/remove=%t", scenario.consumer.id, scenario.actual, removing), func(t *testing.T) {
+				f := newNZBGetLinkFixture(t, scenario.consumer)
+				f.pathProbe.supported = true
+				from := *f.from
+				from.App = scenario.actual
+				f.secrets[from.Key("api_key")] = f.backend.Key
+				record := ""
+				var err error
+				if removing {
+					record = f.seedOwned(t)
+					f.secrets[from.Key("link_nzbget_resource")] = record
+					err = f.link.Remove(context.Background(), &from, f.to)
+				} else {
+					err = f.link.Apply(context.Background(), &from, f.to)
+				}
+				if !errors.Is(err, helpers.ErrManual) {
+					t.Fatal("unsupported consumer/API/category-field combination was accepted", err)
+				}
+				if f.nativeTests != 0 || f.creates != 0 || f.deletes != 0 || f.rpcRequests() != 0 || f.targetSecrets.reads != 0 || f.targetSecrets.writes != 0 || f.consumerSecrets.writes != 0 || f.secrets[from.Key("link_nzbget_resource")] != record || len(f.pathProbe.observed) != 0 {
+					t.Fatal("unsupported consumer reached the target or changed ownership/resources")
+				}
+			})
+		}
 	}
 }
 
 func TestNZBGetLeafSharedAndExplicitLegacyMappingsRemainReadOnly(t *testing.T) {
 	for _, consumer := range nzbgetConsumerCases {
 		for _, legacy := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/legacy=%t", consumer.id, legacy), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s/%s/legacy=%t", consumer.id, consumer.version, legacy), func(t *testing.T) {
 				f := newNZBGetLinkFixture(t, consumer)
 				f.pathProbe.supported = true
 				if legacy {
@@ -185,7 +203,7 @@ func TestNZBGetLeafSharedAndExplicitLegacyMappingsRemainReadOnly(t *testing.T) {
 func TestNZBGetLeafManualPathPrerequisitesPrecedeNativeTests(t *testing.T) {
 	for _, consumer := range nzbgetConsumerCases {
 		for _, prerequisite := range []string{"library", "target-access", "consumer-access", "overlap", "mapping-host", "missing-wrapper"} {
-			t.Run(consumer.id+"/"+prerequisite, func(t *testing.T) {
+			t.Run(consumer.id+"/"+consumer.version+"/"+prerequisite, func(t *testing.T) {
 				f := newNZBGetLinkFixture(t, consumer)
 				f.pathProbe.supported = true
 				switch prerequisite {
@@ -215,39 +233,58 @@ func TestNZBGetLeafManualPathPrerequisitesPrecedeNativeTests(t *testing.T) {
 }
 
 func TestNZBGetLeafRemovalReinstallAndUncertainCreationPreserveOtherClients(t *testing.T) {
-	f := newNZBGetLinkFixture(t, nzbgetConsumerCases[0])
-	f.pathProbe.supported, f.uncertain = true, true
-	if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
-		t.Fatal("uncertain returned identity was accepted", err)
-	}
-	if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.creates != 1 {
-		t.Fatal("uncertain creation was duplicated", err)
-	}
 	for _, consumer := range nzbgetConsumerCases {
-		t.Run(consumer.id, func(t *testing.T) {
+		t.Run(consumer.id+"/"+consumer.version, func(t *testing.T) {
+			g := newNZBGetLinkFixture(t, consumer)
+			g.pathProbe.supported, g.uncertain = true, true
+			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("uncertain returned identity was accepted", err)
+			}
+			pending, requests := g.ownership(), g.rpcRequests()
+			if err := g.link.Apply(context.Background(), g.from, g.to); !errors.Is(err, helpers.ErrManual) || g.creates != 1 || g.ownership() != pending || g.rpcRequests() != requests {
+				t.Fatal("uncertain creation was duplicated or its intent was changed", err)
+			}
 			f := newNZBGetLinkFixture(t, consumer)
 			f.pathProbe.supported = true
-			f.backend.SeedDownloadClient(map[string]any{"name": "Independent qBittorrent", "implementation": "QBittorrent", "enable": true, "fields": []any{map[string]any{"name": "host", "value": "qbittorrent"}}})
+			f.backend.SeedDownloadClient(nzbgetSurvivor(consumer))
+			survivor := f.backend.DownloadClients()[0]
 			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
 			firstID := f.backend.DownloadClients()[1]["id"]
+			data, err := json.Marshal(f.backend.DownloadClients()[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			var personal map[string]any
+			if err := json.Unmarshal(data, &personal); err != nil {
+				t.Fatal(err)
+			}
+			personal["name"], personal["priority"] = "Personal NZBGet", float64(11)
+			f.backend.SeedDownloadClient(personal)
+			personalID := personal["id"]
 			f.to.Secrets.Set("ADMIN_PASSWORD", "")
 			f.to.Config.Exec = nil
 			requests, tests, probes := f.rpcRequests(), f.nativeTests, len(f.pathProbe.observed)
+			reads, writes := f.targetSecrets.reads, f.targetSecrets.writes
 			if err := f.link.Remove(context.Background(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
 			items := f.backend.DownloadClients()
-			if len(items) != 1 || items[0]["name"] != "Independent qBittorrent" || f.deletes != 1 || f.ownership() != "" || f.rpcRequests() != requests || f.nativeTests != tests || len(f.pathProbe.observed) != probes {
+			if len(items) != 2 || items[0]["id"] != survivor["id"] || items[0]["protocol"] != consumer.survivorProtocol || items[1]["id"] != personalID || items[1]["priority"] != float64(11) || f.deletes != 1 || f.ownership() != "" || f.rpcRequests() != requests || f.nativeTests != tests || len(f.pathProbe.observed) != probes || f.targetSecrets.reads != reads || f.targetSecrets.writes != writes {
 				t.Fatal("recorded removal touched target/native prerequisites or another client")
 			}
+			if err := f.link.Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.creates != 1 || f.rpcRequests() != requests {
+				t.Fatal("reinstall adopted or replaced the personal same-target resource", err)
+			}
+			nzbgetSetClientField(personal, "host", "personal-nzbget")
 			f.to.Secrets.Set("ADMIN_PASSWORD", password)
 			f.to.Config.Exec = f.pathProbe
 			if err := f.link.Apply(context.Background(), f.from, f.to); err != nil {
 				t.Fatal(err)
 			}
-			if f.backend.DownloadClients()[1]["id"] == firstID || f.creates != 2 {
+			items = f.backend.DownloadClients()
+			if len(items) != 3 || items[2]["id"] == firstID || items[2]["protocol"] != consumer.protocol || items[0]["id"] != survivor["id"] || items[1]["id"] != personalID || f.creates != 2 {
 				t.Fatal("reinstall reclaimed the removed owned identity")
 			}
 		})

@@ -11,11 +11,7 @@ import (
 )
 
 func NZBGetLink(api, categoryField, category string) app.Link {
-	protocol := "usenet"
-	if api == V1 {
-		protocol = "UsenetDownloadProtocol"
-	}
-	p := providerLink{api: api, path: "/downloadclient", target: "nzbget", implementation: "Nzbget", name: "NZBGet", endpointField: "host", categoryField: categoryField, category: category, configContract: "NzbgetSettings", protocol: protocol}
+	p := providerLink{api: api, path: "/downloadclient", target: "nzbget", implementation: "Nzbget", name: "NZBGet", endpointField: "host", categoryField: categoryField, category: category, configContract: "NzbgetSettings", protocolFamily: downloadProtocolUsenet}
 	p.connectionFields = func(from, to *helpers.H) ([]connectionField, error) {
 		if to.AdminUser() == "" || to.AdminPassword() == "" || to.Service == "" || to.ContainerPort <= 0 || to.ContainerPort > 65535 {
 			return nil, &helpers.ManualError{Hint: "Run self-host setup nzbget to verify its existing Admin login and internal Project Address, then self-host setup " + from.App + ". Preserve credentials and Access; do not substitute Homarr's restricted login or an add-only account."}
@@ -24,10 +20,6 @@ func NZBGetLink(api, categoryField, category string) app.Link {
 		return []connectionField{{"host", to.Service}, {"port", float64(to.ContainerPort)}, {"useSsl", false}, {"urlBase", ""}, {"username", to.AdminUser()}, {"password", to.AdminPassword()}}, nil
 	}
 	p.verify = func(ctx context.Context, from, to *helpers.H, item provider) error {
-		expected := map[string]string{"sonarr": "tvCategory", "radarr": "movieCategory", "lidarr": "musicCategory"}[from.App]
-		if expected == "" || expected != categoryField || from.App == "lidarr" && api != V1 || from.App != "lidarr" && api != V3 {
-			return p.manual(from, "the NZBGet consumer API or category schema is unsupported")
-		}
 		category, _ := item.field(categoryField).(string)
 		completed, err := nzbget.CompletedDownloadPath(ctx, to, category)
 		if err != nil {
