@@ -420,7 +420,16 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 	}
 	st.StepOrder = slices.DeleteFunc(st.StepOrder, func(step string) bool { return !IsStage(step) })
 	h := ss.helpers(a)
-	err = a.Setup(ctx, h)
+	if !ss.p.IsExtra(id) {
+		err = ss.s.validateAppDirectories(ctx, ss.p, a, st, ss.settings)
+	}
+	if directoryErr := err; directoryErr != nil {
+		err = h.Step(ctx, "directories", "validate declared App directories", helpers.StepSpec{
+			Do: func(context.Context) error { return directoryErr },
+		})
+	} else {
+		err = a.Setup(ctx, h)
+	}
 	if id == tailscaleID || id == cloudflareConnector {
 		ss.invalidateNavigation()
 	}
