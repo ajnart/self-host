@@ -1,0 +1,47 @@
+internal/apps/anchor/homarr.go
+  s_0812986ae533ff::t_bf1b352e6ce339 90,179
+internal/apps/autobrr/homarr.go
+  s_0812986ae533ff::t_3dd771344ab99c 64,349
+internal/apps/healthchecks/credentials.go
+  s_0812986ae533ff::t_3eb6ef0204e9a7 47
+internal/apps/jellystat/homarr.go
+  s_0812986ae533ff::t_e9c322731261a5 210,213,253,343,369,375
+internal/apps/jellystat/jellystat_test.go
+  s_0812986ae533ff::t_9e5a1056b134d4 147
+internal/apps/karakeep/homarr.go
+  s_0812986ae533ff::t_d2ad833c674d86 79,118,272
+internal/apps/komga/homarr.go
+  s_0812986ae533ff::t_6a472c5203df31 177,199
+internal/apps/linkwarden/homarr.go
+  s_0812986ae533ff::t_623c312e733a7d 60,135,226,277
+internal/apps/mealie/homarr.go
+  s_0812986ae533ff::t_8df5e62b3107e7 114,214
+internal/apps/miniflux/homarr.go
+  s_0812986ae533ff::t_36aa9a2da59261 111,259
+internal/apps/seerr/ownership.go
+  s_0812986ae533ff::t_a9079897594869 58,115
+internal/apps/tandoor/homarr.go
+  s_0812986ae533ff::t_abbfe7b495ccc0 63,130,195
+internal/apps/tracearr/homarr.go
+  s_0812986ae533ff::t_856a00e50db87f 64,99,126,139
+internal/apps/tubearchivist/homarr.go
+  s_0812986ae533ff::t_600eda228996c3 26,123
+internal/helpers/hash.go
+  s_0812986ae533ff::t_dc7e5fdd236c17 5,7,50-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91c34ce73b2e45feeab0821226bd167196ef5cc1",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
