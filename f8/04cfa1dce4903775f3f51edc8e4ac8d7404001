@@ -1,0 +1,16 @@
+internal/service/connections.go
+  h_d6e478ca18e517 71,85,95-101,103,105,115,154,156,174
+internal/service/connections_test.go
+  h_d6e478ca18e517 282-284,341,343,368-389,391-397,546-586
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f804cfa1dce4903775f3f51edc8e4ac8d7404001",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
