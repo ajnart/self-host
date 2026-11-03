@@ -12,6 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/plex"
 	"github.com/ajnart/self-host/internal/apps/tailscale"
 	"github.com/ajnart/self-host/internal/apps/technitiumdns"
+	"github.com/ajnart/self-host/internal/apps/xteve"
 	"github.com/ajnart/self-host/internal/apps/zerotier"
 )
 
@@ -28,6 +29,7 @@ func init() {
 		plex.App{},
 		tailscale.App{},
 		technitiumdns.App{},
+		xteve.App{},
 		zerotier.App{},
 	)
 }

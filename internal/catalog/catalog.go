@@ -41,6 +41,7 @@ func (c *Catalog) App(id string) (app.App, bool) {
 // VM, with the reason and the issue that tracks the way back (#493).
 var unavailable = map[string]string{
 	"passbolt": "it failed on real hosts (https://github.com/ajnart/self-host/issues/456)",
+	"xteve":    "no maintained, multi-platform xTeVe image is approved yet (https://github.com/ajnart/self-host/issues/189)",
 }
 
 // Unavailable returns why an App is hidden from new installs, or "" when it
