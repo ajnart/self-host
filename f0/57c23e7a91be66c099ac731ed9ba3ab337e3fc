@@ -1,0 +1,41 @@
+internal/apps/homarr/links.go
+  s_0812986ae533ff::t_ca58d3085a2a58 63,118,145-146
+internal/apps/homarr/target_beszel.go
+  s_0812986ae533ff::t_b9ddbb0c18ab95 18
+internal/apps/homarr/target_frigate.go
+  s_0812986ae533ff::t_675d8e7b1a7dd8 15
+internal/apps/homarr/target_gluetun.go
+  s_0812986ae533ff::t_e63541547bd126 18
+internal/apps/homarr/target_immich.go
+  s_0812986ae533ff::t_703a464971357f 14
+internal/apps/homarr/target_navidrome.go
+  s_0812986ae533ff::t_a5a3ae2a60ad8f 18
+internal/apps/homarr/target_nzbget.go
+  s_0812986ae533ff::t_3c2126e9c36391 16
+internal/apps/homarr/target_patchmon.go
+  s_0812986ae533ff::t_bb8229ba671d20 18
+internal/apps/homarr/target_plantit.go
+  s_0812986ae533ff::t_30bd235ca0c58a 18
+internal/apps/homarr/target_romm.go
+  s_0812986ae533ff::t_953dbb62ebc28e 14-18
+internal/apps/homarr/target_sabnzbd.go
+  s_0812986ae533ff::t_3219dacf47e3b4 15-17
+internal/apps/homarr/target_uptime_kuma.go
+  s_0812986ae533ff::t_1d0564c0ef9008 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f057c23e7a91be66c099ac731ed9ba3ab337e3fc",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
