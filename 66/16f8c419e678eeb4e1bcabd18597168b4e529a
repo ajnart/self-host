@@ -1,0 +1,43 @@
+docs/catalog/traps/tubearchivist.md
+  s_0812986ae533ff::t_da813b77878b85 1-116
+internal/apps/homarr/target_tubearchivist.go
+  s_0812986ae533ff::t_233da0b409c87f 1-58
+internal/apps/homarr/target_tubearchivist_test.go
+  s_0812986ae533ff::t_13c3b353674eac 1-142
+internal/apps/homarr/targets.go
+  s_0812986ae533ff::t_c253f94ce2b29a 60
+internal/apps/tubearchivist/homarr.go
+  s_0812986ae533ff::t_951a09f04b35ae 1-161
+internal/apps/tubearchivist/homarr_test.go
+  s_0812986ae533ff::t_6e0e0f4ebb8c4e 1-229
+internal/apps/tubearchivist/tubearchivist.go
+  s_0812986ae533ff::t_e916db5b0c636b 1-225
+internal/apps/tubearchivist/tubearchivist_test.go
+  s_0812986ae533ff::t_35bb7896184149 1-448
+internal/catalog/batch_multi2.go
+  s_0812986ae533ff::t_ce5dd41f8588ef 13,28
+internal/catalog/ownership_test.go
+  s_0812986ae533ff::t_fddec865c05d63 69
+internal/catalog/parity_test.go
+  s_0812986ae533ff::t_7f2832ef3cf0a8 100
+tools/sitegen/icons.go
+  s_0812986ae533ff::t_469476348efa46 110
+tools/sitegen/stars.go
+  s_0812986ae533ff::t_ca84efc17b7c12 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6616f8c419e678eeb4e1bcabd18597168b4e529a",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
