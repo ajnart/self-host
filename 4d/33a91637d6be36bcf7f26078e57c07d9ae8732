@@ -1,0 +1,20 @@
+docs/catalog/traps/bindery.md
+  h_d6e478ca18e517 9-11
+internal/apps/bindery/bindery.go
+  h_d6e478ca18e517 54-55,74-78
+internal/apps/bindery/bindery_test.go
+  h_d6e478ca18e517 190-198,204-205,213
+internal/service/bindery_directories_test.go
+  h_d6e478ca18e517 1-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d33a91637d6be36bcf7f26078e57c07d9ae8732",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
