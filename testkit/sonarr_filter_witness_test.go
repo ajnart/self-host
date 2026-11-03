@@ -167,7 +167,9 @@ func newSonarrWitnessPair(t *testing.T, order PairOrder, enabled bool) (*Pair, *
 	view, _ := p.App("sonarr")
 	w.address, w.workEnd = view.URL(), p.owner.workDeadline
 	t.Cleanup(func() {
+		f.mu.Lock()
 		f.cleanupFailure = false
+		f.mu.Unlock()
 		if p.Close(context.Background()) != nil {
 			t.Error("fake witness owner cleanup failed")
 		}
@@ -353,7 +355,9 @@ func TestSonarrWitnessCancellationPreservesPrimaryAndIndependentCleanup(t *testi
 		t.Run(strconv.FormatBool(cleanupFailed), func(t *testing.T) {
 			p, f, w := newSonarrWitnessPair(t, ConsumerFirst, true)
 			w.blockPath, w.entered, w.release = "/api/v3/system/status", make(chan struct{}), make(chan struct{})
+			f.mu.Lock()
 			f.cleanupFailure = cleanupFailed
+			f.mu.Unlock()
 			ctx, cancel := context.WithCancel(t.Context())
 			done := make(chan error, 1)
 			go func() { _, err := p.CreateSonarrFilterWitness(ctx); done <- err }()
