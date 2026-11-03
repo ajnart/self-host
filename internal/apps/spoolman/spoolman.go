@@ -29,10 +29,20 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
+func (App) Inputs() []app.Input {
+	return []app.Input{{Key: "db_password", Prompt: "Matching PostgreSQL password", Private: true, RecoveryOnly: true,
+		Help: "Recover the original database password privately; never supply a replacement for retained database data. Automatic first-password generation is unavailable without proof of new storage."}}
+}
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "db_password", Length: 48}}
+}
+
+func (App) Preflight(_ context.Context, h *helpers.H) error {
+	if h.Secrets == nil {
+		return nil
+	}
+	return databaseCredential(h)
 }
 
 func (App) Compose(rc app.RenderContext) string {
@@ -80,7 +90,7 @@ const recoveryHint = "Read self-host logs spoolman and retry self-host setup spo
 
 const authenticationHint = "Spoolman's API is protected by existing authentication or a redirect. Keep that authentication enabled and preserve the database, credentials, data paths and Access. This App's read-only verification cannot negotiate that protection; review the private connection before retrying self-host setup spoolman. Do not publish another unauthenticated port."
 
-const databaseCredentialHint = "Restore the existing matching SPOOLMAN_DB_PASSWORD through the Project's private secret boundary, then retry self-host setup spoolman. Keep the database and its authentication; do not generate a replacement password, initialize another database or migrate inventory."
+const databaseCredentialHint = "Automatic database-password generation is unavailable because new storage cannot be established safely. Preserve the database and its authentication; restore the original matching SPOOLMAN_DB_PASSWORD with self-host install spoolman --yes --set-file spoolman.db_password=PATH using an owner-only credential file, then retry self-host setup spoolman. Only supply an initial password after independently verifying a new database. Never replace a retained database's password, initialize another database or migrate inventory."
 
 var readiness = firstadmin.NoAccount{Probe: firstadmin.Probe{
 	Path: "/api/v1/health",

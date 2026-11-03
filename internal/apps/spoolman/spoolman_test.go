@@ -84,8 +84,12 @@ func TestSpoolmanDeploymentKeepsSupportedImageIdentityAndPrivatePersistentDataba
 	if info.ID != "spoolman" || info.Service != "spoolman" || info.Port != 7912 || info.ContainerPort != 8000 || !info.WebSockets {
 		t.Fatalf("incorrect Spoolman metadata: %+v", info)
 	}
-	if info.Image != "ghcr.io/donkie/spoolman:latest" || len(a.Inputs()) != 0 || len(a.Links()) != 0 {
-		t.Fatal("Spoolman must use its official image without invented inputs or outbound Links")
+	if info.Image != "ghcr.io/donkie/spoolman:latest" || len(a.Links()) != 0 {
+		t.Fatal("Spoolman must use its official image without outbound Links")
+	}
+	inputs := a.Inputs()
+	if len(inputs) != 1 || inputs[0].Key != "db_password" || !inputs[0].Private || !inputs[0].RecoveryOnly || inputs[0].Required || inputs[0].Default != "" {
+		t.Fatal("Spoolman must expose only optional private recovery of the matching database password")
 	}
 	settings := map[string]string{"PUID": "0", "PGID": "0", "BIND_IP": "127.0.0.1"}
 	before := maps.Clone(settings)
@@ -144,7 +148,7 @@ func TestSpoolmanDeploymentKeepsSupportedImageIdentityAndPrivatePersistentDataba
 		t.Fatal("Spoolman must wait for its own database readiness")
 	}
 	if !reflect.DeepEqual(a.Secrets(), []app.SecretSpec{{Name: "db_password", Length: 48}}) {
-		t.Fatal("only the private database password may be generated; there is no Spoolman web account or API key")
+		t.Fatal("only the guarded private database password may be declared; there is no Spoolman web account or API key")
 	}
 	for _, forbidden := range []string{"privileged:", "devices:", "docker.sock", "chown", "chmod", "AUTH_METHOD: trust"} {
 		if strings.Contains(definition, forbidden) {
@@ -336,7 +340,8 @@ func TestSpoolmanFakeInstallAndRemovalKeepAppDatabaseAndManualCompose(t *testing
 	server := spoolmanServer(t, nil, &requests)
 	deps := systemtest.NewDeps(t)
 	cat := catalog.New([]app.App{spoolman.App{}}, nil)
-	installed := clitest.Run(t, deps, cat, "install", "spoolman", "--yes", "--exposure", "local", "--set", "spoolman.port="+clitest.Port(server))
+	deps.In = strings.NewReader("synthetic-original-database-password\n")
+	installed := clitest.Run(t, deps, cat, "install", "spoolman", "--yes", "--exposure", "local", "--set", "spoolman.port="+clitest.Port(server), "--set-file", "spoolman.db_password=-")
 	if installed.Code != 0 {
 		t.Fatal(installed.Out)
 	}
@@ -369,4 +374,5 @@ func TestSpoolmanFakeInstallAndRemovalKeepAppDatabaseAndManualCompose(t *testing
 
 var _ app.App = spoolman.App{}
 var _ app.SecretDeclarer = spoolman.App{}
+var _ app.PreflightChecker = spoolman.App{}
 var _ app.StandaloneGuide = spoolman.App{}

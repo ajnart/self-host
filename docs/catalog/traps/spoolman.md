@@ -8,14 +8,36 @@ not the host mapping. The App includes its own `spoolman-db` PostgreSQL 18
 container, without a published database port. Database files persist under
 `apps/spoolman/database`, mounted at PostgreSQL 18's `/var/lib/postgresql`.
 Its schema, inventory, filaments, vendors, settings and usage fields belong
-to that database. `SPOOLMAN_DB_PASSWORD` is a generated App-local database
-password stored through the Project's private secret boundary; it is not a
-Spoolman web login or a Homarr API key. Existing secrets are reused, not rotated.
-Setup and Check stop as Manual before API reads when that saved password is
-missing; restore its existing matching value rather than issuing a replacement.
-The presence check is a recovery prerequisite, not a claim that a password was
-independently authenticated; successful inventory reads also require the running
-App to have a working database connection.
+to that database. `SPOOLMAN_DB_PASSWORD` is an App-local database password stored
+through the Project's private secret boundary; it is not a Spoolman web login or
+a Homarr API key. Existing secrets are reused, not rotated.
+
+The App's credential-aware Preflight checks the authoritative `H.Secrets` store
+before Install or a changed-definition refresh can generate secrets, and before
+startup. The earlier public-only Preflight has no secret store and defers this
+check to that locked credential-aware call; public inputs are not authority.
+Missing passwords remain Manual before generation, pull or up, including retained
+databases, missing App/Project state and non-purge remove/reinstall. Setup and
+Check retain the same Manual prerequisite before API reads.
+
+**Automatic first-password generation is partial/unavailable.** Existing
+facilities do not prove that storage is new: an absent or empty directory and
+missing state are not permission to initialize or replace database credentials.
+The existing secret declaration stays guarded; no new issuance ledger, private
+store reader or password generator is introduced. An independently verified new
+database needs an explicitly chosen initial password supplied privately. Retained
+data requires its original matching password, never a newly chosen replacement.
+
+Recover through the existing private-input boundary:
+`self-host install spoolman --yes --set-file spoolman.db_password=PATH`, using an
+owner-only file containing the original password. The existing in-memory private
+input API and `--set-file spoolman.db_password=-` are also supported. Plain
+`--set` is rejected for this field; credentials stay out of public App inputs,
+events and Compose.
+After recovery, retry `self-host setup spoolman`. The presence check does not
+independently authenticate the supplied password against PostgreSQL; recovery
+must provide the matching original, and successful inventory reads additionally
+require the running App to have a working database connection.
 
 The official Spoolman entrypoint rejects `PUID=0`, whereas rootless Docker
 Projects use that Host setting. The App therefore uses Spoolman's supported
