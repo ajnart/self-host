@@ -97,6 +97,7 @@ var icons = map[string]string{
 	"syncthing":            "svg/syncthing.svg",
 	"tailscale":            "svg/tailscale.svg",
 	"tandoor":              "svg/tandoor-recipes.svg",
+	"fileflows":            "svg/fileflows.svg",
 	"tdarr":                "svg/tdarr.svg",
 	"technitium-dns":       "svg/technitium.svg",
 	"tracearr":             "svg/tracearr.svg",
