@@ -9,7 +9,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspect } from "node:util";
-import { type SelfHost, TestkitError, createSelfHost } from "../index.mjs";
+import {
+	type SelfHost,
+	TestkitError,
+	createSelfHost,
+	withApp,
+	withPair,
+} from "../index.mjs";
 
 const directories: string[] = [];
 const handles: SelfHost[] = [];
@@ -27,7 +33,7 @@ function fixture(timeoutMs = 1000) {
 	writeFileSync(binary, `#!${process.execPath}\n${source}`, { mode: 0o700 });
 	const selfHost = createSelfHost({ binary, manifest, timeoutMs });
 	handles.push(selfHost);
-	return { selfHost, manifest };
+	return { selfHost, manifest, binary };
 }
 
 function events(
@@ -146,4 +152,178 @@ test("missing helper and invalid options do not expose executable paths", async 
 	expect(() => createSelfHost({ timeoutMs: 900001 })).toThrow(
 		"Invalid testkit protocol.",
 	);
+});
+
+for (const order of ["consumer-first", "target-first"] as const) {
+	test(`pair ${order} shares transport and owns lifecycle`, async () => {
+		const { selfHost, manifest } = fixture();
+		const pair = await selfHost.spinupPair("consumer", "peer", { order });
+		expect(pair.initial.outcome).toBe("prerequisite");
+		expect(pair.initial.apps.filter((app) => app.installed)[0]?.id).toBe(
+			order === "consumer-first" ? "consumer" : "peer",
+		);
+		expect("close" in pair.consumer).toBe(false);
+		expect((await pair.target.info()).id).toBe("peer");
+		expect((await pair.inspect()).outcome).toBe("complete");
+		expect(JSON.stringify(pair)).toBe('"[Pair]"');
+		expect(inspect(await pair.consumer.credentials())).toBe("[Credentials]");
+		await expect(pair.remove("outside")).rejects.toThrow(
+			"Fixture is not available.",
+		);
+		expect((await pair.remove("peer")).outcome).toBe("prerequisite");
+		await expect(pair.target.info()).rejects.toThrow(
+			"Fixture is not available.",
+		);
+		expect((await pair.install("peer")).outcome).toBe("complete");
+		expect((await pair.setup()).outcome).toBe("complete");
+		await Promise.all([pair.close(), selfHost.close()]);
+		expect(
+			events(manifest).filter((event) => event.method === "spinupPair"),
+		).toHaveLength(1);
+		expect(
+			events(manifest).filter((event) => event.method === "cleanup"),
+		).toHaveLength(1);
+		await expect(pair.inspect()).rejects.toThrow();
+	});
+}
+
+test("pair malformed inspection and selected options fail explicitly", async () => {
+	const { selfHost } = fixture();
+	await expect(
+		selfHost.spinupPair("peer", "peer", { order: "consumer-first" }),
+	).rejects.toThrow("Invalid testkit protocol.");
+	await expect(
+		selfHost.spinupPair("consumer", "peer", {
+			order: "consumer-first",
+			images: { outside: "image:latest" },
+		}),
+	).rejects.toThrow("Invalid testkit protocol.");
+	const pair = await selfHost.spinupPair("bad-inspection", "peer", {
+		order: "consumer-first",
+	});
+	await expect(pair.inspect()).rejects.toThrow("Invalid testkit protocol.");
+});
+
+test("scoped pair preserves undefined failure and reports cleanup separately", async () => {
+	const { binary, manifest } = fixture();
+	let notified = false;
+	let caught = false;
+	try {
+		await withPair(
+			"cleanup-failure",
+			"peer",
+			() => {
+				throw undefined;
+			},
+			{
+				binary,
+				manifest,
+				timeoutMs: 1000,
+				order: "consumer-first",
+				onCleanupError(error) {
+					notified = error.code === "CLEANUP";
+					throw new Error("secondary callback failure");
+				},
+			},
+		);
+	} catch (error) {
+		caught = true;
+		expect(error).toBeUndefined();
+	}
+	expect(caught).toBe(true);
+	expect(notified).toBe(true);
+	await expect(
+		withPair("cleanup-failure", "peer", () => 1, {
+			binary,
+			manifest,
+			timeoutMs: 1000,
+			order: "target-first",
+		}),
+	).rejects.toThrow("Fixture cleanup failed");
+	expect(
+		await withPair("consumer", "peer", () => 42, {
+			binary,
+			manifest,
+			timeoutMs: 1000,
+			order: "consumer-first",
+		}),
+	).toBe(42);
+	const primary = new Error("primary");
+	await expect(
+		withApp(
+			"cleanup-failure",
+			() => {
+				throw primary;
+			},
+			{ binary, manifest, timeoutMs: 1000 },
+		),
+	).rejects.toBe(primary);
+});
+
+test("pair action failures retain typed primary causes and cleanup status", async () => {
+	for (const consumer of [
+		"action-caps",
+		"action-timeout",
+		"action-cancel",
+		"action-cleanup",
+	]) {
+		const { selfHost, manifest } = fixture();
+		const pair = await selfHost.spinupPair(consumer, "peer", {
+			order: "consumer-first",
+		});
+		await pair.remove("peer");
+		let caught: unknown;
+		try {
+			await pair.install("peer");
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(TestkitError);
+		if (!(caught instanceof TestkitError))
+			throw new Error("Missing typed action error");
+		let code = "OPERATION";
+		if (consumer === "action-timeout") code = "TIMEOUT";
+		if (consumer === "action-cancel") code = "CANCELED";
+		expect(caught.code).toBe(code);
+		if (code === "OPERATION") expect(caught.reason).toBe("LIMITS");
+		expect(caught.cleanupFailed).toBe(consumer === "action-cleanup");
+		expect(inspect(caught)).not.toContain("private-test-raw-secret");
+		expect(
+			events(manifest).filter((event) => event.method === "owned-cleanup"),
+		).toHaveLength(1);
+		await expect(pair.inspect()).rejects.toThrow("Fixture is not available.");
+	}
+});
+
+test("shared scoped lifetime preserves single-App returns and both APIs' primitive failures", async () => {
+	const { binary, manifest } = fixture();
+	const options = { binary, manifest, timeoutMs: 1000 };
+	expect(await withApp("sonarr", async () => 0, options)).toBe(0);
+	expect(await withApp("sonarr", () => undefined, options)).toBeUndefined();
+	await expect(withApp("cleanup-failure", () => 1, options)).rejects.toThrow(
+		"Fixture cleanup failed",
+	);
+	for (const pair of [false, true]) {
+		for (const primary of [undefined, 0]) {
+			let caught = false;
+			const callback = async () => {
+				throw primary;
+			};
+			try {
+				if (pair)
+					await withPair("cleanup-failure", "peer", callback, {
+						...options,
+						order: "consumer-first",
+						onCleanupError: async () => {
+							throw new Error("secondary notification");
+						},
+					});
+				else await withApp("cleanup-failure", callback, options);
+			} catch (error) {
+				caught = true;
+				expect(error).toBe(primary);
+			}
+			expect(caught).toBe(true);
+		}
+	}
 });

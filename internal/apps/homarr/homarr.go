@@ -70,9 +70,7 @@ func newSession(h *helpers.H) *session { return &session{http: h.Session()} }
 // success, {"error":{"json":{"message","code"}}} otherwise.
 type envelope struct {
 	Result struct {
-		Data struct {
-			JSON json.RawMessage `json:"json"`
-		} `json:"data"`
+		Data procedureData `json:"data"`
 	} `json:"result"`
 	Error struct {
 		JSON struct {
@@ -94,13 +92,7 @@ func decodeProcedure(resp helpers.Response) (any, error) {
 		}
 		return nil, fmt.Errorf("Homarr rejected the call (HTTP %d): %s", resp.Status, message)
 	}
-	var value any
-	if len(env.Result.Data.JSON) > 0 {
-		if err := json.Unmarshal(env.Result.Data.JSON, &value); err != nil {
-			return nil, err
-		}
-	}
-	return value, nil
+	return decodeProcedureData(env.Result.Data)
 }
 
 func procedurePath(proc string, input any) (string, error) {
