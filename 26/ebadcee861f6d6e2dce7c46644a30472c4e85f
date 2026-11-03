@@ -1,0 +1,27 @@
+docs/homarr-openmediavault-proof.md
+  s_121da8e8a6b256::t_7fa2400f485932 1-21
+internal/apps/homarr/external_targets.go
+  s_121da8e8a6b256::t_b6775619854de7 5-7,16-17,21-34
+internal/apps/homarr/target_openmediavault.go
+  s_121da8e8a6b256::t_39b02882642a8c 1-94
+internal/apps/homarr/target_openmediavault_test.go
+  s_121da8e8a6b256::t_68ce7a8bacc7c1 1-141
+internal/apps/homarr/target_proxmox.go
+  s_121da8e8a6b256::t_443d25b433dcc4 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26ebadcee861f6d6e2dce7c46644a30472c4e85f",
+  "prompts": {},
+  "sessions": {
+    "s_121da8e8a6b256": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9cc6833-5f1d-42a9-aa64-89128db02c15",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
