@@ -1,0 +1,24 @@
+testkit/node/README.md
+  h_d6e478ca18e517 187-189
+testkit/node/index.mjs
+  h_d6e478ca18e517 391,400-402,423-428,443-451,453
+testkit/node/src/index.mts
+  h_d6e478ca18e517 581,593-594,625-633,661-673,675
+testkit/node/tests/fake-helper.mjs
+  h_d6e478ca18e517 71-165,247,377
+testkit/node/tests/transport.test.ts
+  h_d6e478ca18e517 1039-1142
+testkit/pair_test.go
+  h_d6e478ca18e517 178-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "68802b8cc7e920c204d82b258afb40f5099d8050",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
