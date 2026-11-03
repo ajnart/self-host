@@ -69,13 +69,13 @@ func verifyBinderyItems(items []any, browser *url.URL, queued bool) error {
 			return errors.New(failure)
 		}
 		ids[id] = true
-		if year, present := item["year"]; present {
+		if year, present := item["year"]; present && year != nil {
 			value, valid := countValue(year)
 			if !valid || value > 9999 {
 				return errors.New(failure)
 			}
 		}
-		if author, present := item["seriesTitle"]; present {
+		if author, present := item["seriesTitle"]; present && author != nil {
 			if _, valid := author.(string); !valid {
 				return errors.New(failure)
 			}
