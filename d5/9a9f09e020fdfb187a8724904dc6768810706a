@@ -1,0 +1,22 @@
+docs/homarr-readarr-proof.md
+  h_d6e478ca18e517 1-63
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 44-45
+internal/apps/homarr/target_lidarr.go
+  h_d6e478ca18e517 7,58-79,86,90,94,97-98,102,104,108-112,115,118-119
+internal/apps/homarr/target_readarr.go
+  h_d6e478ca18e517 1-96
+internal/apps/homarr/target_readarr_test.go
+  h_d6e478ca18e517 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d59a9f09e020fdfb187a8724904dc6768810706a",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
