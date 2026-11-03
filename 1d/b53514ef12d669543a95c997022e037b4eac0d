@@ -1,0 +1,30 @@
+internal/project/directories.go
+  h_d6e478ca18e517 26-30,41,44-47,50,54-60,63-64,66,71-117,125,127-142,146-151,154,203
+internal/project/directories_test.go
+  h_d6e478ca18e517 507-617
+internal/service/directories_test.go
+  h_d6e478ca18e517 328-339,342,536-541
+internal/service/directory_validation_test.go
+  h_d6e478ca18e517 1-526
+internal/service/install.go
+  h_d6e478ca18e517 677-679,695,701-761
+internal/service/lifecycle.go
+  h_d6e478ca18e517 120-124
+internal/service/mutation.go
+  h_d6e478ca18e517 264-268
+internal/service/restore.go
+  h_d6e478ca18e517 481-493,837-846
+internal/service/service.go
+  h_d6e478ca18e517 423-432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1db53514ef12d669543a95c997022e037b4eac0d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
