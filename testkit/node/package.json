@@ -20,6 +20,7 @@
 		"reasons.d.mts",
 		"setup.mjs",
 		"examples/sonarr.mjs",
+		"examples/homarr-sonarr.mjs",
 		"README.md",
 		"LICENSE"
 	],
