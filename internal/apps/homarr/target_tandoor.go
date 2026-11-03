@@ -2,14 +2,14 @@ package homarr
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
-	"github.com/ajnart/self-host/internal/apps/tandoor"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-const tandoorNativeHint = "Homarr could not verify this owned Tandoor integration's recorded account and Spaces. Confirm the current Homarr API supports authenticated integration requests and restore only this integration's matching read-only token in Management > Integrations, then retry self-host setup homarr. Preserve other integrations and all Tandoor accounts, Spaces and private issuance records."
+const tandoorNativeHint = "Managed Tandoor linking is held: the supported native APIs do not prove the exact saved token's identity, rights and expiry. Preserve existing Homarr credentials, integrations, App records and Tandoor Spaces. Do not edit upstream credentials, decrypt secrets, access private databases or replace a token to bypass this hold. Native linking requires a reviewed authoritative token-specific contract before any mutation or Stats refresh."
+
+func tandoorNativeHold() error { return &helpers.ManualError{Hint: tandoorNativeHint} }
 
 func tandoorTarget() target {
 	return target{
@@ -17,53 +17,15 @@ func tandoorTarget() target {
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "apiKey", Value: to.Secret(to.Key("homarr_api_key"))}}
 		},
-		widgets: []widget{statWidget("users", "recipes", "keywords")},
-		preflight: func(ctx context.Context, from, to *helpers.H) error {
-			err := tandoor.VerifyHomarr(ctx, to)
-			if errors.Is(err, helpers.ErrManual) {
-				from.Info(tandoor.HomarrRecoveryHint)
-			}
-			return err
-		},
-		verify: verifyTandoor,
-		stats:  verifyTandoorStats,
+		widgets:   []widget{statWidget("users", "recipes", "keywords")},
+		preflight: func(context.Context, *helpers.H, *helpers.H) error { return tandoorNativeHold() },
+		verify:    verifyTandoor,
+		stats:     verifyTandoorStats,
 	}
 }
 
-func verifyTandoor(ctx context.Context, from, to *helpers.H, integrationID string) error {
-	if err := tandoor.VerifyHomarr(ctx, to); err != nil {
-		return err
-	}
-	var personal, current, spaces json.RawMessage
-	for _, request := range []struct {
-		path string
-		body *json.RawMessage
-	}{
-		{"/api/user-space/all_personal/", &personal},
-		{"/api/space/current/", &current},
-		{"/api/space/", &spaces},
-	} {
-		value, err := apiKeyWrite(ctx, from, "integration.request", map[string]any{
-			"integrationId": integrationID, "method": "GET", "path": request.path,
-		})
-		if err != nil {
-			return &helpers.ManualError{Hint: tandoorNativeHint}
-		}
-		result, _ := value.(map[string]any)
-		integration, _ := result["integration"].(map[string]any)
-		if result["ok"] != true || result["status"] != float64(200) || result["error"] != nil || integration["id"] != integrationID || integration["kind"] != "tandoor" {
-			return &helpers.ManualError{Hint: tandoorNativeHint}
-		}
-		body, err := json.Marshal(result["data"])
-		if err != nil {
-			return errors.New("Homarr did not return Tandoor account and Space metadata")
-		}
-		*request.body = body
-	}
-	if err := tandoor.VerifyHomarrIdentity(to, personal, current, spaces); err != nil {
-		return &helpers.ManualError{Hint: tandoorNativeHint}
-	}
-	return nil
+func verifyTandoor(context.Context, *helpers.H, *helpers.H, string) error {
+	return tandoorNativeHold()
 }
 
 func verifyTandoorStats(sample statsSample) error {

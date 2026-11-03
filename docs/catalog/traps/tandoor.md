@@ -5,7 +5,7 @@
 This source implementation for #180 supplies the deployment definition, checks
 an existing administrator and its owned active Space, issues one dedicated
 read-scoped token through the shared credential journal and supplies a native
-Homarr Stats leaf. Automatic first-account creation remains Manual. Catalog and
+Homarr Stats leaf that is explicitly held before native mutation. Automatic first-account creation remains Manual. Catalog and
 Homarr registration, DCM promotion and generated metadata remain coordinator-owned.
 No native, rendered, persistence or lifecycle runtime acceptance has been performed.
 
@@ -122,14 +122,23 @@ Space; keywords describe the token's active Space. These identities can differ.
 An empty Space list is not a valid zero sample. A fresh controlled first account
 can legitimately report 1 user, 0 recipes and 0 keywords without manufacturing
 recipes or changing meal plans. That is a planned expectation, not runtime proof.
-Before Homarr mutation, read-only preflight verifies the App-owned credential.
-Verification also reads the saved Homarr integration's account, active Space and
-first accessible Space through its adapter-backed requests, checking exact returned
-integration ID/kind/status and stable identities. Counts alone do not prove the
-selected account. The common Stats pipeline obtains one advancing forced sample
-and catalog; the leaf checks integral nonnegative count units, at least one user,
-no retry/backoff and a one-minute acquisition-clock tolerance. Zero recipes and
-keywords remain valid. No recipe payload, import or meal plan is requested.
+The supported APIs expose account/Space metadata and an owner-filtered token
+inventory, not authoritative identity, rights and expiry for the exact token
+saved in Homarr. A different valid token for the same account can return identical
+metadata. Neither local token verification nor Address/fingerprint reconciliation
+proves that saved token. Native preflight therefore returns a fixed Manual hold
+before every integration, App, widget or secret mutation and before Stats. Both
+Step Check and Do are guarded; the native verifier independently retains the same
+hold. Do not edit upstream credentials, decrypt secrets, query private databases,
+replace a saved token or change an upstream API to bypass it. Only a separately
+reviewed authoritative token-specific contract can remove this hold.
+
+The retained Stats semantics are isolated source/fake plumbing, not admission:
+the common pipeline obtains one advancing forced sample and catalog, checking
+integral nonnegative count units, at least one user, no retry/backoff and a
+one-minute acquisition-clock tolerance. Zero recipes and keywords remain valid.
+Managed native linking does not reach that pipeline while held. No recipe
+payload, import or meal plan is requested.
 
 Shared reconciliation retains ownership, compatibility and user layout; this leaf
 does not edit the registry or shared cleanup. Central assembly, real advancing
