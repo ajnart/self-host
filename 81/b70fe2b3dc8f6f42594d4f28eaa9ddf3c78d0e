@@ -1,0 +1,22 @@
+docs/homarr-jellyseerr.md
+  h_d6e478ca18e517 1-47
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 15-16
+internal/apps/homarr/seerr_family.go
+  h_d6e478ca18e517 1-172
+internal/apps/homarr/target_jellyseerr.go
+  h_d6e478ca18e517 1-9
+internal/apps/homarr/target_jellyseerr_test.go
+  h_d6e478ca18e517 1-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "81b70fe2b3dc8f6f42594d4f28eaa9ddf3c78d0e",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
