@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/nzbget"
@@ -46,8 +47,14 @@ func nzbgetDownloadTarget(t *testing.T, entries []map[string]string) (*helpers.H
 	t.Helper()
 	settings := &sync.Map{}
 	settings.Store("config", entries)
+	settings.Store("rpc_requests", &atomic.Int64{})
 	base := handler(settings)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	rpcHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowSetup, _ := settings.Load("allow_setup")
+		if allowSetup == true && r.Method == "GET" && r.URL.Path == "/" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error("could not read RPC fixture request")
@@ -55,14 +62,29 @@ func nzbgetDownloadTarget(t *testing.T, entries []map[string]string) (*helpers.H
 			return
 		}
 		var request struct{ Method string }
-		if r.Method != "POST" || r.URL.Path != "/jsonrpc" || len(r.URL.RawQuery) != 0 || json.Unmarshal(body, &request) != nil || request.Method != "version" && request.Method != "config" {
+		if r.Method != "POST" || r.URL.Path != "/jsonrpc" || len(r.URL.RawQuery) != 0 || json.Unmarshal(body, &request) != nil || request.Method != "version" && request.Method != "config" && !(allowSetup == true && request.Method == "loadconfig") {
 			t.Error("download-client helper attempted a mutation or an unrelated provider/queue action")
 			w.WriteHeader(400)
 			return
 		}
+		counter, _ := settings.Load("rpc_requests")
+		counter.(*atomic.Int64).Add(1)
+		if accepted, changed := settings.Load("rpc_password"); changed {
+			user, supplied, present := r.BasicAuth()
+			if present {
+				if user != "admin" || supplied != accepted {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				r.Header = r.Header.Clone()
+				r.SetBasicAuth("admin", password)
+			}
+		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		base.ServeHTTP(w, r)
-	}))
+	})
+	settings.Store("rpc_handler", rpcHandler)
+	server := httptest.NewServer(rpcHandler)
 	t.Cleanup(server.Close)
 	var results []helpers.StepResult
 	return newH(t, server, &results), settings

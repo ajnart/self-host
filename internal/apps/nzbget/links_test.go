@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/app"
@@ -29,33 +30,95 @@ var nzbgetConsumerCases = []nzbgetConsumerCase{
 }
 
 type nzbgetLinkFixture struct {
-	backend   *arrtest.Arr
-	from, to  *helpers.H
-	secrets   porttest.Secrets
-	recorder  *porttest.Recorder
-	template  map[string]any
-	link      app.Link
-	category  string
-	field     string
-	pathProbe *nzbgetImageIdentityFixture
+	backend                                     *arrtest.Arr
+	from, to                                    *helpers.H
+	secrets                                     porttest.Secrets
+	recorder                                    *porttest.Recorder
+	template                                    map[string]any
+	link                                        app.Link
+	category, field                             string
+	pathProbe                                   *nzbgetImageIdentityFixture
+	targetSettings                              *sync.Map
+	handler                                     http.Handler
+	mappings                                    []map[string]any
+	roots                                       []map[string]any
+	mask, uncertain, missingRoots, rejectNative bool
+	nativeBody                                  string
+	nativeStatus                                int
+	creates, updates, deletes, nativeTests      int
+	lastNativeTargets, lastNativeConsumers      int
 }
 
 type nzbgetImageIdentityFixture struct {
 	helpers.Executor
 	directory, service string
 	wrongIdentity      int
+	supported          bool
+	targetService      string
+	remote, local      string
+	denied             string
+	distinct, overlap  bool
+	targets, consumers int
+	observed           []string
 }
 
 func (f *nzbgetImageIdentityFixture) Exec(_ context.Context, service string, _ map[string]string, args ...string) (system.Result, error) {
-	if len(args) != 8 || args[6] != "self-host-download-path" || service != "nzbget" {
+	if len(args) != 8 || args[6] != "self-host-download-path" {
 		return system.Result{}, errors.New("unexpected path command in NZBGet identity fixture")
 	}
-	f.service, f.directory = service, args[7]
-	if strings.Join(args[:3], " ") == "s6-setuidgid abc sh" {
-		f.wrongIdentity++
-		return system.Result{ExitCode: 127}, nil
+	target := f.targetService
+	if target == "" {
+		target = "nzbget"
 	}
-	return system.Result{}, errors.New("unsupported image identity fixture command")
+	prefix := ""
+	if service == target {
+		f.service, f.directory = service, args[7]
+		if strings.Join(args[:3], " ") != "su-exec user:users sh" || !f.supported {
+			f.wrongIdentity++
+			return system.Result{ExitCode: 127}, nil
+		}
+		start := strings.Index(args[5], `test -d "$1"`)
+		for _, assertion := range []string{`test "$(id -u)" -ne 0`, `test "$(id -g)" -ne 0`, `test "$(id -un)" = "user"`, `test "$(id -gn)" = "users"`} {
+			if index := strings.Index(args[5], assertion); index < 0 || start < 0 || index >= start {
+				return system.Result{}, errors.New("exact nonroot child identity was not checked before filesystem access")
+			}
+		}
+		prefix = "user\nusers\n"
+		f.targets++
+	} else {
+		if strings.Join(args[:3], " ") != "s6-setuidgid abc sh" {
+			return system.Result{}, errors.New("consumer path probe did not retain S6 abc")
+		}
+		f.consumers++
+	}
+	directory := args[7]
+	f.observed = append(f.observed, service+":"+directory)
+	if f.denied == service+":"+directory {
+		return system.Result{ExitCode: 1}, nil
+	}
+	identity, backing := "1:42", "/fixture/downloads"
+	if strings.Contains(directory, "/media/") {
+		identity, backing = "1:99", "/fixture/library"
+	} else {
+		base := f.local
+		if service == target {
+			base = f.remote
+		}
+		if base == "" {
+			base = "/data/usenet/complete"
+		}
+		if directory != base && !strings.HasPrefix(directory, base+"/") {
+			return system.Result{ExitCode: 1}, nil
+		}
+		backing += strings.TrimPrefix(directory, base)
+		if f.distinct && service != target {
+			identity = "1:77"
+		}
+		if f.overlap {
+			backing = "/fixture/library"
+		}
+	}
+	return system.Result{Stdout: []byte(prefix + directory + "\n" + identity + "\n1 0 0:5 " + backing + " " + directory + " rw - ext4 /dev/fixture rw\n")}, nil
 }
 
 func newNZBGetLinkFixture(t *testing.T, consumer nzbgetConsumerCase) *nzbgetLinkFixture {
@@ -78,26 +141,120 @@ func newNZBGetLinkFixture(t *testing.T, consumer nzbgetConsumerCase) *nzbgetLink
 		backend: backend, category: consumer.category, field: consumer.categoryField,
 		template: map[string]any{"name": "NZBGet", "implementation": "Nzbget", "implementationName": "NZBGet", "configContract": "NzbgetSettings", "protocol": "usenet", "enable": true, "priority": float64(9), "fields": fields},
 		secrets:  porttest.Secrets{strings.ToUpper(consumer.id) + "_API_KEY": backend.Key}, recorder: &porttest.Recorder{},
-		link: servarr.NZBGetLink(consumer.api, consumer.categoryField, consumer.category), pathProbe: &nzbgetImageIdentityFixture{},
+		link: servarr.NZBGetLink(consumer.api, consumer.categoryField, consumer.category), pathProbe: &nzbgetImageIdentityFixture{}, mappings: []map[string]any{},
+	}
+	backend.AcceptDownloadProvider = func(item map[string]any) bool {
+		if item["implementation"] != "Nzbget" {
+			return true
+		}
+		accepted := password
+		if value, changed := f.targetSettings.Load("rpc_password"); changed {
+			accepted = value.(string)
+		}
+		host := f.pathProbe.targetService
+		if host == "" {
+			host = "nzbget"
+		}
+		value := arrtest.Field(item, "password")
+		return !f.rejectNative && arrtest.Field(item, "host") == host && arrtest.Field(item, "port") == float64(6789) && arrtest.Field(item, "username") == "admin" && (value == accepted || value == "********")
 	}
 	base := backend.Handler()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != consumer.api+"/downloadclient/schema" {
+	f.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ping" || r.URL.Path == "/login" {
 			base.ServeHTTP(w, r)
 			return
 		}
-		if r.Header.Get("X-Api-Key") != backend.Key || r.Method != "GET" {
+		if r.Header.Get("X-Api-Key") != backend.Key {
 			w.WriteHeader(401)
 			return
 		}
-		json.NewEncoder(w).Encode([]map[string]any{f.template})
-	}))
+		switch r.URL.Path {
+		case consumer.api + "/downloadclient/schema":
+			json.NewEncoder(w).Encode([]map[string]any{f.template})
+			return
+		case consumer.api + "/remotepathmapping":
+			json.NewEncoder(w).Encode(f.mappings)
+			return
+		case consumer.api + "/rootfolder":
+			if f.roots != nil && r.Method == "GET" {
+				json.NewEncoder(w).Encode(f.roots)
+				return
+			}
+			if f.missingRoots && r.Method == "GET" {
+				w.Write([]byte(`[]`))
+				return
+			}
+		case consumer.api + "/downloadclient/test":
+			if f.pathProbe.targets <= f.lastNativeTargets || f.pathProbe.consumers < f.lastNativeConsumers+2 {
+				t.Error("native test preceded a fresh guarded target/consumer path verification")
+			}
+			f.lastNativeTargets, f.lastNativeConsumers = f.pathProbe.targets, f.pathProbe.consumers
+			f.nativeTests++
+			if f.nativeBody != "" {
+				w.Write([]byte(f.nativeBody))
+				return
+			}
+			if f.nativeStatus != 0 {
+				result := httptest.NewRecorder()
+				base.ServeHTTP(result, r)
+				if result.Code != http.StatusOK {
+					w.WriteHeader(result.Code)
+					w.Write(result.Body.Bytes())
+					return
+				}
+				w.WriteHeader(f.nativeStatus)
+				return
+			}
+		case consumer.api + "/downloadclient":
+			if r.Method == "POST" {
+				f.creates++
+				if f.uncertain {
+					base.ServeHTTP(httptest.NewRecorder(), r)
+					w.Write([]byte(`{}`))
+					return
+				}
+			}
+			if r.Method == "GET" && f.mask {
+				data, _ := json.Marshal(backend.DownloadClients())
+				var items []map[string]any
+				json.Unmarshal(data, &items)
+				for _, item := range items {
+					if item["implementation"] == "Nzbget" {
+						nzbgetSetClientField(item, "password", "********")
+					}
+				}
+				json.NewEncoder(w).Encode(items)
+				return
+			}
+		}
+		if strings.HasPrefix(r.URL.Path, consumer.api+"/downloadclient/") {
+			if r.Method == "PUT" {
+				f.updates++
+			}
+			if r.Method == "DELETE" {
+				f.deletes++
+			}
+		}
+		base.ServeHTTP(w, r)
+	})
+	server := httptest.NewServer(f.handler)
 	t.Cleanup(server.Close)
 	f.from = porttest.New(t, porttest.Options{App: consumer.id, Service: consumer.id, Secrets: f.secrets}, server, f.recorder)
-	f.to, _ = nzbgetDownloadTarget(t, nzbgetDownloadSettings())
+	f.to, f.targetSettings = nzbgetDownloadTarget(t, nzbgetDownloadSettings())
 	f.to.Port, f.to.ContainerPort = 16789, 6789
 	f.to.Config.Exec = f.pathProbe
+	f.from.Config.Exec = f.pathProbe
 	return f
+}
+
+func nzbgetSetClientField(item map[string]any, name string, value any) {
+	for _, raw := range item["fields"].([]any) {
+		field := raw.(map[string]any)
+		if field["name"] == name {
+			field["value"] = value
+			return
+		}
+	}
 }
 
 func (f *nzbgetLinkFixture) seedOwned(t *testing.T) string {

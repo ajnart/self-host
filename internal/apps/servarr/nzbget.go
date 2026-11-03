@@ -30,7 +30,7 @@ func NZBGetLink(api, categoryField, category string) app.Link {
 			return err
 		}
 		host, _ := item.field(p.endpointField).(string)
-		return p.verifyDownloadPath(ctx, from, to, host, completed)
+		return p.verifyDownloadPathAs(ctx, from, to, host, completed, downloadPathSuExecUserUsers)
 	}
 	return p.link("download client: NZBGet", app.LinkStep{
 		Message: "connect NZBGet as an additional download client",
