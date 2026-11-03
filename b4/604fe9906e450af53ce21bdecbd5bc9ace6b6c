@@ -1,0 +1,25 @@
+internal/apps/homarr/targets.go
+  s_452c44984fefc4::t_24e6629f890e4f 44
+internal/catalog/batch_multi2.go
+  s_452c44984fefc4::t_4b5ed4cdbef148 5,17
+internal/tui/testdata/onboarding-what-default-focus-narrow.golden
+  s_452c44984fefc4::t_033991294bed2e 16
+internal/tui/testdata/onboarding-what-default-focus.golden
+  s_452c44984fefc4::t_b8601c85e82f0d 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b4604fe9906e450af53ce21bdecbd5bc9ace6b6c",
+  "prompts": {},
+  "sessions": {
+    "s_452c44984fefc4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d5a202b-14ab-4911-8dc5-9021052d27fb",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
