@@ -1,0 +1,34 @@
+docs/catalog/traps/romm.md
+  h_d6e478ca18e517 1-33
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 171-173
+internal/apps/homarr/target_romm.go
+  h_d6e478ca18e517 1-32
+internal/apps/homarr/target_romm_test.go
+  h_d6e478ca18e517 1-176
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 47
+internal/apps/romm/homarr.go
+  h_d6e478ca18e517 1-39
+internal/apps/romm/romm.go
+  h_d6e478ca18e517 1-143
+internal/apps/romm/romm_test.go
+  h_d6e478ca18e517 1-457
+internal/apps/romm/service_test.go
+  h_d6e478ca18e517 1-456
+internal/apps/romm/setup.go
+  h_d6e478ca18e517 1-137
+internal/catalog/batch_multi1.go
+  h_d6e478ca18e517 14,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c703f536633c5410cf68de7337887688347c5d14",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
