@@ -1,0 +1,41 @@
+internal/cli/status_test.go
+  s_0812986ae533ff::t_7aebadc11b21e0 188-189
+internal/helpers/helpers.go
+  s_0812986ae533ff::t_7031736536341b 57-58,164
+internal/project/project.go
+  s_0812986ae533ff::t_2f3e0ad1eaadd4 407-411
+internal/service/service.go
+  s_0812986ae533ff::t_3b1ef43d08e719 352
+internal/service/status.go
+  s_0812986ae533ff::t_ab1122758ea717 18-23,166
+testkit/node/index.d.mts
+  s_0812986ae533ff::t_621d734dc40267 52
+testkit/node/index.mjs
+  s_0812986ae533ff::t_bc382c121c23e8 398-400,405-409,420-422,442,459
+testkit/node/src/index.mts
+  s_0812986ae533ff::t_343a954effcbe1 73,591-593,598-602,615-618,655,678
+testkit/node/tests/fake-helper.mjs
+  s_0812986ae533ff::t_1859b15af378e6 160-163
+testkit/node/tests/transport.test.ts
+  s_0812986ae533ff::t_29891e6cf080d5 1060,1122
+testkit/pair.go
+  s_0812986ae533ff::t_3a6619a5d7904d 45-51,300,330
+testkit/pair_test.go
+  s_0812986ae533ff::t_16954e8b96bbd2 47-51,99-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "301b9bdc6fcfc4e5c01a1080a48e175e00e547c4",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
