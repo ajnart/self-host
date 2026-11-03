@@ -1,0 +1,24 @@
+docs/catalog/traps/nzbget.md
+  h_d6e478ca18e517 9
+internal/apps/nzbget/links_positive_test.go
+  h_d6e478ca18e517 34,83-89,96,110,123,144-167,174,206,237-246,249-250,255-265,269,274,277-280,286-287
+internal/apps/nzbget/links_protocol_test.go
+  h_d6e478ca18e517 1-243
+internal/apps/nzbget/links_scheduler_test.go
+  h_d6e478ca18e517 44-53,55-56,96,131-133,135
+internal/apps/nzbget/links_test.go
+  h_d6e478ca18e517 4,8,25,29-54,75-82,173-187,193,220-229,231-236,238-247,268,287,294-303,320,326-337,347-349,365-376,389,409,471
+internal/apps/servarr/nzbget.go
+  h_d6e478ca18e517 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7dac32f555a24879e2d9a8ea8360a08507c41fc",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
