@@ -1,0 +1,21 @@
+internal/apps/homarr/target_your_spotify.go
+  s_39b873a91fff75::t_694f8809df001f 1-44
+internal/apps/homarr/target_your_spotify_test.go
+  s_39b873a91fff75::t_eefb2d04a7088d 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "311c9f248b1b17ae154b08440b7d8fd6cd93118d",
+  "prompts": {},
+  "sessions": {
+    "s_39b873a91fff75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "beb879ba-0cad-4849-b185-1c68a0878c53",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
