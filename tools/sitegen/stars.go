@@ -47,6 +47,7 @@ var repos = map[string]string{
 	"homebridge":           "homebridge/homebridge",
 	"immich":               "immich-app/immich",
 	"jellyfin":             "jellyfin/jellyfin",
+	"jellystat":            "CyferShepard/Jellystat",
 	"keycloak":             "keycloak/keycloak",
 	"kopia":                "kopia/kopia",
 	"lidarr":               "Lidarr/Lidarr",
