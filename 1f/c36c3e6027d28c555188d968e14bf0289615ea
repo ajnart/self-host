@@ -1,0 +1,49 @@
+internal/apps/homarr/external_targets.go
+  s_121da8e8a6b256::t_bf02f9a7f27adb 11-12
+internal/apps/homarr/seerr_family.go
+  s_0b63679bfab768::t_8f370022081a16 1-172
+internal/apps/homarr/target_jellyseerr.go
+  s_24f5d99ae33652::t_8661bdb6d2d82d 1-9
+internal/apps/homarr/target_jellyseerr_test.go
+  s_96314525e92a76::t_02f065628a1277 1-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fc36c3e6027d28c555188d968e14bf0289615ea",
+  "prompts": {},
+  "sessions": {
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_121da8e8a6b256": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9cc6833-5f1d-42a9-aa64-89128db02c15",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_24f5d99ae33652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a6ee58b-155d-442c-bbc3-c476e21a9a21",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_96314525e92a76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e78b7dd-6cb9-43da-8f6f-e860dcbd6595",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
