@@ -159,6 +159,9 @@ func (t target) hint(from *helpers.H) string {
 	if t.id == "navidrome" {
 		return navidromePrivacyHoldHint
 	}
+	if t.id == "plant-it" {
+		return plantitRecoveryHint
+	}
 	if t.id == "frigate" {
 		return "Frigate's Homarr Link requires trusted HTTPS on authenticated port 8971. The default HTTP starter cannot be linked. Obtain explicit approval for Project-scoped private TLS and certificate trust in both Homarr and the CLI, then retry self-host setup frigate and self-host setup homarr. Keep authentication enabled on port 8971; do not use port 5000, bypass certificate verification, or enable public Access."
 	}

@@ -59,5 +59,6 @@ func targets() []target {
 		spoolmanTarget(),
 		tubearchivistTarget(),
 		anchorTarget(),
+		plantitTarget(),
 	)
 }
