@@ -279,6 +279,9 @@ func TestExternalConnectionPrivateInputBoundaries(t *testing.T) {
 	h, _ := externalConnectionHarness(t, false)
 	for _, raw := range []string{
 		`null`, `[]`, `{}`, `{"endpoint":"https://one.example","endpoint":"https://two.example"}`,
+		`{"Endpoint":"https://private.example"}`,
+		`{"endpoint":"https://one.example","Endpoint":"https://two.example"}`,
+		`{"Endpoint":"https://one.example","endpoint":"https://two.example"}`,
 		`{"endpoint":"https://user:password@private.example"}`, `{"endpoint":"https://private.example?token=private"}`,
 		`{"endpoint":"https://private.example#private"}`, `{"endpoint":"https://private.example","kind":"testPeer"}`,
 		`{"endpoint":"https://private.example","credentials":[{"kind":"apiKey","value":"one"},{"kind":"apiKey","value":"two"}]}`,
@@ -335,9 +338,9 @@ func TestExternalConnectionRegistersPrivateFieldsOnLaterRead(t *testing.T) {
 }
 
 func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *testing.T) {
-	record := `{"id":"0123456789abcdef0123456789abcdef","kind":"testPeer","endpoint":"https://private-malformed.example:8006","credentials":[{"kind":"apiKey","value":"private-malformed-key"}],"selection":{"node":"private-malformed-node"}}`
+	record := `{"id":"0123456789abcdef0123456789abcdef","kind":"testPeer","removing":false,"endpoint":"https://private-malformed.example:8006","credentials":[{"kind":"apiKey","value":"private-malformed-key"}],"selection":{"node":"private-malformed-node"}}`
 	valid := `{"version":1,"connections":[` + record + `]}`
-	for _, scenario := range []struct {
+	scenarios := []struct {
 		name string
 		raw  string
 	}{
@@ -362,7 +365,36 @@ func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *test
 		{"array", `[]`},
 		{"blank", ""},
 		{"whitespace", " \n\t"},
+		{"reported-proxmox-inventory-overwritten-by-alias", `{"version":1,"connections":[{"id":"0123456789abcdef0123456789abcdef","kind":"proxmox"}],"Connections":[]}`},
+		{"uppercase-envelope", `{"VERSION":1,"CONNECTIONS":[]}`},
+		{"mixed-case-duplicates", `{"version":1,"Version":1,"connections":[],"Connections":[]}`},
+		{"unicode-folded-version", `{"ver\u017fion":1,"connections":[]}`},
+		{"unicode-folded-connections", `{"version":1,"connections":[` + record + `],"connection\u017f":[]}`},
+		{"unicode-folded-credential-kind", strings.Replace(valid, `"kind":"apiKey"`, `"\u212aind":"apiKey"`, 1)},
+	}
+	for _, field := range []struct {
+		name      string
+		canonical string
+		alias     string
+	}{
+		{"version", `"version":1`, `"Version":1`},
+		{"connections", `"connections":[` + record + `]`, `"Connections":[]`},
+		{"id", `"id":"0123456789abcdef0123456789abcdef"`, `"ID":"fedcba9876543210fedcba9876543210"`},
+		{"kind", `"kind":"testPeer"`, `"Kind":"proxmox"`},
+		{"removing", `"removing":false`, `"Removing":true`},
+		{"endpoint", `"endpoint":"https://private-malformed.example:8006"`, `"Endpoint":"https://private-malformed.example:8006"`},
+		{"credentials", `"credentials":[{"kind":"apiKey","value":"private-malformed-key"}]`, `"Credentials":[]`},
+		{"selection", `"selection":{"node":"private-malformed-node"}`, `"Selection":{"node":"private-malformed-node"}`},
+		{"credential-kind", `"kind":"apiKey"`, `"Kind":"apiKey"`},
+		{"credential-value", `"value":"private-malformed-key"`, `"Value":"private-malformed-key"`},
 	} {
+		scenarios = append(scenarios,
+			struct{ name, raw string }{field.name + "-alias", strings.Replace(valid, field.canonical, field.alias, 1)},
+			struct{ name, raw string }{field.name + "-canonical-first", strings.Replace(valid, field.canonical, field.canonical+","+field.alias, 1)},
+			struct{ name, raw string }{field.name + "-alias-first", strings.Replace(valid, field.canonical, field.alias+","+field.canonical, 1)},
+		)
+	}
+	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			h, consumer := externalConnectionHarness(t, true)
 			p, _ := h.svc.Project()
@@ -508,6 +540,47 @@ func TestExternalConnectionAbsentAndExplicitEmptyInventoriesRemainValid(t *testi
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestExternalConnectionCanonicalFieldsPreserveOpaqueKeys(t *testing.T) {
+	h, _ := externalConnectionHarness(t, true)
+	input := externalConnectionInput{
+		Endpoint: "https://private-opaque.example",
+		Credentials: []externalCredentialRecord{
+			{Kind: "tokenId", Value: "private-token-id"},
+			{Kind: "opnsenseApiKey", Value: "private-opnsense-key"},
+			{Kind: "apiKey", Value: "private-lowercase-key"},
+			{Kind: "ApiKey", Value: "private-uppercase-key"},
+		},
+		Selection: map[string]string{
+			"node": "private-node-lowercase", "Node": "private-node-uppercase",
+			"Connections": "private-connections", "ſelection": "private-selection",
+		},
+	}
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.deps.In = strings.NewReader(string(raw))
+	id, err := h.svc.AddConnection(t.Context(), "testPeer", ConnectionOptions{File: "-", Approved: true})
+	if err != nil || id == "" {
+		t.Fatal("canonical input rejected opaque credential kinds or selection keys")
+	}
+	ss, err := h.svc.open(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := ss.externalConnectionRecords()
+	if err != nil || len(records.Connections) != 1 || !reflect.DeepEqual(records.Connections[0].externalConnectionInput, input) {
+		t.Fatal("canonical inventory normalized or discarded opaque private keys or values")
+	}
+	h.deps.In = strings.NewReader(string(raw))
+	if err := h.svc.UpdateConnection(t.Context(), id, ConnectionOptions{File: "-", Approved: true}); err != nil {
+		t.Fatal("canonical update rejected opaque private keys")
+	}
+	if err := h.svc.RemoveConnection(t.Context(), id, true); err != nil {
+		t.Fatal(err)
 	}
 }
 
