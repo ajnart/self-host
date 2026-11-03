@@ -117,6 +117,11 @@ func (ss *session) check(ctx context.Context, id string) error {
 	h := ss.helpers(a)
 	return h.Step(ctx, "check", "verify "+a.Info().Name+" works", helpers.StepSpec{
 		Do: func(ctx context.Context) error {
+			if !ss.p.IsExtra(id) {
+				if err := ss.s.validateAppDirectories(ctx, ss.p, a, ss.state.Apps[id], ss.settings); err != nil {
+					return err
+				}
+			}
 			var manual error
 			err := h.Poll(ctx, 2*time.Minute, func(ctx context.Context) (bool, error) {
 				err := a.Check(ctx, h)

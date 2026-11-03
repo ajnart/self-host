@@ -145,11 +145,12 @@ type EphemeralFIFODeclarer interface {
 // Link wires the App that declares it to Target. Apply runs only once both
 // Apps finished Setup; Remove runs when Target is removed.
 type Link struct {
-	ID     string
-	Target string
-	Title  string
-	Apply  func(ctx context.Context, from, to *helpers.H) error
-	Remove func(ctx context.Context, from, to *helpers.H) error
+	ID         string
+	Target     string
+	Title      string
+	Applicable func(ctx context.Context, from *helpers.H) (bool, error)
+	Apply      func(ctx context.Context, from, to *helpers.H) error
+	Remove     func(ctx context.Context, from, to *helpers.H) error
 }
 
 // File is a configuration file an App needs before its container first

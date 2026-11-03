@@ -93,6 +93,8 @@ func (r *guardedRunner) verify(ctx context.Context) error {
 		return startupError(StartupReasonLimits, "testkit container ceiling exceeded")
 	}
 	seen := map[string]bool{}
+	r.main = containerInfo{}
+	r.containers = map[string]containerInfo{}
 	for _, id := range ids {
 		info, err := readContainer(ctx, r.base, id, r.p.ComposeName)
 		if err != nil {
@@ -102,6 +104,7 @@ func (r *guardedRunner) verify(ctx context.Context) error {
 			return startupError(StartupReasonLimits, "testkit could not verify resource caps or selected image")
 		}
 		seen[info.Service] = true
+		r.containers[info.Service] = info
 		if info.Service == r.policy.Service {
 			r.main = info
 		}

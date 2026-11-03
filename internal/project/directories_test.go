@@ -504,4 +504,115 @@ func TestAppDirectoryPublicBatchSupportsInspectedLinuxFilesystem(t *testing.T) {
 	if err := p.PrepareAppDirectories("sample", []AppDirectory{{"config", 0o700, os.Geteuid(), os.Getegid()}}); err != nil {
 		t.Fatalf("supported public batch failed: %v", err)
 	}
+	if err := p.ValidateAppDirectories("sample", []AppDirectory{{"config", 0o700, os.Geteuid(), os.Getegid()}}); err != nil {
+		t.Fatalf("supported public validation failed: %v", err)
+	}
+}
+
+func TestAppDirectoryValidationRequiresEveryExistingComponentWithoutCreation(t *testing.T) {
+	for _, depth := range []int{0, 1, 2, 3} {
+		t.Run(string(rune('0'+depth)), func(t *testing.T) {
+			p := &Project{Root: filepath.Join(trustedDirectoryFixture(t), "project"), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+			path := filepath.Dir(p.Root)
+			components := []string{"project", "apps", "sample", "config"}
+			for _, component := range components[:depth] {
+				path = filepath.Join(path, component)
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			missing := filepath.Join(path, components[depth])
+			err := p.validateAppDirectories("sample", []AppDirectory{{"config", 0o700, os.Geteuid(), os.Getegid()}}, func(*os.File) error { return nil })
+			if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("missing existing component passed validation: %v", err)
+			}
+			if _, err := os.Lstat(missing); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("validation created a missing component")
+			}
+		})
+	}
+}
+
+func TestAppDirectoryValidationSharesCompatibilityAndNeverCreatesLockOrRepairs(t *testing.T) {
+	for _, mode := range []os.FileMode{0o700, 0o750, 0o755} {
+		for _, conflict := range []string{"none", "owner", "private", "acl", "parent", "symlink"} {
+			t.Run(mode.String()+"/"+conflict, func(t *testing.T) {
+				p := &Project{Root: trustedDirectoryFixture(t), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+				leaf := p.Path("apps", "sample", "config")
+				if err := os.MkdirAll(leaf, mode); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(leaf, mode); err != nil {
+					t.Fatal(err)
+				}
+				marker := filepath.Join(leaf, "keep")
+				if err := os.WriteFile(marker, []byte("preserve"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				dir := AppDirectory{"config", 0o755, os.Geteuid(), os.Getegid()}
+				inspect := func(*os.File) error { return nil }
+				accepted := conflict == "none" || conflict == "private" && mode == 0o700
+				switch conflict {
+				case "owner":
+					dir.UID++
+				case "private":
+					dir.Mode = 0o700
+				case "acl":
+					inspect = func(file *os.File) error {
+						if file.Name() == "config" {
+							return os.ErrPermission
+						}
+						return nil
+					}
+				case "parent":
+					if err := os.Chmod(p.Path("apps"), 0o775); err != nil {
+						t.Fatal(err)
+					}
+				case "symlink":
+					if err := os.Rename(leaf, leaf+"-preserved"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink("config-preserved", leaf); err != nil {
+						t.Fatal(err)
+					}
+				}
+				before, _ := os.Lstat(leaf)
+				err := p.validateAppDirectories("sample", []AppDirectory{dir}, inspect)
+				if (err == nil) != accepted {
+					t.Fatalf("compatibility = %v, want %v: %v", err == nil, accepted, err)
+				}
+				after, _ := os.Lstat(leaf)
+				data, readErr := os.ReadFile(marker)
+				if !os.SameFile(before, after) || before.Mode() != after.Mode() || before.ModTime() != after.ModTime() || readErr != nil || string(data) != "preserve" {
+					t.Fatal("read-only validation changed existing storage")
+				}
+				if _, err := os.Lstat(p.Path(".lock")); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("validation created a lock in the read-only view")
+				}
+			})
+		}
+	}
+}
+
+func TestAppDirectoryValidationRejectsInvalidBatchBeforeInspection(t *testing.T) {
+	for _, invalid := range []AppDirectory{
+		{"../escape", 0o700, os.Geteuid(), os.Getegid()},
+		{"config/nested", 0o700, os.Geteuid(), os.Getegid()},
+		{"config", 0o755, os.Geteuid(), os.Getegid()},
+		{"later", 0o600, os.Geteuid(), os.Getegid()},
+		{"later", os.ModeSetgid | 0o700, os.Geteuid(), os.Getegid()},
+		{"later", 0o700, -1, os.Getegid()},
+	} {
+		p := &Project{Root: trustedDirectoryFixture(t), Owner: system.User{UID: os.Geteuid(), GID: os.Getegid()}}
+		dirs := []AppDirectory{{"config", 0o700, os.Geteuid(), os.Getegid()}, invalid}
+		if err := p.validateAppDirectories("sample", dirs, func(*os.File) error {
+			t.Fatal("invalid declaration reached filesystem inspection")
+			return nil
+		}); err == nil {
+			t.Fatalf("invalid validation batch accepted: %+v", invalid)
+		}
+		if _, err := os.Lstat(p.Path("apps")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("invalid validation batch created storage")
+		}
+	}
 }

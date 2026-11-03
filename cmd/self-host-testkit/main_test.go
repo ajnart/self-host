@@ -213,3 +213,273 @@ func TestStartupFailureAndOversizedResultsNeverExposeProviderData(t *testing.T) 
 		t.Fatal(err)
 	}
 }
+
+type fakePairFixture struct {
+	fakeFixture
+	view           fakeFixture
+	selected       string
+	actionErr      error
+	witnessCreates int
+	witnessReads   int
+}
+
+func (f *fakePairFixture) View(id string) (fixtureView, error) {
+	if id != "homarr" && id != "sonarr" {
+		return nil, errors.New("private-test-password")
+	}
+	f.selected = id
+	return &f.view, nil
+}
+func (f *fakePairFixture) Initial() testkit.PairInspection {
+	return testkit.PairInspection{Outcome: testkit.PairPrerequisite, Reason: "absent"}
+}
+func (f *fakePairFixture) Inspect(context.Context) (testkit.PairInspection, error) {
+	return testkit.PairInspection{Outcome: testkit.PairComplete, Reason: "verified"}, f.actionErr
+}
+func (f *fakePairFixture) Setup(ctx context.Context, id string) (testkit.PairInspection, error) {
+	return f.Inspect(ctx)
+}
+func (f *fakePairFixture) Remove(ctx context.Context, id string) (testkit.PairInspection, error) {
+	return f.Inspect(ctx)
+}
+func (f *fakePairFixture) Install(ctx context.Context, id string) (testkit.PairInspection, error) {
+	return f.Inspect(ctx)
+}
+
+func (f *fakePairFixture) CreateSonarrFilterWitness(context.Context) (testkit.SonarrFilterWitness, error) {
+	f.witnessCreates++
+	return testkit.SonarrFilterWitness{Kind: "sonarr-custom-filter-v1", ObjectID: 17, ContentSHA256: strings.Repeat("a", 64)}, f.actionErr
+}
+
+func (f *fakePairFixture) ReadSonarrFilterWitness(context.Context) (testkit.SonarrFilterWitness, error) {
+	f.witnessReads++
+	return testkit.SonarrFilterWitness{Kind: "sonarr-custom-filter-v1", ObjectID: 17, ContentSHA256: strings.Repeat("a", 64)}, f.actionErr
+}
+
+func TestPairBridgeAdditiveScopeActionsAndCleanup(t *testing.T) {
+	manifest := ownedManifest(t)
+	f := &fakePairFixture{}
+	var lifetime context.Context
+	b := &bridge{manifest: manifest, owner: strings.Repeat("a", 32), startPair: func(ctx context.Context, options testkit.PairOptions) (pairFixture, error) {
+		lifetime = ctx
+		if options.Consumer != "homarr" || options.Target != "sonarr" || options.Order != testkit.TargetFirst || options.Timeout != time.Second || options.SonarrFilterWitness {
+			t.Error("pair options changed")
+		}
+		return f, nil
+	}}
+	start := request{Version: 1, ID: 1, Method: "spinupPair", Params: json.RawMessage(`{"consumer":"homarr","target":"sonarr","order":"target-first","timeoutMs":1000}`)}
+	if b.handle(t.Context(), start).Error != nil || lifetime.Err() != nil {
+		t.Fatal("pair start failed or canceled")
+	}
+	if b.handle(t.Context(), request{Method: "spinup", Params: json.RawMessage(`{"app":"sonarr"}`)}).Error == nil {
+		t.Fatal("mixed single/pair startup accepted")
+	}
+	for _, method := range []string{"getApiKey", "credentials", "info"} {
+		res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
+		if res.Error != nil || f.selected != "sonarr" {
+			t.Fatal("selected App access failed")
+		}
+		if b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"outside"}`)}).Error == nil {
+			t.Fatal("unselected App accepted")
+		}
+	}
+	for _, method := range []string{"inspect", "setup", "remove", "install"} {
+		if method != "inspect" {
+			invalid := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"outside"}`)})
+			if invalid.Error == nil || invalid.Error.Code != "STATE" || f.closed != 0 {
+				t.Fatal("invalid selection closed a healthy pair")
+			}
+		}
+		if b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)}).Error != nil {
+			t.Fatal("pair action failed")
+		}
+	}
+	if b.handle(t.Context(), request{Method: "close"}).Error != nil || f.closed != 1 || f.closeContextErr != nil || lifetime.Err() != context.Canceled {
+		t.Fatal("pair cleanup did not preserve independent context")
+	}
+	if err := cleanupManifest(t.Context(), manifest, func(context.Context, string) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSonarrWitnessCapabilitiesAreStaticBeforeStartup(t *testing.T) {
+	starts := 0
+	b := &bridge{startPair: func(context.Context, testkit.PairOptions) (pairFixture, error) { starts++; return nil, nil }}
+	res := b.handle(t.Context(), request{Version: 1, ID: 1, Method: "capabilities", Params: json.RawMessage(`{}`)})
+	data, _ := json.Marshal(res)
+	if res.Error != nil || string(data) != `{"version":1,"id":1,"result":{"sonarrFilterWitness":1}}` || b.started || starts != 0 || b.pair != nil {
+		t.Fatal("capability negotiation performed startup or changed its schema")
+	}
+	for _, payload := range []string{`null`, `[]`, `{"app":"sonarr"}`, `{"url":"http://example.invalid"}`} {
+		res := b.handle(t.Context(), request{Method: "capabilities", Params: json.RawMessage(payload)})
+		if res.Error == nil || res.Error.Code != "PROTOCOL" || starts != 0 || b.started {
+			t.Fatal("capabilities accepted nonempty parameters")
+		}
+	}
+}
+
+func TestSonarrWitnessBridgeScopeOptInEchoAndActionParameters(t *testing.T) {
+	manifest := ownedManifest(t)
+	f := &fakePairFixture{}
+	starts := 0
+	b := &bridge{manifest: manifest, owner: strings.Repeat("a", 32), startPair: func(_ context.Context, options testkit.PairOptions) (pairFixture, error) {
+		starts++
+		if !options.SonarrFilterWitness || options.Consumer != "homarr" || options.Target != "sonarr" {
+			t.Error("witness permission lost its selected role")
+		}
+		return f, nil
+	}}
+	wrong := request{Method: "spinupPair", Params: json.RawMessage(`{"consumer":"sonarr","target":"homarr","order":"consumer-first","sonarrFilterWitness":true}`)}
+	if b.handle(t.Context(), wrong).Error == nil || starts != 0 || b.started {
+		t.Fatal("wrong witness scope reached startup")
+	}
+	start := request{Method: "spinupPair", Params: json.RawMessage(`{"consumer":"homarr","target":"sonarr","order":"consumer-first","sonarrFilterWitness":true}`)}
+	res := b.handle(t.Context(), start)
+	data, _ := json.Marshal(res)
+	if res.Error != nil || !strings.Contains(string(data), `"sonarrFilterWitness":1`) || starts != 1 || f.witnessCreates != 0 {
+		t.Fatal("opt-in startup seeded data or omitted its echo")
+	}
+	for _, method := range []string{"createSonarrFilterWitness", "readSonarrFilterWitness"} {
+		for _, payload := range []string{`null`, `[]`, `{"app":"sonarr"}`, `{"id":17}`, `{"label":"private-witness-body"}`, `{"url":"https://example.invalid"}`, `{"body":{}}`} {
+			res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(payload)})
+			if res.Error == nil || res.Error.Code != "PROTOCOL" || f.witnessCreates != 0 || f.witnessReads != 0 {
+				t.Fatal("witness bridge accepted arbitrary resource inputs")
+			}
+		}
+	}
+	for _, method := range []string{"createSonarrFilterWitness", "readSonarrFilterWitness"} {
+		res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{}`)})
+		data, _ := json.Marshal(res)
+		if res.Error != nil || !strings.Contains(string(data), `"objectId":17`) || strings.Contains(string(data), "label") {
+			t.Fatal("witness bridge returned an unsafe receipt")
+		}
+	}
+	if f.witnessCreates != 1 || f.witnessReads != 1 {
+		t.Fatal("witness dispatch did not use the Pair owner")
+	}
+	if b.handle(t.Context(), request{Method: "close"}).Error != nil {
+		t.Fatal("witness bridge did not close")
+	}
+	if cleanupManifest(t.Context(), manifest, func(context.Context, string) error { return nil }) != nil {
+		t.Fatal("fake manifest cleanup failed")
+	}
+	legacy := &bridge{pair: &fakePairFixture{}}
+	if legacy.handle(t.Context(), request{Method: "createSonarrFilterWitness"}).Error.Code != "STATE" {
+		t.Fatal("legacy Pair acquired witness permission")
+	}
+}
+
+func TestSonarrWitnessBridgePreservesPrimaryAndCleanupFailures(t *testing.T) {
+	for _, cause := range []error{errors.New("private-witness-body /private/fixture"), context.Canceled, context.DeadlineExceeded} {
+		for _, method := range []string{"createSonarrFilterWitness", "readSonarrFilterWitness"} {
+			f := &fakePairFixture{actionErr: cause}
+			f.err = errors.New("private-witness-cleanup")
+			b := &bridge{pair: f, sonarrFilterWitness: true}
+			res := b.handle(t.Context(), request{Method: method})
+			data, _ := json.Marshal(res)
+			want := "OPERATION"
+			if errors.Is(cause, context.Canceled) {
+				want = "CANCELED"
+			}
+			if errors.Is(cause, context.DeadlineExceeded) {
+				want = "TIMEOUT"
+			}
+			if res.Error == nil || res.Error.Code != want || !res.Error.CleanupFailed || f.closed != 1 || strings.Contains(string(data), "private-witness") || strings.Contains(string(data), "/private/") {
+				t.Fatal("witness bridge lost or exposed a failure")
+			}
+		}
+	}
+}
+
+func TestPairBridgeInfrastructureFailureClosesAndDisablesOwner(t *testing.T) {
+	for _, cause := range []error{errors.New("private-test-password"), context.Canceled, context.DeadlineExceeded} {
+		for _, cleanupFailed := range []bool{false, true} {
+			f := &fakePairFixture{actionErr: cause}
+			if cleanupFailed {
+				f.err = errors.New("private-cleanup-password")
+			}
+			lifetime, cancel := context.WithCancel(t.Context())
+			b := &bridge{pair: f, appCancel: cancel}
+			res := b.handle(t.Context(), request{Method: "setup", Params: json.RawMessage(`{"app":"sonarr"}`)})
+			data, _ := json.Marshal(res)
+			want := "OPERATION"
+			if errors.Is(cause, context.Canceled) {
+				want = "CANCELED"
+			}
+			if errors.Is(cause, context.DeadlineExceeded) {
+				want = "TIMEOUT"
+			}
+			if res.Error == nil || res.Error.Code != want || res.Error.CleanupFailed != cleanupFailed || f.closed != 1 || f.closeContextErr != nil || lifetime.Err() != context.Canceled || strings.Contains(string(data), "password") {
+				t.Fatalf("unsafe failure response: %s", data)
+			}
+			if want == "OPERATION" && res.Error.Reason != "SETUP" {
+				t.Fatal("typed operation reason missing")
+			}
+			blocked := b.handle(t.Context(), request{Method: "install", Params: json.RawMessage(`{"app":"sonarr"}`)})
+			if blocked.Error == nil || blocked.Error.Code != "STATE" || f.closed != 1 {
+				t.Fatal("failed bridge accepted another action")
+			}
+			f.err = nil
+			if b.handle(t.Context(), request{Method: "close"}).Error != nil {
+				t.Fatal("cleanup retry failed")
+			}
+		}
+	}
+}
+
+func TestPairBridgeSelectedCredentialTypedFailures(t *testing.T) {
+	for _, method := range []string{"getApiKey", "credentials", "info"} {
+		for _, cause := range []error{nil, context.Canceled, context.DeadlineExceeded} {
+			operation := &testkit.OperationError{}
+			f := &fakePairFixture{view: fakeFixture{err: errors.Join(operation, cause)}}
+			lifetime, cancel := context.WithCancel(t.Context())
+			b := &bridge{pair: f, appCancel: cancel}
+			res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
+			want := "OPERATION"
+			if cause == context.Canceled {
+				want = "CANCELED"
+			}
+			if cause == context.DeadlineExceeded {
+				want = "TIMEOUT"
+			}
+			if res.Error == nil || res.Error.Code != want || res.Error.CleanupFailed || f.closed != 0 || !b.pairFailed || b.pair != nil || lifetime.Err() != context.Canceled {
+				t.Fatal("selected credential typed failure was collapsed or cleaned twice")
+			}
+			if cause == nil && res.Error.Reason != operation.Reason() {
+				t.Fatal("typed credential reason was replaced")
+			}
+			if res.Result != nil {
+				t.Fatal("failed credential request returned private data")
+			}
+			blocked := b.handle(t.Context(), request{Method: "info", Params: json.RawMessage(`{"app":"homarr"}`)})
+			if blocked.Error == nil || blocked.Error.Code != "STATE" {
+				t.Fatal("credential failure left the shared bridge enabled")
+			}
+		}
+	}
+}
+
+func TestCredentialOrdinaryErrorsKeepLegacyDispatch(t *testing.T) {
+	for _, pair := range []bool{false, true} {
+		for _, method := range []string{"getApiKey", "credentials", "info"} {
+			f := &fakeFixture{err: errors.New("private-test-password")}
+			b := &bridge{app: f}
+			if pair {
+				b.app = nil
+				b.pair = &fakePairFixture{view: *f}
+			}
+			res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
+			data, _ := json.Marshal(res)
+			want := "CREDENTIALS"
+			if method == "info" {
+				want = "INFO"
+			}
+			if res.Error == nil || res.Error.Code != want || res.Error.Reason != "" || res.Error.CleanupFailed || f.closed != 0 || b.pairFailed || strings.Contains(string(data), "private-test-password") {
+				t.Fatal("ordinary credential error changed lifecycle or leaked")
+			}
+			if pair && b.handle(t.Context(), request{Method: "inspect"}).Error != nil {
+				t.Fatal("ordinary credential absence disabled the Pair")
+			}
+		}
+	}
+}

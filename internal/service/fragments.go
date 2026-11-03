@@ -230,6 +230,11 @@ func (ss *session) refreshFragments(ctx context.Context, ids []string) error {
 		if err := ss.prepareMedia(ctx, []app.App{next.a}); err != nil {
 			return errors.Join(err, ss.p.SaveState(ss.state))
 		}
+		if preflight, ok := next.a.(app.PreflightChecker); ok {
+			if err := preflight.Preflight(ctx, ss.helpers(next.a)); err != nil {
+				return errors.Join(err, ss.p.SaveState(ss.state))
+			}
+		}
 		if err := ss.ensureSecrets(next.a); err != nil {
 			return errors.Join(err, ss.p.SaveState(ss.state))
 		}
