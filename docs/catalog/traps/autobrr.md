@@ -2,13 +2,19 @@
 
 ## Deployment and persistence
 
-- **Temporary pre-start hold:** `App.Preflight` refuses Install/Start until supported configuration-directory preparation is available. The non-root `user:` cannot safely rely on Compose creating `./config` with appropriate private ownership. No directory helper, `.keep`, root fallback or ownership mutation is implemented here. Preserve existing files and wait for the reviewed shared directory seam; this is not a deployable/accepted automatic installation yet.
+- **Supported directory preparation:** the App declares its actual `config` directory with private mode `0700` and the selected decimal container `PUID`/`PGID`. The reviewed shared action resolves those IDs and admits the entire directory batch before creating missing storage during Install or an accepted generated-definition refresh. Compatible existing ownership, modes, data and old markers are unchanged. There is no sentinel declaration, App-local filesystem helper or root fallback.
 - Official image: `ghcr.io/autobrr/autobrr:latest`; service `autobrr`, container TCP port 7474. The allocated host port binds only the selected `${BIND_IP}`. Homarr uses the Compose Address `http://autobrr:7474`, independently of the browser Address.
 - Persist the whole App-local `./config:/config`: `config.toml`, SQLite `autobrr.db`, sidecars and migration backups. SQLite is the upstream default and needs no backing container. Preserve an existing PostgreSQL/backend choice, custom paths and manual Compose edits; Setup does not select or migrate a database.
 - The official image supports `user: UID:GID`, so the definition uses `${PUID}:${PGID}`, not unsupported LinuxServer identity variables. `TZ` is supported. `AUTOBRR__HOST=0.0.0.0` selects the container listener; it does not broaden the published Access. No Docker socket, media/download mount, tracker account or downloader is required for statistics.
 - The image includes curl. `/api/healthz/readiness` is an unauthenticated readiness observation, not proof of Setup or authentication. Keep the configuration/database on ordinary removal and preserve the Project's bounded logging policy.
 
+Directory preparation supports only the reviewed local Linux filesystem/ACL, trusted-parent, held-Project-lock and verified runtime-mapping boundary. Unsupported native filesystems/OSes, present or unknown ACLs, unverified/remote mappings, incompatible ownership/modes and insufficient creation permissions remain actionable Manual before startup, without recursive ownership repair or cleanup of partial paths. A fake Linux daemon description does not establish native Linux filesystem semantics on macOS. Preparation is not a universal Start/restart/Restore repair and never authorizes account creation or proves account freshness.
+
+The `/config` mount uses long bind syntax with `create_host_path:false`; Docker cannot silently create a root-owned missing source on a later start. Do not bypass a failed Install/refresh with another startup path or replace this policy with short bind syntax. Review preserved storage/mappings and retry the approved Install instead. Customized Compose definitions stay outside automatic generated refresh. Standalone Compose users must prepare their selected bind source privately for the configured non-root user themselves; no filesystem or container-runtime acceptance is claimed from source/fake checks.
+
 Sources: [official Docker installation](https://autobrr.com/installation/docker/), [resolved v1.90.0 Dockerfile](https://github.com/autobrr/autobrr/blob/4c1bf93d3397055de8e78ce136cf1e239e568d92/Dockerfile), [configuration defaults](https://github.com/autobrr/autobrr/blob/4c1bf93d3397055de8e78ce136cf1e239e568d92/internal/config/config.go), [database selection](https://github.com/autobrr/autobrr/blob/4c1bf93d3397055de8e78ce136cf1e239e568d92/internal/database/database.go).
+
+Long-bind policy: [Compose volumes specification](https://docs.docker.com/reference/compose-file/services/#volumes), [Compose missing-source bind test](https://github.com/docker/compose/blob/main/pkg/compose/create_test.go).
 
 ## Administrator and credential Setup
 

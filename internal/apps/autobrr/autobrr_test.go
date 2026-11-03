@@ -329,7 +329,7 @@ func TestAutobrrStatisticsRequireExplicitCountsAndArrays(t *testing.T) {
 func TestAutobrrComposeAndPeerFirstSetupPreserveProductChoices(t *testing.T) {
 	a := autobrr.App{}
 	compose := a.Compose(app.RenderContext{Port: 17474})
-	for _, want := range []string{"ghcr.io/autobrr/autobrr:latest", `${BIND_IP}:17474:7474`, `user: "${PUID}:${PGID}"`, `./config:/config`, `AUTOBRR__HOST: 0.0.0.0`, `/api/healthz/readiness`} {
+	for _, want := range []string{"ghcr.io/autobrr/autobrr:latest", `${BIND_IP}:17474:7474`, `user: "${PUID}:${PGID}"`, `source: ./config`, `target: /config`, `create_host_path: false`, `AUTOBRR__HOST: 0.0.0.0`, `/api/healthz/readiness`} {
 		if !strings.Contains(compose, want) {
 			t.Fatalf("missing official Compose contract %q", want)
 		}
@@ -361,21 +361,22 @@ func TestAutobrrComposeAndPeerFirstSetupPreserveProductChoices(t *testing.T) {
 	}
 }
 
-func TestAutobrrPreflightHoldsBeforeUnpreparedNonRootConfigStart(t *testing.T) {
-	preflight, ok := any(autobrr.App{}).(app.PreflightChecker)
+func TestAutobrrDeclaresPrivateConfigForSelectedRuntimeIdentity(t *testing.T) {
+	declarer, ok := any(autobrr.App{}).(app.DirectoryDeclarer)
 	if !ok {
-		t.Fatal("Autobrr has no pre-start configuration-directory prerequisite")
+		t.Fatal("Autobrr has no configuration-directory declaration")
 	}
-	f := &autobrrFixture{keys: []map[string]any{}}
-	s := autobrrAdminSecrets()
-	h := autobrrH(t, f, s)
-	err := preflight.Preflight(t.Context(), h)
-	var manual *helpers.ManualError
-	if !errors.As(err, &manual) || !errors.Is(err, helpers.ErrManual) || !strings.Contains(manual.Hint, "./config") || !strings.Contains(manual.Hint, "before start") || !strings.Contains(manual.Hint, "directory preparation") {
-		t.Fatalf("unsafe non-root start was not held with an actionable prerequisite: %v", err)
+	directories := declarer.Directories(app.RenderContext{Settings: map[string]string{"PUID": "1234", "PGID": "5678"}})
+	want := app.Directory{Path: "config", Mode: 0o700, UID: "1234", GID: "5678"}
+	if len(directories) != 1 || directories[0] != want {
+		t.Fatalf("configuration directory does not match the private runtime-owned bind: %+v", directories)
 	}
-	if len(f.mutations) != 0 || f.tokenRequests != 0 || len(s) != 2 {
-		t.Fatal("the pre-start hold changed accounts, keys or private records")
+	missingIDs := declarer.Directories(app.RenderContext{})
+	if len(missingIDs) != 1 || missingIDs[0].UID != "" || missingIDs[0].GID != "" {
+		t.Fatal("missing runtime IDs silently defaulted to root or another identity")
+	}
+	if _, sentinel := any(autobrr.App{}).(app.FileDeclarer); sentinel {
+		t.Fatal("configuration-directory preparation must not use a sentinel file")
 	}
 }
 

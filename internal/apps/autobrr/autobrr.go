@@ -38,6 +38,10 @@ func (App) Inputs() []app.Input {
 	}
 }
 
+func (App) Directories(rc app.RenderContext) []app.Directory {
+	return []app.Directory{{Path: "config", Mode: 0o700, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}
+}
+
 func (App) Compose(rc app.RenderContext) string {
 	return `services:
   autobrr:
@@ -48,7 +52,11 @@ func (App) Compose(rc app.RenderContext) string {
       TZ: ${TZ}
       AUTOBRR__HOST: 0.0.0.0
     volumes:
-      - ./config:/config
+      - type: bind
+        source: ./config
+        target: /config
+        bind:
+          create_host_path: false
     ports:
       - ${BIND_IP}:` + strconv.Itoa(rc.Port) + `:7474
     healthcheck:
@@ -57,10 +65,6 @@ func (App) Compose(rc app.RenderContext) string {
       timeout: 10s
       retries: 3
 `
-}
-
-func (App) Preflight(context.Context, *helpers.H) error {
-	return &helpers.ManualError{Hint: "Autobrr is blocked before start: ./config must be private and writable by its configured non-root user in Docker's user namespace. Supported configuration-directory preparation is not available yet; keep Autobrr stopped and wait for that support before retrying Install or Start. Preserve existing configuration, database and ownership; do not switch to root or recursively change ownership to bypass this hold."}
 }
 
 func adminSetup() firstadmin.FirstAdmin {
@@ -123,7 +127,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
-	return "On the first visit create the intended administrator only if this instance has no user. Configure tracker accounts, filters and download clients yourself; no releases are downloaded by Setup. Keep the persistent configuration and database when updating or removing the container."
+	return "For standalone Compose, prepare the configuration bind source for the selected non-root user with private permissions before starting; Docker will not create it. On the first visit create the intended administrator only if this instance has no user. Configure tracker accounts, filters and download clients yourself; no releases are downloaded by Setup. Keep the persistent configuration and database when updating or removing the container."
 }
 
 func createAdmin(ctx context.Context, h *helpers.H, user, password string) error {
