@@ -182,6 +182,8 @@ remain explicit errors or Manual outcomes, not automatic skips.
   recorded outcome, not a claim of rendered acceptance for every peer.
   Selected Info and inspection results must retain the selected IDs and exact
   loopback Addresses established at startup, including their frozen ports/paths.
+  Inspections must also retain the startup-declared Link ID; response steps cannot
+  nominate a replacement Link to satisfy completion.
 - `setup(app?)` retries production Setup for one/both selected Apps;
   `remove(app)` is non-purge and retains data; `install(app)` reinstalls only a
   selected admitted App with its original ports/options. No action renews the

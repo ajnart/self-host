@@ -22,6 +22,8 @@ if (cleanup) {
 const input = createInterface({ input: process.stdin });
 const witnessMode = "valid";
 const cleanupFails = false;
+let declaredLink = "link-peer";
+if (witnessMode.startsWith("valid-link-")) declaredLink = "approved-connection";
 let app;
 let pair;
 let installed;
@@ -53,7 +55,7 @@ const address = (id) => {
 const inspection = () => ({
 	outcome: installed.size === 2 ? "complete" : "prerequisite",
 	reason: installed.size === 2 ? "verified" : "absent",
-	link: "link-peer",
+	link: declaredLink,
 	apps: [pair.consumer, pair.target].map((id, index) => ({
 		id,
 		url: address(id),
@@ -62,7 +64,7 @@ const inspection = () => ({
 		setup: installed.has(id) ? "ok" : "pending",
 		steps:
 			index === 0 && installed.size === 2
-				? [{ id: "link-peer", status: "ok" }]
+				? [{ id: declaredLink, status: "ok" }]
 				: [],
 	})),
 });
@@ -137,6 +139,16 @@ input.on("line", (line) => {
 		const initial = inspection();
 		if (witnessMode === "bad-initial-address")
 			initial.apps[1].url = "http://127.0.0.1:33333";
+		const invalidLinks = {
+			"bad-link-missing": undefined,
+			"bad-link-null": null,
+			"bad-link-number": 17,
+			"bad-link-empty": "",
+			"bad-link-syntax": "not a link",
+			"bad-link-long": "a".repeat(65),
+		};
+		if (Object.hasOwn(invalidLinks, witnessMode))
+			initial.link = invalidLinks[witnessMode];
 		installed = new Set([pair.consumer, pair.target]);
 		reply(req, {
 			consumer: { id: pair.consumer, url: address(pair.consumer) },
@@ -223,6 +235,49 @@ input.on("line", (line) => {
 			result.outcome = "imaginary";
 		if (witnessMode === `bad-${req.method}-address`)
 			result.apps[1].url = "http://127.0.0.1:33333";
+		if (witnessMode.startsWith(`replace-${req.method}-`)) {
+			result.link = "check";
+			if (witnessMode.endsWith("-forged")) {
+				result.outcome = "complete";
+				result.reason = "verified";
+				for (const item of result.apps) {
+					item.installed = true;
+					item.state = "running";
+					item.setup = "ok";
+				}
+				result.apps[0].steps = [{ id: "check", status: "ok" }];
+			}
+			if (witnessMode.endsWith("-manual")) {
+				result.outcome = "manual";
+				result.reason = "setup";
+				result.apps[0].setup = "manual";
+				result.apps[0].steps = [{ id: declaredLink, status: "manual" }];
+			}
+		}
+		if (
+			witnessMode.startsWith("valid-link-") &&
+			result.outcome === "complete"
+		) {
+			if (witnessMode === "valid-link-missing") {
+				result.outcome = "prerequisite";
+				result.reason = "not-run";
+				result.apps[0].steps = [];
+			} else if (witnessMode !== "valid-link-ok") {
+				const status = witnessMode.slice("valid-link-".length);
+				result.apps[0].steps = [{ id: declaredLink, status }];
+				result.apps[0].setup = "incomplete";
+				result.outcome = "failed";
+				result.reason = "setup";
+				if (status === "manual") {
+					result.apps[0].setup = "manual";
+					result.outcome = "manual";
+				}
+				if (status === "skip") {
+					result.outcome = "prerequisite";
+					result.reason = "unready";
+				}
+			}
+		}
 		reply(req, result);
 	} else if (pair && req.params.app && !installed.has(req.params.app)) {
 		process.stdout.write(

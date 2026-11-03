@@ -732,10 +732,11 @@ class PairHandle implements Pair {
 		return this.#target;
 	}
 	get initial() {
-		return pairInspection(this.#initial, this.#ids, [
-			this.#consumer.url,
-			this.#target.url,
-		]);
+		return pairInspection(
+			this.#initial,
+			this.#ids,
+			this.#initial.apps.map((app) => app.url),
+		);
 	}
 	get recoveryPath() {
 		return this.#bridge.recoveryPath;
@@ -748,10 +749,13 @@ class PairHandle implements Pair {
 			this.#timeout + 1000,
 		);
 		try {
-			return pairInspection(result, this.#ids, [
-				this.#consumer.url,
-				this.#target.url,
-			]);
+			if (!record(result) || result.link !== this.#initial.link)
+				throw fault("PROTOCOL");
+			return pairInspection(
+				result,
+				this.#ids,
+				this.#initial.apps.map((app) => app.url),
+			);
 		} catch (error) {
 			return this.#bridge.failAndClose(error);
 		}
