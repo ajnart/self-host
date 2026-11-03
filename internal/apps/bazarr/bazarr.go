@@ -33,7 +33,13 @@ func (App) Info() app.Info {
 }
 
 func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link {
+	var links []app.Link
+	for _, connection := range libraryConnections() {
+		links = append(links, connection.link())
+	}
+	return links
+}
 
 func (App) StandaloneGuide() string {
 	return "After the first start, turn on authentication in Settings > General > Authentication (Basic, with a username and password)."
@@ -155,7 +161,10 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := firstAdmin().Setup(ctx, h); err != nil {
 		return err
 	}
-	return setupAPIKey(ctx, h)
+	if err := setupAPIKey(ctx, h); err != nil {
+		return err
+	}
+	return retryRemovedConnections(ctx, h)
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {
