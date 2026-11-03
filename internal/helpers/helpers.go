@@ -80,8 +80,9 @@ type Config struct {
 	Exec     Executor
 	Record   func(StepResult)
 	// Peer returns the helpers of another installed App, or nil.
-	Peer          func(id string) *H
-	InstalledApps func(context.Context) ([]InstalledApp, error)
+	Peer                func(id string) *H
+	InstalledApps       func(context.Context) ([]InstalledApp, error)
+	ExternalConnections func() ([]ExternalConnection, error)
 	// ReadConfig reads an App-owned configuration file through its container
 	// when its private file owner differs from the invoking host user.
 	// Nil keeps the ordinary local-file reader.

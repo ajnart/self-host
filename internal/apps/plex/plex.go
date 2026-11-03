@@ -110,37 +110,44 @@ func identity(ctx context.Context, h *helpers.H) (string, bool, error) {
 	return info.MediaContainer.MachineIdentifier, *info.MediaContainer.Claimed, nil
 }
 
-func verifyToken(ctx context.Context, h *helpers.H, token, machineID string) error {
+func verifiedLibraryAccess(ctx context.Context, h *helpers.H, token, machineID string) (mediaContainer, error) {
 	currentID, claimed, err := identity(ctx, h)
 	if err != nil {
-		return err
+		return mediaContainer{}, err
 	}
 	if !claimed {
 		h.Info("Complete and verify this server's claim in your own Plex account, then retry self-host setup plex; an expired claim requires reviewed recovery.")
-		return helpers.ErrManual
+		return mediaContainer{}, helpers.ErrManual
 	}
 	if currentID != machineID {
 		h.Info("The Plex server identifier changed. Inspect ownership before recovering this Project's Plex credential; no token was replaced.")
-		return helpers.ErrManual
+		return mediaContainer{}, helpers.ErrManual
 	}
 	anonymous, err := h.HTTP(ctx, helpers.Request{Path: "/library/sections"})
 	if err != nil {
-		return err
+		return mediaContainer{}, err
 	}
 	if anonymous.Status != http.StatusUnauthorized && anonymous.Status != http.StatusForbidden {
-		return errors.New("Plex must reject anonymous library access; review its allowed networks without weakening authentication")
+		return mediaContainer{}, errors.New("Plex must reject anonymous library access; review its allowed networks without weakening authentication")
 	}
 	sections, err := readContainer(ctx, h, token, "/library/sections")
 	if err != nil {
-		return err
+		return mediaContainer{}, err
 	}
 	if *sections.Size != len(sections.Directory) {
-		return errors.New("Plex returned incomplete library sections")
+		return mediaContainer{}, errors.New("Plex returned incomplete library sections")
 	}
 	for _, section := range sections.Directory {
 		if section.Key == "" || section.Type == "" {
-			return errors.New("Plex library sections lack their native identifiers")
+			return mediaContainer{}, errors.New("Plex library sections lack their native identifiers")
 		}
+	}
+	return sections, nil
+}
+
+func verifyToken(ctx context.Context, h *helpers.H, token, machineID string) error {
+	if _, err := verifiedLibraryAccess(ctx, h, token, machineID); err != nil {
+		return err
 	}
 	prefs, err := h.HTTP(ctx, helpers.Request{Path: "/prefs",
 		Header: map[string]string{"X-Plex-Token": token, "Accept": "application/json"}})
@@ -197,8 +204,9 @@ func verifyToken(ctx context.Context, h *helpers.H, token, machineID string) err
 type mediaContainer struct {
 	Size      *int `json:"size"`
 	Directory []struct {
-		Key  string `json:"key"`
-		Type string `json:"type"`
+		Key   string `json:"key"`
+		Type  string `json:"type"`
+		Agent string `json:"agent"`
 	} `json:"Directory"`
 	Metadata []json.RawMessage `json:"Metadata"`
 }
@@ -220,13 +228,20 @@ func readContainer(ctx context.Context, h *helpers.H, token, path string) (media
 	return data.MediaContainer, nil
 }
 
-func verifySavedToken(ctx context.Context, h *helpers.H) error {
+func savedServerToken(h *helpers.H) (string, string, error) {
 	token, machineID := h.Secret(h.Key("api_key")), h.Secret(h.Key("server_id"))
 	if token == "" || machineID == "" || strings.HasPrefix(token, "claim-") {
-		h.Info("The verified Plex server token is missing. Run self-host setup plex; a temporary claim token cannot connect Homarr.")
-		return helpers.ErrManual
+		return "", "", &helpers.ManualError{Hint: "The verified Plex server credential is missing. Restore it through Plex's own Setup before retrying the consuming Link; a temporary claim token cannot replace the saved server credential."}
 	}
 	h.Log.Secret(token)
+	return token, machineID, nil
+}
+
+func verifySavedToken(ctx context.Context, h *helpers.H) error {
+	token, machineID, err := savedServerToken(h)
+	if err != nil {
+		return err
+	}
 	return verifyToken(ctx, h, token, machineID)
 }
 
