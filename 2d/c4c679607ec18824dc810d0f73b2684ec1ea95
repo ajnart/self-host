@@ -1,0 +1,31 @@
+docs/catalog/traps/bazarr.md
+  s_0812986ae533ff::t_b2ec25cfb67a68 9
+internal/apps/bazarr/links.go
+  s_0812986ae533ff::t_273acb1bf86ba6 13,255-257,270-292,297,303,314,338,357-367,431-439
+internal/apps/bazarr/links_consumer_test.go
+  s_0b63679bfab768::t_dd58b61915143f 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2dc4c679607ec18824dc810d0f73b2684ec1ea95",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_0b63679bfab768": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58222d30-d6b6-420d-afd5-560a80a0cfc1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
