@@ -1,0 +1,20 @@
+docs/homarr-wazuh.md
+  h_d6e478ca18e517 1-29
+internal/apps/homarr/external_targets.go
+  h_d6e478ca18e517 33-34
+internal/apps/homarr/target_wazuh.go
+  h_d6e478ca18e517 1-126
+internal/apps/homarr/target_wazuh_test.go
+  h_d6e478ca18e517 1-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "12d6cd6a7583a42169ae837195a454cdfb82bfcb",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
