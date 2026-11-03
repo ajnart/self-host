@@ -168,6 +168,9 @@ func (t target) hint(from *helpers.H) string {
 	if t.id == "sabnzbd" {
 		return "SABnzbd credential-safety hold #363: use Homarr 2.5.1 or newer 2.x with the shipped privacy fix. Back up Homarr before changing its version, then retry self-host setup homarr. Older, unreadable or unreviewed versions remain Manual; do not bypass the hold or create a manual integration."
 	}
+	if t.id == "romm" {
+		return "Run self-host setup romm to confirm RomM is reachable with authentication enabled and its administrator verified, then run self-host setup homarr. If RomM Stats are unavailable, use Homarr 2.x with the romm integration; do not disable authentication, import ROMs, expose assets or create a duplicate integration."
+	}
 	if t.id == "patchmon" {
 		return patchmonNativeHint
 	}
