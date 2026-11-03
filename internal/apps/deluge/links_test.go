@@ -856,15 +856,6 @@ func TestDelugeUserEditsAndUnownedClientsAreNeverAdoptedOrOverwritten(t *testing
 	}
 }
 
-type delugeScheduledConsumer struct {
-	app.App
-	delugeLink app.Link
-}
-
-func (a delugeScheduledConsumer) Links() []app.Link {
-	return append(a.App.Links(), a.delugeLink)
-}
-
 type delugeScheduledRunner struct {
 	system.Runner
 	paths *delugeLinkPaths
@@ -885,8 +876,7 @@ func TestDelugeProductionSchedulerBothOrdersUnreadyAndOwnedRemoval(t *testing.T)
 			t.Run(source.name()+"/"+order, func(t *testing.T) {
 				f := newDelugeLinkContract(t, source)
 				id := source.consumer.Info().ID
-				assembled := delugeScheduledConsumer{App: source.consumer, delugeLink: f.link}
-				e := arrtest.New(t, catalog.New([]app.App{assembled, deluge.App{}}, nil))
+				e := arrtest.New(t, catalog.New([]app.App{source.consumer, deluge.App{}}, nil))
 				e.Serve(id, f.handler)
 				f.target.allowSetup = true
 				f.target.web.password = "deluge"

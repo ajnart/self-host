@@ -38,6 +38,7 @@ type servarrContractFixture struct {
 	schemas                                  []provider
 	schemaReads, resourceReads               int
 	nativeItems, createdItems, updatedItems  []provider
+	beforeResourceRead                       func()
 }
 
 func servarrContractCopy(item provider) provider {
@@ -89,7 +90,7 @@ func newServarrContract(t *testing.T, api string) *servarrContractFixture {
 			w.WriteHeader(401)
 			return
 		}
-		if f.guards == 0 {
+		if f.p.connectionFields != nil && f.guards == 0 {
 			t.Error("native test ran before provider guard")
 		}
 		f.tests++
@@ -108,6 +109,9 @@ func newServarrContract(t *testing.T, api string) *servarrContractFixture {
 		}
 		if r.Method == "GET" {
 			f.resourceReads++
+			if f.beforeResourceRead != nil {
+				f.beforeResourceRead()
+			}
 			w.WriteHeader(f.resourceStatus)
 			if f.resourceBody != nil {
 				w.Write([]byte(*f.resourceBody))
@@ -612,11 +616,11 @@ func TestDownloadProtocolFamiliesPreserveActualWireAndOwnedLifecycle(t *testing.
 					t.Fatal("reinstall tried to claim the personal same-target client", err)
 				}
 				f.items[1].setField("host", "person-selected-downloader")
-				if err := f.link().Apply(context.Background(), f.from, f.to); err != nil {
-					t.Fatal(err)
+				if err := f.link().Apply(context.Background(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.creates != 0 || target.reads != 0 || f.tests != beforeNative || consumer.writes != 0 || peerCalls.Load() != beforePeer {
+					t.Fatal("reinstall changed selection while enabled same-family survivors remain", err)
 				}
-				if len(f.items) != 3 || f.items[0].id() != 88 || f.items[1].id() != 89 || f.items[1].field("host") != "person-selected-downloader" || f.items[2].id() != 42 || f.items[2]["protocol"] != wire {
-					t.Fatal("reinstall replaced a survivor or reused an old ID/protocol")
+				if len(f.items) != 2 || f.items[0].id() != 88 || f.items[1].id() != 89 || f.items[0]["enable"] != true || f.items[1]["enable"] != true || f.items[1].field("host") != "person-selected-downloader" {
+					t.Fatal("reinstall changed an enabled survivor")
 				}
 				for _, submitted := range append(append(f.nativeItems, f.createdItems...), f.updatedItems...) {
 					if submitted["protocol"] != wire {
@@ -624,6 +628,546 @@ func TestDownloadProtocolFamiliesPreserveActualWireAndOwnedLifecycle(t *testing.
 					}
 				}
 			})
+		}
+	}
+}
+
+type downloadSelectionSecrets struct {
+	values             porttest.Secrets
+	adminReads, writes int
+}
+
+func (s *downloadSelectionSecrets) Get(key string) string {
+	if key == "ADMIN_USER" || key == "ADMIN_PASSWORD" {
+		s.adminReads++
+	}
+	return s.values.Get(key)
+}
+
+func (s *downloadSelectionSecrets) Set(key, value string) error {
+	s.writes++
+	return s.values.Set(key, value)
+}
+
+func downloadSelectionCases() []protocolContractCase {
+	return append(protocolContractCases(), protocolContractCase{"QBittorrent", "QBittorrentSettings", "qbittorrent", "torrent", "TorrentDownloadProtocol", "password", "", 8080, true, downloadProtocolSingle})
+}
+
+type downloadSelectionConsumer struct {
+	id, api, field, version string
+	modern                  bool
+}
+
+func downloadSelectionConsumers() []downloadSelectionConsumer {
+	return []downloadSelectionConsumer{
+		{"sonarr", V3, "tvCategory", "4.0.20.3014", false},
+		{"radarr", V3, "movieCategory", "6.4.4.10685", false},
+		{"lidarr", V1, "musicCategory", "3.1.0.4875", false},
+		{"lidarr", V1, "musicCategory", "3.1.6.5079", true},
+	}
+}
+
+func newDownloadSelectionContract(t *testing.T, source protocolContractCase, consumer downloadSelectionConsumer) (*servarrContractFixture, *downloadSelectionSecrets, *protocolTrackedSecrets) {
+	t.Helper()
+	f := newServarrContract(t, consumer.api)
+	f.from.App, f.from.Service = consumer.id, consumer.id
+	f.version, f.appName = consumer.version, consumer.id
+	f.secrets[f.from.Key("api_key")] = "consumer-key"
+	f.secrets["ADMIN_USER"], f.secrets["ADMIN_PASSWORD"] = "accepted-user", "accepted-password"
+	wire := source.oldProtocol
+	if consumer.modern {
+		wire = source.newProtocol
+	}
+	f.template = provider{"implementation": source.implementation, "configContract": source.contract, "protocol": wire, "priority": float64(1), "tags": []any{}, "fields": []any{}}
+	values := map[string]any{"host": "localhost", "port": float64(source.port), "useSsl": false, "urlBase": source.urlBase, source.credential: "", consumer.field: "chosen"}
+	if source.username || source.implementation == "Sabnzbd" {
+		values["username"] = ""
+	}
+	if source.implementation == "Sabnzbd" {
+		values["password"] = ""
+	}
+	for name, value := range values {
+		f.template["fields"] = append(f.template["fields"].([]any), map[string]any{"name": name, "value": value})
+	}
+	f.p.target, f.p.implementation, f.p.name, f.p.configContract = source.target, source.implementation, source.implementation, source.contract
+	f.p.categoryField, f.p.category, f.p.protocolFamily = consumer.field, "chosen", source.family
+	f.to.App, f.to.Service, f.to.ContainerPort, f.to.Port = source.target, source.target, source.port, 18080
+	if source.family == downloadProtocolSingle {
+		f.p.connectionFields, f.p.verify = nil, nil
+		f.p.configContract, f.p.protocol = "", ""
+	} else {
+		f.p.connectionFields = func(_, to *helpers.H) ([]connectionField, error) {
+			fields := []connectionField{{"host", to.Service}, {"port", float64(to.ContainerPort)}, {"useSsl", false}, {"urlBase", source.urlBase}, {source.credential, to.Secret("CONTRACT_API_KEY")}}
+			if source.username {
+				fields = append(fields, connectionField{"username", "accepted-user"})
+			}
+			return fields, nil
+		}
+	}
+	fromSecrets := &downloadSelectionSecrets{values: f.secrets}
+	targetSecrets := &protocolTrackedSecrets{values: f.secrets}
+	f.from.Config.Secrets, f.to.Config.Secrets = fromSecrets, targetSecrets
+	return f, fromSecrets, targetSecrets
+}
+
+func downloadSelectionIncumbent(f *servarrContractFixture, wire string) (provider, provider) {
+	schema := servarrContractCopy(f.template)
+	schema["implementation"], schema["configContract"], schema["protocol"] = "IndependentClient", "IndependentSettings", wire
+	item := servarrContractCopy(schema)
+	item["id"], item["name"], item["enable"], item["priority"] = float64(10), "person-selected client", true, float64(7)
+	item.setField("host", "independent-downloader")
+	return schema, item
+}
+
+func (f *servarrContractFixture) downloadSelectionLink() app.Link {
+	if f.p.target == "qbittorrent" {
+		return QBittorrentLink(f.p.api, f.p.categoryField, f.p.category)
+	}
+	return f.link()
+}
+
+type downloadSelectionRequest struct {
+	wire          string
+	tags          []any
+	indexerClient int64
+	blocked       []int64
+	filterBlocked bool
+}
+
+func (r downloadSelectionRequest) pick(items []provider, last *int64) int64 {
+	available, matching := []provider{}, []provider{}
+	for _, item := range items {
+		if item["enable"] != true || item["protocol"] != r.wire {
+			continue
+		}
+		tags, _ := item["tags"].([]any)
+		if len(tags) == 0 {
+			available = append(available, item)
+		}
+		if slices.ContainsFunc(tags, func(tag any) bool { return slices.Contains(r.tags, tag) }) {
+			matching = append(matching, item)
+		}
+	}
+	if len(matching) != 0 {
+		available = matching
+	}
+	if r.indexerClient > 0 {
+		for _, item := range available {
+			if item.id() == r.indexerClient && (!r.filterBlocked || !slices.Contains(r.blocked, item.id())) {
+				return item.id()
+			}
+		}
+		return 0
+	}
+	nonBlocked := []provider{}
+	for _, item := range available {
+		if !slices.Contains(r.blocked, item.id()) {
+			nonBlocked = append(nonBlocked, item)
+		}
+	}
+	if len(nonBlocked) != 0 || r.filterBlocked {
+		available = nonBlocked
+	}
+	if len(available) == 0 {
+		return 0
+	}
+	slices.SortFunc(available, func(a, b provider) int {
+		if a["priority"] != b["priority"] {
+			return int(a["priority"].(float64) - b["priority"].(float64))
+		}
+		return int(a.id() - b.id())
+	})
+	selected := available[0]
+	for _, item := range available {
+		if item["priority"] == available[0]["priority"] && item.id() > *last {
+			selected = item
+			break
+		}
+	}
+	*last = selected.id()
+	return *last
+}
+
+func (r downloadSelectionRequest) sequence(items []provider) []int64 {
+	last := int64(0)
+	result := []int64{}
+	for range 4 {
+		result = append(result, r.pick(items, &last))
+	}
+	return result
+}
+
+func TestDownloadCreationSelectorExplainsRoundRobinTakeoverAndFallback(t *testing.T) {
+	incumbent := provider{"id": float64(10), "enable": true, "protocol": "torrent", "priority": float64(1), "tags": []any{}}
+	candidate := provider{"id": float64(20), "enable": true, "protocol": "torrent", "priority": float64(1), "tags": []any{}}
+	r := downloadSelectionRequest{wire: "torrent"}
+	if !slices.Equal(r.sequence([]provider{incumbent}), []int64{10, 10, 10, 10}) || !slices.Equal(r.sequence([]provider{incumbent, candidate}), []int64{10, 20, 10, 20}) {
+		t.Fatal("equal priority does not model the pinned selector's round robin")
+	}
+	incumbent["priority"] = float64(7)
+	if !slices.Equal(r.sequence([]provider{incumbent, candidate}), []int64{20, 20, 20, 20}) {
+		t.Fatal("new priority 1 did not take over from priority 7")
+	}
+	incumbent["priority"], candidate["priority"] = float64(1), float64(7)
+	r.blocked = []int64{10}
+	if !slices.Equal(r.sequence([]provider{incumbent, candidate}), []int64{20, 20, 20, 20}) {
+		t.Fatal("a lower-priority candidate was not a new blocked-client fallback")
+	}
+}
+
+func TestDownloadCreationHoldsAllFiveBeforeTargetNativeAndPrivateWrites(t *testing.T) {
+	for _, source := range downloadSelectionCases() {
+		for _, consumer := range downloadSelectionConsumers() {
+			for _, scenario := range []string{"equal-priority", "takeover", "worse-priority", "tagged", "nonmatching-tag", "unreadable-routing", "indexer-pinned", "missing-enable", "null-enable", "string-enable", "numeric-enable", "missing-protocol", "null-protocol", "numeric-protocol", "unknown-protocol", "crossed-same-family", "crossed-protocol", "missing-schema", "duplicate-schema", "wrong-contract", "wrong-field-type", "extra-field"} {
+				t.Run(source.implementation+"/"+consumer.id+"/"+consumer.version+"/"+scenario, func(t *testing.T) {
+					f, fromSecrets, targetSecrets := newDownloadSelectionContract(t, source, consumer)
+					wire := f.template["protocol"].(string)
+					other := "torrent"
+					if consumer.modern {
+						other = "TorrentDownloadProtocol"
+					}
+					if source.oldProtocol == "torrent" {
+						other = "usenet"
+						if consumer.modern {
+							other = "UsenetDownloadProtocol"
+						}
+					}
+					schema, incumbent := downloadSelectionIncumbent(f, other)
+					r := downloadSelectionRequest{wire: wire}
+					switch scenario {
+					case "equal-priority", "takeover", "worse-priority", "tagged", "nonmatching-tag", "unreadable-routing", "indexer-pinned":
+						schema["protocol"], incumbent["protocol"] = wire, wire
+						if scenario == "equal-priority" {
+							incumbent["priority"] = float64(1)
+						}
+						if scenario == "worse-priority" {
+							f.template["priority"], incumbent["priority"] = float64(7), float64(1)
+							r.blocked = []int64{10}
+						}
+						if scenario == "tagged" {
+							incumbent["tags"], r.tags = []any{float64(4)}, []any{float64(4)}
+						}
+						if scenario == "nonmatching-tag" {
+							incumbent["tags"], r.tags = []any{float64(4)}, []any{float64(9)}
+						}
+						if scenario == "unreadable-routing" {
+							delete(incumbent, "priority")
+							incumbent["tags"] = "unreadable"
+						}
+						if scenario == "indexer-pinned" {
+							r.indexerClient = 10
+						}
+					case "missing-enable":
+						delete(incumbent, "enable")
+					case "null-enable":
+						incumbent["enable"] = nil
+					case "string-enable":
+						incumbent["enable"] = "false"
+					case "numeric-enable":
+						incumbent["enable"] = float64(0)
+					case "missing-protocol":
+						delete(incumbent, "protocol")
+					case "null-protocol":
+						incumbent["protocol"] = nil
+					case "numeric-protocol":
+						incumbent["protocol"] = float64(1)
+					case "unknown-protocol":
+						incumbent["protocol"] = "future-wire"
+					case "crossed-same-family":
+						incumbent["protocol"] = source.newProtocol
+						if consumer.modern {
+							incumbent["protocol"] = source.oldProtocol
+						}
+						schema["protocol"] = incumbent["protocol"]
+					case "crossed-protocol":
+						schema["protocol"] = wire
+					case "wrong-contract":
+						schema["configContract"] = "UnrelatedSettings"
+					case "wrong-field-type":
+						incumbent.setField("port", true)
+					case "extra-field":
+						incumbent["fields"] = append(incumbent["fields"].([]any), map[string]any{"name": "future-field", "value": true})
+					}
+					f.items = []provider{incumbent}
+					f.schemas = []provider{f.template, schema}
+					if scenario == "missing-schema" {
+						f.schemas = []provider{f.template}
+					}
+					if scenario == "duplicate-schema" {
+						f.schemas = append(f.schemas, servarrContractCopy(schema))
+					}
+					before, err := json.Marshal(f.items)
+					if err != nil {
+						t.Fatal(err)
+					}
+					selected := r.sequence(f.items)
+					if err := f.downloadSelectionLink().Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || !strings.Contains(err.Error(), "priorities, tags, indexer assignments or enabled flags") {
+						t.Fatal("unproven fresh selection did not return actionable Manual", err)
+					}
+					after, _ := json.Marshal(f.items)
+					if string(after) != string(before) || !slices.Equal(selected, r.sequence(f.items)) || fromSecrets.adminReads != 0 || fromSecrets.writes != 0 || targetSecrets.reads != 0 || targetSecrets.writes != 0 || f.guards != 0 || f.tests != 0 || f.creates != 0 || f.updates != 0 || f.deletes != 0 || f.secrets[f.p.ownershipKey(f.from)] != "" {
+						t.Fatal("selection refusal changed selection/resources or reached target/native/private activity")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestDownloadCreationEmptyDisabledAndOppositeFamilyPreserveWireAndSelection(t *testing.T) {
+	for _, source := range downloadSelectionCases() {
+		for _, consumer := range downloadSelectionConsumers() {
+			for _, scenario := range []string{"empty", "disabled", "opposite"} {
+				t.Run(source.implementation+"/"+consumer.id+"/"+consumer.version+"/"+scenario, func(t *testing.T) {
+					f, _, _ := newDownloadSelectionContract(t, source, consumer)
+					wire := f.template["protocol"]
+					other := "torrent"
+					if consumer.modern {
+						other = "TorrentDownloadProtocol"
+					}
+					if source.oldProtocol == "torrent" {
+						other = "usenet"
+						if consumer.modern {
+							other = "UsenetDownloadProtocol"
+						}
+					}
+					schema, incumbent := downloadSelectionIncumbent(f, other)
+					f.schemas = []provider{f.template, schema}
+					if scenario == "disabled" {
+						incumbent["enable"], incumbent["protocol"] = false, "unproven-disabled-wire"
+					}
+					if scenario != "empty" {
+						f.items = []provider{incumbent}
+					}
+					before := servarrContractCopy(incumbent)
+					r := downloadSelectionRequest{wire: other}
+					selected := r.sequence(f.items)
+					if err := f.downloadSelectionLink().Apply(t.Context(), f.from, f.to); err != nil {
+						t.Fatal(err)
+					}
+					created := f.items[len(f.items)-1]
+					if created["enable"] != true || created["protocol"] != wire || f.creates != 1 || !slices.Equal(selected, r.sequence(f.items)) {
+						t.Fatal("fresh admission normalized wire, created a disabled resource or changed an opposite selector")
+					}
+					if scenario != "empty" {
+						got, _ := json.Marshal(f.items[0])
+						want, _ := json.Marshal(before)
+						if string(got) != string(want) {
+							t.Fatal("fresh creation modified an existing resource")
+						}
+					}
+					if source.family == downloadProtocolSingle && (f.p.protocolFamily != downloadProtocolSingle || f.p.protocol != "" || f.p.connectionFields != nil || f.tests != 0 || f.guards != 0) {
+						t.Fatal("narrow qBittorrent creation admission changed its owned verification contract")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestDownloadCreationRechecksInventoryBetweenCheckAndDo(t *testing.T) {
+	f, fromSecrets, targetSecrets := newDownloadSelectionContract(t, downloadSelectionCases()[0], downloadSelectionConsumers()[0])
+	schema, incumbent := downloadSelectionIncumbent(f, "usenet")
+	f.schemas = []provider{f.template, schema}
+	f.beforeResourceRead = func() {
+		if f.resourceReads == 2 {
+			f.items = []provider{incumbent}
+		}
+	}
+	if err := f.link().Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) {
+		t.Fatal("Step Do reused the earlier empty inventory", err)
+	}
+	if f.resourceReads != 2 || f.schemaReads != 2 || fromSecrets.writes != 0 || targetSecrets.reads != 0 || f.tests != 0 || f.guards != 0 || f.creates != 0 {
+		t.Fatal("changed selection reached target/native/intent or duplicated authenticated reads")
+	}
+}
+
+func TestDownloadCreationLegacyCandidateRejectsUnreadableAuthenticatedSnapshots(t *testing.T) {
+	for _, consumer := range downloadSelectionConsumers() {
+		for _, fault := range []string{"missing-key", "rejected-key", "inventory-denied", "schema-denied", "inventory-auth-false", "schema-auth-false", "inventory-null", "schema-null", "inventory-malformed", "schema-malformed", "duplicate-resource", "duplicate-field", "duplicate-schema", "missing-schema-field", "mistyped-schema-field", "wrong-contract", "wrong-protocol"} {
+			t.Run(consumer.id+"/"+consumer.version+"/"+fault, func(t *testing.T) {
+				sources := downloadSelectionCases()
+				f, fromSecrets, targetSecrets := newDownloadSelectionContract(t, sources[len(sources)-1], consumer)
+				privateBody := `{"status":false,"error":"fixture-private-response"}`
+				nullBody, malformedBody := `null`, `{"private":"fixture-private-response"`
+				switch fault {
+				case "missing-key":
+					delete(f.secrets, f.from.Key("api_key"))
+				case "rejected-key":
+					f.secrets[f.from.Key("api_key")] = "rejected-key"
+				case "inventory-denied":
+					f.resourceStatus = 403
+				case "schema-denied":
+					f.schemaStatus = 401
+				case "inventory-auth-false":
+					f.resourceBody = &privateBody
+				case "schema-auth-false":
+					f.schemaBody = &privateBody
+				case "inventory-null":
+					f.resourceBody = &nullBody
+				case "schema-null":
+					f.schemaBody = &nullBody
+				case "inventory-malformed":
+					f.resourceBody = &malformedBody
+				case "schema-malformed":
+					f.schemaBody = &malformedBody
+				case "duplicate-resource":
+					_, item := downloadSelectionIncumbent(f, "usenet")
+					f.items = []provider{item, servarrContractCopy(item)}
+				case "duplicate-field":
+					f.template["fields"] = append(f.template["fields"].([]any), map[string]any{"name": "host", "value": "localhost"})
+				case "duplicate-schema":
+					f.schemas = []provider{f.template, servarrContractCopy(f.template)}
+				case "missing-schema-field":
+					f.template["fields"] = slices.DeleteFunc(f.template["fields"].([]any), func(raw any) bool { return raw.(map[string]any)["name"] == "password" })
+				case "mistyped-schema-field":
+					f.template.setField("port", true)
+				case "wrong-contract":
+					f.template["configContract"] = "UnknownSettings"
+				case "wrong-protocol":
+					f.template["protocol"] = "usenet"
+				}
+				if err := f.downloadSelectionLink().Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || strings.Contains(err.Error(), "fixture-private-response") {
+					t.Fatal("unreadable creation facts did not return safe Manual recovery", err)
+				}
+				if fromSecrets.adminReads != 0 || fromSecrets.writes != 0 || targetSecrets.reads != 0 || targetSecrets.writes != 0 || f.guards != 0 || f.tests != 0 || f.creates != 0 || f.updates != 0 || f.deletes != 0 || f.secrets[f.p.ownershipKey(f.from)] != "" {
+					t.Fatal("unreadable consumer snapshots reached target/native/private effects")
+				}
+			})
+		}
+	}
+}
+
+func TestDownloadCreationCannotReplaceUncertainMissingOrDisabledOwnership(t *testing.T) {
+	for _, source := range downloadSelectionCases() {
+		for _, state := range []string{"uncertain", "missing", "disabled"} {
+			t.Run(source.implementation+"/"+state, func(t *testing.T) {
+				f, fromSecrets, targetSecrets := newDownloadSelectionContract(t, source, downloadSelectionConsumers()[3])
+				raw := seedProtocolOwnership(t, f)
+				if state == "uncertain" {
+					raw = strings.Replace(raw, `"id":41`, `"id":0`, 1)
+					f.secrets[f.p.ownershipKey(f.from)] = raw
+				}
+				if state == "missing" {
+					f.items = []provider{}
+				}
+				if state == "disabled" {
+					f.items[0]["enable"] = false
+				}
+				fromSecrets.adminReads, targetSecrets.reads = 0, 0
+				if err := f.downloadSelectionLink().Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || f.secrets[f.p.ownershipKey(f.from)] != raw {
+					t.Fatal("existing ownership was reclassified as a fresh creation", err)
+				}
+				if fromSecrets.adminReads != 0 || fromSecrets.writes != 0 || targetSecrets.reads != 0 || targetSecrets.writes != 0 || f.guards != 0 || f.tests != 0 || f.creates != 0 || f.updates != 0 || f.deletes != 0 {
+					t.Fatal("uncertain, missing or disabled ownership reached target/native/private effects")
+				}
+				if state == "uncertain" && (f.resourceReads != 0 || f.schemaReads != 0) {
+					t.Fatal("uncertain creation was discovered or reissued")
+				}
+			})
+		}
+	}
+}
+
+func TestDownloadCreationUsesTheAdmittedTemplateWithoutAnotherCreationLookup(t *testing.T) {
+	for _, source := range downloadSelectionCases() {
+		t.Run(source.implementation, func(t *testing.T) {
+			f, _, _ := newDownloadSelectionContract(t, source, downloadSelectionConsumers()[3])
+			if f.p.connectionFields != nil {
+				connection := f.p.connectionFields
+				f.p.connectionFields = func(from, to *helpers.H) ([]connectionField, error) {
+					fields, err := connection(from, to)
+					f.template["priority"] = float64(37)
+					return fields, err
+				}
+			}
+			if err := f.downloadSelectionLink().Apply(t.Context(), f.from, f.to); err != nil {
+				t.Fatal(err)
+			}
+			if f.createdItems[0]["priority"] != float64(1) || f.createdItems[0]["protocol"] != f.template["protocol"] {
+				t.Fatal("creation replaced the admitted template after credential resolution")
+			}
+			wantReads := 5
+			if source.family == downloadProtocolSingle {
+				wantReads = 2
+			}
+			if f.schemaReads != wantReads || f.resourceReads != 3 {
+				t.Fatal("creation added a schema or inventory lookup instead of reusing the read snapshot")
+			}
+		})
+	}
+}
+
+func TestDownloadCreationExistingOwnershipPreservesIntentionalEnabledSelection(t *testing.T) {
+	for _, source := range downloadSelectionCases() {
+		for _, consumer := range downloadSelectionConsumers() {
+			t.Run(source.implementation+"/"+consumer.id+"/"+consumer.version, func(t *testing.T) {
+				f, fromSecrets, targetSecrets := newDownloadSelectionContract(t, source, consumer)
+				raw := seedProtocolOwnership(t, f)
+				f.items[0]["tags"] = []any{float64(4)}
+				_, incumbent := downloadSelectionIncumbent(f, f.template["protocol"].(string))
+				incumbent["tags"] = []any{float64(4)}
+				f.items = append(f.items, incumbent)
+				r := downloadSelectionRequest{wire: f.template["protocol"].(string), tags: []any{float64(4)}}
+				before := r.sequence(f.items)
+				link := f.downloadSelectionLink()
+				if err := link.Apply(t.Context(), f.from, f.to); err != nil || f.secrets[f.p.ownershipKey(f.from)] != raw || fromSecrets.writes != 0 || f.creates != 0 || f.updates != 0 || !slices.Equal(before, r.sequence(f.items)) {
+					t.Fatal("owned rerun applied creation policy or changed the old record/selection", err)
+				}
+				f.items[0].setField(source.credential, "********")
+				if err := link.Apply(t.Context(), f.from, f.to); err != nil || f.secrets[f.p.ownershipKey(f.from)] != raw || fromSecrets.writes != 0 || f.updates != 0 || !slices.Equal(before, r.sequence(f.items)) {
+					t.Fatal("masked owned rerun changed intentional selection or legacy ownership", err)
+				}
+				want := servarrContractCopy(f.items[0])
+				if source.family == downloadProtocolSingle {
+					f.secrets["ADMIN_PASSWORD"] = "accepted-replacement"
+				} else {
+					f.secrets["CONTRACT_API_KEY"] = "accepted-replacement"
+				}
+				want.setField(source.credential, "accepted-replacement")
+				if err := link.Apply(t.Context(), f.from, f.to); err != nil {
+					t.Fatal(err)
+				}
+				gotData, _ := json.Marshal(f.items[0])
+				wantData, _ := json.Marshal(want)
+				if string(gotData) != string(wantData) || f.updates != 1 || f.items[0].id() != 41 || !slices.Equal(before, r.sequence(f.items)) {
+					t.Fatal("credential recovery modified an intentional noncredential selection choice")
+				}
+				native := f.tests
+				targetSecrets.reads, fromSecrets.adminReads = 0, 0
+				delete(f.secrets, "CONTRACT_API_KEY")
+				delete(f.secrets, "ADMIN_PASSWORD")
+				if err := link.Remove(t.Context(), f.from, f.to); err != nil || len(f.items) != 1 || f.items[0].id() != 10 || f.items[0]["enable"] != true || targetSecrets.reads != 0 || fromSecrets.adminReads != 0 || f.tests != native {
+					t.Fatal("owned removal read target credentials or changed an enabled survivor", err)
+				}
+				fromSecrets.writes = 0
+				if err := link.Apply(t.Context(), f.from, f.to); !errors.Is(err, helpers.ErrManual) || targetSecrets.reads != 0 || fromSecrets.adminReads != 0 || fromSecrets.writes != 0 || f.tests != native || f.creates != 0 {
+					t.Fatal("reinstall changed the remaining enabled selection", err)
+				}
+			})
+		}
+	}
+}
+
+func TestDownloadCreationSelectorRetainsTagsIndexerPinAndBlockedPolicy(t *testing.T) {
+	untagged := provider{"id": float64(10), "enable": true, "protocol": "torrent", "priority": float64(1), "tags": []any{}}
+	tagged := provider{"id": float64(20), "enable": true, "protocol": "torrent", "priority": float64(7), "tags": []any{float64(4)}}
+	items := []provider{untagged, tagged}
+	for _, tc := range []struct {
+		request downloadSelectionRequest
+		want    int64
+	}{
+		{downloadSelectionRequest{wire: "torrent", tags: []any{float64(4)}}, 20},
+		{downloadSelectionRequest{wire: "torrent", tags: []any{float64(9)}}, 10},
+		{downloadSelectionRequest{wire: "torrent", indexerClient: 20}, 0},
+		{downloadSelectionRequest{wire: "torrent", tags: []any{float64(4)}, indexerClient: 20}, 20},
+		{downloadSelectionRequest{wire: "torrent", blocked: []int64{10}, filterBlocked: true}, 0},
+		{downloadSelectionRequest{wire: "torrent", blocked: []int64{10}}, 10},
+		{downloadSelectionRequest{wire: "usenet"}, 0},
+	} {
+		last := int64(0)
+		if got := tc.request.pick(items, &last); got != tc.want {
+			t.Fatal("test selector did not match the pinned route/filter order", got, tc.want)
 		}
 	}
 }

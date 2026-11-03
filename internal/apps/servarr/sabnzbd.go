@@ -11,7 +11,7 @@ import (
 )
 
 func SABnzbdLink(api, categoryField, category string) app.Link {
-	p := providerLink{api: api, path: "/downloadclient", target: "sabnzbd", implementation: "Sabnzbd", name: "SABnzbd", endpointField: "host", categoryField: categoryField, category: category, configContract: "SabnzbdSettings", protocol: "usenet"}
+	p := providerLink{api: api, path: "/downloadclient", target: "sabnzbd", implementation: "Sabnzbd", name: "SABnzbd", endpointField: "host", categoryField: categoryField, category: category, configContract: "SabnzbdSettings", protocolFamily: downloadProtocolUsenet}
 	p.connectionFields = func(from, to *helpers.H) ([]connectionField, error) {
 		key := to.Secret(to.Key("api_key"))
 		if key == "" || to.Service == "" || to.ContainerPort <= 0 || to.ContainerPort > 65535 {
