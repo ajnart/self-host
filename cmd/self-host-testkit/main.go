@@ -486,14 +486,24 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 	case "getApiKey":
 		key, err := selected.GetAPIKey(opCtx, p.Name)
 		if err != nil {
-			res.Error = failure("CREDENTIALS")
+			var operation *testkit.OperationError
+			if errors.As(err, &operation) {
+				res.Error = b.pairOperationFailure(err)
+			} else {
+				res.Error = failure("CREDENTIALS")
+			}
 		} else {
 			res.Result = map[string]string{"apiKey": key}
 		}
 	case "credentials":
 		value, err := selected.Credentials(opCtx)
 		if err != nil {
-			res.Error = failure("CREDENTIALS")
+			var operation *testkit.OperationError
+			if errors.As(err, &operation) {
+				res.Error = b.pairOperationFailure(err)
+			} else {
+				res.Error = failure("CREDENTIALS")
+			}
 		} else {
 			res.Result = map[string]string{"username": value.Username, "password": value.Password, "email": value.Email, "apiKey": value.APIKey}
 		}
