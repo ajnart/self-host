@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -208,6 +209,162 @@ func TestPairActionsNeverRenewWorkDeadline(t *testing.T) {
 	}
 	if err := p.Close(t.Context()); err != nil {
 		t.Fatal("work deadline canceled reserved cleanup")
+	}
+}
+
+func TestPairSelectedCredentialsInfrastructureFailureClosesOwner(t *testing.T) {
+	for _, method := range []string{"key", "credentials"} {
+		for _, mode := range []string{"deadline", "cancel", "cancel-during-read", "deadline-during-read", "storage", "presence-storage"} {
+			for _, cleanupFailed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/cleanup-failed=%t", method, mode, cleanupFailed), func(t *testing.T) {
+					p, f, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer"})
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() { f.cleanupFailure = false })
+					view, _ := p.App("peer")
+					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					root := p.RecoveryPath()
+					owner := p.owner.service.Deps.CurrentUser
+					wantReason := string(StartupReasonSetup)
+					switch mode {
+					case "deadline":
+						p.owner.workDeadline = time.Now().Add(-time.Second)
+					case "cancel":
+						cancel()
+					case "cancel-during-read":
+						p.owner.service.Deps.CurrentUser = func() (system.User, error) {
+							cancel()
+							return owner()
+						}
+					case "deadline-during-read":
+						p.owner.workDeadline = time.Now().Add(20 * time.Millisecond)
+						p.owner.service.Deps.CurrentUser = func() (system.User, error) {
+							<-time.After(time.Until(p.owner.workDeadline) + time.Millisecond)
+							return owner()
+						}
+					case "storage":
+						wantReason = string(StartupReasonStorage)
+						p.owner.service.Deps.CurrentUser = func() (system.User, error) {
+							return system.User{}, errors.New(syntheticKey + " " + root)
+						}
+					case "presence-storage":
+						wantReason = string(StartupReasonStorage)
+						if err := os.WriteFile(p.owner.guard.p.Path("compose.yml"), []byte("services: ["), 0o600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					deadline := p.owner.workDeadline
+					f.cleanupFailure = cleanupFailed
+					if method == "key" {
+						_, err = view.GetAPIKey(ctx, "")
+					} else {
+						_, err = view.Credentials(ctx)
+					}
+					var operation *OperationError
+					if !errors.As(err, &operation) || operation.Reason() != wantReason {
+						t.Fatal("credential failure lost its typed Pair boundary")
+					}
+					if strings.Contains(err.Error(), syntheticKey) || strings.Contains(err.Error(), root) {
+						t.Fatal("private credential failure escaped")
+					}
+					if strings.HasPrefix(mode, "deadline") && !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatal("owner work deadline lost")
+					}
+					if strings.HasPrefix(mode, "cancel") && !errors.Is(err, context.Canceled) {
+						t.Fatal("caller cancellation lost")
+					}
+					if operation.CleanupError() != nil != cleanupFailed || p.owner.closed == cleanupFailed || !p.owner.pair.failed || !p.owner.workDeadline.Equal(deadline) {
+						t.Fatal("credential cleanup state or immutable deadline lost")
+					}
+					if cleanupFailed {
+						if len(f.containers) != 2 {
+							t.Fatal("failed cleanup did not retain resources")
+						}
+						if _, err := readOwnership(root); err != nil {
+							t.Fatal("cleanup recovery ownership lost")
+						}
+					}
+					assertDisabled := func() {
+						t.Helper()
+						before := len(f.runner.Calls())
+						for _, id := range []string{"consumer", "peer"} {
+							selected, _ := p.App(id)
+							if _, err := selected.GetAPIKey(t.Context(), ""); err == nil {
+								t.Fatal("failed owner exposed a selected key")
+							}
+							if _, err := selected.Credentials(t.Context()); err == nil {
+								t.Fatal("failed owner exposed selected credentials")
+							}
+							if _, err := selected.Info(t.Context()); err == nil {
+								t.Fatal("failed owner exposed selected Info")
+							}
+						}
+						if _, err := p.Inspect(t.Context()); err == nil {
+							t.Fatal("failed Pair remained inspectable")
+						}
+						if _, err := p.Setup(t.Context(), ""); err == nil {
+							t.Fatal("failed Pair accepted Setup")
+						}
+						if _, err := p.Remove(t.Context(), "peer"); err == nil {
+							t.Fatal("failed Pair accepted Remove")
+						}
+						if _, err := p.Install(t.Context(), "peer"); err == nil || len(f.runner.Calls()) != before {
+							t.Fatal("disabled owner reached its runner")
+						}
+					}
+					assertDisabled()
+					if cleanupFailed {
+						if err := p.Close(t.Context()); err == nil {
+							t.Fatal("failed credential cleanup retry was hidden")
+						}
+						assertDisabled()
+					}
+					f.cleanupFailure = false
+					if err := p.Close(t.Context()); err != nil || len(f.containers) != 0 {
+						t.Fatal("independent credential cleanup could not finish")
+					}
+					assertDisabled()
+				})
+			}
+		}
+	}
+}
+
+func TestPairSelectedCredentialsExpectedAbsenceAndManualRemainLive(t *testing.T) {
+	peer := pairFixtureApp{id: "peer"}
+	peer.setup = func(ctx context.Context, h *helpers.H) error {
+		if err := h.SetSecret(h.Key("api_key"), ""); err != nil {
+			return err
+		}
+		return h.Step(ctx, "manual", "finish fixture", helpers.StepSpec{Do: func(context.Context) error { return helpers.ErrManual }, Hint: "fixture prerequisite"})
+	}
+	p, _, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, _ := p.App("peer")
+	if _, err := view.GetAPIKey(t.Context(), ""); err == nil {
+		t.Fatal("missing key accepted")
+	}
+	if creds, err := view.Credentials(t.Context()); err != nil || creds.APIKey != "" {
+		t.Fatal("Manual credentials without an API key were rejected")
+	}
+	if result, err := p.Inspect(t.Context()); err != nil || result.Outcome != PairManual {
+		t.Fatal("ordinary missing key closed a Manual Pair")
+	}
+	if _, err := p.Remove(t.Context(), "peer"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := view.GetAPIKey(t.Context(), ""); err == nil {
+		t.Fatal("absent App exposed a key")
+	}
+	if _, err := view.Credentials(t.Context()); err == nil {
+		t.Fatal("absent App exposed credentials")
+	}
+	if _, err := p.Install(t.Context(), "peer"); err != nil || p.owner.closed || p.owner.pair.failed {
+		t.Fatal("expected credential absence disabled the owner")
 	}
 }
 

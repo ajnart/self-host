@@ -489,7 +489,13 @@ class PairHandle {
     async #action(method, app) {
         if (app !== undefined && !this.#ids.includes(app))
             throw fault("STATE");
-        return pairInspection(await this.#bridge.request(method, { app }, this.#timeout + 1000), this.#ids);
+        const result = await this.#bridge.request(method, { app }, this.#timeout + 1000);
+        try {
+            return pairInspection(result, this.#ids);
+        }
+        catch (error) {
+            return this.#bridge.failAndClose(error);
+        }
     }
     inspect() {
         return this.#action("inspect");

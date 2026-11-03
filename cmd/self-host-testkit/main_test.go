@@ -426,3 +426,56 @@ func TestPairBridgeInfrastructureFailureClosesAndDisablesOwner(t *testing.T) {
 		}
 	}
 }
+
+func TestPairBridgeSelectedCredentialTypedFailures(t *testing.T) {
+	for _, method := range []string{"getApiKey", "credentials"} {
+		for _, cause := range []error{nil, context.Canceled, context.DeadlineExceeded} {
+			operation := &testkit.OperationError{}
+			f := &fakePairFixture{view: fakeFixture{err: errors.Join(operation, cause)}}
+			lifetime, cancel := context.WithCancel(t.Context())
+			b := &bridge{pair: f, appCancel: cancel}
+			res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
+			want := "OPERATION"
+			if cause == context.Canceled {
+				want = "CANCELED"
+			}
+			if cause == context.DeadlineExceeded {
+				want = "TIMEOUT"
+			}
+			if res.Error == nil || res.Error.Code != want || res.Error.CleanupFailed || f.closed != 0 || !b.pairFailed || b.pair != nil || lifetime.Err() != context.Canceled {
+				t.Fatal("selected credential typed failure was collapsed or cleaned twice")
+			}
+			if cause == nil && res.Error.Reason != operation.Reason() {
+				t.Fatal("typed credential reason was replaced")
+			}
+			if res.Result != nil {
+				t.Fatal("failed credential request returned private data")
+			}
+			blocked := b.handle(t.Context(), request{Method: "info", Params: json.RawMessage(`{"app":"homarr"}`)})
+			if blocked.Error == nil || blocked.Error.Code != "STATE" {
+				t.Fatal("credential failure left the shared bridge enabled")
+			}
+		}
+	}
+}
+
+func TestCredentialOrdinaryErrorsKeepLegacyDispatch(t *testing.T) {
+	for _, pair := range []bool{false, true} {
+		for _, method := range []string{"getApiKey", "credentials"} {
+			f := &fakeFixture{err: errors.New("private-test-password")}
+			b := &bridge{app: f}
+			if pair {
+				b.app = nil
+				b.pair = &fakePairFixture{view: *f}
+			}
+			res := b.handle(t.Context(), request{Method: method, Params: json.RawMessage(`{"app":"sonarr"}`)})
+			data, _ := json.Marshal(res)
+			if res.Error == nil || res.Error.Code != "CREDENTIALS" || res.Error.Reason != "" || res.Error.CleanupFailed || f.closed != 0 || b.pairFailed || strings.Contains(string(data), "private-test-password") {
+				t.Fatal("ordinary credential error changed lifecycle or leaked")
+			}
+			if pair && b.handle(t.Context(), request{Method: "inspect"}).Error != nil {
+				t.Fatal("ordinary credential absence disabled the Pair")
+			}
+		}
+	}
+}

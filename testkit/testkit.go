@@ -285,27 +285,40 @@ func (a *App) GetAPIKey(ctx context.Context, name string) (string, error) {
 }
 
 func (a *App) apiKeyFor(ctx context.Context, id, name string) (string, error) {
+	creds, err := a.readCredentials(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return apiKey(creds, id, name)
+}
+
+func (a *App) readCredentials(ctx context.Context, id string) (service.Credentials, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
-		return "", errors.New("testkit App is closed")
+		return service.Credentials{}, errors.New("testkit App is closed")
 	}
 	if a.pair != nil {
 		if a.pair.failed {
-			return "", errors.New("testkit pair is unavailable")
+			return service.Credentials{}, errors.New("testkit pair is unavailable")
 		}
-		if err := (&AppView{owner: a, id: id}).present(); err != nil {
-			return "", err
+		creds, present, err := a.pairCredentials(ctx, id)
+		if err != nil {
+			return service.Credentials{}, err
 		}
+		if !present {
+			return service.Credentials{}, errors.New("testkit selected App is absent")
+		}
+		return creds, nil
 	}
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return service.Credentials{}, err
 	}
 	creds, err := a.service.Credentials(ctx)
 	if err != nil {
-		return "", errors.New("testkit private credentials unavailable")
+		return service.Credentials{}, errors.New("testkit private credentials unavailable")
 	}
-	return apiKey(creds, id, name)
+	return creds, nil
 }
 
 func apiKey(creds service.Credentials, id, name string) (string, error) {
@@ -330,25 +343,9 @@ func (a *App) Credentials(ctx context.Context) (Credentials, error) {
 }
 
 func (a *App) credentialsFor(ctx context.Context, id string) (Credentials, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.closed {
-		return Credentials{}, errors.New("testkit App is closed")
-	}
-	if a.pair != nil {
-		if a.pair.failed {
-			return Credentials{}, errors.New("testkit pair is unavailable")
-		}
-		if err := (&AppView{owner: a, id: id}).present(); err != nil {
-			return Credentials{}, err
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return Credentials{}, err
-	}
-	creds, err := a.service.Credentials(ctx)
+	creds, err := a.readCredentials(ctx, id)
 	if err != nil {
-		return Credentials{}, errors.New("testkit private credentials unavailable")
+		return Credentials{}, err
 	}
 	out := Credentials{Username: creds.Admin.Username, Password: creds.Admin.Password, Email: creds.Admin.Email}
 	if alias := creds.Admin.Aliases[id]; alias != "" {

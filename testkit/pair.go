@@ -399,6 +399,33 @@ func (v *AppView) present() error {
 	return nil
 }
 
+func (a *App) pairCredentials(ctx context.Context, id string) (_ service.Credentials, present bool, err error) {
+	defer a.closeOnPairFailure(&err)
+	work, cancel := context.WithDeadline(ctx, a.workDeadline)
+	defer cancel()
+	if err := work.Err(); err != nil {
+		return service.Credentials{}, false, err
+	}
+	ids, err := a.guard.p.AppIDs()
+	if err := work.Err(); err != nil {
+		return service.Credentials{}, false, err
+	}
+	if err != nil {
+		return service.Credentials{}, false, startupError(StartupReasonStorage, "testkit selected App storage unavailable")
+	}
+	if !slices.Contains(ids, id) {
+		return service.Credentials{}, false, nil
+	}
+	creds, err := a.service.Credentials(work)
+	if err := work.Err(); err != nil {
+		return service.Credentials{}, false, err
+	}
+	if err != nil {
+		return service.Credentials{}, false, startupError(StartupReasonStorage, "testkit private credentials unavailable")
+	}
+	return creds, true, nil
+}
+
 func (v *AppView) GetAPIKey(ctx context.Context, name string) (string, error) {
 	return v.owner.apiKeyFor(ctx, v.id, name)
 }

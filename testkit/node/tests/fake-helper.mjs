@@ -207,11 +207,39 @@ input.on("line", (line) => {
 		if (req.method === "remove") installed.delete(req.params.app);
 		if (req.method === "install") installed.add(req.params.app);
 		const result = inspection();
-		if (pair.consumer === "bad-inspection") result.outcome = "imaginary";
+		if (
+			pair.consumer === "bad-inspection" ||
+			witnessMode === `bad-${req.method}`
+		)
+			result.outcome = "imaginary";
 		reply(req, result);
 	} else if (pair && req.params.app && !installed.has(req.params.app)) {
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
+		);
+	} else if (
+		pair &&
+		["getApiKey", "credentials"].includes(req.method) &&
+		witnessMode.startsWith("credential-")
+	) {
+		const error = {
+			code: "OPERATION",
+			reason: "STORAGE",
+			cleanupFailed: witnessMode === "credential-cleanup",
+			message: "private-test-password",
+		};
+		if (witnessMode !== "credential-missing") {
+			pairFailed = true;
+			event("owned-cleanup");
+			if (error.cleanupFailed)
+				writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
+		}
+		if (witnessMode === "credential-timeout") error.code = "TIMEOUT";
+		if (witnessMode === "credential-cancel") error.code = "CANCELED";
+		if (witnessMode === "credential-missing") error.code = "CREDENTIALS";
+		if (error.code !== "OPERATION") error.reason = undefined;
+		process.stdout.write(
+			`${JSON.stringify({ version: 1, id: req.id, error })}\n`,
 		);
 	} else if (req.method === "credentials") {
 		reply(req, {

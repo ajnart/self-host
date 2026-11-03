@@ -275,6 +275,51 @@ func TestFixturesIsolateOwnerEnvironmentPortsAndPrivateCredentials(t *testing.T)
 	}
 }
 
+func TestSingleAppCredentialFailuresKeepLegacySemantics(t *testing.T) {
+	for _, method := range []string{"key", "credentials"} {
+		for _, mode := range []string{"deadline", "cancel", "storage"} {
+			t.Run(method+"/"+mode, func(t *testing.T) {
+				f := newFakeDocker(t)
+				a, err := startFake(t, f, fixtureApp{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := a.Close(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				a.workDeadline = time.Now().Add(-time.Second)
+				if mode == "cancel" {
+					cancel()
+				}
+				if mode == "storage" {
+					a.service.Deps.CurrentUser = func() (system.User, error) {
+						return system.User{}, errors.New(syntheticKey)
+					}
+				}
+				if method == "key" {
+					_, err = a.GetAPIKey(ctx, "")
+				} else {
+					_, err = a.Credentials(ctx)
+				}
+				if (err == nil) != (mode == "deadline") || a.closed || len(f.containers) != 1 {
+					t.Fatal("legacy credential lifetime or cleanup changed")
+				}
+				var operation *OperationError
+				if errors.As(err, &operation) || mode == "cancel" && !errors.Is(err, context.Canceled) {
+					t.Fatal("legacy credential failure typing changed")
+				}
+				if err != nil && strings.Contains(err.Error(), syntheticKey) {
+					t.Fatal("legacy storage failure leaked")
+				}
+			})
+		}
+	}
+}
+
 func TestPartialCreationAndCancelledSetupCleanWithIndependentContext(t *testing.T) {
 	for _, mode := range []string{"partial", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
