@@ -19,6 +19,8 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 		return jellyseerrExternalTarget(c)
 	case "overseerr":
 		return overseerrExternalTarget(c)
+	case "llamacpp":
+		return llamacppExternalTarget(c)
 	case "proxmox":
 		return proxmoxExternalTarget(c)
 	case "synology":
