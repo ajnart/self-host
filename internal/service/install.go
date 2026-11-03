@@ -627,11 +627,7 @@ func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files 
 			if _, compiled := ss.s.Catalog.App(id); !compiled || ss.p.IsExtra(id) {
 				return errors.New("directory preparation requires a compiled Catalog App")
 			}
-			type preparedDirectory struct {
-				spec     app.Directory
-				uid, gid int
-			}
-			var prepared []preparedDirectory
+			var prepared []project.AppDirectory
 			seen := map[string]bool{}
 			for _, dir := range directories {
 				if dir.Path == "" || dir.Path == "." || dir.Path == ".." || strings.ContainsAny(dir.Path, "/\\\x00") || seen[dir.Path] || dir.Mode&^uint32(0o777) != 0 || dir.Mode&0o700 != 0o700 {
@@ -643,7 +639,7 @@ func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files 
 				if uidErr != nil || gidErr != nil {
 					return errors.New("App directory declarations need explicit numeric container UID/GID")
 				}
-				prepared = append(prepared, preparedDirectory{dir, uid, gid})
+				prepared = append(prepared, project.AppDirectory{Path: dir.Path, Mode: os.FileMode(dir.Mode), UID: uid, GID: gid})
 			}
 			for _, file := range files {
 				clean := path.Clean(file.Path)
@@ -665,21 +661,19 @@ func (ss *session) prepareAppDirectories(a app.App, rc app.RenderContext, files 
 			}
 			for i := range prepared {
 				dir := &prepared[i]
-				dir.uid, err = namespace.HostUID(dir.uid)
+				dir.UID, err = namespace.HostUID(dir.UID)
 				if err == nil {
-					dir.gid, err = namespace.HostGID(dir.gid)
+					dir.GID, err = namespace.HostGID(dir.GID)
 				}
 				if err != nil {
-					return &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.spec.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
+					return &helpers.ManualError{Hint: "The selected runtime identity for " + id + "/" + dir.Path + " has no verified host mapping. Preserve existing storage, review Docker identity mappings and retry self-host install " + id}
 				}
 			}
-			for _, dir := range prepared {
-				if err := ss.p.PrepareAppDirectory(id, dir.spec.Path, os.FileMode(dir.spec.Mode), dir.uid, dir.gid); err != nil {
-					if errors.Is(err, fs.ErrPermission) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
-						return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s/%s and its existing data. It needs an ordinary directory writable by runtime %s:%s (mapped host %d:%d), mode %04o or tighter: %s. Review ownership, permissions and symlinks through an explicitly approved storage recovery, then retry self-host install %s; no recursive ownership repair was attempted", id, dir.spec.Path, dir.spec.UID, dir.spec.GID, dir.uid, dir.gid, dir.spec.Mode, err, id)}
-					}
-					return err
+			if err := ss.p.PrepareAppDirectories(id, prepared); err != nil {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+					return &helpers.ManualError{Hint: fmt.Sprintf("Preserve apps/%s and all existing or partly prepared directories. Directory admission requires a held Project lock, trusted nonshared parents, inspectable local filesystem/ACL semantics and matching mapped ownership/modes %+v: %s. Review storage explicitly, then retry self-host install %s; no ACL reset, recursive ownership repair or pathname cleanup was attempted", id, prepared, err, id)}
 				}
+				return err
 			}
 			return nil
 		},
