@@ -141,10 +141,6 @@ func (a *Arr) categoryField() string {
 }
 
 func (a *Arr) downloadClientSchema() []any {
-	sabProtocol := "usenet"
-	if a.kind == "lidarr" {
-		sabProtocol = "UsenetDownloadProtocol"
-	}
 	sabFields := schemaFields("host", "port", "useSsl", "urlBase", "apiKey", "username", "password", a.categoryField())
 	defaults := map[string]any{"host": "localhost", "port": float64(8080), "useSsl": false, "urlBase": "", "apiKey": "", "username": "", "password": "", a.categoryField(): "tv"}
 	for _, raw := range sabFields {
@@ -152,7 +148,7 @@ func (a *Arr) downloadClientSchema() []any {
 		field["value"] = defaults[field["name"].(string)]
 	}
 	return []any{
-		map[string]any{"implementation": "Sabnzbd", "implementationName": "SABnzbd", "configContract": "SabnzbdSettings", "protocol": sabProtocol,
+		map[string]any{"implementation": "Sabnzbd", "implementationName": "SABnzbd", "configContract": "SabnzbdSettings", "protocol": "usenet",
 			"fields": sabFields},
 		map[string]any{"implementation": "QBittorrent", "implementationName": "qBittorrent",
 			"configContract": "QBittorrentSettings", "protocol": "torrent", "priority": 1, "enable": false, "name": nil,
