@@ -336,3 +336,41 @@ func TestExternalConnectionInvalidInventoryPreservesSharedWidgets(t *testing.T) 
 		t.Fatal("invalid external inventory mutated existing resources")
 	}
 }
+
+func TestExternalConnectionCorruptBoundOwnershipHoldsOnlyRelatedMutations(t *testing.T) {
+	for _, scenario := range []string{"stats", "stats-entry-only", "calendar", "healthMonitoring"} {
+		t.Run(scenario, func(t *testing.T) {
+			f := &externalConnectionFixture{}
+			h := f.helpers(t)
+			for key, value := range map[string]string{"linked_sonarr": "catalog", "widgets_catalog": `{"shared":true}`, "widgets_external": "null"} {
+				if err := h.SetSecret(h.Key(key), value); err != nil {
+					t.Fatal(err)
+				}
+			}
+			kind := scenario
+			ids := []any{"external", "catalog"}
+			if scenario == "stats-entry-only" {
+				kind = "stats"
+				ids = []any{"catalog"}
+			}
+			w := plain(kind)
+			if kind == "stats" {
+				w = statWidget("requests")
+			}
+			f.items = append(f.items, map[string]any{"id": "shared", "kind": kind, "integrationIds": ids, "options": widgetOptions(w, "external")})
+			before, _ := json.Marshal(f.items)
+			if sharedWidget(kind) {
+				if err := ensureSharedWidget(t.Context(), h, w, "catalog", map[string]bool{"shared": true}); !errors.Is(err, helpers.ErrManual) {
+					t.Fatal("corrupt co-bound ownership did not hold shared mutation")
+				}
+			}
+			if err := removeWidgets(t.Context(), h, "catalog", []widget{w}); !errors.Is(err, helpers.ErrManual) {
+				t.Fatal("corrupt co-bound ownership allowed related removal")
+			}
+			after, _ := json.Marshal(f.items)
+			if !reflect.DeepEqual(before, after) || h.Secret(h.Key("widgets_external")) != "null" {
+				t.Fatal("related mutation rewrote or discarded unknown bindings")
+			}
+		})
+	}
+}

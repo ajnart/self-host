@@ -335,9 +335,6 @@ func board(ctx context.Context, h *helpers.H) (map[string]any, error) {
 	if record == nil {
 		return nil, errors.New("Homarr did not return the board")
 	}
-	if err := validateBoardOwnership(h, record); err != nil {
-		return nil, err
-	}
 	return record, nil
 }
 
@@ -779,6 +776,9 @@ func removeWidgets(ctx context.Context, h *helpers.H, integrationID string, widg
 	items := itemsOf(current)
 	owned, err := widgetOwnership(h, integrationID, widgets, items)
 	if err != nil {
+		return err
+	}
+	if err := validateBoardOwnership(h, current, owned); err != nil {
 		return err
 	}
 	kept := make([]map[string]any, 0, len(items))

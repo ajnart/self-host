@@ -85,9 +85,21 @@ func validateOwnership(h *helpers.H) error {
 	return nil
 }
 
-func validateBoardOwnership(h *helpers.H, current map[string]any) error {
+func validateBoardOwnership(h *helpers.H, current map[string]any, affected map[string]bool) error {
 	for _, item := range itemsOf(current) {
+		if !affected[stringField(item, "id")] {
+			continue
+		}
 		ids, _ := item["integrationIds"].([]any)
+		if stringField(item, "kind") == "stats" {
+			options, _ := item["options"].(map[string]any)
+			entries, _ := options["entries"].([]any)
+			ids = append([]any{}, ids...)
+			for _, raw := range entries {
+				entry, _ := raw.(map[string]any)
+				ids = append(ids, entry["integrationId"])
+			}
+		}
 		for _, raw := range ids {
 			id, _ := raw.(string)
 			if id == "" {

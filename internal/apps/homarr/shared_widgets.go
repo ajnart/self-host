@@ -155,6 +155,9 @@ func ensureSharedWidget(ctx context.Context, h *helpers.H, w widget, integration
 			allOwned[id] = true
 		}
 	}
+	if err := validateBoardOwnership(h, current, allOwned); err != nil {
+		return err
+	}
 	var shared map[string]any
 	partitions := []map[string]any{}
 	removed := map[string]bool{}

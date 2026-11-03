@@ -79,6 +79,18 @@ func (App) SetupExternalConnections(ctx context.Context, h *helpers.H) ([]string
 		if err := ctx.Err(); err != nil {
 			return removed, err
 		}
+		if id := h.Secret(h.Key("linked_external-" + c.ID)); id != "" {
+			if _, err := ownedWidgets(h, id); err != nil {
+				stepID := "link-external-" + c.ID
+				if c.Removing {
+					stepID = "un" + stepID
+				}
+				failures = append(failures, h.Step(ctx, stepID, "review external connection ownership", helpers.StepSpec{
+					Do: func(context.Context) error { return err }, Hint: err.Error(),
+				}))
+				continue
+			}
+		}
 		if c.Removing {
 			t := target{id: "external-" + c.ID, name: c.Kind, kind: c.Kind, internal: fixed(""), integrationOnly: true}
 			err := t.link().Remove(ctx, h, nil)

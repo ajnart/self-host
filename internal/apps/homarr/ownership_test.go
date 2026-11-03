@@ -211,3 +211,99 @@ func TestExternalConnectionMalformedConfigurationKeepsHomarrOwnSetupReady(t *tes
 		})
 	}
 }
+
+type homarrWithoutEnumeration struct{ homarr.App }
+
+func (a homarrWithoutEnumeration) Setup(ctx context.Context, h *helpers.H) error {
+	h.InstalledApps = nil
+	return a.App.Setup(ctx, h)
+}
+
+func TestExternalConnectionCorruptHomeBindingKeepsOwnSetupAndSafeLinksReady(t *testing.T) {
+	for _, enumeration := range []bool{true, false} {
+		name := "installed-apps"
+		if !enumeration {
+			name = "no-enumeration"
+		}
+		t.Run(name, func(t *testing.T) {
+			fake := newFake()
+			srv := serveLinkedApps(t, fake)
+			deps := systemtest.NewDeps(t)
+			var dashboard app.App = homarr.App{}
+			if !enumeration {
+				dashboard = homarrWithoutEnumeration{}
+			}
+			cat := catalog.New([]app.App{dashboard, navigationTarget{}, ownershipPeer{arr.Prowlarr()}}, nil)
+			svc := service.New(deps, events.Discard(), cat)
+			if err := svc.Install(t.Context(), service.InstallOptions{Targets: []string{"prowlarr", "vaultwarden", "homarr"}, Sets: []string{"homarr.port=" + clitest.Port(srv)}}); err != nil {
+				t.Fatal(err)
+			}
+			p, _ := svc.Project()
+			secrets, _ := p.LoadSecrets()
+			secrets["HOMARR_EXTERNAL_CONNECTIONS"] = `{"version":1,"connections":[{"id":"0123456789abcdef0123456789abcdef","kind":"unknown"}]}`
+			secrets["HOMARR_LINKED_EXTERNAL_0123456789ABCDEF0123456789ABCDEF"] = "external-preserved"
+			secrets["HOMARR_WIDGETS_EXTERNAL_PRESERVED"] = "null"
+			if err := p.SaveSecrets(secrets); err != nil {
+				t.Fatal(err)
+			}
+			fake.mu.Lock()
+			protected := []map[string]any{
+				{"id": "unknown-home", "kind": "healthMonitoring", "integrationIds": []any{"external-preserved"}, "options": map[string]any{"custom": true}},
+				{"id": "user-cross-kind", "kind": "calendar", "integrationIds": []any{"user-survivor"}, "options": map[string]any{"custom": "unchanged"}},
+			}
+			fake.integrations = append(fake.integrations, map[string]any{"id": "external-preserved", "kind": "unknown"}, map[string]any{"id": "user-survivor", "kind": "sonarr"})
+			fake.items = append(fake.items, protected...)
+			for _, item := range fake.items {
+				if item["kind"] == "stats" {
+					item["integrationIds"] = append(item["integrationIds"].([]any), "external-preserved")
+					protected = append(protected, item)
+				}
+				if item["kind"] == "notebook" {
+					item["size"] = map[string]any{"width": 1, "height": 1}
+				}
+			}
+			for _, record := range fake.apps {
+				if record["name"] == "Vaultwarden" {
+					record["href"] = "https://outdated.invalid"
+				}
+			}
+			before, _ := json.Marshal([]any{protected, fake.integrations})
+			fake.mu.Unlock()
+			if err := svc.Setup(t.Context(), []string{"homarr"}); !errors.Is(err, service.ErrManual) {
+				t.Fatalf("connection recovery: %v", err)
+			}
+			state, _ := p.LoadState()
+			st := state.Apps["homarr"]
+			safeLink := st.Steps["link-vaultwarden"].Status
+			if st.Steps["check"].Status != stepstatus.StepOK || safeLink != stepstatus.StepOK && safeLink != stepstatus.StepSkip {
+				t.Fatal("bound external ownership blocked own Check or an ordinary safe Catalog Link")
+			}
+			for id, step := range st.Steps {
+				if !strings.HasPrefix(id, "link-") && step.Status.NeedsAttention() {
+					t.Fatal("bound external ownership made own Setup unready")
+				}
+			}
+			if st.Steps["link-prowlarr"].Status != stepstatus.StepManual || st.Steps["link-external-0123456789abcdef0123456789abcdef"].Status != stepstatus.StepManual {
+				t.Fatal("ownership-sensitive shared reconciliation or external recovery was not held at its Link boundary")
+			}
+			if !strings.Contains(st.Steps["link-external-0123456789abcdef0123456789abcdef"].Hint, "HOMARR_WIDGETS_EXTERNAL_PRESERVED") {
+				t.Fatal("external Manual recovery did not identify the corrupt private ownership record")
+			}
+			fake.mu.Lock()
+			afterProtected := []map[string]any{}
+			for _, expected := range protected {
+				for _, item := range fake.items {
+					if item["id"] == expected["id"] {
+						afterProtected = append(afterProtected, item)
+					}
+				}
+			}
+			after, _ := json.Marshal([]any{afterProtected, fake.integrations})
+			fake.mu.Unlock()
+			stored, _ := p.LoadSecrets()
+			if string(before) != string(after) || stored["HOMARR_WIDGETS_EXTERNAL_PRESERVED"] != "null" || stored["HOMARR_EXTERNAL_CONNECTIONS"] != secrets["HOMARR_EXTERNAL_CONNECTIONS"] {
+				t.Fatal("unknown bindings, cross-kind survivors or private raw ownership changed")
+			}
+		})
+	}
+}
