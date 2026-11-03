@@ -30,6 +30,8 @@ func externalTarget(c helpers.ExternalConnection) (target, error) {
 		return truenasExternalTarget(c)
 	case "unifiController":
 		return unifiControllerExternalTarget(c)
+	case "wazuh":
+		return wazuhExternalTarget(c)
 	}
 	return target{}, errors.New("unsupported external integration kind; use a supported exact Homarr kind")
 }
