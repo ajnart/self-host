@@ -1,0 +1,30 @@
+docs/catalog/traps/xteve.md
+  h_d6e478ca18e517 1-19
+internal/apps/homarr/target_xteve.go
+  h_d6e478ca18e517 1-52
+internal/apps/homarr/target_xteve_test.go
+  h_d6e478ca18e517 1-217
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 64
+internal/apps/xteve/api.go
+  h_d6e478ca18e517 1-155
+internal/apps/xteve/xteve.go
+  h_d6e478ca18e517 1-93
+internal/apps/xteve/xteve_test.go
+  h_d6e478ca18e517 1-279
+internal/catalog/batch_misc2.go
+  h_d6e478ca18e517 20,42
+internal/catalog/catalog.go
+  h_d6e478ca18e517 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2a391829b9b5f9b4ab1c22a5fc84f9d88be5c69",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
