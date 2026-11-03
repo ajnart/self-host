@@ -12,9 +12,9 @@ import (
 type App struct{}
 
 const (
-	image          = "triliumnext/trilium:v0.106.1"
-	loginRecovery  = "Open Trilium at its Address and review the intended notebook. Finish new-notebook, sync or Restore setup yourself, preserving existing notes and sync settings. Use the shared Admin password only for a new notebook; never reset an existing password or disable authentication. Restore the known matching Project credential privately if needed, then run self-host setup trilium."
-	homarrRecovery = "Trilium ETAPI tokens have full notebook API access, not read-only scopes. Keep existing tokens and verify the intended notebook in Trilium. Automatic token issuance and positive notebook identity for native Homarr are not available yet; no token was created or replaced. Leave this step Manual until supported credential ownership and identity verification are available, then retry self-host setup trilium."
+	image              = "triliumnext/trilium:v0.106.1"
+	loginRecovery      = "Open Trilium at its Address and review the intended notebook. Finish new-notebook, sync or Restore setup yourself, preserving existing notes and sync settings. Use the shared Admin password only for a new notebook; never reset an existing password or disable authentication. Restore the known matching Project credential privately if needed, then run self-host setup trilium."
+	HomarrRecoveryHint = "Trilium ETAPI tokens have full notebook API access, not read-only scopes. Keep existing tokens and verify the intended notebook in Trilium. Automatic token issuance and positive notebook identity for native Homarr are not available yet; no token was created or replaced. Leave this step Manual until supported credential ownership and identity verification are available, then retry self-host setup trilium."
 )
 
 func (App) Info() app.Info {
@@ -61,8 +61,8 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		return nil
 	}
 	return h.Step(ctx, "homarr-key", "review Trilium notebook identity and ETAPI access", helpers.StepSpec{
-		Do:         func(context.Context) error { return &helpers.ManualError{Hint: homarrRecovery} },
-		Hint:       homarrRecovery,
+		Do:         func(context.Context) error { return &helpers.ManualError{Hint: HomarrRecoveryHint} },
+		Hint:       HomarrRecoveryHint,
 		Credential: "admin",
 	})
 }
@@ -72,7 +72,7 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	if h.Peer("homarr") != nil {
-		return &helpers.ManualError{Hint: homarrRecovery}
+		return &helpers.ManualError{Hint: HomarrRecoveryHint}
 	}
 	return nil
 }
