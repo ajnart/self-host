@@ -1,0 +1,16 @@
+internal/apps/servarr/downloadpaths.go
+  h_d6e478ca18e517 22-28,90,94-107,110-111,116-121,183-186,204,208,218
+internal/apps/servarr/downloadpaths_test.go
+  h_d6e478ca18e517 19-26,31,34-56,69,200-281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4faf1e0b8b7828e0a11f98ad902675ef30148987",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
