@@ -1,0 +1,41 @@
+internal/apps/homarr/external_targets.go
+  s_0812986ae533ff::t_8a78c90a42d847 6,54-61,63-64
+internal/apps/homarr/seerr_family.go
+  s_0812986ae533ff::t_25a75e6c17bb6c 35-36
+internal/apps/homarr/target_coolify.go
+  s_0812986ae533ff::t_3fa1ea5039fd4f 25-26
+internal/apps/homarr/target_llamacpp.go
+  s_0812986ae533ff::t_a3285694a61d5a 16-17
+internal/apps/homarr/target_netalertx.go
+  s_0812986ae533ff::t_e5c85bdd6bd755 18-19
+internal/apps/homarr/target_opnsense.go
+  s_0812986ae533ff::t_b8e90f1f0b8eff 22-23
+internal/apps/homarr/target_readarr.go
+  s_0812986ae533ff::t_3550353cc82e97 17-18
+internal/apps/homarr/target_syncthing_relay.go
+  s_0812986ae533ff::t_d99b19862f60c1 19-20
+internal/apps/homarr/target_truenas.go
+  s_0812986ae533ff::t_63078e07dd63fa 20-21
+internal/apps/homarr/target_unifi_controller.go
+  s_0812986ae533ff::t_525efa95591d6e 20-21
+internal/apps/homarr/target_unraid.go
+  s_0812986ae533ff::t_708986acc84dae 18-19
+internal/apps/homarr/target_wazuh.go
+  s_0812986ae533ff::t_95482ef6de8678 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "60603cb20c19b80c235b4b78ae3df485e2c951fa",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
