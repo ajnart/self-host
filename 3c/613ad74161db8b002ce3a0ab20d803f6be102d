@@ -1,0 +1,32 @@
+docs/catalog/traps/plant-it.md
+  h_d6e478ca18e517 1-19
+internal/apps/homarr/homarr_test.go
+  h_d6e478ca18e517 245
+internal/apps/homarr/links.go
+  h_d6e478ca18e517 162-164
+internal/apps/homarr/target_plantit.go
+  h_d6e478ca18e517 1-110
+internal/apps/homarr/target_plantit_test.go
+  h_d6e478ca18e517 1-226
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 62
+internal/apps/plantit/plantit.go
+  h_d6e478ca18e517 1-276
+internal/apps/plantit/plantit_test.go
+  h_d6e478ca18e517 1-246
+internal/catalog/batch_mfa2.go
+  h_d6e478ca18e517 8,25
+internal/catalog/catalog.go
+  h_d6e478ca18e517 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c613ad74161db8b002ce3a0ab20d803f6be102d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
