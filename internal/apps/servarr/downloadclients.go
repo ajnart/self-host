@@ -51,6 +51,10 @@ func (p providerLink) admitsDownloadProtocol(from *helpers.H, value any) bool {
 	}
 }
 
+func (p providerLink) legacyQBittorrent() bool {
+	return p.path == "/downloadclient" && p.target == "qbittorrent" && p.implementation == "QBittorrent" && p.connectionFields == nil
+}
+
 func (p providerLink) downloadList(ctx context.Context, h *helpers.H, path string) ([]provider, error) {
 	if h.Secret(h.Key("api_key")) == "" {
 		return nil, p.manual(h, "the consumer's accepted API key is missing; restore consumer API access before retrying")
@@ -72,7 +76,7 @@ func (p providerLink) downloadTemplate(ctx context.Context, h *helpers.H) (provi
 
 func (p providerLink) selectDownloadTemplate(h *helpers.H, templates []provider) (provider, error) {
 	identity := p
-	legacyCreation := p.path == "/downloadclient" && p.target == "qbittorrent" && p.implementation == "QBittorrent" && p.connectionFields == nil
+	legacyCreation := p.legacyQBittorrent()
 	if legacyCreation {
 		identity.configContract = "QBittorrentSettings"
 		identity.protocolFamily = downloadProtocolTorrent
@@ -139,7 +143,7 @@ func (p providerLink) selectDownloadTemplate(h *helpers.H, templates []provider)
 func (p providerLink) admitDownloadCreation(from *helpers.H, template provider, items, schemas []provider) error {
 	refusal := &helpers.ManualError{Hint: "Review " + from.App + " > Settings > Download Clients: an enabled competing client or unreadable selection contract prevents safely adding " + p.name + ". Keep the existing choice and configure the additional connection manually, or explicitly disable competing clients if you intend this target, then run self-host setup " + from.App + ". Setup does not change priorities, tags, indexer assignments or enabled flags. Preserve existing jobs and configuration."}
 	classification := p
-	if p.protocolFamily == downloadProtocolSingle && p.target == "qbittorrent" && p.implementation == "QBittorrent" && p.connectionFields == nil {
+	if p.protocolFamily == downloadProtocolSingle && p.legacyQBittorrent() {
 		classification.protocolFamily = downloadProtocolTorrent
 	}
 	if classification.protocolFamily == downloadProtocolSingle || !classification.admitsDownloadProtocol(from, template["protocol"]) {

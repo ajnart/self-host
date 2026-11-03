@@ -123,9 +123,13 @@ func Field(object map[string]any, name string) any {
 }
 
 func schemaFields(names ...string) []any {
+	return schemaValues(nil, names...)
+}
+
+func schemaValues(values map[string]any, names ...string) []any {
 	fields := make([]any, len(names))
 	for i, name := range names {
-		fields[i] = map[string]any{"name": name, "value": nil}
+		fields[i] = map[string]any{"name": name, "value": values[name]}
 	}
 	return fields
 }
@@ -141,18 +145,14 @@ func (a *Arr) categoryField() string {
 }
 
 func (a *Arr) downloadClientSchema() []any {
-	sabFields := schemaFields("host", "port", "useSsl", "urlBase", "apiKey", "username", "password", a.categoryField())
-	defaults := map[string]any{"host": "localhost", "port": float64(8080), "useSsl": false, "urlBase": "", "apiKey": "", "username": "", "password": "", a.categoryField(): "tv"}
-	for _, raw := range sabFields {
-		field := raw.(map[string]any)
-		field["value"] = defaults[field["name"].(string)]
-	}
+	sab := map[string]any{"host": "localhost", "port": float64(8080), "useSsl": false, "urlBase": "", "apiKey": "", "username": "", "password": "", a.categoryField(): "tv"}
+	qbittorrent := map[string]any{"host": "localhost", "port": float64(8080), "useSsl": false, a.categoryField(): map[string]string{"sonarr": "tv-sonarr", "radarr": "radarr", "lidarr": "lidarr"}[a.kind]}
 	return []any{
 		map[string]any{"implementation": "Sabnzbd", "implementationName": "SABnzbd", "configContract": "SabnzbdSettings", "protocol": "usenet",
-			"fields": sabFields},
+			"fields": schemaValues(sab, "host", "port", "useSsl", "urlBase", "apiKey", "username", "password", a.categoryField())},
 		map[string]any{"implementation": "QBittorrent", "implementationName": "qBittorrent",
 			"configContract": "QBittorrentSettings", "protocol": "torrent", "priority": 1, "enable": false, "name": nil,
-			"fields": schemaFields("host", "port", "useSsl", "username", "password", a.categoryField())},
+			"fields": schemaValues(qbittorrent, "host", "port", "useSsl", "username", "password", a.categoryField())},
 	}
 }
 

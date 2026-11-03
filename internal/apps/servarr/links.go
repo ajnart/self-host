@@ -220,14 +220,12 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H, removing bo
 	if p.connectionFields != nil && removing && record.ID == 0 {
 		return nil, record, nil, nil
 	}
-	freshDownload := !removing && record.ID == 0 && p.path == "/downloadclient" && (p.protocolFamily != downloadProtocolSingle || p.target == "qbittorrent" && p.implementation == "QBittorrent" && p.connectionFields == nil)
-	var items []provider
-	var err error
+	freshDownload := !removing && record.ID == 0 && p.path == "/downloadclient" && (p.protocolFamily != downloadProtocolSingle || p.legacyQBittorrent())
+	list := p.list
 	if p.connectionFields != nil || freshDownload {
-		items, err = p.downloadList(ctx, from, p.path)
-	} else {
-		items, err = p.list(ctx, from, p.path)
+		list = p.downloadList
 	}
+	items, err := list(ctx, from, p.path)
 	if err != nil {
 		return nil, record, nil, err
 	}
@@ -251,7 +249,7 @@ func (p providerLink) read(ctx context.Context, from, to *helpers.H, removing bo
 	}
 	var template provider
 	if p.connectionFields != nil && p.protocolFamily != downloadProtocolSingle || freshDownload {
-		schemas, err := p.downloadList(ctx, from, p.path+"/schema")
+		schemas, err := list(ctx, from, p.path+"/schema")
 		if err != nil {
 			return nil, record, nil, err
 		}

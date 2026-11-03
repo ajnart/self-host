@@ -51,35 +51,8 @@ func failedSteps(a appStatus) []string {
 	return failed
 }
 
-func sonarrQBittorrentCreationSchema(backend *arrtest.Arr) http.Handler {
-	base := backend.Handler()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" && r.URL.Path == "/api/v3/downloadclient/schema" {
-			if r.Header.Get("X-Api-Key") != backend.Key {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			json.NewEncoder(w).Encode([]map[string]any{{
-				"implementation": "QBittorrent", "implementationName": "qBittorrent",
-				"configContract": "QBittorrentSettings", "protocol": "torrent", "priority": 1, "enable": false,
-				"fields": []any{
-					map[string]any{"name": "host", "value": "localhost"},
-					map[string]any{"name": "port", "value": 8080},
-					map[string]any{"name": "useSsl", "value": false},
-					map[string]any{"name": "username", "value": nil},
-					map[string]any{"name": "password", "value": nil},
-					map[string]any{"name": "tvCategory", "value": "tv-sonarr"},
-				},
-			}})
-			return
-		}
-		base.ServeHTTP(w, r)
-	})
-}
-
 func TestAFailingLinkMakesItsConsumerIncompleteNotItsTarget(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
-	e.Serve("sonarr", sonarrQBittorrentCreationSchema(e.Sonarr))
 	accept := false
 	var attempts atomic.Int64
 	connect := e.Sonarr.AcceptDownloadClient
@@ -120,7 +93,6 @@ func TestAFailingLinkMakesItsConsumerIncompleteNotItsTarget(t *testing.T) {
 
 func TestRerunningTheConsumerRetriesItsFailedLink(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
-	e.Serve("sonarr", sonarrQBittorrentCreationSchema(e.Sonarr))
 	accept := false
 	var attempts atomic.Int64
 	connect := e.Sonarr.AcceptDownloadClient
@@ -154,7 +126,7 @@ func TestALinkToAnUninstalledTargetIsNotScheduled(t *testing.T) {
 
 func TestAFailedUnlinkIsReportedAndKeptVisible(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
-	schema := sonarrQBittorrentCreationSchema(e.Sonarr)
+	schema := e.Sonarr.Handler()
 	var deletes atomic.Int64
 	e.Serve("sonarr", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" && strings.HasPrefix(r.URL.Path, "/api/v3/downloadclient/") {
@@ -201,7 +173,7 @@ func TestAFailedUnlinkIsReportedAndKeptVisible(t *testing.T) {
 
 func TestAUsersOwnQBittorrentClientIsLeftAlone(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
-	schema := sonarrQBittorrentCreationSchema(e.Sonarr)
+	schema := e.Sonarr.Handler()
 	var mutations atomic.Int64
 	e.Serve("sonarr", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" && strings.HasPrefix(r.URL.Path, "/api/v3/downloadclient") {
