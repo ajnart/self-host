@@ -1,0 +1,36 @@
+docs/catalog/traps/sportarr.md
+  h_d6e478ca18e517 1-36
+internal/apps/homarr/calendar_events.go
+  h_d6e478ca18e517 1-50
+internal/apps/homarr/target_sportarr.go
+  h_d6e478ca18e517 1-137
+internal/apps/homarr/target_sportarr_test.go
+  h_d6e478ca18e517 1-438
+internal/apps/homarr/targets.go
+  h_d6e478ca18e517 23
+internal/apps/sportarr/api.go
+  h_d6e478ca18e517 1-180
+internal/apps/sportarr/sportarr.go
+  h_d6e478ca18e517 1-118
+internal/apps/sportarr/sportarr_test.go
+  h_d6e478ca18e517 1-423
+internal/catalog/batch_mfa2.go
+  h_d6e478ca18e517 11,27
+internal/service/sportarr_directories_test.go
+  h_d6e478ca18e517 1-331
+tools/sitegen/icons.go
+  h_d6e478ca18e517 95
+tools/sitegen/stars.go
+  h_d6e478ca18e517 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25b9d2f090ab8e06970593a280c1561af6e83184",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
