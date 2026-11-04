@@ -251,24 +251,27 @@ func (h *H) Poll(ctx context.Context, timeout time.Duration, fn func(context.Con
 	deadline := h.Now().Add(timeout)
 	var last error
 	for {
-		attemptCtx, cancel := ctx, context.CancelFunc(func() {})
-		if remaining := deadline.Sub(h.Now()); remaining > 0 {
-			attemptCtx, cancel = context.WithTimeout(ctx, remaining)
+		if err := ctx.Err(); err != nil {
+			return err
 		}
+		remaining := deadline.Sub(h.Now())
+		if remaining <= 0 {
+			if last == nil {
+				return fmt.Errorf("timed out after %s", timeout)
+			}
+			return fmt.Errorf("timed out after %s: %w", timeout, last)
+		}
+		attemptCtx, cancel := context.WithTimeout(ctx, remaining)
 		done, err := fn(attemptCtx)
 		cancel()
 		if done {
 			return nil
 		}
 		last = err
-		if h.Now().After(deadline) {
-			if last == nil {
-				return fmt.Errorf("timed out after %s", timeout)
+		if remaining := deadline.Sub(h.Now()); remaining > 0 {
+			if err := h.Sleep(ctx, min(h.PollInterval, remaining)); err != nil {
+				return err
 			}
-			return fmt.Errorf("timed out after %s: %w", timeout, last)
-		}
-		if err := h.Sleep(ctx, h.PollInterval); err != nil {
-			return err
 		}
 	}
 }

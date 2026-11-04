@@ -17,7 +17,7 @@ func Run(ctx context.Context, backend Backend, opts Options) error {
 	if err != nil {
 		m.tasks.cancelAll()
 		m.tasks.waitExited(quitGrace)
-		if errors.Is(err, context.Canceled) {
+		if !errors.Is(err, tea.ErrProgramPanic) && (errors.Is(err, context.Canceled) || errors.Is(err, tea.ErrInterrupted)) {
 			return nil
 		}
 		return err

@@ -398,7 +398,18 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			return token != "", err
 		},
 		Create: func(ctx context.Context, h *helpers.H, user, _ string) error {
-			if done, _ := wizardDone(ctx, h); done {
+			done, err := wizardDone(ctx, h)
+			if err != nil {
+				return err
+			}
+			if done {
+				token, err := signIn(ctx, h)
+				if err != nil {
+					return err
+				}
+				if token != "" {
+					return nil
+				}
 				return &helpers.ManualError{Hint: wizardHint(h, user)}
 			}
 			return runWizard(ctx, h)
