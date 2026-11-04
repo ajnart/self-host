@@ -11,7 +11,7 @@ Pick the branch, then run its steps in order:
 
 - **New App**: steps 1 to 8.
 - **Change an App**: steps 1, 2, 6 and 8, plus 5 when its repository or icon changes. Edit the App's package under `internal/apps/`; its directory is the id without hyphens or a shorter name (`paperless-ngx` lives in `paperlessngx`), so find it with `grep -rl 'ID: "<id>"' internal/apps`.
-- **Change a Recipe**: edit `registerRecipes` in `internal/catalog/batch_recipes.go`, then steps 6, 7 and 8.
+- **Change a Recipe**: edit `defaultRecipes` in `internal/catalog/recipes.go`, then steps 6, 7 and 8.
 - **Hide or unhide an App**: edit `unavailable` in `internal/catalog/catalog.go` with the reason and the issue that tracks the way back, then steps 6, 7 and 8.
 
 ## 1. Resolve upstream facts
@@ -34,15 +34,15 @@ Add `internal/apps/<name>/<name>.go` and its test, where `<name>` is the id with
 
 ## 4. Register
 
-Add the import and `<name>.App{}` to a `batch_*.go` in `internal/catalog/`, in alphabetical order. `generated.go` is generated; leave it.
+Run `go run ./tools/registrygen`. It scans `internal/apps/` and rewrites `internal/catalog/apps_gen.go`; never edit that file or `generated.go` by hand.
 
-**Done:** `go test ./internal/catalog/` passes. A `parity_test.go` failure on a ported App means a legacy fact changed: add a `deviations` entry with the reason; leave `legacy-facts.json` as it is.
+**Done:** `git diff internal/catalog/apps_gen.go` shows your App's import and registration, and `go test ./internal/catalog/` passes. A `parity_test.go` failure on a ported App means a legacy fact changed: add a `deviations` entry with the reason; leave `legacy-facts.json` as it is.
 
 ## 5. Declare site metadata
 
-In `tools/sitegen/icons.go` add the id to `icons` with its Dashboard Icons path (`""` for none); sitegen's error names the entry when one is missing. In `tools/sitegen/stars.go` add the upstream repository to `repos`. Nothing fails when `repos` lacks the App; its star count never appears.
+Usually nothing. The icon defaults to `svg/<id>.svg` on Dashboard Icons, and sitegen checks that a new path exists. Add the id to `iconOverrides` in `tools/sitegen/icons.go` only when the icon lives at another path (`""` for none). The star repository comes from `Docs` when it is a `github.com/<owner>/<repo>` URL; otherwise add the upstream repository to `starRepoOverrides` in `tools/sitegen/stars.go` (`""` for none). Nothing fails when an App has no repository; its star count never appears.
 
-**Done:** `grep -n "<id>" tools/sitegen/icons.go tools/sitegen/stars.go` prints a line from each file.
+**Done:** `go run ./tools/sitegen` passes, and `Docs` is the GitHub repository or the id is in `starRepoOverrides`.
 
 ## 6. Regenerate
 
