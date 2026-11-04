@@ -1,0 +1,39 @@
+docs/telemetry.md
+  s_24105cba895f85::t_bc18400e2cab02 29-30
+internal/cli/install.go
+  s_2b9480c7039b90::t_1453fcac84d6cd 27
+internal/cli/telemetry_test.go
+  s_2b9480c7039b90::t_a253bce938b336 287,294,510,514,517
+internal/service/cloudflare.go
+  s_2b9480c7039b90::t_af581bf0568dee 222,237,246,264
+internal/service/service.go
+  s_2b9480c7039b90::t_e68401be7e3d15 626-646
+internal/tui/backend.go
+  s_24105cba895f85::t_716f6df9ef442f 362-364,394-396
+internal/tui/run.go
+  s_2b9480c7039b90::t_22e538e3b24833 5,20-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c013e10f27ba14931a50f80780bd5b92593f7e1",
+  "prompts": {},
+  "sessions": {
+    "s_24105cba895f85": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6617425-f596-4d80-b777-180017af8d5f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_2b9480c7039b90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a2445a6-df98-4f92-acc5-4d9a7c2c844e",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
