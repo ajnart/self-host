@@ -691,7 +691,7 @@ func TestRerunSkipsEveryStep(t *testing.T) {
 	}
 }
 
-func TestForeignAdministratorFailsTheAdminStepWithAHint(t *testing.T) {
+func TestForeignAdministratorMakesTheAdminStepManual(t *testing.T) {
 	fake := newFake()
 	fake.adminExists = true
 	fake.adminName = "admin"
@@ -701,15 +701,12 @@ func TestForeignAdministratorFailsTheAdminStepWithAHint(t *testing.T) {
 
 	r := clitest.Run(t, deps, cat, "install", "homarr", "--yes", "--json", "--set", "homarr.port="+clitest.Port(srv))
 
-	if r.Code != 2 {
-		t.Fatalf("exit %d, want 2\n%s", r.Code, r.Out)
+	if r.Code != 3 {
+		t.Fatalf("exit %d, want 3\n%s", r.Code, r.Out)
 	}
 	fail := r.Step("homarr", "admin")
-	if fail == nil || fail["event"] != "step.fail" {
-		t.Fatalf("admin step should fail:\n%s", r.Out)
-	}
-	if !strings.Contains(fail["error"].(string), "another administrator") {
-		t.Errorf("error should say another administrator owns Homarr: %v", fail["error"])
+	if fail == nil || fail["event"] != "step.manual" {
+		t.Fatalf("admin step should need a manual step:\n%s", r.Out)
 	}
 	if hint, _ := fail["hint"].(string); !strings.Contains(hint, "administrator") || !strings.Contains(hint, "self-host credentials") {
 		t.Errorf("hint should name the App page and the credentials command: %q", hint)

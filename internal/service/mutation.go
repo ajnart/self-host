@@ -640,6 +640,11 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if !ss.homarrNotStopped(ctx, a) {
+		hint := "Homarr is not running; start it with self-host start homarr, then run self-host setup homarr"
+		ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: "homarr", Step: "reconcile", Msg: "dashboard not refreshed", Hint: hint})
+		return fmt.Errorf("%w: dashboard reconciliation needs manual steps; %s", ErrManual, hint)
+	}
 	incomplete, err := ss.runSetup(ctx, a)
 	if err != nil {
 		return err
@@ -651,6 +656,19 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 		return fmt.Errorf("%w: dashboard reconciliation needs manual steps; follow its hints, then run self-host setup homarr", ErrManual)
 	}
 	return nil
+}
+
+func (ss *session) homarrNotStopped(ctx context.Context, a app.App) bool {
+	containers, err := ss.compose.Ps(ctx)
+	if err != nil {
+		return true
+	}
+	for _, c := range containers {
+		if c.Service == a.Info().Service {
+			return c.State == "running"
+		}
+	}
+	return true
 }
 
 // clearStartFailure overwrites a start failure left by an earlier run once the
@@ -667,8 +685,11 @@ func (ss *session) clearStartFailure(ids []string, msg string) {
 func (ss *session) recordStage(ids []string, e events.Event) error {
 	for _, id := range ids {
 		status := stepstatus.StepOK
-		if e.Event == events.StepFail {
+		switch e.Event {
+		case events.StepFail:
 			status = stepstatus.StepFail
+		case events.StepSkip:
+			status = stepstatus.StepSkip
 		}
 		ss.recorder(id)(helpers.StepResult{ID: e.Step, Status: status, Msg: e.Msg, Error: e.Error, Hint: e.Hint})
 		st := ss.state.Apps[id]
@@ -720,9 +741,30 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 		}
 		image := pullImageName(ss, ids, err)
 		hint := fmt.Sprintf("Run `docker pull %s`, then check the network and the registry, and retry.", image)
-		return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StagePull, Msg: "could not pull " + image, Error: err.Error(), Hint: hint}))
+		failed, others := ss.splitByImage(ids, image)
+		if len(failed) == 0 {
+			failed, others = ids, nil
+		}
+		fail := events.Event{Event: events.StepFail, Step: StagePull, Msg: "could not pull " + image, Error: err.Error(), Hint: hint}
+		skip := events.Event{Event: events.StepSkip, Step: StagePull, Msg: "not pulled: could not pull " + image + " for another App"}
+		recorded := ss.recordStage(failed, fail)
+		if len(others) > 0 {
+			recorded = errors.Join(recorded, ss.recordStage(others, skip))
+		}
+		return errors.Join(err, recorded)
 	}
 	return ss.recordStage(ids, events.Event{Event: events.StepOK, Step: StagePull, Msg: "pulled " + strings.Join(ids, ", ")})
+}
+
+func (ss *session) splitByImage(ids []string, image string) (matching, others []string) {
+	for _, id := range ids {
+		if a, found := ss.s.Catalog.App(id); found && a.Info().Image == image {
+			matching = append(matching, id)
+			continue
+		}
+		others = append(others, id)
+	}
+	return matching, others
 }
 
 func pullMessage(n int) string {
