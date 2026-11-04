@@ -28,8 +28,12 @@ func (s Spec) validateFirstAdmin() error {
 	if _, err := s.createWait(); err != nil {
 		return fmt.Errorf("create_wait: %w", err)
 	}
-	for role, list := range map[string][]Call{"exists": s.Exists, "create": s.Create, "login": s.Login} {
-		if err := calls(list).validate(role); err != nil {
+	roles := []struct {
+		name  string
+		calls []Call
+	}{{"exists", s.Exists}, {"create", s.Create}, {"login", s.Login}}
+	for _, role := range roles {
+		if err := calls(role.calls).validate(role.name); err != nil {
 			return err
 		}
 	}
