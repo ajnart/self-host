@@ -1,0 +1,25 @@
+internal/apps/openwebui/openwebui.go
+  s_56f298195c530e::t_26f5e101c974ff 12,18,58-71,73-78,81-82,85
+internal/apps/paperlessngx/paperlessngx.go
+  s_56f298195c530e::t_16097cce31faa5 14,106-122,126,144
+internal/apps/photoprism/photoprism.go
+  s_56f298195c530e::t_b28a43a013279a 11,49-66,68-78,80-85,88-89,92
+internal/apps/portainer/portainer.go
+  s_56f298195c530e::t_da5a5eafe8bf80 12,55-63,65-69,71-74,77-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ccb986b40845e517c619ed20051b615cb4ab8d0",
+  "prompts": {},
+  "sessions": {
+    "s_56f298195c530e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2990966a-f6b7-494c-a3ca-300ff1e53d3f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
