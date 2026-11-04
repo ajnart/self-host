@@ -42,10 +42,11 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 var setup = setupspec.Spec{
-	Kind:  setupspec.KindFirstAdmin,
-	Name:  "Nginx Proxy Manager",
-	Probe: setupspec.Probe{Path: "/api/", Web: true},
-	Email: "{user}@selfhost.local",
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Nginx Proxy Manager",
+	CheckError: "the Admin login cannot sign in to Nginx Proxy Manager",
+	Probe:      setupspec.Probe{Path: "/api/", Web: true},
+	Email:      "{user}@selfhost.local",
 	// v2.16.0's setup flag means an active user already exists.
 	Exists: []setupspec.Call{{
 		Path:    "/api/",

@@ -50,9 +50,10 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 var setup = setupspec.Spec{
-	Kind:  setupspec.KindFirstAdmin,
-	Name:  "Portainer",
-	Probe: setupspec.Probe{Path: "/", Timeout: "3m"},
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Portainer",
+	CheckError: "the preseeded Portainer administrator cannot sign in",
+	Probe:      setupspec.Probe{Path: "/", Timeout: "3m"},
 	Login: []setupspec.Call{
 		{
 			Path:    "/api/auth",

@@ -50,7 +50,7 @@ No number is kept by hand. `tools/sitegen/counts.go` counts the Catalog and writ
 - `apps` and `recipes`: what a person is offered (`Apps()`, `Recipes()`), without the hidden ones.
 - `allApps` and `allRecipes`: every App and Recipe the binary carries, the hidden ones included, which are what the e2e targets cover.
 
-`site/` pages count from the arrays of `catalog.json`. The README badge is a shields.io endpoint badge that reads `https://self-host.fyi/badges/apps.json`, which `site/src/pages/badges/apps.json.ts` builds from `counts.apps`, so it moves when the site deploys. README, `e2e/acceptance.md` and the docs carry no App or Recipe number; keep it that way and point at `counts`. `docs/handoff.md`, `docs/runtime-matrix.*`, `docs/homarr-*` and `video/reel/` hold dated snapshots; leave them.
+`site/` pages count from the arrays of `catalog.json`. The README badge is a shields.io endpoint badge that reads `https://self-host.fyi/badges/apps.json`, which `site/src/pages/badges/apps.json.ts` builds from `counts.apps`, so it moves when the site deploys. README, `e2e/acceptance.md` and the docs carry no App or Recipe number; keep it that way and point at `counts`. `docs/handoff.md`, `docs/runtime-matrix.*`, `docs/homarr-*` and `video/reel/` hold dated snapshots; leave them. The README's "What it replaces" image embeds a "+N more" count that `video/reel/readme` reads from `catalog.json` when it regenerates the image, so that count moves with the image, not with a new App.
 
 Two checks still move with the Catalog and are regenerated, never edited:
 

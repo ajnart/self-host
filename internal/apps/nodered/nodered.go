@@ -67,9 +67,10 @@ func (App) Files(_ app.RenderContext, secret func(name string) string) []app.Fil
 }
 
 var setup = setupspec.Spec{
-	Kind:  setupspec.KindFirstAdmin,
-	Name:  "Node-RED",
-	Probe: setupspec.Probe{Path: "/auth/login", Timeout: "3m"},
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Node-RED",
+	CheckError: "the administrator {user} cannot sign in to Node-RED",
+	Probe:      setupspec.Probe{Path: "/auth/login", Timeout: "3m"},
 	Login: []setupspec.Call{
 		{
 			Path:    "/auth/login",

@@ -129,6 +129,7 @@ const clientDeviceID = "self-host-patchmon"
 
 var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
+	CheckError: "the Admin login cannot sign in to patchmon",
 	Probe:      setupspec.Probe{Path: "/health", Want: []int{200}},
 	Email:      "{user}@selfhost.local",
 	EmailInput: "admin_email",

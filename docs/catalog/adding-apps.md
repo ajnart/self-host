@@ -18,11 +18,17 @@ An App whose Setup is the `no-account` probe is one file, `internal/catalog/spec
 
 - Required: `id name category description image docs port compose setup`. The file is named `<id>.yaml` and starts with `# Traps: docs/catalog/traps/<id>.md`.
 - Optional: `container_port` (defaults to `port`), `service` (defaults to `id`), the other `app.Info` keys (`path no_web_ui home_address_only websockets long_timeouts uses_media container_port_is_port`), `inputs`, `secrets`, `files` (`path content mode keep`) and `standalone_guide`. Keys are the lowercase snake_case of the Go field.
-- `setup` is a [`setupspec`](../../internal/setupspec/setupspec.go) block: `kind: no-account` and `probe: {path, contains}`.
+- `setup` is a [`setupspec`](../../internal/setupspec/setupspec.go) block: `kind: no-account` with `probe: {path, contains}`, or `kind: first-admin` with its `exists`, `create`, `login`, `check_error` and step text.
 - `compose` and each file's `content` are `text/template`: `{{.Image}}`, `{{.Port}}` (the host port), `{{.ContainerPort}}` and `{{.Inputs.KEY}}`; files also take `{{secret "name"}}`. Host settings stay literal (`${BIND_IP}`, `${PUID}`) and secrets are `${<ID>_<NAME>}`.
 - Parsing is strict. An unknown key, a missing field, a file name that differs from the id, a template that does not render or a Compose without the `service` fails at startup, so any test that calls `catalog.Default()` fails first.
 
 An App that needs more than that (extra Setup steps, a first administrator, Links, deferred services) stays Go.
+
+## Setup kinds
+
+A Setup that is plain data is a `setupspec.Spec`: `no-account` proves the App serves, and `first-admin` runs HTTP calls for `exists`, `create` and `login`, with `create_wait` for an App that seeds its own administrator and `create_error` for one that cannot. Both engines live in `internal/setupspec`; a Go App holds the same fields an embedded spec declares, so a new kind is one `kind_<name>.go` file and one entry in its `kinds` map.
+
+Apps still hand-write their Setup because a kind does not express them: cookie or CSRF sessions, container `exec` CLI calls, an API-key or config-file flow, a multi-step wizard, or error text pinned by a test. Find the remaining `firstadmin.FirstAdmin` closures with `grep -l 'firstadmin.FirstAdmin' internal/apps/*/*.go`; convert one when a kind already covers it.
 
 ## Compose and optional interfaces
 

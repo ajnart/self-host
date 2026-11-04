@@ -178,6 +178,8 @@ type readyConfig struct {
 	contains   string
 	noRedirect bool
 	timeout    time.Duration
+	title      string
+	hint       string
 }
 
 // ReadyOption changes one aspect of a Ready probe.
@@ -204,6 +206,10 @@ func Timeout(d time.Duration) ReadyOption {
 	return func(c *readyConfig) { c.timeout = d }
 }
 
+func wording(title, hint string) ReadyOption {
+	return func(c *readyConfig) { c.title, c.hint = title, hint }
+}
+
 // Ready is the one readiness step every App needs: Check is a single probe,
 // Do polls until it passes or the timeout ends. A rerun whose App already
 // answers skips instead of polling again.
@@ -213,28 +219,30 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 		opt(&cfg)
 	}
 	attempt := h.readyProbe(path, cfg)
-	return h.Step(ctx, "ready", "wait for "+h.App+" to answer on "+path, StepSpec{
+	title := "wait for " + h.App + " to answer on " + path
+	if cfg.title != "" {
+		title = cfg.title
+	}
+	hint := h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App
+	if cfg.hint != "" {
+		hint = cfg.hint
+	}
+	return h.Step(ctx, "ready", title, StepSpec{
 		Check: attempt,
 		Do: func(ctx context.Context) error {
 			return h.Poll(ctx, cfg.timeout, attempt)
 		},
-		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
+		Hint: hint,
 	})
 }
 
 // WebReady is Ready worded for Apps whose web server may answer before the
 // App is usable: it waits up to two minutes for any status below 500 on path.
 func (h *H) WebReady(ctx context.Context, path string, opts ...ReadyOption) error {
-	cfg := readyConfig{timeout: 2 * time.Minute}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	attempt := h.readyProbe(path, cfg)
-	return h.Step(ctx, "ready", "wait for the web server on "+path, StepSpec{
-		Check: attempt,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, cfg.timeout, attempt) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
+	return h.Ready(ctx, path, append([]ReadyOption{
+		Timeout(2 * time.Minute),
+		wording("wait for the web server on "+path, "Check the App's logs: self-host logs "+h.App),
+	}, opts...)...)
 }
 
 func (h *H) readyProbe(path string, cfg readyConfig) func(context.Context) (bool, error) {

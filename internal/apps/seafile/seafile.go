@@ -103,6 +103,7 @@ var setup = setupspec.Spec{
 	Hint:       "Open {url} and sign in as {email} with the password shown by `self-host credentials`; read the logs with: self-host logs seafile",
 	CreateWait: "10m",
 	Name:       "Seafile",
+	CheckError: "the administrator {email} cannot sign in to Seafile",
 	Login: []setupspec.Call{
 		{
 			Path:    "/api2/auth-token/",

@@ -37,9 +37,9 @@ type fakeSecrets map[string]string
 func (s fakeSecrets) Get(key string) string       { return s[key] }
 func (s fakeSecrets) Set(key, value string) error { s[key] = value; return nil }
 
-// generatedApps are the Apps whose Compose and Setup the tests below prove
+// declarativeApps are the Apps whose Compose and Setup the tests below prove
 // shape for: the spec-backed ones and the monitoring Apps.
-func generatedApps() []app.App {
+func declarativeApps() []app.App {
 	var apps []app.App
 	for _, id := range []string{"dashdot", "glances", "loki", "netdata", "ollama", "prometheus", "stirling-pdf", "victoria-metrics"} {
 		a, ok := Default().App(id)
@@ -51,8 +51,8 @@ func generatedApps() []app.App {
 	return apps
 }
 
-func TestGeneratedAppsCompose(t *testing.T) {
-	for _, a := range generatedApps() {
+func TestDeclarativeAppsCompose(t *testing.T) {
+	for _, a := range declarativeApps() {
 		a := a
 		t.Run(a.Info().ID, func(t *testing.T) {
 			info := a.Info()
@@ -114,8 +114,8 @@ func TestGeneratedAppsCompose(t *testing.T) {
 	}
 }
 
-func TestGeneratedAppsOnboard(t *testing.T) {
-	for _, a := range generatedApps() {
+func TestDeclarativeAppsOnboard(t *testing.T) {
+	for _, a := range declarativeApps() {
 		a := a
 		t.Run(a.Info().ID, func(t *testing.T) {
 			info := a.Info()

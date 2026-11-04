@@ -72,6 +72,7 @@ var setup = setupspec.Spec{
 	Kind:        setupspec.KindFirstAdmin,
 	Probe:       setupspec.Probe{Path: "/realms/master"},
 	Name:        "Keycloak",
+	CheckError:  "the Admin login {user} cannot read the master realm",
 	Title:       "the Admin login reads the master realm",
 	CreateError: "the bootstrap administrator is created only at first start",
 	Hint:        "Recreate Keycloak so it reads KC_BOOTSTRAP_ADMIN_PASSWORD from .env: self-host start keycloak",

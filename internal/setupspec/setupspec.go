@@ -40,7 +40,7 @@ type Spec struct {
 	// EmailInput names an App input whose value, when the person set it,
 	// replaces the Email template.
 	EmailInput string `yaml:"email_input,omitempty"`
-	// Exists proves an administrator is already there; Create makes it;
+	// Exists probes whether the first Admin already exists; Create makes it;
 	// Login proves the Admin login signs in. Each is run in order and all
 	// calls must pass.
 	Exists []Call `yaml:"exists,omitempty"`
@@ -51,8 +51,9 @@ type Spec struct {
 	CreateWait string `yaml:"create_wait,omitempty"`
 	// CreateError is the failure for an App that cannot create it at all.
 	CreateError string `yaml:"create_error,omitempty"`
-	// MinPassword rejects an Admin password shorter than this.
-	MinPassword int `yaml:"min_password,omitempty"`
+	// CheckError is what a failed Login says instead of the standard
+	// "the Admin login {user} cannot sign in to {app}".
+	CheckError string `yaml:"check_error,omitempty"`
 	// StepID, Title, Hint and Manual word the administrator step; Title,
 	// Hint and Manual may use {user}, {email}, {url} and {app}.
 	StepID string `yaml:"step_id,omitempty"`
@@ -61,34 +62,50 @@ type Spec struct {
 	Manual string `yaml:"manual,omitempty"`
 }
 
-func (s Spec) Validate() error {
-	switch s.Kind {
-	case KindNoAccount:
-		return nil
-	case KindFirstAdmin:
-		return s.validateFirstAdmin()
-	}
-	return fmt.Errorf("unknown setup kind %q", s.Kind)
+// kind is one engine: everything a kind reads and does in one place.
+type kind interface {
+	validate(s Spec) error
+	setup(s Spec) func(context.Context, *helpers.H) error
+	check(s Spec) func(context.Context, *helpers.H) error
 }
 
-func (s Spec) Setup(ctx context.Context, h *helpers.H) error {
-	switch s.Kind {
-	case KindNoAccount:
-		return s.noAccount().Setup(ctx, h)
-	case KindFirstAdmin:
-		return s.setupFirstAdmin(ctx, h)
+var kinds = map[string]kind{
+	KindNoAccount:  noAccountKind{},
+	KindFirstAdmin: firstAdminKind{},
+}
+
+func (s Spec) engine() (kind, error) {
+	k, ok := kinds[s.Kind]
+	if !ok {
+		return nil, fmt.Errorf("unknown setup kind %q", s.Kind)
 	}
-	return fmt.Errorf("unknown setup kind %q", s.Kind)
+	return k, nil
+}
+
+func (s Spec) Validate() error {
+	k, err := s.engine()
+	if err != nil {
+		return err
+	}
+	return k.validate(s)
+}
+
+// Setup validates first so a Go App's spec is rejected on the same terms as
+// an embedded spec file.
+func (s Spec) Setup(ctx context.Context, h *helpers.H) error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	k, _ := s.engine()
+	return k.setup(s)(ctx, h)
 }
 
 func (s Spec) Check(ctx context.Context, h *helpers.H) error {
-	switch s.Kind {
-	case KindNoAccount:
-		return s.noAccount().Check(ctx, h)
-	case KindFirstAdmin:
-		return s.checkFirstAdmin(ctx, h)
+	if err := s.Validate(); err != nil {
+		return err
 	}
-	return fmt.Errorf("unknown setup kind %q", s.Kind)
+	k, _ := s.engine()
+	return k.check(s)(ctx, h)
 }
 
 func (p Probe) duration() (time.Duration, error) {

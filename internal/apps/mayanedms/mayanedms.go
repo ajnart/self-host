@@ -134,6 +134,7 @@ var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
 	Probe:      setupspec.Probe{Path: "/", Want: []int{200, 302}, Timeout: "5m"},
 	Name:       "Mayan EDMS",
+	CheckError: "the administrator {user} cannot sign in to Mayan EDMS",
 	StepID:     "admin-login",
 	Title:      "administrator {user} signs in",
 	Hint:       "Open {url} and sign in as {user} with the password shown by `self-host credentials`.",

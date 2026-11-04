@@ -44,9 +44,10 @@ func (App) StandaloneGuide() string {
 }
 
 var setup = setupspec.Spec{
-	Kind:  setupspec.KindFirstAdmin,
-	Name:  "Scrypted",
-	Probe: setupspec.Probe{Path: "/", Want: []int{200, 302}},
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Scrypted",
+	CheckError: "the Admin login cannot sign in to scrypted",
+	Probe:      setupspec.Probe{Path: "/", Want: []int{200, 302}},
 	Exists: []setupspec.Call{{
 		Path:   "/login",
 		JSON:   map[string]any{"username": "", "password": ""},

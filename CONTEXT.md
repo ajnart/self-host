@@ -33,6 +33,23 @@ _Avoid_: stack, goal, profile
 **Catalog**:
 The set of Apps and Recipes shipped inside the binary.
 
+**App spec**:
+The YAML file declaring an App whose whole definition is data: Info, Inputs,
+Secrets, Compose and Setup. `internal/appspec` turns it into an App when the
+binary starts, so such an App needs no Go and no registration edit.
+_Avoid_: manifest, config (that is the Project's or the App's settings)
+
+**Setup kind**:
+The named engine that runs Setup from plain data, one per `kind_<name>.go` in
+`internal/setupspec` (`no-account`, `first-admin`). A Go App holds a
+`setupspec.Spec` with the same fields a spec file declares.
+_Avoid_: setup type, strategy, handler
+
+**Defaults**:
+`app.Defaults`, embedded by a Go App so it inherits the empty Inputs, Links
+and files instead of restating them as one-line stubs.
+_Avoid_: base App, boilerplate
+
 **Setup**:
 The automatic, headless configuration of an installed App (accounts, API
 keys, settings, links to other Apps), done without a browser.

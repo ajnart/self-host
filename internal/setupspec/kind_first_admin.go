@@ -13,6 +13,18 @@ import (
 
 var loginDenied = []int{401, 403}
 
+type firstAdminKind struct{}
+
+func (firstAdminKind) validate(s Spec) error { return s.validateFirstAdmin() }
+
+func (firstAdminKind) setup(s Spec) func(context.Context, *helpers.H) error {
+	return func(ctx context.Context, h *helpers.H) error { return s.setupFirstAdmin(ctx, h) }
+}
+
+func (firstAdminKind) check(s Spec) func(context.Context, *helpers.H) error {
+	return func(ctx context.Context, h *helpers.H) error { return s.checkFirstAdmin(ctx, h) }
+}
+
 // AdminEmail is the sign-in address the Email template makes for user.
 func (s Spec) AdminEmail(user string) string {
 	if user == "" && strings.Contains(s.Email, "{user}") {
@@ -110,14 +122,6 @@ func (s Spec) firstAdmin(h *helpers.H) firstadmin.FirstAdmin {
 		f.Login = func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) { return s.login(ctx, h) }
 	}
 	f.Create = s.creator()
-	if s.MinPassword > 0 {
-		f.Valid = func(_, password string) error {
-			if len(password) < s.MinPassword {
-				return fmt.Errorf("the Admin password must be at least %d characters", s.MinPassword)
-			}
-			return nil
-		}
-	}
 	if s.Title != "" {
 		f.Title = func(h *helpers.H, _ string) string { return s.textScope(h).expand(s.Title) }
 	}
@@ -157,14 +161,18 @@ func (s Spec) checkFirstAdmin(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("the Admin login %s cannot sign in to %s", h.AdminUser(), s.displayName(h))
+		return errors.New(s.failure(h))
 	}
 	return nil
 }
 
-func (s Spec) displayName(h *helpers.H) string {
-	if s.Name == "" {
-		return h.App
+func (s Spec) failure(h *helpers.H) string {
+	if s.CheckError != "" {
+		return s.textScope(h).expand(s.CheckError)
 	}
-	return s.Name
+	vars := s.textScope(h)
+	if s.Name != "" {
+		vars["app"] = s.Name
+	}
+	return vars.expand("the Admin login {user} cannot sign in to {app}")
 }

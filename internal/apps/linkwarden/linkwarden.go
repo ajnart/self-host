@@ -83,8 +83,9 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 var setup = setupspec.Spec{
-	Kind: setupspec.KindFirstAdmin,
-	Name: "Linkwarden",
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Linkwarden",
+	CheckError: "the Admin login cannot sign in to linkwarden",
 	// v2.16.3 has no health route. The protected current-user route proves
 	// API routing before signup; Login separately verifies authenticated identity.
 	Probe: setupspec.Probe{Path: "/api/v1/users/me", Want: []int{401}, Contains: `"response":"You must be logged in."`},

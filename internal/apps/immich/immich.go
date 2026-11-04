@@ -104,10 +104,11 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 var setup = setupspec.Spec{
-	Kind:  setupspec.KindFirstAdmin,
-	Name:  "Immich",
-	Probe: setupspec.Probe{Path: "/api/server/config", Timeout: "10m"},
-	Email: email,
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Immich",
+	CheckError: "the administrator {email} cannot sign in",
+	Probe:      setupspec.Probe{Path: "/api/server/config", Timeout: "10m"},
+	Email:      email,
 	Exists: []setupspec.Call{{
 		Path:   "/api/server/config",
 		Assert: []setupspec.Assert{{Path: "isInitialized", Equals: "true"}},

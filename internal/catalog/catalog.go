@@ -69,6 +69,9 @@ func (c *Catalog) AllApps() []app.App {
 	return apps
 }
 
+// AllRecipes also returns the hidden Recipes, for operating existing installs.
+func (c *Catalog) AllRecipes() []Recipe { return slices.Clone(c.recipes) }
+
 func (c *Catalog) Recipes() []Recipe {
 	var recipes []Recipe
 	for _, r := range c.recipes {

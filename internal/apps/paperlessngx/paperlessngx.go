@@ -102,9 +102,10 @@ func (App) Compose(rc app.RenderContext) string {
 }
 
 var setup = setupspec.Spec{
-	Kind:  setupspec.KindFirstAdmin,
-	Name:  "Paperless-ngx",
-	Probe: setupspec.Probe{Path: "/", Want: []int{200, 302}, Timeout: "5m"},
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Paperless-ngx",
+	CheckError: "the administrator {user} cannot sign in to Paperless-ngx",
+	Probe:      setupspec.Probe{Path: "/", Want: []int{200, 302}, Timeout: "5m"},
 	Login: []setupspec.Call{{
 		Path:  "/api/users/?username={user}&page_size=2",
 		Basic: true,
