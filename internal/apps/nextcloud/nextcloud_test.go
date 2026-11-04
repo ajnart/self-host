@@ -124,10 +124,16 @@ func TestSetupThenCheckPass(t *testing.T) {
 	}
 	deps := systemtest.NewDeps(t)
 	systemtest.SetEnv(deps, map[string]string{"SELF_HOST_ADMIN_PASSWORD": "adminpass"})
+	dashboardHealth := http.NewServeMux()
+	dashboardHealth.HandleFunc("GET /api/health/live", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	dashboard := httptest.NewServer(dashboardHealth)
+	defer dashboard.Close()
 	deps.Runner.(*systemtest.Runner).OnFunc("docker compose --project-directory", func(cmd system.Cmd) system.Result {
 		line := systemtest.Line(cmd)
 		if strings.Contains(line, " ps ") {
-			return system.Result{Stdout: []byte(`[{"Service":"nextcloud","State":"running"},{"Service":"nextcloud-db","State":"running"},{"Service":"nextcloud-redis","State":"running"},{"Service":"nextcloud-cron","State":"running"}]`)}
+			return system.Result{Stdout: []byte(`[{"Service":"nextcloud","State":"running"},{"Service":"nextcloud-db","State":"running"},{"Service":"nextcloud-redis","State":"running"},{"Service":"nextcloud-cron","State":"running"},{"Service":"homarr","State":"running"}]`)}
 		}
 		if strings.Contains(line, "config:system:get trusted_domains") {
 			return system.Result{Stdout: []byte("127.0.0.1\nnextcloud\n192.168.1.20\n")}
@@ -139,7 +145,7 @@ func TestSetupThenCheckPass(t *testing.T) {
 	})
 	cat := catalog.New([]app.App{nextcloud.App{}, fakeHomarr{}}, nil)
 	deps.In = strings.NewReader("7\r\n")
-	r := clitest.Run(t, deps, cat, "install", "nextcloud", "homarr", "--yes", "--json", "--set", "nextcloud.port="+clitest.Port(srv), "--set-file", "nextcloud.homarr_app_password_id=-")
+	r := clitest.Run(t, deps, cat, "install", "nextcloud", "homarr", "--yes", "--json", "--set", "nextcloud.port="+clitest.Port(srv), "--set", "homarr.port="+clitest.Port(dashboard), "--set-file", "nextcloud.homarr_app_password_id=-")
 	if r.Code == 0 || r.StepEvent("nextcloud", "homarr-password") != "step.manual" {
 		t.Fatal("restoring an ID alone must remain Manual")
 	}
