@@ -1,0 +1,14 @@
+internal/helpers/http.go
+  h_d6e478ca18e517 251-252,266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4e0ae05604b4bce8bf6a7f3b1e9d933bdd0dcd11",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
