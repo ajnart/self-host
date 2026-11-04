@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -16,6 +17,9 @@ func Run(ctx context.Context, backend Backend, opts Options) error {
 	if err != nil {
 		m.tasks.cancelAll()
 		m.tasks.waitExited(quitGrace)
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
 		return err
 	}
 	// The terminal is back to normal here, so the new binary starts clean.

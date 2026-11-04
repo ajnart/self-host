@@ -219,7 +219,7 @@ var domainName = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-
 func cleanDomain(domain string) (string, error) {
 	d := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 	if !domainName.MatchString(d) {
-		return "", fmt.Errorf("%q is not a domain name; give your main domain on its own, like example.com", domain)
+		return "", Input(fmt.Errorf("%q is not a domain name; give your main domain on its own, like example.com", domain))
 	}
 	return d, nil
 }
@@ -234,7 +234,7 @@ func cleanEmails(emails []string) ([]string, error) {
 			}
 			addr, err := mail.ParseAddress(one)
 			if err != nil || addr.Address != one || !strings.Contains(one[strings.Index(one, "@"):], ".") {
-				return nil, fmt.Errorf("%q is not an email address; a mistyped one would fail silently at the login page", one)
+				return nil, Input(fmt.Errorf("%q is not an email address; a mistyped one would fail silently at the login page", one))
 			}
 			one = strings.ToLower(one)
 			if !slices.Contains(out, one) {
@@ -243,7 +243,7 @@ func cleanEmails(emails []string) ([]string, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, errors.New("name at least one email address that may sign in (--email)")
+		return nil, Input(errors.New("name at least one email address that may sign in (--email)"))
 	}
 	return out, nil
 }
@@ -261,7 +261,7 @@ func (s *Service) CloudflarePlan(ctx context.Context, opts CloudflareOptions) (C
 		return plan, err
 	}
 	if len(opts.Apps) == 0 {
-		return plan, errors.New("choose the Apps to publish, one by one (--app); nothing is published by default")
+		return plan, Input(errors.New("choose the Apps to publish, one by one (--app); nothing is published by default"))
 	}
 	ss, err := s.open(ctx)
 	if err != nil {

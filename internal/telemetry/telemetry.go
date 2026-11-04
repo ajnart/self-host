@@ -515,9 +515,6 @@ func (c *Client) exception(id string, r Report, props posthog.Properties) postho
 	steps = slices.Sorted(slices.Values(steps))
 	command := clean(r.Command, commandWords)
 	frames := r.Stack.frames()
-	if len(frames) == 0 {
-		frames = CaptureStack(0).frames()
-	}
 	var typ, value, fingerprint string
 	handled := r.Panic == nil
 	if handled {

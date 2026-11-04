@@ -623,3 +623,24 @@ func registerSecrets(log *events.Logger, secrets map[string]string) {
 		}
 	}
 }
+
+type inputError struct{ err error }
+
+func (e inputError) Error() string { return e.err.Error() }
+func (e inputError) Unwrap() error { return e.err }
+
+// Input marks err as a mistake in what the person typed, an expected outcome
+// that Telemetry does not report.
+func Input(err error) error {
+	if err == nil {
+		return nil
+	}
+	return inputError{err}
+}
+
+// Expected reports whether err is an expected outcome rather than a failure:
+// a usage mistake or a missing Project.
+func Expected(err error) bool {
+	var in inputError
+	return errors.As(err, &in) || errors.Is(err, ErrNoProject)
+}

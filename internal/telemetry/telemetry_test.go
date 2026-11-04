@@ -378,14 +378,6 @@ func TestAnExceptionCarriesInAppFramesWithModuleRelativePaths(t *testing.T) {
 	}
 }
 
-func TestAnExceptionWithoutAStackStillCarriesInAppFrames(t *testing.T) {
-	s := enabled(t)
-	s.send(telemetry.Report{Command: "setup", Outcome: telemetry.OutcomeFailed, Failure: errors.New("x")})
-	if got := frames(t, exceptionItem(t, s)); len(got) == 0 {
-		t.Fatal("no frames")
-	}
-}
-
 func TestAPanicIsAnUnhandledExceptionWithTheTypeAndNoValue(t *testing.T) {
 	s := enabled(t)
 	s.send(telemetry.Report{

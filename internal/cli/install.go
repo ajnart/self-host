@@ -24,7 +24,7 @@ func (a *program) installCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !yes && !a.deps.Interactive {
-				return a.fail(fmt.Errorf("pass --yes after approving the install; positional install acts immediately in a terminal, without a review"))
+				return a.fail(service.Input(fmt.Errorf("pass --yes after approving the install; positional install acts immediately in a terminal, without a review")))
 			}
 			opts.Targets = args
 			if opts.AdminPassword == "" {
