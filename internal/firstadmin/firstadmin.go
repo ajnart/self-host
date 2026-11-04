@@ -92,7 +92,7 @@ func (p Probe) step(ctx context.Context, h *helpers.H) error {
 				return p.attempt(ctx, h)
 			})
 		},
-		Hint: h.App + " did not answer on " + path + "; read its logs with: self-host logs " + h.App,
+		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
 	})
 }
 

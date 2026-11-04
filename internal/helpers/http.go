@@ -230,7 +230,7 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 		Do: func(ctx context.Context) error {
 			return h.Poll(ctx, cfg.timeout, attempt)
 		},
-		Hint: h.App + " did not answer on " + path + "; read its logs with: self-host logs " + h.App,
+		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
 	})
 }
 
@@ -251,7 +251,12 @@ func (h *H) Poll(ctx context.Context, timeout time.Duration, fn func(context.Con
 	deadline := h.Now().Add(timeout)
 	var last error
 	for {
-		done, err := fn(ctx)
+		attemptCtx, cancel := ctx, context.CancelFunc(func() {})
+		if remaining := deadline.Sub(h.Now()); remaining > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, remaining)
+		}
+		done, err := fn(attemptCtx)
+		cancel()
 		if done {
 			return nil
 		}
