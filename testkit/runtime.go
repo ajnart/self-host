@@ -132,7 +132,7 @@ func (p fixturePreparer) PrepareCompose(ctx context.Context, root, name string, 
 	}, nil
 }
 
-func (r *guardedRunner) validate(cmd system.Cmd) error {
+func (r *guardedRunner) validate(ctx context.Context, cmd system.Cmd) error {
 	for _, entry := range cmd.Env {
 		key, _, _ := strings.Cut(entry, "=")
 		if strings.HasPrefix(key, "COMPOSE_") || strings.HasPrefix(key, "DOCKER_") || strings.HasPrefix(key, "SELF_HOST_") {
@@ -174,22 +174,62 @@ func (r *guardedRunner) validate(cmd system.Cmd) error {
 		}
 		return startupError(StartupReasonUnsupported, "testkit refuses unsupported Compose command")
 	}
-	if slices.Contains([]string{"info", "version"}, args[0]) || len(args) >= 2 && args[0] == "context" && args[1] == "inspect" {
+	if slices.Contains([]string{"info", "version"}, args[0]) || len(args) >= 2 && args[0] == "context" && args[1] == "inspect" || r.consumerScoped(ctx, args) {
 		return nil
 	}
 	return startupError(StartupReasonUnsupported, "testkit refuses direct Docker helper or unscoped command")
 }
 
+func (r *guardedRunner) consumerScoped(ctx context.Context, args []string) bool {
+	if len(args) == 5 && args[1] == "inspect" && args[2] == "--format" {
+		switch args[0] {
+		case "container":
+			return r.ownedContainer(args[4])
+		case "network":
+			ids, err := resourceIDs(ctx, r.base, r.p.ComposeName, "network")
+			return err == nil && slices.Contains(ids, args[4])
+		}
+	}
+	if len(args) < 3 || args[0] != "exec" || args[1] != "-T" {
+		return false
+	}
+	id := args[2]
+	if id == "-e" && len(args) >= 5 && args[3] == compose.ConsumerKeyEnv {
+		id = args[4]
+	}
+	return r.ownedContainer(id)
+}
+
+func (r *guardedRunner) ownedContainer(id string) bool {
+	for _, info := range r.containers {
+		if info.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *guardedRunner) Run(ctx context.Context, cmd system.Cmd) (system.Result, error) {
-	if err := r.validate(cmd); err != nil {
+	if err := r.validate(ctx, cmd); err != nil {
 		return system.Result{}, err
 	}
 	return r.base.Run(ctx, cmd)
 }
 
 func (r *guardedRunner) Stream(ctx context.Context, cmd system.Cmd, w io.Writer) error {
-	if err := r.validate(cmd); err != nil {
+	if err := r.validate(ctx, cmd); err != nil {
 		return err
 	}
 	return r.base.Stream(ctx, cmd, w)
+}
+
+func (r *guardedRunner) StreamIO(ctx context.Context, cmd system.Cmd, stdin io.Reader, stdout, stderr io.Writer) error {
+	runner, ok := r.base.(system.StreamIORunner)
+	if !ok {
+		return startupError(StartupReasonUnsupported, "testkit runner cannot bound command output")
+	}
+	if err := r.validate(ctx, cmd); err != nil {
+		return err
+	}
+	return runner.StreamIO(ctx, cmd, stdin, stdout, stderr)
 }

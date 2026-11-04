@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	consumerKeyEnv       = "SELFHOST_PEER_API_KEY"
+	ConsumerKeyEnv       = "SELFHOST_PEER_API_KEY"
 	consumerBodyLimit    = 1 << 20
 	consumerBudget       = 8 * time.Second
 	consumerTransferNeed = 5 * time.Second
@@ -174,7 +174,7 @@ func (c *Compose) bridge(ctx context.Context, networkID string) error {
 func (c *Compose) inContainer(ctx context.Context, id string, env []string, limit int, command ...string) ([]byte, error) {
 	args := []string{"exec", "-T"}
 	if len(env) > 0 {
-		args = append(args, "-e", consumerKeyEnv)
+		args = append(args, "-e", ConsumerKeyEnv)
 	}
 	args = append(append(args, id, "s6-setuidgid", "abc"), command...)
 	return c.consumerRun(ctx, env, limit, args...)
@@ -282,13 +282,13 @@ func (c *Compose) ConsumerGET(ctx context.Context, consumerName, targetService s
 		return 0, nil, refused("not enough time remains to bound the transfer")
 	}
 	origin := targetService + ":" + strconv.Itoa(targetPort)
-	out, err := c.inContainer(ctx, consumer.id, []string{consumerKeyEnv + "=" + apiKey}, consumerBodyLimit+128,
+	out, err := c.inContainer(ctx, consumer.id, []string{ConsumerKeyEnv + "=" + apiKey}, consumerBodyLimit+128,
 		"timeout", "-k", "1", "4", "curl", "-q", "--silent", "--url", "http://"+origin+route,
 		"--request", "GET", "--globoff", "--proto", "=http", "--max-redirs", "0",
 		"--proxy", "", "--noproxy", "*", "--resolve", origin+":"+target.ip,
 		"--connect-timeout", "1", "--max-time", "3", "--max-filesize", strconv.Itoa(consumerBodyLimit+1),
-		"--header", "Accept: application/json", "--variable", "%"+consumerKeyEnv,
-		"--expand-header", "X-Api-Key: {{"+consumerKeyEnv+"}}",
+		"--header", "Accept: application/json", "--variable", "%"+ConsumerKeyEnv,
+		"--expand-header", "X-Api-Key: {{"+ConsumerKeyEnv+"}}",
 		"--write-out", `\n--selfhost-v1 %{http_code} %{remote_ip} %{remote_port}\n`)
 	if err != nil {
 		return 0, nil, err

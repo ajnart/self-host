@@ -13,6 +13,7 @@ import (
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/catalog"
+	"github.com/ajnart/self-host/internal/compose"
 	"github.com/ajnart/self-host/internal/helpers"
 	"github.com/ajnart/self-host/internal/system"
 )
@@ -124,7 +125,7 @@ func TestPairProductionOrdersAndLifecycle(t *testing.T) {
 			}
 			for _, args := range [][]string{{"rm", "--stop", "--force", "-v", "peer"}, {"rm", "--stop", "--force", "outside"}, {"rm", "--force", "peer"}} {
 				cmd := system.Cmd{Name: "docker", Args: append([]string{"compose", "--project-directory", p.owner.guard.p.Root, "-p", p.owner.marker.Name}, args...)}
-				if err := p.owner.guard.validate(cmd); err == nil {
+				if err := p.owner.guard.validate(t.Context(), cmd); err == nil {
 					t.Fatal("unsafe removal accepted")
 				}
 			}
@@ -691,5 +692,35 @@ func TestPairInfrastructureActionFailureClosesWholeOwner(t *testing.T) {
 				t.Fatal("failed pair remained available")
 			}
 		})
+	}
+}
+
+func TestGuardAdmitsConsumerCommandsOnlyForOwnedContainers(t *testing.T) {
+	p, _, err := pairFake(t, "consumer-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned := p.owner.guard.containers["peer"].ID
+	foreign := strings.Repeat("f", 64)
+	if owned == "" {
+		t.Fatal("pair has no owned peer container")
+	}
+	for _, c := range []struct {
+		args     []string
+		admitted bool
+	}{
+		{[]string{"container", "inspect", "--format", "{{json .}}", owned}, true},
+		{[]string{"exec", "-T", owned, "s6-setuidgid", "abc", "sh"}, true},
+		{[]string{"exec", "-T", "-e", compose.ConsumerKeyEnv, owned, "s6-setuidgid", "abc", "curl"}, true},
+		{[]string{"container", "inspect", "--format", "{{json .}}", foreign}, false},
+		{[]string{"exec", "-T", foreign, "sh"}, false},
+		{[]string{"exec", "-T", "--privileged", owned, "sh"}, false},
+		{[]string{"exec", "-T", "-e", "OTHER", owned, "sh"}, false},
+		{[]string{"network", "inspect", "--format", "{{json .}}", foreign}, false},
+	} {
+		err := p.owner.guard.validate(t.Context(), system.Cmd{Name: "docker", Args: c.args})
+		if (err == nil) != c.admitted {
+			t.Errorf("%v admitted=%v, want %v", c.args, err == nil, c.admitted)
+		}
 	}
 }

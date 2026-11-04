@@ -69,7 +69,7 @@ func newConsumerFixture(t *testing.T) *consumerFixture {
 	f.runner.On("docker exec -T "+consumerContainer+" s6-setuidgid abc sh -eu -c", system.Result{Stdout: []byte("1000\ntimeout (GNU coreutils) 9.5\ncurl 8.11.1 (x86_64-alpine-linux-musl)\nProtocols: dict file ftp http https\n")})
 	f.runner.On("docker exec -T "+consumerContainer+" s6-setuidgid abc timeout -k 1 3 python3", system.Result{Stdout: []byte("172.18.0.3\n")})
 	f.transfer = func() string { return "{\"ok\":true}\n--selfhost-v1 200 172.18.0.3 8989\n" }
-	f.runner.OnFunc("docker exec -T -e "+consumerKeyEnv+" "+consumerContainer, func(system.Cmd) system.Result {
+	f.runner.OnFunc("docker exec -T -e "+ConsumerKeyEnv+" "+consumerContainer, func(system.Cmd) system.Result {
 		return system.Result{Stdout: []byte(f.transfer())}
 	})
 	return f
@@ -101,7 +101,7 @@ func TestConsumerGETReadsFromTheConsumerWithoutPuttingTheKeyInArguments(t *testi
 			t.Fatal("key appeared in argv")
 		}
 		if strings.Contains(strings.Join(cmd.Args, " "), "--expand-header") {
-			if len(cmd.Env) != 1 || cmd.Env[0] != consumerKeyEnv+"="+testKey || cmd.WaitDelay == 0 {
+			if len(cmd.Env) != 1 || cmd.Env[0] != ConsumerKeyEnv+"="+testKey || cmd.WaitDelay == 0 {
 				t.Fatal("key was not handed over only through the environment with a bounded wait")
 			}
 		}
@@ -196,7 +196,7 @@ func TestConsumerGETNeverTrustsIncompleteOverflowingOrForgedTransfers(t *testing
 	}
 	t.Run("forged success after failure", func(t *testing.T) {
 		f := newConsumerFixture(t)
-		f.runner.OnStreamIO("docker exec -T -e "+consumerKeyEnv, func(_ context.Context, _ system.Cmd, _ io.Reader, stdout, _ io.Writer) error {
+		f.runner.OnStreamIO("docker exec -T -e "+ConsumerKeyEnv, func(_ context.Context, _ system.Cmd, _ io.Reader, stdout, _ io.Writer) error {
 			io.WriteString(stdout, "{}\n--selfhost-v1 200 172.18.0.3 8989\n")
 			return errors.New("exit status 28")
 		})
@@ -206,7 +206,7 @@ func TestConsumerGETNeverTrustsIncompleteOverflowingOrForgedTransfers(t *testing
 	})
 	t.Run("huge stdout is capped", func(t *testing.T) {
 		f := newConsumerFixture(t)
-		f.runner.OnStreamIO("docker exec -T -e "+consumerKeyEnv, func(_ context.Context, _ system.Cmd, _ io.Reader, stdout, _ io.Writer) error {
+		f.runner.OnStreamIO("docker exec -T -e "+ConsumerKeyEnv, func(_ context.Context, _ system.Cmd, _ io.Reader, stdout, _ io.Writer) error {
 			_, err := stdout.Write([]byte(strings.Repeat("x", consumerBodyLimit+4096)))
 			return err
 		})
