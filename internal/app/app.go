@@ -104,6 +104,14 @@ type App interface {
 	Links() []Link
 }
 
+// Defaults is embedded by an App that asks for no Inputs and declares no Links.
+// Setup and Check have no default: an App with no Setup should fail to build.
+type Defaults struct{}
+
+func (Defaults) Inputs() []Input { return nil }
+
+func (Defaults) Links() []Link { return nil }
+
 // SecretSpec is a secret an App needs before its container first starts.
 type SecretSpec struct {
 	// Name is namespaced with the App ID: "admin_token" for vaultwarden is

@@ -42,7 +42,10 @@ type renderData struct {
 
 // App is an App built from a spec. It implements every optional interface a
 // spec can declare and returns nothing for what the spec leaves out.
-type App struct{ spec spec }
+type App struct {
+	app.Defaults
+	spec spec
+}
 
 var (
 	_ app.App             = App{}
@@ -209,8 +212,6 @@ func (a App) Inputs() []app.Input { return slices.Clone(a.spec.Inputs) }
 func (a App) Secrets() []app.SecretSpec { return slices.Clone(a.spec.Secrets) }
 
 func (a App) StandaloneGuide() string { return a.spec.StandaloneGuide }
-
-func (a App) Links() []app.Link { return nil }
 
 // Compose panics on a render error: dryRun already rendered the template, so
 // one here means an input or setting the template cannot take.
