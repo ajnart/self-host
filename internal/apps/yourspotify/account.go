@@ -42,14 +42,7 @@ func VerifyAccount(ctx context.Context, h *helpers.H) error {
 		return &helpers.ManualError{Hint: loggingHint}
 	}
 	h.Log.Secret(token)
-	client := *http.DefaultClient
-	if h.Config.HTTP != nil {
-		client = *h.Config.HTTP
-	}
-	client.Jar = nil
-	probe := *h
-	probe.Config.HTTP = &client
-	response, err := probe.HTTP(ctx, helpers.Request{
+	response, err := h.WithoutCookies().HTTP(ctx, helpers.Request{
 		BaseURL: "http://" + net.JoinHostPort(base.Hostname(), apiPort(h.Inputs)),
 		Path:    "/me?" + url.Values{"token": {token}}.Encode(), NoRedirect: true,
 	})

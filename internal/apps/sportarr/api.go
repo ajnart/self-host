@@ -22,16 +22,8 @@ var apiKeyScheme = helpers.KeyScheme{Header: "X-Api-Key"}
 func request(ctx context.Context, h *helpers.H, req helpers.Request) (helpers.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	client := http.DefaultClient
-	if h.Config.HTTP != nil {
-		client = h.Config.HTTP
-	}
-	isolated := *client
-	isolated.Jar = nil
-	local := *h
-	local.Config.HTTP = &isolated
 	req.NoRedirect = true
-	resp, err := local.HTTP(ctx, req)
+	resp, err := h.WithoutCookies().HTTP(ctx, req)
 	if err != nil {
 		return resp, h.Log.RedactError(fmt.Errorf("Sportarr %s request failed: %w", req.Path, err))
 	}

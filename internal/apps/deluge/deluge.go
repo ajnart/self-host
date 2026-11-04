@@ -68,14 +68,7 @@ type rpcResponse struct {
 }
 
 func newSession(h *helpers.H) *helpers.Session {
-	if h.Config.HTTP != nil {
-		client := *h.Config.HTTP
-		client.Jar = nil
-		isolated := *h
-		isolated.Config.HTTP = &client
-		h = &isolated
-	}
-	return h.Session()
+	return h.WithoutCookies().Session()
 }
 
 func rpc(ctx context.Context, s *helpers.Session, method string, params ...any) (rpcResponse, error) {
