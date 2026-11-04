@@ -640,7 +640,7 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !ss.homarrNotStopped(ctx, a) {
+	if ss.homarrStopped(ctx, a) {
 		hint := "Homarr is not running; start it with self-host start homarr, then run self-host setup homarr"
 		ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: "homarr", Step: "reconcile", Msg: "dashboard not refreshed", Hint: hint})
 		return fmt.Errorf("%w: dashboard reconciliation needs manual steps; %s", ErrManual, hint)
@@ -658,17 +658,17 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 	return nil
 }
 
-func (ss *session) homarrNotStopped(ctx context.Context, a app.App) bool {
+func (ss *session) homarrStopped(ctx context.Context, a app.App) bool {
 	containers, err := ss.compose.Ps(ctx)
 	if err != nil {
-		return true
+		return false
 	}
 	for _, c := range containers {
 		if c.Service == a.Info().Service {
-			return c.State == "running"
+			return c.State != "running"
 		}
 	}
-	return true
+	return false
 }
 
 // clearStartFailure overwrites a start failure left by an earlier run once the

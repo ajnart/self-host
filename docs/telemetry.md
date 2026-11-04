@@ -27,9 +27,9 @@ Only these four things. A command that succeeds sends nothing.
   fingerprint, and in-app function names, module-relative files and line
   numbers. Panics are unhandled exceptions, flushed before the original panic
   continues. Usage errors, a missing Project, a Dashboard closed by a signal
-  and `doctor` findings are not failures and send nothing. Warning and error steps also send fixed-text OTLP log records
-  with the step and command IDs. These are not App logs, raw error messages or
-  distributed traces.
+  and `doctor` findings are not failures and send nothing. Warning and error
+  steps also send fixed-text OTLP log records with the step and command IDs.
+  These are not App logs, raw error messages or distributed traces.
 - **Agent App requests.** When an agent is asked for an App that is not in the
   Catalog, it runs `self-host apps request "<name>"`, which sends the App's name
   (lowercase, at most 64 characters) and the host of its homepage, never a path
