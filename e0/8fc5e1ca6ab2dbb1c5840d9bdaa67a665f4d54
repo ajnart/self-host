@@ -1,0 +1,60 @@
+CONTEXT.md
+  h_d6e478ca18e517 36-52
+docs/agents/generated-data.md
+  h_d6e478ca18e517 53
+docs/catalog/adding-apps.md
+  h_d6e478ca18e517 21,27-32
+internal/apps/immich/immich.go
+  h_d6e478ca18e517 107-111
+internal/apps/keycloak/keycloak.go
+  h_d6e478ca18e517 75
+internal/apps/linkwarden/linkwarden.go
+  h_d6e478ca18e517 86-88
+internal/apps/mayanedms/mayanedms.go
+  h_d6e478ca18e517 137
+internal/apps/nginxproxymanager/nginxproxymanager.go
+  h_d6e478ca18e517 45-49
+internal/apps/nodered/nodered.go
+  h_d6e478ca18e517 70-73
+internal/apps/openwebui/openwebui.go
+  h_d6e478ca18e517 57-61
+internal/apps/paperlessngx/paperlessngx.go
+  h_d6e478ca18e517 105-108
+internal/apps/patchmon/patchmon.go
+  h_d6e478ca18e517 132
+internal/apps/photoprism/photoprism.go
+  h_d6e478ca18e517 48-51
+internal/apps/portainer/portainer.go
+  h_d6e478ca18e517 53-56
+internal/apps/scrypted/scrypted.go
+  h_d6e478ca18e517 47-50
+internal/apps/seafile/seafile.go
+  h_d6e478ca18e517 106
+internal/catalog/catalog.go
+  h_d6e478ca18e517 72-74
+internal/catalog/generated_test.go
+  h_d6e478ca18e517 40,42,54-55,117-118
+internal/helpers/http.go
+  h_d6e478ca18e517 181-182,209-212,222-230,235,242-245
+internal/setupspec/kind_first_admin.go
+  h_d6e478ca18e517 16-27,164,169-175,177
+internal/setupspec/kind_no_account.go
+  h_d6e478ca18e517 3-26
+internal/setupspec/kind_no_account_test.go
+  h_d6e478ca18e517 1-66
+internal/setupspec/setupspec.go
+  h_d6e478ca18e517 43,54-56,65-84,86-88,90,93-94,96-97,99-100,104-105,107-108
+tools/sitegen/counts.go
+  h_d6e478ca18e517 13-15,17-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e08fc5e1ca6ab2dbb1c5840d9bdaa67a665f4d54",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
