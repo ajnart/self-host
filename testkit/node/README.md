@@ -3,9 +3,8 @@
 Real App fixtures for integration tests, using self-host's existing headless
 Setup. ESM only, Node.js 22+, no runtime npm dependencies or test-runner plugin.
 
-This guide describes **1.3.0**: `withApp`, ordered Pairs, recovery paths, the
-Sonarr witness and the JavaScript Action's automatic post cleanup are not in
-1.2.1. For 1.2.1, see its
+This guide describes **1.3.0**: `withApp`, ordered Pairs, recovery paths and
+the JavaScript Action's automatic post cleanup are not in 1.2.1. For 1.2.1, see its
 [immutable guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
 
 ## Requirements and setup
@@ -295,71 +294,6 @@ from your chosen manifest or recovery getter. Failed cleanup retains the marker
 for retry. Do not upload manifests, Project files or credentials as artifacts;
 do not use Docker prune or broad container/volume deletion for recovery. SIGKILL,
 runner loss and daemon outages can still prevent cleanup; prefer disposable runners.
-
-## Sonarr data-preservation witness
-
-This capability is new in 1.3.0. Keep the SDK and helper on the same release or
-reviewed checkout. For a fresh ordered
-`spinupPair("homarr", "sonarr", options)` or `withPair`, explicitly set
-`sonarrFilterWitness: true` and provide `images.sonarr` as a reviewed immutable
-`repository@sha256:<64 lowercase hex digits>` reference. Omission preserves the
-legacy startup sequence and grants no witness permission. The two installation
-orders use the same methods in separate fresh Pairs.
-
-Before opted-in Pair startup, the SDK requires protocol-v1 static capability
-`sonarrFilterWitness: 1` from its helper and then the matching startup echo.
-An old or incompatible helper fails safely before `spinupPair`; there is no
-fallback to Node HTTP. Capability support is not image/source approval: review
-the resolved Sonarr release and image separately before any approved native run.
-The current witness contract accepts authenticated stable Sonarr v4 identity,
-requires a complete/running owned Pair and refuses an existing saved-filter
-collection. Default/standalone APIs and resource/lifetime limits are unchanged.
-
-An opted-in Pair exposes exactly two zero-argument methods:
-
-```typescript
-const original = await pair.createSonarrFilterWitness();
-const before = await pair.readSonarrFilterWitness();
-if (
-  before.kind !== original.kind ||
-  before.objectId !== original.objectId ||
-  before.contentSha256 !== original.contentSha256
-) {
-  throw new Error("The original Sonarr witness changed");
-}
-```
-
-Each returns an immutable `SonarrFilterWitness` with `kind` equal to
-`"sonarr-custom-filter-v1"`, the original positive `objectId`, and a 64-character
-lowercase `contentSha256`. The Go helper generates the opaque synthetic label;
-Node never supplies or receives its content, resource selector, request body or
-credential. The saved object is an unselected series filter with no predicates,
-not a series, profile, tag, provider or job. Creation uses the official Sonarr v3
-custom-filter API once and confirms the new identity by readback. Tags would not
-be durable because Sonarr housekeeping deletes unused tags.
-
-Create once after the production Pair Link is complete. Read before removal and
-after each of two ordinary `pair.remove("sonarr")` / `pair.install("sonarr")`
-cycles; compare all three fields with the original receipt. Do not call Create
-inside a cycle. Repeated creation, read-before-create, ambiguous POST results,
-changed/missing data, unsupported schemas and image drift fail rather than adopt
-or recreate a witness. Owner work deadlines, mutex, credential owner and scoped
-failure/cleanup behavior are reused. A timeout or failed write cannot be retried
-within that Pair. Receipt IDs/hashes may be recorded; never export credentials,
-nonce-bearing bodies, App logs or private fixture files.
-
-An invalid witness receipt or startup capability echo disables that helper's
-whole owner and awaits scoped cleanup before rejecting with `PROTOCOL`.
-Secondary cleanup failure is retained as `cleanupFailed: true`; it does not
-replace the protocol failure or expose raw causes. Subsequent actions are
-rejected, while explicit close/manifest recovery may retry failed cleanup.
-
-Both cycles must retain data through non-purge target removal. Final Pair/manager
-close still cleans the complete owned disposable fixture; do not add an API
-delete, broad Docker teardown or attach/reseed recovery. A helper lost before
-verification can be recovered for cleanup, not resumed as a successful proof.
-Fake transport tests do not establish native preservation, populated-media
-semantics, rendering, cross-kind survivors or stored-key corruption/recovery.
 
 ## Source maintenance
 

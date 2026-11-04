@@ -20,36 +20,19 @@ if (cleanup) {
 }
 
 const input = createInterface({ input: process.stdin });
-const witnessMode = "valid";
+const mode = "valid";
 const cleanupFails = false;
 let declaredLink = "link-peer";
-if (witnessMode.startsWith("valid-link-")) declaredLink = "approved-connection";
+if (mode.startsWith("valid-link-")) declaredLink = "approved-connection";
 let app;
 let pair;
 let installed;
 let pairFailed = false;
-let witnessCreated = false;
-const witnessReceipt = (mode = witnessMode) => {
-	const value = {
-		kind: "sonarr-custom-filter-v1",
-		objectId: 17,
-		contentSha256: "a".repeat(64),
-	};
-	if (mode === "bad-kind") value.kind = "other";
-	if (mode === "bad-id-zero") value.objectId = 0;
-	if (mode === "bad-id-fraction") value.objectId = 1.5;
-	if (mode === "bad-id-range") value.objectId = 2147483648;
-	if (mode === "bad-hash") value.contentSha256 = "private-witness-body";
-	if (mode === "extra-receipt-field") value.label = "private-witness-body";
-	if (mode === "missing-receipt-field") value.contentSha256 = undefined;
-	if (mode === "null-receipt") return null;
-	return value;
-};
 const address = (id) => {
 	let port = 12345;
 	if (pair && id === pair.target) port = 12346;
 	let path = "";
-	if (witnessMode === "valid-paths") path = "/app/";
+	if (mode === "valid-paths") path = "/app/";
 	return `http://127.0.0.1:${port}${path}`;
 };
 const inspection = () => ({
@@ -69,7 +52,7 @@ const inspection = () => ({
 	})),
 });
 const integrity = (value) => {
-	const kind = witnessMode.replace(/^integrity-(?:startup|live)-/, "");
+	const kind = mode.replace(/^integrity-(?:startup|live)-/, "");
 	value.outcome = "complete";
 	value.reason = "verified";
 	for (const item of value.apps) {
@@ -176,30 +159,7 @@ const reply = (req, result) => {
 input.on("line", (line) => {
 	const req = JSON.parse(line);
 	event(req.method);
-	if (req.method === "capabilities") {
-		if (witnessMode === "slow-capabilities") return;
-		if (witnessMode === "old-helper") {
-			process.stdout.write(
-				`${JSON.stringify({ version: 1, id: req.id, error: { code: "PROTOCOL", message: "private-witness-body" } })}\n`,
-			);
-			return;
-		}
-		if (witnessMode === "wrong-capability-envelope") {
-			process.stdout.write(
-				`${JSON.stringify({ version: 2, id: req.id, result: { sonarrFilterWitness: 1 } })}\n`,
-			);
-			return;
-		}
-		if (witnessMode === "missing-capability") return reply(req, {});
-		if (witnessMode === "false-capability")
-			return reply(req, { sonarrFilterWitness: false });
-		if (witnessMode === "string-capability")
-			return reply(req, { sonarrFilterWitness: "1" });
-		if (witnessMode === "wrong-capability-revision")
-			return reply(req, { sonarrFilterWitness: 2 });
-		if (witnessMode === "null-capabilities") return reply(req, null);
-		reply(req, { sonarrFilterWitness: 1 });
-	} else if (req.method === "spinup") {
+	if (req.method === "spinup") {
 		app = req.params.app;
 		if (app === "exit") process.exit(1);
 		if (app === "slow") return;
@@ -236,7 +196,7 @@ input.on("line", (line) => {
 		installed = new Set([pair.consumer]);
 		if (pair.order === "target-first") installed = new Set([pair.target]);
 		const initial = inspection();
-		if (witnessMode === "bad-initial-address")
+		if (mode === "bad-initial-address")
 			initial.apps[1].url = "http://127.0.0.1:33333";
 		const invalidLinks = {
 			"bad-link-missing": undefined,
@@ -246,58 +206,18 @@ input.on("line", (line) => {
 			"bad-link-syntax": "not a link",
 			"bad-link-long": "a".repeat(65),
 		};
-		if (Object.hasOwn(invalidLinks, witnessMode))
-			initial.link = invalidLinks[witnessMode];
-		if (witnessMode.startsWith("integrity-startup-")) integrity(initial);
+		if (Object.hasOwn(invalidLinks, mode)) initial.link = invalidLinks[mode];
+		if (mode.startsWith("integrity-startup-")) integrity(initial);
 		installed = new Set([pair.consumer, pair.target]);
 		reply(req, {
 			consumer: { id: pair.consumer, url: address(pair.consumer) },
 			target: { id: pair.target, url: address(pair.target) },
 			initial,
-			sonarrFilterWitness:
-				pair.sonarrFilterWitness && witnessMode !== "missing-echo"
-					? 1
-					: undefined,
 		});
 	} else if (pairFailed && req.method !== "close") {
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
 		);
-	} else if (
-		["createSonarrFilterWitness", "readSonarrFilterWitness"].includes(
-			req.method,
-		)
-	) {
-		if (
-			!pair?.sonarrFilterWitness ||
-			(req.method === "createSonarrFilterWitness" && witnessCreated) ||
-			(req.method === "readSonarrFilterWitness" && !witnessCreated)
-		) {
-			process.stdout.write(
-				`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
-			);
-			return;
-		}
-		if (
-			witnessMode === "operation-failure" ||
-			witnessMode === "operation-cleanup"
-		) {
-			pairFailed = true;
-			event("owned-cleanup");
-			if (witnessMode === "operation-cleanup")
-				writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
-			process.stdout.write(
-				`${JSON.stringify({ version: 1, id: req.id, error: { code: "OPERATION", reason: "SETUP", cleanupFailed: witnessMode === "operation-cleanup", message: "private-witness-body" } })}\n`,
-			);
-			return;
-		}
-		if (req.method === "createSonarrFilterWitness") witnessCreated = true;
-		let mode = witnessMode;
-		if (mode.startsWith("read-")) {
-			mode = mode.slice(5);
-			if (req.method === "createSonarrFilterWitness") mode = "valid";
-		}
-		reply(req, witnessReceipt(mode));
 	} else if (["inspect", "setup", "remove", "install"].includes(req.method)) {
 		if (req.method === "install" && pair.consumer.startsWith("action-")) {
 			pairFailed = true;
@@ -328,16 +248,13 @@ input.on("line", (line) => {
 		if (req.method === "remove") installed.delete(req.params.app);
 		if (req.method === "install") installed.add(req.params.app);
 		const result = inspection();
-		if (
-			pair.consumer === "bad-inspection" ||
-			witnessMode === `bad-${req.method}`
-		)
+		if (pair.consumer === "bad-inspection" || mode === `bad-${req.method}`)
 			result.outcome = "imaginary";
-		if (witnessMode === `bad-${req.method}-address`)
+		if (mode === `bad-${req.method}-address`)
 			result.apps[1].url = "http://127.0.0.1:33333";
-		if (witnessMode.startsWith(`replace-${req.method}-`)) {
+		if (mode.startsWith(`replace-${req.method}-`)) {
 			result.link = "check";
-			if (witnessMode.endsWith("-forged")) {
+			if (mode.endsWith("-forged")) {
 				result.outcome = "complete";
 				result.reason = "verified";
 				for (const item of result.apps) {
@@ -347,23 +264,20 @@ input.on("line", (line) => {
 				}
 				result.apps[0].steps = [{ id: "check", status: "ok" }];
 			}
-			if (witnessMode.endsWith("-manual")) {
+			if (mode.endsWith("-manual")) {
 				result.outcome = "manual";
 				result.reason = "setup";
 				result.apps[0].setup = "manual";
 				result.apps[0].steps = [{ id: declaredLink, status: "manual" }];
 			}
 		}
-		if (
-			witnessMode.startsWith("valid-link-") &&
-			result.outcome === "complete"
-		) {
-			if (witnessMode === "valid-link-missing") {
+		if (mode.startsWith("valid-link-") && result.outcome === "complete") {
+			if (mode === "valid-link-missing") {
 				result.outcome = "prerequisite";
 				result.reason = "not-run";
 				result.apps[0].steps = [];
-			} else if (witnessMode !== "valid-link-ok") {
-				const status = witnessMode.slice("valid-link-".length);
+			} else if (mode !== "valid-link-ok") {
+				const status = mode.slice("valid-link-".length);
 				result.apps[0].steps = [{ id: declaredLink, status }];
 				result.apps[0].setup = "incomplete";
 				result.outcome = "failed";
@@ -378,15 +292,15 @@ input.on("line", (line) => {
 				}
 			}
 		}
-		if (witnessMode.startsWith("integrity-live-")) integrity(result);
+		if (mode.startsWith("integrity-live-")) integrity(result);
 		reply(req, result);
 	} else if (pair && req.params.app && !installed.has(req.params.app)) {
 		process.stdout.write(
 			`${JSON.stringify({ version: 1, id: req.id, error: { code: "STATE" } })}\n`,
 		);
-	} else if (witnessMode === `bad-view-${req.method}-null`) {
+	} else if (mode === `bad-view-${req.method}-null`) {
 		reply(req, null);
-	} else if (witnessMode === `bad-view-${req.method}-shape`) {
+	} else if (mode === `bad-view-${req.method}-shape`) {
 		reply(req, {
 			apiKey: 17,
 			username: "admin",
@@ -401,24 +315,24 @@ input.on("line", (line) => {
 	} else if (
 		pair &&
 		["getApiKey", "credentials", "info"].includes(req.method) &&
-		witnessMode.startsWith("credential-")
+		mode.startsWith("credential-")
 	) {
 		const error = {
 			code: "OPERATION",
 			reason: "STORAGE",
-			cleanupFailed: witnessMode === "credential-cleanup",
+			cleanupFailed: mode === "credential-cleanup",
 			message: "private-test-password",
 		};
-		if (witnessMode !== "credential-missing") {
+		if (mode !== "credential-missing") {
 			pairFailed = true;
 			event("owned-cleanup");
 			if (error.cleanupFailed)
 				writeFileSync(`${manifest}.${owner}.failed`, "failed", { mode: 0o600 });
 		}
-		if (witnessMode === "credential-timeout") error.code = "TIMEOUT";
-		if (witnessMode === "credential-cancel") error.code = "CANCELED";
-		if (witnessMode === "credential-missing") error.code = "CREDENTIALS";
-		if (witnessMode === "credential-missing" && req.method === "info")
+		if (mode === "credential-timeout") error.code = "TIMEOUT";
+		if (mode === "credential-cancel") error.code = "CANCELED";
+		if (mode === "credential-missing") error.code = "CREDENTIALS";
+		if (mode === "credential-missing" && req.method === "info")
 			error.code = "INFO";
 		if (error.code !== "OPERATION") error.reason = undefined;
 		process.stdout.write(
@@ -443,8 +357,8 @@ input.on("line", (line) => {
 		};
 		let sibling = pair?.consumer;
 		if (pair && req.params.app === pair.consumer) sibling = pair.target;
-		if (witnessMode === "info-id") result.id = "outside";
-		if (witnessMode === "info-sibling-id") result.id = sibling;
+		if (mode === "info-id") result.id = "outside";
+		if (mode === "info-sibling-id") result.id = sibling;
 		const urls = {
 			"info-remote": "http://example.invalid:12345",
 			"info-https": result.url.replace("http:", "https:"),
@@ -453,8 +367,8 @@ input.on("line", (line) => {
 			"info-query": `${result.url}?outside=1`,
 			"info-path": `${result.url}/outside`,
 		};
-		if (urls[witnessMode]) result.url = urls[witnessMode];
-		if (witnessMode === "info-sibling-url") result.url = address(sibling);
+		if (urls[mode]) result.url = urls[mode];
+		if (mode === "info-sibling-url") result.url = address(sibling);
 		reply(req, result);
 	} else if (req.method === "close") {
 		process.stdout.write(
