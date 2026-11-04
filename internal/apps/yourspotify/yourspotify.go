@@ -160,12 +160,8 @@ func validateOrigin(value string) error {
 	if value == "" {
 		return nil
 	}
-	origin, err := url.Parse(value)
-	if err != nil || origin.Scheme != "http" && origin.Scheme != "https" || origin.Hostname() == "" || origin.User != nil || origin.RawQuery != "" || origin.ForceQuery || origin.Fragment != "" || origin.Path != "" && origin.Path != "/" || strings.ContainsAny(value, " \t\r\n\\$#") || strings.HasSuffix(origin.Host, ":") {
+	if _, ok := helpers.HTTPOrigin(value); !ok {
 		return errors.New("use an HTTP or HTTPS origin without credentials, a path, query or fragment")
-	}
-	if port := origin.Port(); port != "" {
-		return validateAPIPort(port)
 	}
 	return nil
 }

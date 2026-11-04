@@ -2,10 +2,7 @@ package homarr
 
 import (
 	"errors"
-	"net/url"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/ajnart/self-host/internal/helpers"
 )
@@ -59,15 +56,8 @@ func externalHTTPOrigin(endpoint, label string) error {
 }
 
 func externalOrigin(endpoint, label, kind string, schemes ...string) error {
-	u, err := url.Parse(endpoint)
-	if err != nil || !slices.Contains(schemes, u.Scheme) || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.RawPath != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(endpoint, "\r\n\t\\ #") {
+	if u, ok := helpers.HTTPOrigin(endpoint); !ok || !slices.Contains(schemes, u.Scheme) {
 		return errors.New(label + " requires an approved " + kind + " origin without embedded credentials, API/proxy paths, query or fragment")
-	}
-	if port := u.Port(); port != "" {
-		n, err := strconv.Atoi(port)
-		if err != nil || n < 1 || n > 65535 {
-			return errors.New("the private " + label + " endpoint has an invalid port")
-		}
 	}
 	return nil
 }

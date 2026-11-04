@@ -160,18 +160,12 @@ func validateProject(value string) error {
 }
 
 func validateAddress(value string) (*url.URL, error) {
-	u, err := url.Parse(value)
-	if err != nil || u == nil || u.User != nil || u.Hostname() == "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.ContainsAny(value, "$\\\r\n\t ") || u.Scheme != "http" && u.Scheme != "https" {
+	u, ok := helpers.HTTPAddress(value)
+	if !ok {
 		return nil, errors.New("Healthchecks addresses must be absolute http or https addresses without credentials, query or fragment")
 	}
 	if net.ParseIP(u.Hostname()) == nil && !hostPattern.MatchString(u.Hostname()) {
 		return nil, errors.New("Healthchecks address has an invalid host")
-	}
-	if u.Port() != "" {
-		port, err := strconv.Atoi(u.Port())
-		if err != nil || port < 1 || port > 65535 {
-			return nil, errors.New("Healthchecks address has an invalid port")
-		}
 	}
 	return u, nil
 }
