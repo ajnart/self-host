@@ -1,0 +1,25 @@
+internal/apps/nginxproxymanager/nginxproxymanager.go
+  s_56f298195c530e::t_a78091a2cce39b 11,16,46-50,52-62,64-72,74-83,85-88,91-93
+internal/setupspec/call.go
+  s_56f298195c530e::t_7c59d851d315bd 39-41,50-51,149,151,158-160,194-200,213-215,254-269
+internal/setupspec/kind_first_admin.go
+  s_56f298195c530e::t_4a216335ad0382 72-89
+internal/setupspec/setupspec.go
+  s_56f298195c530e::t_8f652642603c83 25-27,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ee6528024f7230fc8cf7b3bcc6ecef5f8ac4f27b",
+  "prompts": {},
+  "sessions": {
+    "s_56f298195c530e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2990966a-f6b7-494c-a3ca-300ff1e53d3f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
