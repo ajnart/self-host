@@ -248,6 +248,8 @@ func (c readyConfig) wanted(status int) bool {
 
 // Poll calls fn until it reports done, ctx ends or timeout passes.
 func (h *H) Poll(ctx context.Context, timeout time.Duration, fn func(context.Context) (bool, error)) error {
+	pollCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	deadline := h.Now().Add(timeout)
 	var last error
 	for {
@@ -261,7 +263,7 @@ func (h *H) Poll(ctx context.Context, timeout time.Duration, fn func(context.Con
 			}
 			return fmt.Errorf("timed out after %s: %w", timeout, last)
 		}
-		attemptCtx, cancel := context.WithTimeout(ctx, remaining)
+		attemptCtx, cancel := context.WithTimeout(pollCtx, remaining)
 		done, err := fn(attemptCtx)
 		cancel()
 		if done {
