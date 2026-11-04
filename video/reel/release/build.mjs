@@ -8,7 +8,8 @@ import { MAX_APPS, scene } from "./scene.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const reel = join(here, "..");
 const root = join(reel, "../..");
-const SAMPLE = ["cleanuparr", "seerr", "immich", "jellyfin", "homarr", "sonarr"];
+const SAMPLE = ["cleanuparr", "seerr", "immich", "jellyfin", "homarr", "sonarr", "radarr", "prowlarr", "bazarr", "qbittorrent", "navidrome", "audiobookshelf", "paperless-ngx", "nextcloud", "vaultwarden", "uptime-kuma", "adguard-home", "portainer", "syncthing", "open-webui", "ollama", "grafana", "home-assistant", "docmost"];
+const PREVIEW = [1, 2, 3, 4, 5, 6, 9, 12, 18, 24];
 
 const catalog = JSON.parse(readFileSync(join(root, "site/src/data/catalog.json"), "utf8")).apps;
 const byId = new Map(catalog.map((a) => [a.id, a]));
@@ -32,7 +33,7 @@ async function resolve(ids) {
   for (const id of ids) {
     const a = byId.get(id);
     if (!a) throw new Error(`"${id}" is not in the Catalog (site/src/data/catalog.json)`);
-    out.push({ id, name: a.name, category: a.c, description: a.d, icon: await icon(id) });
+    out.push({ id, name: a.name, description: a.d, icon: await icon(id) });
   }
   return out;
 }
@@ -75,9 +76,9 @@ await guard(async () => {
   } });
   let ids = [];
   if (!args.preview) {
-    if (typeof args.apps !== "string") throw new Error("--apps is required; give 1 to 6 App ids");
+    if (typeof args.apps !== "string") throw new Error(`--apps is required; give 1 to ${MAX_APPS} App ids`);
     ids = args.apps.split(",").map((s) => s.trim());
-    if (ids.some((id) => !id)) throw new Error("--apps contains an empty App id; give 1 to 6 App ids");
+    if (ids.some((id) => !id)) throw new Error(`--apps contains an empty App id; give 1 to ${MAX_APPS} App ids`);
     if (ids.length > MAX_APPS) throw new Error(`${ids.length} Apps requested, the layout supports at most ${MAX_APPS}`);
     if (new Set(ids).size !== ids.length) throw new Error("--apps contains duplicate App ids");
     if (!args.version) throw new Error("--version is required, e.g. --version 0.5.11");
@@ -89,7 +90,7 @@ await guard(async () => {
   try {
   if (args.preview) {
     const dir = outDir(join(here, "out/preview"));
-    for (let n = 1; n <= MAX_APPS; n++) {
+    for (const n of PREVIEW) {
       const apps = await resolve(SAMPLE.slice(0, n));
       const r = await render(browser, apps, version, dir, `new-apps-n${n}`);
       console.log(`n${n}: svg ${(r.svg / 1024).toFixed(0)} KB, png ${(r.png / 1024).toFixed(0)} KB`);
