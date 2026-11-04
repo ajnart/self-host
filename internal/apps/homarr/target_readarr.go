@@ -68,23 +68,12 @@ func readarrExternalTarget(c helpers.ExternalConnection) (target, error) {
 					return &helpers.ManualError{Hint: readarrRecovery}
 				}
 			}
-			events, err := nativeCalendarEvents(ctx, from, "readarr", "Readarr", integrationID)
+			events, err := readCalendarEvents(ctx, from, integrationID, "readarr")
 			if err != nil {
 				return err
 			}
-			for _, value := range events {
-				event, ok := value.(map[string]any)
-				if !ok || stringField(event, "title") == "" {
-					return errors.New("Homarr returned incomplete Readarr book data; retry self-host setup homarr")
-				}
-				subtitle, present := event["subTitle"]
-				_, text := subtitle.(string)
-				if !present || subtitle != nil && !text {
-					return errors.New("Homarr returned invalid Readarr author data; retry self-host setup homarr")
-				}
-				if _, err := time.Parse(time.RFC3339Nano, stringField(event, "startDate")); err != nil {
-					return errors.New("Homarr returned an invalid Readarr release date; retry self-host setup homarr")
-				}
+			if !calendarSubtitles(events) {
+				return errors.New("Homarr returned invalid Readarr author data; retry self-host setup homarr")
 			}
 			return nil
 		},

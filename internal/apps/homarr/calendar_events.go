@@ -48,3 +48,13 @@ func readCalendarEvents(ctx context.Context, from *helpers.H, integrationID, kin
 	}
 	return events, nil
 }
+
+func calendarSubtitles(events []any) bool {
+	for _, value := range events {
+		subtitle, present := value.(map[string]any)["subTitle"]
+		if _, text := subtitle.(string); !present || subtitle != nil && !text {
+			return false
+		}
+	}
+	return true
+}

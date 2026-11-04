@@ -55,53 +55,14 @@ func verifyLidarr(ctx context.Context, from, to *helpers.H, integrationID string
 			return errors.New("Lidarr returned incomplete artist monitoring data; retry self-host setup lidarr")
 		}
 	}
-	events, err := nativeCalendarEvents(ctx, from, "lidarr", "Lidarr", integrationID)
+	events, err := readCalendarEvents(ctx, from, integrationID, "lidarr")
 	if err != nil {
 		return err
 	}
-	for _, value := range events {
-		event, ok := value.(map[string]any)
-		if !ok || stringField(event, "title") == "" {
-			return errors.New("Homarr returned incomplete Lidarr release data; retry self-host setup homarr")
-		}
-		subtitle, present := event["subTitle"]
-		_, text := subtitle.(string)
-		if !present || subtitle != nil && !text {
-			return errors.New("Homarr returned invalid Lidarr artist data; retry self-host setup homarr")
-		}
-		if _, err := time.Parse(time.RFC3339Nano, stringField(event, "startDate")); err != nil {
-			return errors.New("Homarr returned an invalid Lidarr release date; retry self-host setup homarr")
-		}
+	if !calendarSubtitles(events) {
+		return errors.New("Homarr returned invalid Lidarr artist data; retry self-host setup homarr")
 	}
 	return nil
-}
-
-func nativeCalendarEvents(ctx context.Context, from *helpers.H, kind, name, integrationID string) ([]any, error) {
-	now := from.Now().UTC()
-	value, err := apiKeyProcedure(ctx, from, "widget.calendar.findAllEvents", map[string]any{
-		"integrationIds": []string{integrationID}, "year": now.Year(), "month": int(now.Month()),
-		"releaseType": []string{}, "showUnmonitored": true,
-	})
-	if err != nil {
-		return nil, errors.New("Homarr could not read " + name + "'s calendar; check the integration and retry self-host setup homarr")
-	}
-	results, ok := value.([]any)
-	if !ok || len(results) != 1 {
-		return nil, errors.New("Homarr did not return " + name + "'s calendar; retry self-host setup homarr")
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok || result["error"] != nil {
-		return nil, errors.New("Homarr's " + name + " calendar failed, not an empty calendar; retry self-host setup homarr")
-	}
-	integration, ok := result["integration"].(map[string]any)
-	if !ok || stringField(integration, "id") != integrationID || stringField(integration, "kind") != kind {
-		return nil, errors.New("Homarr returned another integration's calendar; retry self-host setup homarr")
-	}
-	events, ok := result["events"].([]any)
-	if !ok {
-		return nil, errors.New("Homarr returned incomplete " + name + " calendar data; retry self-host setup homarr")
-	}
-	return events, nil
 }
 
 func verifyLidarrStats(sample statsSample) error {
