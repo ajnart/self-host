@@ -205,7 +205,7 @@ func TestMissingOriginFailsWithAHint(t *testing.T) {
 	}
 	var hint string
 	for _, r := range records {
-		if r.Status == stepstatus.StepFail {
+		if r.Status == stepstatus.StepManual {
 			hint = r.Hint
 		}
 	}

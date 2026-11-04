@@ -111,6 +111,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	domain := h.Inputs["STALWART_DOMAIN"]
 	if err := h.Step(ctx, "configuration", "the hostname and administrative domain are set", helpers.StepSpec{
 		Check: func(context.Context) (bool, error) { return host != "" && domain != "", nil },
+		Do:    func(context.Context) error { return helpers.ErrManual },
 		Hint:  setupHint,
 	}); err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/firstadmin"
@@ -151,7 +152,7 @@ func login(ctx context.Context, h *helpers.H) (bool, error) {
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/api/server/config"); err != nil {
+	if err := h.Ready(ctx, "/api/server/config", helpers.Timeout(10*time.Minute)); err != nil {
 		return err
 	}
 	if err := (firstadmin.FirstAdmin{

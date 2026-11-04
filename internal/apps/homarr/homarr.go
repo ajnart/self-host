@@ -321,7 +321,7 @@ func (s *session) createAdmin(ctx context.Context, h *helpers.H) error {
 		})
 		return err
 	}
-	return errors.New("another administrator already owns Homarr")
+	return &helpers.ManualError{}
 }
 
 func (s *session) atFinish(ctx context.Context, h *helpers.H) (bool, error) {

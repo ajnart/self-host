@@ -230,7 +230,7 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 		Do: func(ctx context.Context) error {
 			return h.Poll(ctx, cfg.timeout, attempt)
 		},
-		Hint: h.App + " did not answer on " + path + "; read its logs with: self-host logs " + h.App,
+		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
 	})
 }
 
@@ -248,22 +248,32 @@ func (c readyConfig) wanted(status int) bool {
 
 // Poll calls fn until it reports done, ctx ends or timeout passes.
 func (h *H) Poll(ctx context.Context, timeout time.Duration, fn func(context.Context) (bool, error)) error {
+	pollCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	deadline := h.Now().Add(timeout)
 	var last error
 	for {
-		done, err := fn(ctx)
-		if done {
-			return nil
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-		last = err
-		if h.Now().After(deadline) {
+		remaining := deadline.Sub(h.Now())
+		if remaining <= 0 {
 			if last == nil {
 				return fmt.Errorf("timed out after %s", timeout)
 			}
 			return fmt.Errorf("timed out after %s: %w", timeout, last)
 		}
-		if err := h.Sleep(ctx, h.PollInterval); err != nil {
-			return err
+		attemptCtx, cancel := context.WithTimeout(pollCtx, remaining)
+		done, err := fn(attemptCtx)
+		cancel()
+		if done {
+			return nil
+		}
+		last = err
+		if remaining := deadline.Sub(h.Now()); remaining > 0 {
+			if err := h.Sleep(ctx, min(h.PollInterval, remaining)); err != nil {
+				return err
+			}
 		}
 	}
 }

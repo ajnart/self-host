@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/firstadmin"
@@ -178,7 +179,7 @@ func loginWorks(ctx context.Context, h *helpers.H, user, password string) (bool,
 
 func firstAdmin() firstadmin.FirstAdmin {
 	return firstadmin.FirstAdmin{
-		Ready:  firstadmin.Probe{Path: "/", Want: []int{http.StatusOK}},
+		Ready:  firstadmin.Probe{Path: "/", Want: []int{http.StatusOK}, Timeout: 5 * time.Minute},
 		Exists: adminExists,
 		Create: createAdmin,
 		Login:  loginWorks,

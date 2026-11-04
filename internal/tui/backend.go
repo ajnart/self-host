@@ -359,6 +359,9 @@ func (b ServiceBackend) Run(ctx context.Context, req Request, log *events.Logger
 		report.Command, report.Duration, report.Outcome, report.Failure = string(req.Action), b.Deps.Now().Sub(started), telemetry.OutcomeOK, err
 		if err != nil {
 			report.Outcome = telemetry.OutcomeFailed
+			if report.Stack == nil {
+				report.Stack = telemetry.CaptureStack(1)
+			}
 			if errors.Is(err, service.ErrIncomplete) {
 				report.Outcome = telemetry.OutcomeIncomplete
 			} else if errors.Is(err, service.ErrManual) {
@@ -388,7 +391,9 @@ func (b ServiceBackend) Run(ctx context.Context, req Request, log *events.Logger
 				crash, report.Panic, report.Stack = captured.Value, captured.Value, telemetry.Stack(captured.Stack)
 			}
 		}
-		s.Telemetry().Send(report)
+		if crash != nil || !service.Expected(err) {
+			s.Telemetry().Send(report)
+		}
 		if crash != nil {
 			panic(crash)
 		}

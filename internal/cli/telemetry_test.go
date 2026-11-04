@@ -284,14 +284,14 @@ func TestNoPathHostNameInputOrSecretIsSentByAnyCommand(t *testing.T) {
 func TestASlowTelemetryEndpointNeverDelaysACommand(t *testing.T) {
 	deps, net := telemetryDeps(t)
 	cat := testCatalog(&echoApp{id: "one", done: map[string]bool{}})
-	clitest.Run(t, deps, cat, "status")
+	clitest.Run(t, deps, cat, "install", "missing", "--yes")
 	hold := make(chan struct{})
 	t.Cleanup(func() { close(hold) })
 	net.Hold = hold
 	before := len(net.Bodies())
 
 	start := time.Now()
-	r := clitest.Run(t, deps, cat, "status")
+	r := clitest.Run(t, deps, cat, "install", "missing", "--yes")
 
 	if took := time.Since(start); took > 3*time.Second || r.Code == 0 {
 		t.Fatalf("command took %v and exited %d with Telemetry's endpoint never answering", took, r.Code)
@@ -507,14 +507,14 @@ func TestASuccessfulStatusSendsNothing(t *testing.T) {
 	}
 }
 
-func TestAFailedStatusSendsOneException(t *testing.T) {
+func TestAFailedInstallSendsOneException(t *testing.T) {
 	deps, net := telemetryDeps(t)
 	cat := testCatalog(&echoApp{id: "one", done: map[string]bool{}})
 
-	r := clitest.Run(t, deps, cat, "status")
+	r := clitest.Run(t, deps, cat, "install", "missing", "--yes")
 
 	if r.Code == 0 {
-		t.Fatalf("status without a Project succeeded:\n%s", r.Out)
+		t.Fatalf("install of an unknown App succeeded:\n%s", r.Out)
 	}
 	var names []any
 	for _, e := range net.Events() {

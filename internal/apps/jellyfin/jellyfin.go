@@ -134,23 +134,31 @@ func readPublicInfo(ctx context.Context, h *helpers.H) (publicInfo, error) {
 // tells the two apart: the real server answers /Startup/Configuration with
 // 200 before the wizard and 401 after it.
 func waitReady(ctx context.Context, h *helpers.H) error {
-	return h.Poll(ctx, 3*time.Minute, func(ctx context.Context) (bool, error) {
-		info, err := readPublicInfo(ctx, h)
-		if err != nil {
-			return false, err
-		}
-		if info.Version == "" {
-			return false, errors.New("Jellyfin is still starting")
-		}
-		resp, err := h.HTTP(ctx, helpers.Request{Path: "/Startup/Configuration"})
-		if err != nil {
-			return false, err
-		}
-		if resp.Status == 503 {
-			return false, errors.New("Jellyfin is still starting")
-		}
-		return true, nil
+	return h.Step(ctx, "ready", "wait for Jellyfin to finish starting", helpers.StepSpec{
+		Check: func(ctx context.Context) (bool, error) { return serverReady(ctx, h) },
+		Do: func(ctx context.Context) error {
+			return h.Poll(ctx, 3*time.Minute, func(ctx context.Context) (bool, error) { return serverReady(ctx, h) })
+		},
+		Hint: "Jellyfin did not finish starting; read its logs with: self-host logs jellyfin",
 	})
+}
+
+func serverReady(ctx context.Context, h *helpers.H) (bool, error) {
+	info, err := readPublicInfo(ctx, h)
+	if err != nil {
+		return false, err
+	}
+	if info.Version == "" {
+		return false, errors.New("Jellyfin is still starting")
+	}
+	resp, err := h.HTTP(ctx, helpers.Request{Path: "/Startup/Configuration"})
+	if err != nil {
+		return false, err
+	}
+	if resp.Status == 503 {
+		return false, errors.New("Jellyfin is still starting")
+	}
+	return true, nil
 }
 
 func wizardDone(ctx context.Context, h *helpers.H) (bool, error) {
@@ -369,6 +377,11 @@ func wanted(h *helpers.H) []library {
 	return out
 }
 
+func wizardHint(h *helpers.H, user string) string {
+	return "Open " + h.URL + " and finish the setup wizard: create the administrator " + user +
+		" with the password shown by `self-host credentials` (or reset that user's password to it), then run: self-host setup jellyfin"
+}
+
 func (App) Setup(ctx context.Context, h *helpers.H) error {
 	if err := waitReady(ctx, h); err != nil {
 		return err
@@ -376,14 +389,38 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	err := firstadmin.FirstAdmin{
 		StepID: "wizard",
 		Title:  func(*helpers.H, string) string { return "finish the startup wizard with the Admin login" },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return wizardDone(ctx, h)
+		Login: func(ctx context.Context, h *helpers.H, user, _ string) (bool, error) {
+			done, err := wizardDone(ctx, h)
+			if err != nil || !done {
+				return false, err
+			}
+			token, err := signIn(ctx, h)
+			if err != nil {
+				return false, err
+			}
+			if token == "" {
+				return false, &helpers.ManualError{Hint: wizardHint(h, user)}
+			}
+			return true, nil
 		},
-		Create: func(ctx context.Context, h *helpers.H, _, _ string) error { return runWizard(ctx, h) },
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + " and finish the setup wizard: create the administrator " + user +
-				" with the password shown by `self-host credentials`, then run: self-host setup jellyfin"
+		Create: func(ctx context.Context, h *helpers.H, user, _ string) error {
+			done, err := wizardDone(ctx, h)
+			if err != nil {
+				return err
+			}
+			if done {
+				token, err := signIn(ctx, h)
+				if err != nil {
+					return err
+				}
+				if token != "" {
+					return nil
+				}
+				return &helpers.ManualError{Hint: wizardHint(h, user)}
+			}
+			return runWizard(ctx, h)
 		},
+		Hint: wizardHint,
 	}.Admin(ctx, h)
 	if err != nil {
 		return err

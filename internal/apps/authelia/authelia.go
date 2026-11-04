@@ -138,6 +138,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	return h.Step(ctx, "admin-login", "the Admin login signs in to the portal", helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return login(ctx, h) },
 		Do: func(ctx context.Context) error {
+			if !httpsOrigin(h.Inputs["origin"]) {
+				return helpers.ErrManual
+			}
 			return h.Poll(ctx, 2*time.Minute, func(ctx context.Context) (bool, error) { return login(ctx, h) })
 		},
 		Hint: "Open " + h.URL + " and sign in with the Admin login (self-host credentials). " +
@@ -159,12 +162,16 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 
 func (App) Links() []app.Link { return nil }
 
+func httpsOrigin(origin string) bool {
+	portal, err := url.Parse(strings.TrimSpace(origin))
+	return err == nil && portal.Scheme == "https" && portal.Hostname() != "" && portal.User == nil && portal.RawQuery == "" && portal.Fragment == "" && (portal.Path == "" || portal.Path == "/")
+}
+
 // login performs the one-factor login and proves the resulting session with
 // /api/state, so a bare HTTP 200 is never accepted as identity.
 func login(ctx context.Context, h *helpers.H) (bool, error) {
 	origin := strings.TrimSpace(h.Inputs["origin"])
-	portal, err := url.Parse(origin)
-	if err != nil || portal.Scheme != "https" || portal.Hostname() == "" || portal.User != nil || portal.RawQuery != "" || portal.Fragment != "" || (portal.Path != "" && portal.Path != "/") {
+	if !httpsOrigin(origin) {
 		return false, fmt.Errorf("Authelia requires the saved approved HTTPS portal origin and a trusted private TLS route")
 	}
 	session := h.Session()

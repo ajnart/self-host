@@ -219,7 +219,7 @@ var domainName = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-
 func cleanDomain(domain string) (string, error) {
 	d := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 	if !domainName.MatchString(d) {
-		return "", fmt.Errorf("%q is not a domain name; give your main domain on its own, like example.com", domain)
+		return "", Input(fmt.Errorf("%q is not a domain name; give your main domain on its own, like example.com", domain))
 	}
 	return d, nil
 }
@@ -234,7 +234,7 @@ func cleanEmails(emails []string) ([]string, error) {
 			}
 			addr, err := mail.ParseAddress(one)
 			if err != nil || addr.Address != one || !strings.Contains(one[strings.Index(one, "@"):], ".") {
-				return nil, fmt.Errorf("%q is not an email address; a mistyped one would fail silently at the login page", one)
+				return nil, Input(fmt.Errorf("%q is not an email address; a mistyped one would fail silently at the login page", one))
 			}
 			one = strings.ToLower(one)
 			if !slices.Contains(out, one) {
@@ -243,7 +243,7 @@ func cleanEmails(emails []string) ([]string, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, errors.New("name at least one email address that may sign in (--email)")
+		return nil, Input(errors.New("name at least one email address that may sign in (--email)"))
 	}
 	return out, nil
 }
@@ -261,7 +261,7 @@ func (s *Service) CloudflarePlan(ctx context.Context, opts CloudflareOptions) (C
 		return plan, err
 	}
 	if len(opts.Apps) == 0 {
-		return plan, errors.New("choose the Apps to publish, one by one (--app); nothing is published by default")
+		return plan, Input(errors.New("choose the Apps to publish, one by one (--app); nothing is published by default"))
 	}
 	ss, err := s.open(ctx)
 	if err != nil {
@@ -438,14 +438,12 @@ func (s *Service) CloudflarePublish(ctx context.Context, opts CloudflareOptions)
 	if err != nil {
 		return result, s.endCloudflareRun(err)
 	}
-	if err := ss.refreshDashboard(ctx); err != nil {
-		return result, s.endCloudflareRun(err)
-	}
+	dashboardErr := ss.refreshDashboard(ctx)
 	if len(res.Failed) > 0 {
-		return result, s.endCloudflareRun(fmt.Errorf("%w: %d of %d addresses did not show the login page and were taken back off the internet",
-			ErrIncomplete, len(res.Failed), len(plan.Publish)))
+		return result, s.endCloudflareRun(errors.Join(fmt.Errorf("%w: %d of %d addresses did not show the login page and were taken back off the internet",
+			ErrIncomplete, len(res.Failed), len(plan.Publish)), dashboardErr))
 	}
-	return result, s.endCloudflareRun(nil)
+	return result, s.endCloudflareRun(dashboardErr)
 }
 
 func refusals(plan CloudflarePlan) string {
@@ -688,10 +686,10 @@ func (s *Service) CloudflareRemove(ctx context.Context, opts CloudflareOptions) 
 	})
 	if err != nil {
 		rec.Warning = "Removal could not finish. Remote resources may remain; retain ownership and review Cloudflare or retry with a fresh private API token."
-		return s.endCloudflareRun(errors.Join(err, writeCloudflareRecord(p, rec), s.refreshRunningDashboard(ctx)))
+		return s.endCloudflareRun(joinDashboardError(errors.Join(err, writeCloudflareRecord(p, rec)), s.refreshRunningDashboard(ctx)))
 	}
 	err = s.saveCloudflareRecord(ctx, CloudflarePlan{}, nil)
-	return s.endCloudflareRun(errors.Join(err, s.refreshRunningDashboard(ctx)))
+	return s.endCloudflareRun(joinDashboardError(err, s.refreshRunningDashboard(ctx)))
 }
 
 func (s *Service) refreshRunningDashboard(ctx context.Context) error {

@@ -378,11 +378,11 @@ func TestAnExceptionCarriesInAppFramesWithModuleRelativePaths(t *testing.T) {
 	}
 }
 
-func TestAnExceptionWithoutAStackStillCarriesInAppFrames(t *testing.T) {
+func TestAnExceptionWithoutAStackDoesNotInventFrames(t *testing.T) {
 	s := enabled(t)
 	s.send(telemetry.Report{Command: "setup", Outcome: telemetry.OutcomeFailed, Failure: errors.New("x")})
-	if got := frames(t, exceptionItem(t, s)); len(got) == 0 {
-		t.Fatal("no frames")
+	if got := exceptionItem(t, s)["stacktrace"].(map[string]any)["frames"]; got != nil {
+		t.Fatal("sender frames were invented for an exception without a captured stack")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -503,10 +504,13 @@ func (a noPageApp) Info() app.Info {
 func TestHomarrInventoryUsesTheFriendliestWorkingAddress(t *testing.T) {
 	dashboard := &inventoryProbeApp{testApp: &testApp{id: "homarr", done: map[string]bool{}}, inspect: true}
 	h := newHarness(t, dashboard, &testApp{id: "one", done: map[string]bool{}})
+	h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
 	if err := h.install("one", "homarr"); err != nil {
 		t.Fatal(err)
 	}
-	h.ownCaddyRuns()
+	(&tailnet{running: []string{"homarr", "access-caddy"}}).install(h)
 	if err := h.svc.ConfigSet(context.Background(), []string{"EASY_NAMES=on"}); err != nil {
 		t.Fatal(err)
 	}
@@ -713,6 +717,10 @@ func TestNamesFallBackWhenCaddyStopsOrLANChangesDespiteWorkingDNS(t *testing.T) 
 func TestHomarrInventoryKeepsNumberedAddressesWhenCaddyIsUnavailable(t *testing.T) {
 	dashboard := &inventoryProbeApp{testApp: &testApp{id: "homarr", done: map[string]bool{}}, inspect: true}
 	h := newHarness(t, dashboard, &testApp{id: "one", done: map[string]bool{}})
+	(&tailnet{running: []string{"homarr"}}).install(h)
+	h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
 	if err := h.install("one", "homarr"); err != nil {
 		t.Fatal(err)
 	}

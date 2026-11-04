@@ -46,6 +46,9 @@ func (a *program) startTelemetry(root *cobra.Command, args []string) func(err er
 			Panic:       a.panicked,
 		}
 		if report.Outcome != telemetry.OutcomeOK && report.Outcome != telemetry.OutcomeManual {
+			if a.panicked == nil && (cmd.Name() == "doctor" || service.Expected(a.failure) || service.Expected(err)) {
+				return
+			}
 			report.Failure = a.failure
 			var exit exitError
 			if report.Failure == nil && !errors.As(err, &exit) {

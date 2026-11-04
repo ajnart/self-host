@@ -220,6 +220,9 @@ type session struct {
 	navigationError      error
 	navigationWarnings   []string
 	deferDashboard       bool
+	dashboardExplicit    bool
+	dashboardChecked     bool
+	dashboardError       error
 	refreshed            []string
 }
 
@@ -467,6 +470,14 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 			if !slices.ContainsFunc(links, func(l app.Link) bool { return l.Target == id }) {
 				continue
 			}
+			if otherID == dashboardAppID && !ss.dashboardExplicit {
+				if err := ss.homarrAvailable(ctx, other); err != nil {
+					if errors.Is(err, ErrManual) {
+						continue
+					}
+					return incomplete, errors.Join(err, ss.p.SaveState(ss.state))
+				}
+			}
 			// A Link that failed earlier may have been waiting on this App
 			// indirectly (Seerr's servers need its Jellyfin Link), so retry it.
 			for _, link := range links {
@@ -622,4 +633,21 @@ func registerSecrets(log *events.Logger, secrets map[string]string) {
 			log.Secret(value)
 		}
 	}
+}
+
+type inputError struct{ err error }
+
+func (e inputError) Error() string { return e.err.Error() }
+func (e inputError) Unwrap() error { return e.err }
+
+func Input(err error) error {
+	if err == nil {
+		return nil
+	}
+	return inputError{err}
+}
+
+func Expected(err error) bool {
+	var in inputError
+	return errors.As(err, &in) || errors.Is(err, ErrNoProject)
 }
