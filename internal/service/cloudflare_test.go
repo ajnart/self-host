@@ -378,15 +378,39 @@ func TestCloudflareServiceStartsTheConnectorOnlyAfterIngressAndBeforeDNS(t *test
 
 func TestCloudflareFailedProbeIsNotAnAddressAndStillCanBeRemoved(t *testing.T) {
 	h, server, opts := publicationHarness(t)
+	dashboard := &inventoryProbeApp{testApp: &testApp{id: "homarr", done: map[string]bool{}}}
+	h.svc.Catalog = catalog.New(append(h.svc.Catalog.Apps(), dashboard), nil)
+	if err := h.install("homarr"); err != nil {
+		t.Fatal(err)
+	}
+	net := &tailnet{running: []string{"paperless-ngx", "jellyfin", "cloudflare-tunnel"}, trackStartup: true}
+	net.install(h)
 	h.deps.HTTP = &http.Client{Transport: cloudflareTransport{server: server, status: 200}}
 	res, err := h.svc.CloudflarePublish(t.Context(), opts)
 	if !errors.Is(err, ErrIncomplete) || len(res.Published) != 0 || len(res.Failed) != 2 || len(server.Records()) != 0 {
 		t.Fatalf("result %+v err %v", res, err)
 	}
+	if !errors.Is(err, ErrManual) {
+		t.Fatal("publication failure lost the deferred dashboard error")
+	}
 	as := appStatus(t, h, "paperless-ngx")
 	if !slices.Equal(as.Addresses, []string{"http://192.168.1.20:9000"}) {
 		t.Fatalf("unverified Address in status %v", as.Addresses)
 	}
+	net.running = append(net.running, "homarr")
+	transport := h.deps.HTTP.Transport
+	h.deps.HTTP.Transport = tailscaleHTTP(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Hostname() == "127.0.0.1" && req.URL.Path == "/api/health/live" {
+			return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: http.NoBody}, nil
+		}
+		return transport.RoundTrip(req)
+	})
+	server.SetFailure("DELETE", "/accounts/acct-1/cfd_tunnel/tunnel-1")
+	if err := h.svc.CloudflareRemove(t.Context(), opts); !errors.Is(err, ErrIncomplete) || !errors.Is(err, ErrManual) || !strings.Contains(err.Error(), "temporary failure") {
+		t.Fatalf("removal failure was hidden by the deferred dashboard error: %v", err)
+	}
+	server.SetFailure("", "")
+	net.running = slices.DeleteFunc(net.running, func(service string) bool { return service == "homarr" })
 	if err := h.svc.CloudflareRemove(t.Context(), opts); err != nil {
 		t.Fatal(err)
 	}

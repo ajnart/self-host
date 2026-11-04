@@ -393,18 +393,21 @@ func TestLastAppTeardownFailureKeepsRemovalRetryable(t *testing.T) {
 }
 
 func TestFailedPullStopsBeforeUp(t *testing.T) {
-	h := newHarness(t, &testApp{id: "one", image: "example/one:latest", done: map[string]bool{}}, &testApp{id: "two", image: "example/two:latest", done: map[string]bool{}})
-	h.runner.OnStreamError("--progress json pull", "", errors.New("exit status 125"))
+	for _, status := range []string{"Working", "Error"} {
+		h := newHarness(t, &testApp{id: "one", image: "example/one:latest", done: map[string]bool{}}, &testApp{id: "two", image: "example/two:latest", done: map[string]bool{}})
+		line := `{"id":"Image example/one:latest","status":"` + status + `","text":"Pulling"}` + "\nunknown pull failure\n"
+		h.runner.OnStreamError("--progress json pull", line, errors.New("exit status 125"))
 
-	if err := h.install("one", "two"); err == nil {
-		t.Fatal("install succeeded despite a failed pull")
-	}
-	if calls := h.composeCalls(); len(calls) != 1 || calls[0] != "--progress json pull one two" {
-		t.Fatalf("Compose ran past the failed pull: %v", calls)
-	}
-	for _, id := range []string{"one", "two"} {
-		if e := h.rec.find(id, "pull"); e == nil || e.Event != events.StepFail {
-			t.Fatalf("unattributed pull failure not reported for %s: %+v", id, e)
+		if err := h.install("one", "two"); err == nil {
+			t.Fatal("install succeeded despite a failed pull")
+		}
+		if calls := h.composeCalls(); len(calls) != 1 || calls[0] != "--progress json pull one two" {
+			t.Fatalf("Compose ran past the failed pull: %v", calls)
+		}
+		for _, id := range []string{"one", "two"} {
+			if e := h.rec.find(id, "pull"); e == nil || e.Event != events.StepFail {
+				t.Fatalf("%s pull failure not reported for %s: %+v", status, id, e)
+			}
 		}
 	}
 }

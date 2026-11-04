@@ -438,14 +438,12 @@ func (s *Service) CloudflarePublish(ctx context.Context, opts CloudflareOptions)
 	if err != nil {
 		return result, s.endCloudflareRun(err)
 	}
-	if err := ss.refreshDashboard(ctx); err != nil {
-		return result, s.endCloudflareRun(err)
-	}
+	dashboardErr := ss.refreshDashboard(ctx)
 	if len(res.Failed) > 0 {
-		return result, s.endCloudflareRun(fmt.Errorf("%w: %d of %d addresses did not show the login page and were taken back off the internet",
-			ErrIncomplete, len(res.Failed), len(plan.Publish)))
+		return result, s.endCloudflareRun(errors.Join(fmt.Errorf("%w: %d of %d addresses did not show the login page and were taken back off the internet",
+			ErrIncomplete, len(res.Failed), len(plan.Publish)), dashboardErr))
 	}
-	return result, s.endCloudflareRun(nil)
+	return result, s.endCloudflareRun(dashboardErr)
 }
 
 func refusals(plan CloudflarePlan) string {
@@ -688,10 +686,10 @@ func (s *Service) CloudflareRemove(ctx context.Context, opts CloudflareOptions) 
 	})
 	if err != nil {
 		rec.Warning = "Removal could not finish. Remote resources may remain; retain ownership and review Cloudflare or retry with a fresh private API token."
-		return s.endCloudflareRun(errors.Join(err, writeCloudflareRecord(p, rec), s.refreshRunningDashboard(ctx)))
+		return s.endCloudflareRun(joinDashboardError(errors.Join(err, writeCloudflareRecord(p, rec)), s.refreshRunningDashboard(ctx)))
 	}
 	err = s.saveCloudflareRecord(ctx, CloudflarePlan{}, nil)
-	return s.endCloudflareRun(errors.Join(err, s.refreshRunningDashboard(ctx)))
+	return s.endCloudflareRun(joinDashboardError(err, s.refreshRunningDashboard(ctx)))
 }
 
 func (s *Service) refreshRunningDashboard(ctx context.Context) error {

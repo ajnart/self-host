@@ -221,7 +221,7 @@ func (s *Service) runLocked(ctx context.Context, c change, p *project.Project) e
 		err = c.complete(ss)
 	}
 	if c.compose == composeStop && slices.Contains(ids, cloudflareConnector) {
-		err = errors.Join(err, ss.refreshRunningDashboard(ctx))
+		err = joinDashboardError(err, ss.refreshRunningDashboard(ctx))
 	}
 	return s.finish(err)
 }
@@ -522,7 +522,7 @@ func (s *Service) runAfter(ctx context.Context, ss *session, step afterStep, ids
 		}
 		err := ss.setupAll(ctx, apps)
 		if !slices.Contains(ids, "homarr") || slices.Contains(ids, tailscaleID) || slices.Contains(ids, cloudflareConnector) {
-			err = errors.Join(err, ss.refreshDashboard(ctx))
+			err = joinDashboardError(err, ss.refreshDashboard(ctx))
 		}
 		if err != nil {
 			return err
@@ -608,22 +608,35 @@ func (ss *session) refreshDashboard(ctx context.Context) error {
 	return ss.reconcileDashboard(ctx)
 }
 
+func joinDashboardError(primary, dashboard error) error {
+	if primary != nil && !errors.Is(primary, ErrIncomplete) && !errors.Is(primary, ErrManual) && errors.Is(dashboard, ErrManual) {
+		primary = errors.Join(ErrIncomplete, primary)
+	}
+	return errors.Join(primary, dashboard)
+}
+
 func (ss *session) refreshRunningDashboard(ctx context.Context) error {
 	a, found := ss.s.Catalog.App(dashboardAppID)
 	if !found || !ss.ready(dashboardAppID) {
 		return nil
-	}
-	if err := ss.homarrAvailable(ctx, a); err != nil {
-		return err
 	}
 	ss.invalidateNavigation()
 	containers, err := ss.compose.Ps(ctx)
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	byService := map[string]compose.Container{}
 	for _, c := range containers {
 		byService[c.Service] = c
+	}
+	if byService[a.Info().Service].State != "running" {
+		return nil
+	}
+	if err := ss.homarrAvailable(ctx, a); err != nil {
+		return err
 	}
 	ids, err := ss.p.AppIDs()
 	if err != nil {
@@ -708,11 +721,8 @@ func (ss *session) clearStartFailure(ids []string, msg string) {
 func (ss *session) recordStage(ids []string, e events.Event) error {
 	for _, id := range ids {
 		status := stepstatus.StepOK
-		switch e.Event {
-		case events.StepFail:
+		if e.Event == events.StepFail {
 			status = stepstatus.StepFail
-		case events.StepSkip:
-			status = stepstatus.StepSkip
 		}
 		ss.recorder(id)(helpers.StepResult{ID: e.Step, Status: status, Msg: e.Msg, Error: e.Error, Hint: e.Hint})
 		st := ss.state.Apps[id]
@@ -764,34 +774,14 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 		}
 		image := pullImageName(err)
 		hint := "Check the network and the registry, then retry."
-		failed, others := ids, []string(nil)
 		var perr *compose.PullError
 		if errors.As(err, &perr) && perr.Image != "" {
 			hint = fmt.Sprintf("Run `docker pull %s`, then check the network and the registry, and retry.", image)
-			if matching, remaining := ss.splitByImage(ids, perr.Image); len(matching) > 0 {
-				failed, others = matching, remaining
-			}
 		}
 		fail := events.Event{Event: events.StepFail, Step: StagePull, Msg: "could not pull " + image, Error: err.Error(), Hint: hint}
-		skip := events.Event{Event: events.StepSkip, Step: StagePull, Msg: "not pulled: could not pull " + image + " for another App"}
-		recorded := ss.recordStage(failed, fail)
-		if len(others) > 0 {
-			recorded = errors.Join(recorded, ss.recordStage(others, skip))
-		}
-		return errors.Join(err, recorded)
+		return errors.Join(err, ss.recordStage(ids, fail))
 	}
 	return ss.recordStage(ids, events.Event{Event: events.StepOK, Step: StagePull, Msg: "pulled " + strings.Join(ids, ", ")})
-}
-
-func (ss *session) splitByImage(ids []string, image string) (matching, others []string) {
-	for _, id := range ids {
-		if a, found := ss.s.Catalog.App(id); found && a.Info().Image == image {
-			matching = append(matching, id)
-			continue
-		}
-		others = append(others, id)
-	}
-	return matching, others
 }
 
 func pullMessage(n int) string {
