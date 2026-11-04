@@ -210,6 +210,9 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 		Check: func(context.Context) (bool, error) {
 			return strings.HasPrefix(base, "https://"), nil
 		},
+		Do: func(context.Context) error {
+			return helpers.ErrManual
+		},
 		Hint: managementHint,
 	}); err != nil {
 		return err
