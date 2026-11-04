@@ -330,10 +330,17 @@ func TestSonarrWitnessStateAndAdmissionPrecedeAppWrites(t *testing.T) {
 			} else {
 				_, err = p.CreateSonarrFilterWitness(ctx)
 			}
-			assertSonarrWitnessFailure(t, p, err)
 			if len(w.requests) != requests || w.posts != posts {
 				t.Fatal("invalid witness state reached the App")
 			}
+			if mode == "disabled" {
+				var startup *StartupError
+				if !errors.As(err, &startup) || startup.Reason() != string(StartupReasonOptions) || p.owner.closed || p.owner.pair.failed {
+					t.Fatalf("a disabled witness must refuse without closing the Pair: %v", err)
+				}
+				return
+			}
+			assertSonarrWitnessFailure(t, p, err)
 		})
 	}
 	for _, options := range []PairOptions{

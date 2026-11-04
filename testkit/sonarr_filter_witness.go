@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"regexp"
 	"strconv"
@@ -165,12 +166,22 @@ func sonarrFilterReceipt(resource sonarrFilterResource) (SonarrFilterWitness, er
 	return SonarrFilterWitness{Kind: sonarrFilterWitnessKind, ObjectID: resource.ID, ContentSHA256: hex.EncodeToString(fingerprint[:])}, nil
 }
 
+func (p *Pair) witnessAvailable() error {
+	if p.owner.closed || p.owner.pair.failed {
+		return errors.New("testkit pair is closed")
+	}
+	if !p.owner.pair.options.SonarrFilterWitness {
+		return sonarrWitnessFailure(StartupReasonOptions)
+	}
+	return nil
+}
+
 func (p *Pair) CreateSonarrFilterWitness(ctx context.Context) (_ SonarrFilterWitness, err error) {
 	a := p.owner
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed || a.pair.failed {
-		return SonarrFilterWitness{}, sonarrWitnessFailure(StartupReasonOptions)
+	if err := p.witnessAvailable(); err != nil {
+		return SonarrFilterWitness{}, err
 	}
 	defer a.closeOnPairFailure(&err)
 	work, cancel := context.WithDeadline(ctx, minTime(a.workDeadline, time.Now().Add(30*time.Second)))
@@ -253,8 +264,8 @@ func (p *Pair) ReadSonarrFilterWitness(ctx context.Context) (_ SonarrFilterWitne
 	a := p.owner
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed || a.pair.failed {
-		return SonarrFilterWitness{}, sonarrWitnessFailure(StartupReasonOptions)
+	if err := p.witnessAvailable(); err != nil {
+		return SonarrFilterWitness{}, err
 	}
 	defer a.closeOnPairFailure(&err)
 	work, cancel := context.WithDeadline(ctx, minTime(a.workDeadline, time.Now().Add(30*time.Second)))
