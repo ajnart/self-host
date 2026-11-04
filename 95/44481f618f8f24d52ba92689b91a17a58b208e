@@ -1,0 +1,35 @@
+.github/workflows/ci.yml
+  s_a4b9774c185942::t_8a02efe37233c9 52-53
+internal/catalog/apps_gen.go
+  s_0f0d7a5be1128f::t_cbfa4b45ef4a91 1-2,6,8,10,12-15,17,19-23,25,27-43,45-46,48-56,58-64,66-69,71-76,78,80-91,93-96,99,101-104,106-108,110-114,120-121,123,125,127-132,134,136-140,142,144-160,162-163,165-173,175-181,183-186,188-193,195,197-208,210-213,216,218-221,223-225,227-231,235
+internal/catalog/default.go
+  s_0f0d7a5be1128f::t_36d72aa6c11374 5
+internal/catalog/recipes.go
+  s_0f0d7a5be1128f::t_8114ecd68775a4 1-58
+tools/registrygen/main.go
+  s_0f0d7a5be1128f::t_3d68f647ebdaf2 1-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9544481f618f8f24d52ba92689b91a17a58b208e",
+  "prompts": {},
+  "sessions": {
+    "s_0f0d7a5be1128f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66c8ff99-15fa-427c-ad48-60466ed18b1f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_a4b9774c185942": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3da7f70e-d052-4990-8f53-1cdf54d4fe30",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
