@@ -15,6 +15,9 @@ var loginDenied = []int{401, 403}
 
 // AdminEmail is the sign-in address the Email template makes for user.
 func (s Spec) AdminEmail(user string) string {
+	if user == "" && strings.Contains(s.Email, "{user}") {
+		return ""
+	}
 	return strings.ReplaceAll(s.Email, "{user}", user)
 }
 

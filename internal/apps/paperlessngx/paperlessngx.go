@@ -6,15 +6,12 @@ package paperlessngx
 
 import (
 	"context"
-	"fmt"
-	"net/url"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
 	"github.com/ajnart/self-host/internal/names"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 type App struct{}
@@ -106,61 +103,27 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
-	usersPath := "/api/users/?username=" + url.QueryEscape(h.AdminUser()) + "&page_size=2"
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Path:     usersPath,
-		User:     h.AdminUser(),
-		Password: h.AdminPassword(),
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == 401 || resp.Status == 403 {
-		return false, nil
-	}
-	if resp.Status != 200 {
-		return false, fmt.Errorf("Paperless %s returned HTTP %d", usersPath, resp.Status)
-	}
-	var users struct {
-		Results []struct {
-			ID          int    `json:"id"`
-			Username    string `json:"username"`
-			IsSuperuser bool   `json:"is_superuser"`
-			IsActive    bool   `json:"is_active"`
-		} `json:"results"`
-	}
-	if err := resp.Decode(&users); err != nil {
-		return false, err
-	}
-	matches := 0
-	for _, u := range users.Results {
-		if u.Username == h.AdminUser() && u.IsSuperuser && u.IsActive {
-			matches++
-		}
-	}
-	return matches == 1, nil
+var setup = setupspec.Spec{
+	Kind:  setupspec.KindFirstAdmin,
+	Name:  "Paperless-ngx",
+	Probe: setupspec.Probe{Path: "/", Want: []int{200, 302}, Timeout: "5m"},
+	Login: []setupspec.Call{{
+		Path:  "/api/users/?username={user}&page_size=2",
+		Basic: true,
+		Assert: []setupspec.Assert{{Path: "results", Some: []setupspec.Assert{
+			{Path: "username", Equals: "{user}"},
+			{Path: "is_superuser", Equals: "true"},
+			{Path: "is_active", Equals: "true"},
+		}}},
+	}},
+	StepID:     "admin-login",
+	Title:      "administrator {user} signs in",
+	CreateWait: "5m",
+	Hint:       "Open {url} and sign in as {user}. The Admin login is shown by self-host credentials. Administrator environment settings create a missing account only; changing them cannot reset an existing password. Recover that account explicitly; if the first start failed, read: self-host logs paperless-ngx",
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	ready := firstadmin.NoAccount{Probe: firstadmin.Probe{Path: "/", Want: []int{200, 302}, Timeout: 5 * time.Minute}}
-	if err := ready.Setup(ctx, h); err != nil {
-		return err
-	}
-	if err := (firstadmin.FirstAdmin{
-		StepID: "admin-login",
-		Title:  func(_ *helpers.H, user string) string { return "administrator " + user + " signs in" },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminWorks(ctx, h)
-		},
-		Create: func(ctx context.Context, h *helpers.H, _, _ string) error {
-			return h.Poll(ctx, 5*time.Minute, func(ctx context.Context) (bool, error) { return adminWorks(ctx, h) })
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + " and sign in as " + user +
-				". The Admin login is shown by self-host credentials. Administrator environment settings create a missing account only; changing them cannot reset an existing password. Recover that account explicitly; if the first start failed, read: self-host logs paperless-ngx"
-		},
-	}).Admin(ctx, h); err != nil {
+	if err := setup.Setup(ctx, h); err != nil {
 		return err
 	}
 	h.Info("Place copies of documents to import in the App's consume folder, mounted at /usr/src/paperless/consume, or upload them through Paperless-ngx. Successfully consumed files are removed from that folder and stored in the document archive; keep original backups elsewhere.")
@@ -178,15 +141,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	})
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	ok, err := adminWorks(ctx, h)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("the administrator %s cannot sign in to Paperless-ngx", h.AdminUser())
-	}
-	return nil
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }

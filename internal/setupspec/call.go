@@ -160,6 +160,7 @@ func (c Call) run(ctx context.Context, h *helpers.H, vars scope, defaultDenied [
 			return false, nil
 		}
 		vars[name] = fmt.Sprint(value)
+		h.Log.Secret(vars[name])
 	}
 	return holdAll(c.Assert, body, vars), nil
 }

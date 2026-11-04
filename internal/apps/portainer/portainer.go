@@ -5,13 +5,11 @@ package portainer
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Portainer. Traps: docs/catalog/traps/portainer.md.
@@ -54,67 +52,28 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-// loginWorks authenticates the preseeded administrator and reads back the
-// identity through the bearer session.
-func loginWorks(ctx context.Context, h *helpers.H, user, password string) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Method: "POST", Path: "/api/auth",
-		JSON: map[string]string{"Username": user, "Password": password},
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == 401 || resp.Status == 403 {
-		return false, nil
-	}
-	if !resp.OK() {
-		return false, fmt.Errorf("sign-in returned HTTP %d", resp.Status)
-	}
-	var login struct {
-		JWT string `json:"jwt"`
-	}
-	if err := resp.Decode(&login); err != nil {
-		return false, err
-	}
-	if login.JWT == "" {
-		return false, nil
-	}
-	me, err := h.HTTP(ctx, helpers.Request{Path: "/api/users/me", Header: map[string]string{"Authorization": "Bearer " + login.JWT}})
-	if err != nil {
-		return false, err
-	}
-	if !me.OK() {
-		return false, nil
-	}
-	var account struct {
-		ID       int    `json:"Id"`
-		Username string `json:"Username"`
-	}
-	if err := me.Decode(&account); err != nil {
-		return false, err
-	}
-	return account.Username == user, nil
+var setup = setupspec.Spec{
+	Kind:  setupspec.KindFirstAdmin,
+	Name:  "Portainer",
+	Probe: setupspec.Probe{Path: "/", Timeout: "3m"},
+	Login: []setupspec.Call{
+		{
+			Path:    "/api/auth",
+			JSON:    map[string]any{"Username": "{user}", "Password": "{password}"},
+			Capture: map[string]string{"token": "jwt"},
+		},
+		{
+			Path:    "/api/users/me",
+			Header:  map[string]string{"Authorization": "Bearer {token}"},
+			Lenient: true,
+			Assert:  []setupspec.Assert{{Path: "Username", Equals: "{user}"}},
+		},
+	},
+	Title:       "the preseeded administrator signs in",
+	CreateError: "Portainer seeds its administrator from the password file at first start",
+	Hint:        "Open {url}, sign in as {user} with the password shown by `self-host credentials`, then connect a Docker environment separately.",
 }
 
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/"); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		Title: func(*helpers.H, string) string { return "the preseeded administrator signs in" },
-		Login: loginWorks,
-		Create: func(context.Context, *helpers.H, string, string) error {
-			return errors.New("Portainer seeds its administrator from the password file at first start")
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + ", sign in as " + user + " with the password shown by `self-host credentials`, then connect a Docker environment separately."
-		},
-	}.Admin(ctx, h)
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	if ok, err := loginWorks(ctx, h, h.AdminUser(), h.AdminPassword()); !ok {
-		return fmt.Errorf("the preseeded Portainer administrator cannot sign in: %v", err)
-	}
-	return nil
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
