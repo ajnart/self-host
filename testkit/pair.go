@@ -32,13 +32,12 @@ const (
 )
 
 type PairOptions struct {
-	Consumer            string
-	Target              string
-	Order               PairOrder
-	Timeout             time.Duration
-	RootParent          string
-	Images              map[string]string
-	SonarrFilterWitness bool
+	Consumer   string
+	Target     string
+	Order      PairOrder
+	Timeout    time.Duration
+	RootParent string
+	Images     map[string]string
 }
 
 type PairStep struct {
@@ -77,14 +76,13 @@ type AppView struct {
 }
 
 type pairState struct {
-	options             PairOptions
-	apps                []app.App
-	ports               map[string]int
-	install             service.InstallOptions
-	link                string
-	initial             PairInspection
-	failed              bool
-	sonarrFilterWitness sonarrFilterWitnessState
+	options PairOptions
+	apps    []app.App
+	ports   map[string]int
+	install service.InstallOptions
+	link    string
+	initial PairInspection
+	failed  bool
 }
 
 func StartPair(ctx context.Context, options PairOptions) (*Pair, error) {
@@ -104,9 +102,6 @@ func startPair(ctx context.Context, options PairOptions, deps *system.Deps, cat 
 }
 
 func pairSelection(cat *catalog.Catalog, options PairOptions) (app.App, error) {
-	if options.SonarrFilterWitness && (options.Consumer != "homarr" || options.Target != "sonarr" || !sonarrWitnessImage(options.Images["sonarr"])) {
-		return nil, startupError(StartupReasonUnsupported, "testkit Sonarr filter witness requires the selected pair and an immutable target image")
-	}
 	consumer, found := cat.App(options.Consumer)
 	target, targetFound := cat.App(options.Target)
 	if !found || !targetFound || options.Consumer == options.Target || catalog.Unavailable(options.Consumer) != "" || catalog.Unavailable(options.Target) != "" {
