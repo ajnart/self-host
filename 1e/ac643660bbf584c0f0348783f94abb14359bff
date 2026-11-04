@@ -1,0 +1,18 @@
+internal/apps/jellyfin/jellyfin.go
+  h_d6e478ca18e517 401-412
+internal/helpers/http.go
+  h_d6e478ca18e517 254-262,264,271-273
+internal/tui/run.go
+  h_d6e478ca18e517 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1eac643660bbf584c0f0348783f94abb14359bff",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
