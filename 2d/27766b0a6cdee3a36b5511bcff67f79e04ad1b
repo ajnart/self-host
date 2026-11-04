@@ -1,0 +1,21 @@
+internal/setupspec/first_admin_test.go
+  s_3cf8e71abddb5b::t_2e100bd5c1af43 1-202
+internal/setupspec/kind_first_admin.go
+  s_3cf8e71abddb5b::t_0b89797cf62202 31-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d27766b0a6cdee3a36b5511bcff67f79e04ad1b",
+  "prompts": {},
+  "sessions": {
+    "s_3cf8e71abddb5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe4a2830-1bb0-4476-8bcc-bbee5d72c07c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
