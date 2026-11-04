@@ -1,0 +1,25 @@
+internal/apps/homeassistant/homeassistant.go
+  s_819ac2ba28e476::t_050a73d0401af7 11,182
+internal/apps/immich/immich.go
+  s_819ac2ba28e476::t_bf1fc1af877623 11,155
+internal/firstadmin/firstadmin.go
+  s_819ac2ba28e476::t_b427d88dc95609 95
+internal/helpers/http.go
+  s_819ac2ba28e476::t_030475685f82ee 233,254-259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01e40804261b65b2a9c3a555cbe5a629ace3161a",
+  "prompts": {},
+  "sessions": {
+    "s_819ac2ba28e476": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66cb8248-526c-4928-b3ec-40cec3aa2d8c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
