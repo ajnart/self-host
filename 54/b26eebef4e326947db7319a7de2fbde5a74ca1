@@ -1,0 +1,21 @@
+docs/telemetry.md
+  s_820b67bd2be060::t_0ac17c5a41f67c 30-32
+internal/service/mutation.go
+  s_820b67bd2be060::t_0bdb4a3610d4de 643,661,664,668,671
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "54b26eebef4e326947db7319a7de2fbde5a74ca1",
+  "prompts": {},
+  "sessions": {
+    "s_820b67bd2be060": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30126712-835c-48c7-be31-ba3c35c5da46",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
