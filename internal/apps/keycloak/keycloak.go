@@ -4,15 +4,11 @@ package keycloak
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Keycloak. Traps: docs/catalog/traps/keycloak.md.
@@ -72,82 +68,33 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-// adminRealm signs in through the admin-cli token flow and reads the master
-// realm back with the resulting access token.
-func adminRealm(ctx context.Context, h *helpers.H) (bool, error) {
-	form := url.Values{
-		"client_id":  {"admin-cli"},
-		"username":   {h.AdminUser()},
-		"password":   {h.AdminPassword()},
-		"grant_type": {"password"},
-	}
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Method: http.MethodPost, Path: "/realms/master/protocol/openid-connect/token", Form: form,
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == http.StatusUnauthorized {
-		return false, nil
-	}
-	if resp.Status != http.StatusOK {
-		return false, fmt.Errorf("the token endpoint returned HTTP %d", resp.Status)
-	}
-	var token struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := resp.Decode(&token); err != nil {
-		return false, err
-	}
-	if token.AccessToken == "" {
-		return false, errors.New("the token endpoint returned no access token")
-	}
-	realm, err := h.HTTP(ctx, helpers.Request{
-		Path:   "/admin/realms/master",
-		Header: map[string]string{"Authorization": "Bearer " + token.AccessToken},
-	})
-	if err != nil {
-		return false, err
-	}
-	if realm.Status != http.StatusOK {
-		return false, fmt.Errorf("the master realm returned HTTP %d", realm.Status)
-	}
-	var body struct {
-		Realm string `json:"realm"`
-	}
-	if err := realm.Decode(&body); err != nil {
-		return false, err
-	}
-	return body.Realm == "master", nil
+// setup signs in through the admin-cli token flow and reads the master realm
+// back with the resulting access token.
+var setup = setupspec.Spec{
+	Kind:        setupspec.KindFirstAdmin,
+	Probe:       setupspec.Probe{Path: "/realms/master"},
+	Name:        "Keycloak",
+	Title:       "the Admin login reads the master realm",
+	CreateError: "the bootstrap administrator is created only at first start",
+	Hint:        "Recreate Keycloak so it reads KC_BOOTSTRAP_ADMIN_PASSWORD from .env: self-host start keycloak",
+	Login: []setupspec.Call{
+		{
+			Path:    "/realms/master/protocol/openid-connect/token",
+			Form:    map[string]string{"client_id": "admin-cli", "username": "{user}", "password": "{password}", "grant_type": "password"},
+			Ok:      []int{200},
+			Capture: map[string]string{"token": "access_token"},
+		},
+		{
+			Path:   "/admin/realms/master",
+			Header: map[string]string{"Authorization": "Bearer {token}"},
+			Ok:     []int{200},
+			Assert: []setupspec.Assert{{Path: "realm", Equals: "master"}},
+		},
+	},
 }
 
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/realms/master"); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		Title: func(*helpers.H, string) string { return "the Admin login reads the master realm" },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminRealm(ctx, h)
-		},
-		Create: func(context.Context, *helpers.H, string, string) error {
-			return errors.New("the bootstrap administrator is created only at first start")
-		},
-		Hint: func(*helpers.H, string) string {
-			return "Recreate Keycloak so it reads KC_BOOTSTRAP_ADMIN_PASSWORD from .env: self-host start keycloak"
-		},
-	}.Admin(ctx, h)
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	ok, err := adminRealm(ctx, h)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("the Admin login %s cannot read the master realm", h.AdminUser())
-	}
-	return nil
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }

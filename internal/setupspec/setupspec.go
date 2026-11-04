@@ -37,6 +37,9 @@ type Spec struct {
 	Name string `yaml:"name,omitempty"`
 	// Email is the sign-in address template, e.g. {user}@selfhost.local.
 	Email string `yaml:"email,omitempty"`
+	// EmailInput names an App input whose value, when the person set it,
+	// replaces the Email template.
+	EmailInput string `yaml:"email_input,omitempty"`
 	// Exists proves an administrator is already there; Create makes it;
 	// Login proves the Admin login signs in. Each is run in order and all
 	// calls must pass.
@@ -50,8 +53,8 @@ type Spec struct {
 	CreateError string `yaml:"create_error,omitempty"`
 	// MinPassword rejects an Admin password shorter than this.
 	MinPassword int `yaml:"min_password,omitempty"`
-	// StepID, Title, Hint and Manual word the administrator step; Title and
-	// Hint may use {user}, {email}, {url} and {app}.
+	// StepID, Title, Hint and Manual word the administrator step; Title,
+	// Hint and Manual may use {user}, {email}, {url} and {app}.
 	StepID string `yaml:"step_id,omitempty"`
 	Title  string `yaml:"title,omitempty"`
 	Hint   string `yaml:"hint,omitempty"`

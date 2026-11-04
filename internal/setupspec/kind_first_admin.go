@@ -61,8 +61,16 @@ func (s Spec) scope(h *helpers.H) scope {
 	return vars
 }
 
+// EmailFor is AdminEmail for the Admin login, honouring EmailInput.
+func (s Spec) EmailFor(h *helpers.H) string {
+	if email := h.Inputs[s.EmailInput]; s.EmailInput != "" && email != "" {
+		return email
+	}
+	return s.AdminEmail(h.AdminUser())
+}
+
 func (s Spec) textScope(h *helpers.H) scope {
-	return scope{"user": h.AdminUser(), "email": s.AdminEmail(h.AdminUser()), "url": h.URL, "app": h.App}
+	return scope{"user": h.AdminUser(), "email": s.EmailFor(h), "url": h.URL, "app": h.App}
 }
 
 func (s Spec) login(ctx context.Context, h *helpers.H) (bool, error) {
@@ -70,7 +78,7 @@ func (s Spec) login(ctx context.Context, h *helpers.H) (bool, error) {
 }
 
 func (s Spec) setupFirstAdmin(ctx context.Context, h *helpers.H) error {
-	f := s.firstAdmin()
+	f := s.firstAdmin(h)
 	if !s.Probe.Web {
 		return f.Setup(ctx, h)
 	}
@@ -87,8 +95,8 @@ func (s Spec) setupFirstAdmin(ctx context.Context, h *helpers.H) error {
 	return f.Admin(ctx, h)
 }
 
-func (s Spec) firstAdmin() firstadmin.FirstAdmin {
-	f := firstadmin.FirstAdmin{Ready: s.probe(), StepID: s.StepID, Manual: s.Manual}
+func (s Spec) firstAdmin(h *helpers.H) firstadmin.FirstAdmin {
+	f := firstadmin.FirstAdmin{Ready: s.probe(), StepID: s.StepID, Manual: s.textScope(h).expand(s.Manual)}
 	if len(s.Exists) > 0 {
 		f.Exists = func(ctx context.Context, h *helpers.H) (bool, error) {
 			return calls(s.Exists).run(ctx, h, s.scope(h), nil)
