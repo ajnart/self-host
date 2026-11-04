@@ -3,9 +3,8 @@
 Real, isolated App fixtures for integration tests. Keep your existing API adapter;
 replace its mock Address and API key with a real App configured by self-host's Setup.
 
-**Unreleased source:** this guide's `withApp` and automatic-cleanup JavaScript
-Action are not in published **1.2.1**. The package version has not been bumped.
-Build this checkout to try them; installing 1.2.1 does not provide these features.
+This guide describes **1.3.0**, which adds `withApp`, ordered Pairs and the
+automatic-cleanup JavaScript Action. Version 1.2.1 has none of them.
 
 ```javascript
 import { withApp } from "@ajnart/self-host-testkit";
@@ -31,7 +30,7 @@ for mock replacement, timeouts, recovery and CI.
 
 You need Node.js 22+, Bun 1.4.3+, a Go launcher able to obtain Go 1.27.3, and the
 Docker requirements below. Build the SDK and helper from the **same checkout**.
-From the repository root of this working tree containing the unreleased changes:
+From the repository root of a checkout:
 
 ```bash
 bun install --frozen-lockfile
@@ -44,20 +43,20 @@ SELF_HOST_TESTKIT_BINARY="$PWD/dist/self-host-testkit" node testkit/node/example
 The final command starts a real Sonarr App. Run it only when you intend to use
 Docker. The explicit helper path prevents mixing a released helper with source SDK.
 
-## Published 1.2.1
+## Published release
 
-For the existing release, use `createSelfHost()` with explicit `try/finally`
-cleanup and follow the [immutable 1.2.1 Node guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md):
+Version 1.3.0 must exist on npm and GitHub before using these commands; until
+then, use the source checkout above:
 
 ```bash
-npm install --save-dev @ajnart/self-host-testkit@1.2.1
+npm install --save-dev @ajnart/self-host-testkit@1.3.0
 npm exec -- self-host-testkit-setup
 ```
 
 Explicit setup verifies and caches the matching released helper; **no Go required**.
 Package installation and import never download a helper or start Docker.
-The old release Action requires its documented separate cleanup step; the new
-Action's automatic post cleanup is unreleased.
+The 1.2.1 composite Action requires its documented separate cleanup step; for
+1.2.1, follow its [immutable Node guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
 
 ## Headless and container requirements
 
@@ -97,7 +96,7 @@ networking, socket mounts or named volumes fail explicitly. Not every Catalog
 App is a supported fixture. Live App acceptance and Backup/Restore caching remain
 deferred; passing transport tests does not establish either.
 
-## Unreleased ordered pairs
+## Ordered pairs
 
 `withPair("homarr", "sonarr", callback, { order: "consumer-first" })` starts both
 Apps in one disposable Project through production Setup and Links. Choose
@@ -106,8 +105,7 @@ not share a Project. App views cannot close a peer: close the Pair or its manage
 The same five-container/5-GiB/five-CPU aggregate guards and lifetime apply to the
 whole pair, including dependencies. No resource override is available.
 
-After building this checkout's matching SDK/helper, the optional
-`testkit/node/examples/homarr-sonarr.mjs` accepts either installation order as its
+The optional `testkit/node/examples/homarr-sonarr.mjs` accepts either installation order as its
 first argument. It starts real Docker Apps: run only in an approved runtime slot.
 The integrated Sonarr verifier registration is required for advancing Stats.
 No downloader adapter or Kuma fix is needed. Pair/native/rendered acceptance is
@@ -115,7 +113,7 @@ not established by helper or transport tests; see the Node guide for boundaries.
 
 ### Opt-in Sonarr preservation witness
 
-The unreleased matching Go helper and Node SDK expose
+The matching Go helper and Node SDK expose
 `CreateSonarrFilterWitness` / `ReadSonarrFilterWitness` and
 `createSonarrFilterWitness()` / `readSonarrFilterWitness()`. Enable the capability
 explicitly with `PairOptions.SonarrFilterWitness` in Go or

@@ -20,6 +20,8 @@ CLI Telemetry checks stay unchanged. Native packages still install only
 asset and is published to npm as `@ajnart/self-host-testkit`; see the [testkit overview](../testkit/README.md)
 and [Node guide](../testkit/node/README.md). Version 1.2.1 adds the helper setup
 command and cleanup fixes without replacing the immutable v1.2.0 assets.
+Version 1.3.0 adds `withApp`, ordered Pairs, the opt-in Sonarr witness and the
+JavaScript Action's automatic post cleanup.
 
 The installer and `self-host self-update` pick the highest semver among
 non-draft, non-prerelease releases that carry `checksums.txt` and a
