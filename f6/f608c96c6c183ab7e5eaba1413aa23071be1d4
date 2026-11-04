@@ -1,0 +1,59 @@
+docs/agents/generated-data.md
+  s_f98ece93e974a3::t_251482ca0933a7 35
+internal/apps/grafana/grafana.go
+  s_c3325993e1355f::t_1f9d049b30157d 55
+internal/apps/immich/immich.go
+  s_c3325993e1355f::t_61052a9221415d 110
+internal/apps/keycloak/keycloak.go
+  s_c3325993e1355f::t_92fb586f9ec3a3 73
+internal/apps/mayanedms/mayanedms.go
+  s_c3325993e1355f::t_1821a2a730b265 150
+internal/apps/nodered/nodered.go
+  s_c3325993e1355f::t_31b440ba2551b3 73,91
+internal/apps/openwebui/openwebui.go
+  s_c3325993e1355f::t_46001aa94ec6ca 60
+internal/apps/photoprism/photoprism.go
+  s_c3325993e1355f::t_ca28085f16f4dc 51
+internal/apps/portainer/portainer.go
+  s_c3325993e1355f::t_1ddd4bc663f9ad 58
+internal/apps/scrypted/scrypted.go
+  s_c3325993e1355f::t_f0114be392448b 52-56
+internal/appspec/appspec.go
+  s_f98ece93e974a3::t_882e0e26f798f3 4-5
+internal/firstadmin/firstadmin.go
+  s_c3325993e1355f::t_55d3b6213881c7 33-34,64-66
+internal/helpers/http.go
+  s_c3325993e1355f::t_6d5edefe80a4a9 38-40
+internal/setupspec/call.go
+  s_c3325993e1355f::t_8917a4b0d1d8c9 8,53-54,152,162,188-252,254,256,258-279,307-311
+internal/setupspec/kind_first_admin.go
+  s_c3325993e1355f::t_df59d26cdcf43b 40-44,73-74,82,152-157,160
+internal/setupspec/kind_no_account.go
+  s_c3325993e1355f::t_4efd2578185e8d 4,10,14-20,30
+internal/setupspec/setupspec.go
+  s_c3325993e1355f::t_bbeaa2d9ca9460 23-24,68-72,74,77-78,83-86,93-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f6f608c96c6c183ab7e5eaba1413aa23071be1d4",
+  "prompts": {},
+  "sessions": {
+    "s_c3325993e1355f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "610e9bc1-56c2-4c90-a4e4-5ab2b4d9abf5",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_f98ece93e974a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c5318da-ae8e-4155-baac-f7ccc3c399a6",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
