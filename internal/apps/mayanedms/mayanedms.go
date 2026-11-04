@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 type App struct{}
@@ -133,35 +132,25 @@ const (
 	loginPagePath   = "/authentication/login/"
 )
 
-type currentUser struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	IsActive bool   `json:"is_active"`
-}
-
-func identity(ctx context.Context, h *helpers.H) (currentUser, bool, error) {
-	password := h.AdminPassword()
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Path:     currentUserPath,
-		User:     h.AdminUser(),
-		Password: password,
-		Header:   map[string]string{"Accept": "application/json"},
-	})
-	if err != nil {
-		return currentUser{}, false, err
-	}
-	if resp.Status == 401 || resp.Status == 403 {
-		return currentUser{}, false, nil
-	}
-	if resp.Status != 200 {
-		return currentUser{}, false, fmt.Errorf("Mayan %s returned HTTP %d", currentUserPath, resp.Status)
-	}
-	var user currentUser
-	if err := resp.Decode(&user); err != nil {
-		return currentUser{}, false, err
-	}
-	ok := user.Username == h.AdminUser() && user.IsActive && user.ID > 0
-	return user, ok, nil
+var setup = setupspec.Spec{
+	Kind:       setupspec.KindFirstAdmin,
+	Probe:      setupspec.Probe{Path: "/", Want: []int{200, 302}, Timeout: "5m"},
+	Name:       "Mayan EDMS",
+	StepID:     "admin-login",
+	Title:      "administrator {user} signs in",
+	Hint:       "Open {url} and sign in as {user} with the password shown by `self-host credentials`.",
+	CreateWait: "5m",
+	Login: []setupspec.Call{{
+		Path:   currentUserPath,
+		Basic:  true,
+		Header: map[string]string{"Accept": "application/json"},
+		Ok:     []int{200},
+		Assert: []setupspec.Assert{
+			{Path: "username", Equals: "{user}"},
+			{Path: "is_active", Present: true},
+			{Path: "id", Type: "number"},
+		},
+	}},
 }
 
 // visible reports whether the login page still renders the initial password.
@@ -177,25 +166,7 @@ func visible(ctx context.Context, h *helpers.H) (bool, error) {
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	ready := firstadmin.NoAccount{Probe: firstadmin.Probe{Path: "/", Want: []int{200, 302}, Timeout: 5 * time.Minute}}
-	if err := ready.Setup(ctx, h); err != nil {
-		return err
-	}
-	login := func(ctx context.Context) (bool, error) {
-		_, ok, err := identity(ctx, h)
-		return ok, err
-	}
-	if err := (firstadmin.FirstAdmin{
-		StepID: "admin-login",
-		Title:  func(_ *helpers.H, user string) string { return "administrator " + user + " signs in" },
-		Login:  func(ctx context.Context, _ *helpers.H, _, _ string) (bool, error) { return login(ctx) },
-		Create: func(ctx context.Context, h *helpers.H, _, _ string) error {
-			return h.Poll(ctx, 5*time.Minute, login)
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + " and sign in as " + user + " with the password shown by `self-host credentials`."
-		},
-	}).Admin(ctx, h); err != nil {
+	if err := setup.Setup(ctx, h); err != nil {
 		return err
 	}
 	return h.Step(ctx, "clear-display", "the login page no longer shows the initial password", helpers.StepSpec{
@@ -223,12 +194,8 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error {
-	_, ok, err := identity(ctx, h)
-	if err != nil {
+	if err := setup.Check(ctx, h); err != nil {
 		return err
-	}
-	if !ok {
-		return fmt.Errorf("the administrator %s cannot sign in to Mayan EDMS", h.AdminUser())
 	}
 	shown, err := visible(ctx, h)
 	if err != nil {
