@@ -1,0 +1,30 @@
+docs/telemetry.md
+  h_d6e478ca18e517 29-32
+internal/service/cloudflare_test.go
+  h_d6e478ca18e517 49-51
+internal/service/dashboard_reconcile_test.go
+  h_d6e478ca18e517 5,12-15
+internal/service/extra_apps_test.go
+  h_d6e478ca18e517 5,70-72,79
+internal/service/lifecycle.go
+  h_d6e478ca18e517 98
+internal/service/mutation.go
+  h_d6e478ca18e517 11,511,527-530,570,616-618,645,661-667,670,672-683,685-689,691-694,765-773
+internal/service/mutation_test.go
+  h_d6e478ca18e517 8,396,399,402,405-408,569-617
+internal/service/names_test.go
+  h_d6e478ca18e517 8,507-509,513,720-723
+internal/service/service.go
+  h_d6e478ca18e517 223-225,473-480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f268bfd326b2ac86a332a4ab224c8956bfb22c1b",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
