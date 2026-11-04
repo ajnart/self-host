@@ -40,11 +40,13 @@ export interface SonarrFilterWitness {
     readonly objectId: number;
     readonly contentSha256: string;
 }
+declare const pairStates: readonly ["running", "exited", "created", "restarting", "paused", "missing", "unknown", "dead", "removing", "degraded"];
+export type PairAppState = (typeof pairStates)[number];
 export interface PairAppStatus {
     readonly id: string;
     readonly url: string;
     readonly installed: boolean;
-    readonly state: string;
+    readonly state: PairAppState;
     readonly setup: "ok" | "manual" | "incomplete" | "pending";
     readonly steps: ReadonlyArray<{
         readonly id: string;
@@ -93,7 +95,8 @@ export declare class TestkitError extends Error {
     constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string, cleanupFailed?: boolean);
 }
 export declare function createSelfHost(options?: SelfHostOptions): SelfHost;
-export declare function withApp<T>(app: string, callback: (app: App) => T | Promise<T>, options?: SelfHostOptions & SpinupOptions): Promise<T>;
-export declare function withPair<T>(consumer: string, target: string, callback: (pair: Pair) => T | Promise<T>, options: SelfHostOptions & PairOptions & {
+export interface ScopedOptions {
     onCleanupError?: (error: TestkitError) => void | Promise<void>;
-}): Promise<T>;
+}
+export declare function withApp<T>(app: string, callback: (app: App) => T | Promise<T>, options?: SelfHostOptions & SpinupOptions & ScopedOptions): Promise<T>;
+export declare function withPair<T>(consumer: string, target: string, callback: (pair: Pair) => T | Promise<T>, options: SelfHostOptions & PairOptions & ScopedOptions): Promise<T>;

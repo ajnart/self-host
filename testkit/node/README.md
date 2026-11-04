@@ -75,7 +75,8 @@ source build. It checks Sonarr's authenticated identity and prints no secrets.
 `withApp(id, callback, options?)` returns the awaited callback result and always
 attempts cleanup after startup or callback failure. The callback receives the
 existing `App` API, including `url` and `getApiKey()`; it is runner-independent.
-Options combine `binary`, `timeoutMs`, `manifest` and an optional `image` override.
+Options combine `binary`, `timeoutMs`, `manifest`, an optional `image` override
+and the same optional `onCleanupError` as `withPair`.
 
 Use your runner's existing async-test API and increase its timeout for image
 pulls, Setup, assertions **and cleanup**. For Node's built-in runner:

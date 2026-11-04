@@ -61,11 +61,30 @@ export interface SonarrFilterWitness {
 	readonly contentSha256: string;
 }
 
+const pairStates = [
+	"running",
+	"exited",
+	"created",
+	"restarting",
+	"paused",
+	"missing",
+	"unknown",
+	"dead",
+	"removing",
+	"degraded",
+] as const;
+
+export type PairAppState = (typeof pairStates)[number];
+
+function pairState(value: string): value is PairAppState {
+	return (pairStates as readonly string[]).includes(value);
+}
+
 export interface PairAppStatus {
 	readonly id: string;
 	readonly url: string;
 	readonly installed: boolean;
-	readonly state: string;
+	readonly state: PairAppState;
 	readonly setup: "ok" | "manual" | "incomplete" | "pending";
 	readonly steps: ReadonlyArray<{
 		readonly id: string;
@@ -561,17 +580,7 @@ function pairAppStatus(value: unknown, id: string, url: string): PairAppStatus {
 		!loopback(value.url) ||
 		value.url !== url ||
 		typeof value.installed !== "boolean" ||
-		![
-			"running",
-			"exited",
-			"created",
-			"restarting",
-			"paused",
-			"missing",
-			"unknown",
-			"dead",
-			"removing",
-		].includes(value.state) ||
+		!pairState(value.state) ||
 		(value.setup !== "ok" &&
 			value.setup !== "manual" &&
 			value.setup !== "incomplete" &&
@@ -919,10 +928,7 @@ class SelfHostHandle {
 				},
 				this.#timeout + 1000,
 			);
-			if (
-				!strings(value, ["url"]) ||
-				!/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(value.url)
-			) {
+			if (!strings(value, ["url"]) || !loopback(value.url)) {
 				throw fault("PROTOCOL", undefined, this.#manifest);
 			}
 			if (this.#closed) throw fault("STATE", undefined, this.#manifest);
@@ -1111,7 +1117,7 @@ export function createSelfHost(options: SelfHostOptions = {}): SelfHost {
 async function scopedLifetime<T>(
 	work: () => T | Promise<T>,
 	close: () => Promise<void>,
-	onCleanupError?: (error: TestkitError) => void | Promise<void>,
+	onCleanupError?: ScopedOptions["onCleanupError"],
 ): Promise<T> {
 	let result: { ok: true; value: T } | { ok: false; error: unknown };
 	try {
@@ -1132,15 +1138,20 @@ async function scopedLifetime<T>(
 	return result.value;
 }
 
+export interface ScopedOptions {
+	onCleanupError?: (error: TestkitError) => void | Promise<void>;
+}
+
 export async function withApp<T>(
 	app: string,
 	callback: (app: App) => T | Promise<T>,
-	options: SelfHostOptions & SpinupOptions = {},
+	options: SelfHostOptions & SpinupOptions & ScopedOptions = {},
 ): Promise<T> {
 	const selfHost = createSelfHost(options);
 	return scopedLifetime<T>(
 		async () => callback(await selfHost.spinup(app, options)),
 		() => selfHost.close(),
+		options.onCleanupError,
 	);
 }
 
@@ -1148,10 +1159,7 @@ export async function withPair<T>(
 	consumer: string,
 	target: string,
 	callback: (pair: Pair) => T | Promise<T>,
-	options: SelfHostOptions &
-		PairOptions & {
-			onCleanupError?: (error: TestkitError) => void | Promise<void>;
-		},
+	options: SelfHostOptions & PairOptions & ScopedOptions,
 ): Promise<T> {
 	const selfHost = createSelfHost(options);
 	return scopedLifetime<T>(

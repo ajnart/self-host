@@ -6,6 +6,21 @@ import { isAbsolute, join } from "node:path";
 import { inspect } from "node:util";
 import { installedBinary } from "./binary.mjs";
 import { startupReasons } from "./reasons.mjs";
+const pairStates = [
+    "running",
+    "exited",
+    "created",
+    "restarting",
+    "paused",
+    "missing",
+    "unknown",
+    "dead",
+    "removing",
+    "degraded",
+];
+function pairState(value) {
+    return pairStates.includes(value);
+}
 const MAX_MESSAGE = 65536;
 const CLEANUP_TIMEOUT = 50000;
 const messages = new Map([
@@ -371,17 +386,7 @@ function pairAppStatus(value, id, url) {
         !loopback(value.url) ||
         value.url !== url ||
         typeof value.installed !== "boolean" ||
-        ![
-            "running",
-            "exited",
-            "created",
-            "restarting",
-            "paused",
-            "missing",
-            "unknown",
-            "dead",
-            "removing",
-        ].includes(value.state) ||
+        !pairState(value.state) ||
         (value.setup !== "ok" &&
             value.setup !== "manual" &&
             value.setup !== "incomplete" &&
@@ -662,8 +667,7 @@ class SelfHostHandle {
                 image: options.image,
                 timeoutMs: this.#timeout,
             }, this.#timeout + 1000);
-            if (!strings(value, ["url"]) ||
-                !/^http:\/\/127\.0\.0\.1:\d+\/?$/.test(value.url)) {
+            if (!strings(value, ["url"]) || !loopback(value.url)) {
                 throw fault("PROTOCOL", undefined, this.#manifest);
             }
             if (this.#closed)
@@ -825,7 +829,7 @@ async function scopedLifetime(work, close, onCleanupError) {
 }
 export async function withApp(app, callback, options = {}) {
     const selfHost = createSelfHost(options);
-    return scopedLifetime(async () => callback(await selfHost.spinup(app, options)), () => selfHost.close());
+    return scopedLifetime(async () => callback(await selfHost.spinup(app, options)), () => selfHost.close(), options.onCleanupError);
 }
 export async function withPair(consumer, target, callback, options) {
     const selfHost = createSelfHost(options);

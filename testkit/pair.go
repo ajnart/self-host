@@ -51,6 +51,8 @@ func (s PairStep) linked() bool {
 	return s.Status == string(stepstatus.StepOK) || s.Status == string(stepstatus.StepSkip) && s.Verified
 }
 
+var pairStates = []string{"running", "exited", "created", "restarting", "paused", "missing", "unknown", "dead", "removing", "degraded"}
+
 type PairAppStatus struct {
 	ID        string     `json:"id"`
 	URL       string     `json:"url"`
@@ -302,7 +304,7 @@ func (a *App) inspectPair(ctx context.Context) (PairInspection, error) {
 			item.Installed = true
 			item.Setup = string(observed.Setup)
 			item.State = "unknown"
-			if slices.Contains([]string{"running", "exited", "created", "restarting", "paused", "missing", "unknown", "dead", "removing"}, observed.State) {
+			if slices.Contains(pairStates, observed.State) {
 				item.State = observed.State
 			}
 			for _, step := range observed.Steps {
