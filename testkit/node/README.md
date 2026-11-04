@@ -3,11 +3,10 @@
 Real App fixtures for integration tests, using self-host's existing headless
 Setup. ESM only, Node.js 22+, no runtime npm dependencies or test-runner plugin.
 
-**Unreleased source:** `withApp`, recovery paths and the JavaScript Action's
-automatic post cleanup described here are not in published **1.2.1**. The version
-is still 1.2.1; build this checkout to try the changes. For published usage, see
-the [immutable 1.2.1 guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md)
-(`createSelfHost`, matching helper setup and explicit cleanup).
+This guide describes **1.3.0**: `withApp`, ordered Pairs, recovery paths, the
+Sonarr witness and the JavaScript Action's automatic post cleanup are not in
+1.2.1. For 1.2.1, see its
+[immutable guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
 
 ## Requirements and setup
 
@@ -28,17 +27,18 @@ which builds generated SDK exports with Bun and the helper with Go, then selects
 that helper using `SELF_HOST_TESTKIT_BINARY`. Run the included demo from this
 checkout so the package self-import resolves to its matching SDK.
 
-**Published 1.2.1 only:** install and explicitly prepare its matching helper:
+**Published release:** version 1.3.0 must exist on npm and GitHub before using
+these commands. Install it and explicitly prepare its matching helper:
 
 ```bash
-npm install --save-dev @ajnart/self-host-testkit@1.2.1
+npm install --save-dev @ajnart/self-host-testkit@1.3.0
 npm exec -- self-host-testkit-setup
 ```
 
 Released setup requires network access and `tar`, verifies the archive's SHA-256
 checksum and reuses a private versioned helper cache. It needs **no Go** and does
 not start Docker or modify PATH. Neither npm installation nor import downloads
-anything. Installing 1.2.1 does **not** install the unreleased `withApp` API.
+anything.
 
 Helper resolution: `binary` option, `SELF_HOST_TESTKIT_BINARY`, private versioned
 cache, then `self-host-testkit` on PATH. Keep SDK and helper on the same release
@@ -146,10 +146,9 @@ The advanced example uses ordinary `finally` semantics: a cleanup error can
 replace an earlier error. Prefer `withApp` when exact primary-error preservation
 matters.
 
-## Unreleased ordered pair API
+## Ordered pair API
 
-Pair calls require a helper built from the same source checkout; published 1.2.1
-does not contain them. Existing `spinup`/`withApp` calls are unchanged.
+Pair calls require the helper matching this SDK; 1.2.1 does not contain them. Existing `spinup`/`withApp` calls are unchanged.
 
 ```javascript
 import { withPair } from "@ajnart/self-host-testkit";
@@ -227,10 +226,9 @@ building or importing the SDK.
 
 ## GitHub Actions
 
-**Unreleased source workflow:** run this on a branch containing these changes.
-The local Action builds its helper and uses the generated SDK from the same
-checkout, rather than the published 1.2.1 package. The demo starts a real Sonarr
-App; run it only when you intend to use Docker.
+**Source workflow:** the local Action builds its helper and uses the generated
+SDK from the same checkout. The demo starts a real Sonarr App; run it only when
+you intend to use Docker.
 
 ```yaml
 jobs:
@@ -252,8 +250,7 @@ new Action. The published 1.2.1 composite Action does not have this post hook.
 
 In default release mode, install the consumer SDK with `npm ci` before the Action;
 it resolves that installed SDK and downloads its exact matching checksummed
-helper, without Go. Pin a reviewed Action commit once available; no future SHA
-or SDK release is claimed here. For monorepos, set `working-directory` to the
+helper, without Go. Pin a reviewed Action commit. For monorepos, set `working-directory` to the
 consumer directory and run installation/tests there. The Action does not install
 npm dependencies or start Apps. Outputs remain `binary-path`, `sdk-path`, `manifest-path`; environment
 variables remain `SELF_HOST_TESTKIT_BINARY`, `SELF_HOST_TESTKIT_SDK`,
@@ -301,8 +298,8 @@ runner loss and daemon outages can still prevent cleanup; prefer disposable runn
 
 ## Sonarr data-preservation witness
 
-This source-only capability is not included in published 1.2.1. Build the SDK and
-helper from the same reviewed checkpoint. For a fresh ordered
+This capability is new in 1.3.0. Keep the SDK and helper on the same release or
+reviewed checkout. For a fresh ordered
 `spinupPair("homarr", "sonarr", options)` or `withPair`, explicitly set
 `sonarrFilterWitness: true` and provide `images.sonarr` as a reviewed immutable
 `repository@sha256:<64 lowercase hex digits>` reference. Omission preserves the
