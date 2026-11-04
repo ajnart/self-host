@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/setupspec"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -28,8 +28,6 @@ func (App) Info() app.Info {
 		Service:       "mayan-edms",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets back PostgreSQL, RabbitMQ and Redis. The Redis password lives in a
 // generated config file so it never appears in a command line.
@@ -206,5 +204,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

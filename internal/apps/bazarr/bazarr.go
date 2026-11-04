@@ -17,7 +17,7 @@ import (
 )
 
 // App is Bazarr. Traps: docs/catalog/traps/bazarr.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -32,7 +32,6 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
 func (App) Links() []app.Link {
 	var links []app.Link
 	for _, connection := range libraryConnections() {

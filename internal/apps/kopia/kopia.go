@@ -16,7 +16,7 @@ import (
 )
 
 // App is Kopia. Traps: docs/catalog/traps/kopia.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,8 +29,6 @@ func (App) Info() app.Info {
 		Service:       "kopia",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the repository password the owner later uses to create or
 // connect a repository. It does not create one; the server password stays the
@@ -160,8 +158,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in to the web UI with the ADMIN_USER and ADMIN_PASSWORD values, then create or connect the repository. The UI is plain HTTP (--insecure), so keep its port on a trusted network or put TLS in front of it. " +

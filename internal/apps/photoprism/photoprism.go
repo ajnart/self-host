@@ -12,7 +12,7 @@ import (
 )
 
 // App is PhotoPrism. Traps: docs/catalog/traps/photoprism.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -25,8 +25,6 @@ func (App) Info() app.Info {
 		Service:       "photoprism",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -90,5 +88,3 @@ func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(c
 // Check verifies the administrator session only; the read-only API app
 // password and photo ingestion stay separate acceptance steps.
 func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }

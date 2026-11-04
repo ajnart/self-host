@@ -14,7 +14,7 @@ import (
 	"github.com/ajnart/self-host/internal/release"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -216,8 +216,6 @@ func read(ctx context.Context, h *helpers.H, path string) (helpers.Response, err
 	}
 	return response, nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Spoolman has no built-in login: keep it private or behind an authenticated proxy. Inventory and settings are stored in the included PostgreSQL database; preserve its database folder and password and back them up together. The Spoolman image keeps its own non-root user; do not forward Host user IDs or change existing data ownership. External catalog downloads, update checks and metrics are disabled by default. No printer connection is required."

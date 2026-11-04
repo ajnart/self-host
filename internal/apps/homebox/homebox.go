@@ -10,7 +10,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -90,8 +90,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return verifyAccount(ctx, h, false)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Registration starts disabled. For a genuinely new inventory only, explicitly enable registration in the Compose file, create the intended account, then disable registration again. Otherwise sign in to the existing account without replacing it. Keep the complete data folder and HOMEBOX_API_KEY_PEPPER together in private backups; changing the pepper invalidates existing API keys. With self-host, a missing pepper needs explicit private provisioning for a new inventory or restoration of the original for existing data before generation or startup. Automatic first-account creation and API-key issuance are not supported. Homarr links through an existing account API key you restore privately; Homebox keys have no read-only scope, and Homarr only reads statistics."

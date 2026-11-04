@@ -11,7 +11,7 @@ import (
 )
 
 // App is Renovate. Traps: docs/catalog/traps/renovate.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -73,8 +73,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "The container only runs renovate --version; replace the command with your own run."

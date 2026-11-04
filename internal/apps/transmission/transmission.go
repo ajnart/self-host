@@ -17,7 +17,7 @@ import (
 )
 
 // App is Transmission. Traps: docs/catalog/traps/transmission.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -31,8 +31,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -59,8 +57,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:9091
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 const rpcPath = "/transmission/rpc"
 

@@ -14,7 +14,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -27,8 +27,6 @@ func (App) Info() app.Info {
 		Service:       "aria2",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the RPC token. It is written into the private rpc-config
 // file, never into Compose or the command line.
@@ -253,5 +251,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	_, err = downloadsWork(ctx, h, h.Secret(h.Key("rpc_token")))
 	return err
 }
-
-func (App) Links() []app.Link { return nil }

@@ -8,7 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -21,8 +21,6 @@ func (App) Info() app.Info {
 		Service:       "maintainerr",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Directories(rc app.RenderContext) []app.Directory {
 	return []app.Directory{{Path: "data", Mode: 0o700, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}
@@ -68,8 +66,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 	return verifyServer(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Before starting, prepare the data bind directory as a private mode-0700 directory writable by the selected runtime user. Maintainerr has no login; keep its Address private or behind existing authentication. Open Services to configure and test your chosen media server. Existing rules, collections and retention are preserved; no cleanup is triggered by self-host. Maintainerr's weekly telemetry is disabled in this definition."

@@ -12,7 +12,7 @@ import (
 )
 
 // App is Scrypted. Traps: docs/catalog/traps/scrypted.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -26,8 +26,6 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
-
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
 	return `services:
@@ -40,8 +38,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:11080
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the first administrator on the login page."

@@ -23,16 +23,17 @@ import (
 	"github.com/ajnart/self-host/internal/apps/changedetection"
 	"github.com/ajnart/self-host/internal/apps/cleanuparr"
 	"github.com/ajnart/self-host/internal/apps/cloudflaretunnel"
+	"github.com/ajnart/self-host/internal/apps/dashdot"
 	"github.com/ajnart/self-host/internal/apps/deluge"
 	"github.com/ajnart/self-host/internal/apps/dockge"
 	"github.com/ajnart/self-host/internal/apps/docmost"
 	"github.com/ajnart/self-host/internal/apps/emby"
-	"github.com/ajnart/self-host/internal/apps/fileflows"
 	"github.com/ajnart/self-host/internal/apps/fireflyiii"
 	"github.com/ajnart/self-host/internal/apps/forgejo"
 	"github.com/ajnart/self-host/internal/apps/freshrss"
 	"github.com/ajnart/self-host/internal/apps/frigate"
 	"github.com/ajnart/self-host/internal/apps/gatus"
+	"github.com/ajnart/self-host/internal/apps/glances"
 	"github.com/ajnart/self-host/internal/apps/gluetun"
 	"github.com/ajnart/self-host/internal/apps/gotify"
 	"github.com/ajnart/self-host/internal/apps/grafana"
@@ -61,6 +62,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/minio"
 	"github.com/ajnart/self-host/internal/apps/navidrome"
 	"github.com/ajnart/self-host/internal/apps/netbird"
+	"github.com/ajnart/self-host/internal/apps/netdata"
 	"github.com/ajnart/self-host/internal/apps/nextcloud"
 	"github.com/ajnart/self-host/internal/apps/nginxproxymanager"
 	"github.com/ajnart/self-host/internal/apps/nodered"
@@ -79,6 +81,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/plex"
 	"github.com/ajnart/self-host/internal/apps/portainer"
 	"github.com/ajnart/self-host/internal/apps/postgresql"
+	"github.com/ajnart/self-host/internal/apps/prometheus"
 	"github.com/ajnart/self-host/internal/apps/qbittorrent"
 	"github.com/ajnart/self-host/internal/apps/renovate"
 	"github.com/ajnart/self-host/internal/apps/restic"
@@ -140,16 +143,17 @@ func registeredApps() []app.App {
 		changedetection.App{},
 		cleanuparr.App{},
 		cloudflaretunnel.App{},
+		dashdot.App{},
 		deluge.App{},
 		dockge.App{},
 		docmost.App{},
 		emby.App{},
-		fileflows.App{},
 		fireflyiii.App{},
 		forgejo.App{},
 		freshrss.App{},
 		frigate.App{},
 		gatus.App{},
+		glances.App{},
 		gluetun.App{},
 		gotify.App{},
 		grafana.App{},
@@ -178,6 +182,7 @@ func registeredApps() []app.App {
 		minio.App{},
 		navidrome.App{},
 		netbird.App{},
+		netdata.App{},
 		nextcloud.App{},
 		nginxproxymanager.App{},
 		nodered.App{},
@@ -196,6 +201,7 @@ func registeredApps() []app.App {
 		plex.App{},
 		portainer.App{},
 		postgresql.App{},
+		prometheus.App{},
 		qbittorrent.App{},
 		renovate.App{},
 		restic.App{},

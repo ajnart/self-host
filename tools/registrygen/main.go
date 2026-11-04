@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -16,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -24,9 +22,6 @@ const (
 	module     = "github.com/ajnart/self-host"
 	appsDir    = "internal/apps"
 	outputPath = "internal/catalog/apps_gen.go"
-	// generatedPath registers its Apps through generatedApps(), so they stay out of
-	// the registry until the file is removed.
-	generatedPath = "internal/catalog/generated.go"
 )
 
 func main() {
@@ -66,10 +61,6 @@ type registration struct {
 }
 
 func render() ([]byte, error) {
-	skip, err := importedApps(generatedPath)
-	if err != nil {
-		return nil, err
-	}
 	entries, err := os.ReadDir(appsDir)
 	if err != nil {
 		return nil, fmt.Errorf("read %s (run from the repository root): %w", appsDir, err)
@@ -77,7 +68,7 @@ func render() ([]byte, error) {
 	var registrations []registration
 	for _, entry := range entries {
 		name := entry.Name()
-		if !entry.IsDir() || name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || skip[name] {
+		if !entry.IsDir() || name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
 			continue
 		}
 		exprs, err := appExprs(name)
@@ -164,25 +155,4 @@ func isConstructor(decl *ast.FuncDecl) bool {
 		return ok && pkg.Name == "app" && result.Sel.Name == "App"
 	}
 	return false
-}
-
-func importedApps(path string) (map[string]bool, error) {
-	imported := map[string]bool{}
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-	if errors.Is(err, os.ErrNotExist) {
-		return imported, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	for _, spec := range file.Imports {
-		importPath, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			return nil, err
-		}
-		if dir, ok := strings.CutPrefix(importPath, module+"/"+appsDir+"/"); ok {
-			imported[dir] = true
-		}
-	}
-	return imported, nil
 }

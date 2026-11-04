@@ -9,7 +9,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -31,8 +31,6 @@ func (App) Inputs() []app.Input {
 		Help: "Restore the current key from Sportarr > Settings > General > Security through an owner-only install --set-file sportarr.api_key=PATH. Install can replace Compose: preserve and review existing mounts, ports and authentication and separately approve replacement first. Setup never regenerates keys or replaces the administrator.",
 	}}
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Keep /config writable by the selected user. In Settings > General > Security, require Forms authentication for every address and configure your administrator. Choose your sports library, profiles and download clients yourself; no events or downloads are added by self-host."

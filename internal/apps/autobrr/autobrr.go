@@ -12,7 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 const bootstrapHint = "Open Autobrr and sign in with the intended Admin login from self-host credentials. Only an instance with no user and no OIDC may create its first user automatically. Preserve existing accounts and authentication; restore the intended login instead of resetting it, then run self-host setup autobrr."
 
@@ -123,8 +123,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "For standalone Compose, prepare the configuration bind source for the selected non-root user with private permissions before starting; Docker will not create it. On the first visit create the intended administrator only if this instance has no user. Configure tracker accounts, filters and download clients yourself; no releases are downloaded by Setup. Keep the persistent configuration and database when updating or removing the container."

@@ -9,7 +9,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 const ownerRecoveryHint = "Open Karakeep privately and verify the existing administrator selected by self-host credentials. Preserve its account, bookmarks, tags and attachments. Restore its matching credentials and recorded KARAKEEP_ACCOUNT_ID through the Project's private credential boundary; never clear the ID to accept another account. For a new instance, separately approve first-account creation before briefly enabling signups in the private Compose definition, then disable signups again. SSO, email verification and CAPTCHA remain Manual; do not disable authentication or verification. Retry self-host setup karakeep."
 
@@ -142,8 +142,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "This minimal installation stores the database and attachments in ./data. Signups start disabled with DISABLE_SIGNUPS=true. For a new private instance, explicitly approve first-account creation, briefly set DISABLE_SIGNUPS=false, create the first administrator, then restore DISABLE_SIGNUPS=true and recreate the container. Background workers, crawling, search, browser automation, AI and OCR start disabled; enable only the features you deliberately configure."

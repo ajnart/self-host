@@ -12,7 +12,7 @@ import (
 )
 
 // App is Linkwarden. Traps: docs/catalog/traps/linkwarden.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 const service = "linkwarden"
 
@@ -132,8 +132,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, sign up the first account on the first visit, then set NEXT_PUBLIC_DISABLE_REGISTRATION to \"true\" and run docker compose up -d again; registration stays open until you do."

@@ -12,7 +12,7 @@ import (
 )
 
 // App is Audiobookshelf. Traps: docs/catalog/traps/audiobookshelf.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -26,9 +26,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Before the first start, create ${DATA_PATH}/media and any missing audiobook or podcast subfolders with your Host user's ownership so Docker does not create the media parent as root. The shared media folder is mounted at /data/media. After starting, create the root account on the first visit, then select the media subfolders in Settings > Libraries. Review existing libraries before adding any, without replacing their folders or importing automatically."

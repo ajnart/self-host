@@ -11,7 +11,7 @@ import (
 	"github.com/ajnart/self-host/internal/setupspec"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
@@ -26,8 +26,6 @@ func (App) Info() app.Info {
 		Service:       "nginx-proxy-manager",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -91,8 +89,6 @@ var setup = setupspec.Spec{
 func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
 func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the first visit."

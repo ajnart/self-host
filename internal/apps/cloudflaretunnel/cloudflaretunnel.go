@@ -12,7 +12,7 @@ import (
 )
 
 // App is Cloudflare Tunnel. Traps: docs/catalog/traps/cloudflare-tunnel.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -86,8 +86,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 // ready runs the image's native private readiness probe.
 func ready(ctx context.Context, h *helpers.H) (bool, error) {

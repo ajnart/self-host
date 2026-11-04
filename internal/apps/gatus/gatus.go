@@ -16,7 +16,7 @@ import (
 )
 
 // App is Gatus. Traps: docs/catalog/traps/gatus.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,8 +29,6 @@ func (App) Info() app.Info {
 		Service:       "gatus",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 const config = `storage:
   type: sqlite
@@ -180,5 +178,3 @@ func localCheck(ctx context.Context, h *helpers.H) (string, time.Duration, error
 	interval, err := time.ParseDuration(value)
 	return key, interval, err
 }
-
-func (App) Links() []app.Link { return nil }

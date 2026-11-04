@@ -14,7 +14,7 @@ import (
 )
 
 // App is Valkey. Traps: docs/catalog/traps/valkey.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -28,8 +28,6 @@ func (App) Info() app.Info {
 		NoWebUI:       true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec { return []app.SecretSpec{{Name: "password", Length: 32}} }
 
@@ -91,5 +89,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

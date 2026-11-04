@@ -9,7 +9,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -128,8 +128,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return verify(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, review the private instance and create its administrator, then deliberately connect the intended Jellyfin or Emby server. Configuration starts automatic monitoring and scheduled library synchronization; do not connect a real server or import playback history merely to test statistics."

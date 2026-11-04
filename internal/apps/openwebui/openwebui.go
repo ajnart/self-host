@@ -13,7 +13,7 @@ import (
 )
 
 // App is Open WebUI. Traps: docs/catalog/traps/open-webui.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
@@ -28,8 +28,6 @@ func (App) Info() app.Info {
 		Service:       "open-webui",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the persistent session key that keeps sign-ins valid across
 // restarts.
@@ -83,8 +81,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(c
 // Check verifies the administrator login only; model provider and API-key
 // access stay separate acceptance steps.
 func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in with the email made of the ADMIN_USER value and @selfhost.local, and the ADMIN_PASSWORD value."

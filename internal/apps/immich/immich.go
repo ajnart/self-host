@@ -12,7 +12,7 @@ import (
 )
 
 // App is Immich. Traps: docs/catalog/traps/immich.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
@@ -34,8 +34,6 @@ func (App) Info() app.Info {
 		Service:       service,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "db_password", Length: 48}}
@@ -151,8 +149,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the first visit."

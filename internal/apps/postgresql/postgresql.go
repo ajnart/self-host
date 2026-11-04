@@ -14,7 +14,7 @@ import (
 )
 
 // App is PostgreSQL. Traps: docs/catalog/traps/postgresql.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -28,8 +28,6 @@ func (App) Info() app.Info {
 		NoWebUI:       true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	return `services:
@@ -114,5 +112,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

@@ -15,7 +15,7 @@ import (
 )
 
 // App is Oxynote. Traps: docs/catalog/traps/oxynote.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(string) string { return email }
 
@@ -41,8 +41,6 @@ func (App) Info() app.Info {
 		Service:         service,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // publicURL is the one origin Oxynote accepts. It sets its sign-in cookie for
 // this host only, so it must be the address people open. lan is the LAN
@@ -159,8 +157,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Open the exact Address configured in OXYNOTE_PUBLIC_URL. All browser API calls, WebSockets and sign-in cookies use this one origin; alternate Addresses do not work. To use a proxy, change OXYNOTE_PUBLIC_URL to its public origin and restart first. After the first start, sign in as " + email + " with the password " + defaultPassword + " and change it in the account settings before allowing anyone else to connect."

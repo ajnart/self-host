@@ -16,7 +16,7 @@ import (
 )
 
 // App is Home Assistant. Traps: docs/catalog/traps/home-assistant.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -41,8 +41,6 @@ func (App) Inputs() []app.Input {
 		Help: "Only for the dedicated read-only self-host-homarr user. Use --set-file, never a command argument. A refresh token or onboarding code is not an access token.",
 	}}
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, finish the onboarding page and create the owner. " +

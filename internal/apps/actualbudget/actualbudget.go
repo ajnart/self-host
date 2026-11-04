@@ -12,7 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -25,8 +25,6 @@ func (App) Info() app.Info {
 		Service:       "actual-budget",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -133,8 +131,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, open the web page and set the server password."

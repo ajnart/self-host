@@ -16,7 +16,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -427,8 +427,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in as admin with the ADMIN_PASSWORD value. If systemd-resolved already holds port 53 on the host, the container cannot bind it: turn off its DNSStubListener."

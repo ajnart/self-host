@@ -12,7 +12,7 @@ import (
 )
 
 // App is Grafana. Traps: docs/catalog/traps/grafana.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -25,8 +25,6 @@ func (App) Info() app.Info {
 		Service:       "grafana",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Compose runs Grafana as the configured owner of its persisted data directory.
 // The Admin login is seeded through environment references on first start.
@@ -74,5 +72,3 @@ var setup = setupspec.Spec{
 func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
 func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }

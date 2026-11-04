@@ -1,0 +1,25 @@
+# Traps: docs/catalog/traps/loki.md
+id: loki
+name: Loki
+category: Observability
+description: Gather your apps' activity messages in one place to search through
+image: grafana/loki:latest
+docs: https://grafana.com/docs/loki/latest/setup/install/docker/
+port: 3100
+files:
+  - path: data/.keep
+    mode: 0o644
+compose: |
+  services:
+    loki:
+      image: grafana/loki:latest
+      restart: unless-stopped
+      user: ${PUID}:${PGID}
+      volumes:
+        - ./data:/loki
+      ports:
+        - ${BIND_IP}:{{.Port}}:{{.ContainerPort}}
+setup:
+  kind: no-account
+  probe:
+    path: /ready

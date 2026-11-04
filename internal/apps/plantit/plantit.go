@@ -24,7 +24,7 @@ const (
 )
 
 // App is Plant-it. Traps: docs/catalog/traps/plant-it.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -111,8 +111,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ./db:/var/lib/mysql
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, open the web client, enter the API address when it asks, and register the owner account. Keep ./db and ./upload-dir: they hold the plants, photos and care history."

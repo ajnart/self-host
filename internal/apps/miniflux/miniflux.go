@@ -12,7 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 type readerIdentity struct {
 	ID       int64  `json:"id"`
@@ -217,8 +217,6 @@ func authenticatedRequest(ctx context.Context, h *helpers.H, request helpers.Req
 	}
 	return resp, nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Administrator creation is deliberately disabled. Inspect existing accounts first; only after independently confirming no account exists, run docker compose exec miniflux miniflux -create-admin in a real terminal. Never reset or replace an existing reader. Automatic feed polling and cleanup are disabled by DISABLE_SCHEDULER_SERVICE; review and approve any change before enabling outbound requests."

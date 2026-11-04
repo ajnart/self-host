@@ -8,33 +8,34 @@ import (
 )
 
 type Info struct {
-	ID          string
-	Name        string
-	Description string
-	Category    string
+	ID          string `yaml:"id"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Category    string `yaml:"category"`
 	// Image is the main service's image with its floating tag (`:latest`, or the upstream's floating stable tag). Only database engines pin a major.
-	Image string
-	Docs  string
+	Image string `yaml:"image"`
+	Docs  string `yaml:"docs"`
 	// Port is the default host port; ContainerPort is what it maps to.
-	Port          int
-	ContainerPort int
+	Port          int `yaml:"port"`
+	ContainerPort int `yaml:"container_port"`
 	// ContainerPortIsPort means the App listens on the host port it is given,
 	// published as port:port, so the port inside the Project follows the
 	// allocated host port and ContainerPort is only its default.
-	ContainerPortIsPort bool
+	ContainerPortIsPort bool `yaml:"container_port_is_port"`
 	// Service is the main Compose service, the one Setup talks to.
-	Service string
+	Service string `yaml:"service"`
 	// Path is appended to the App URL when users open it (e.g. "/web").
-	Path string
+	Path string `yaml:"path"`
 	// NoWebUI identifies a published protocol endpoint that is not a browser URL.
-	NoWebUI         bool
-	HomeAddressOnly bool
+	NoWebUI         bool `yaml:"no_web_ui"`
+	HomeAddressOnly bool `yaml:"home_address_only"`
 	// WebSockets and LongTimeouts say what a reverse proxy in front of the App
 	// must allow: upgraded connections, and long uploads or streams. Unset
 	// means not known, not no.
-	WebSockets, LongTimeouts bool
+	WebSockets   bool `yaml:"websockets"`
+	LongTimeouts bool `yaml:"long_timeouts"`
 	// UsesMedia means the App mounts ${MEDIA_ROOT} or ${DOWNLOADS_ROOT}.
-	UsesMedia bool
+	UsesMedia bool `yaml:"uses_media"`
 }
 
 // ContainerPortFor is the port other services in the Project reach the App on,
@@ -47,20 +48,20 @@ func (i Info) ContainerPortFor(port int) int {
 }
 
 type Input struct {
-	Key          string
-	Prompt       string
-	Help         string
-	Default      string
-	Required     bool
-	RecoveryOnly bool `json:",omitempty"`
+	Key          string `yaml:"key"`
+	Prompt       string `yaml:"prompt"`
+	Help         string `yaml:"help"`
+	Default      string `yaml:"default"`
+	Required     bool   `yaml:"required"`
+	RecoveryOnly bool   `json:",omitempty" yaml:"recovery_only"`
 	// Private inputs are stored in .env, never in Project state.
-	Private bool
+	Private bool `yaml:"private"`
 	// HostPortProtocols declares a non-secret host port published by the App.
 	// Install keeps an existing or explicitly selected value and otherwise
 	// allocates the first available port from Default for every protocol.
-	HostPortProtocols []string
+	HostPortProtocols []string `yaml:"host_port_protocols"`
 	// Validate rejects an invalid public input before any apply operation.
-	Validate func(string) error `json:"-"`
+	Validate func(string) error `json:"-" yaml:"-"`
 }
 
 // RenderContext is what an App needs to render its Compose fragment.
@@ -103,16 +104,24 @@ type App interface {
 	Links() []Link
 }
 
+// Defaults is embedded by an App that asks for no Inputs and declares no Links.
+// Setup and Check have no default: an App with no Setup should fail to build.
+type Defaults struct{}
+
+func (Defaults) Inputs() []Input { return nil }
+
+func (Defaults) Links() []Link { return nil }
+
 // SecretSpec is a secret an App needs before its container first starts.
 type SecretSpec struct {
 	// Name is namespaced with the App ID: "admin_token" for vaultwarden is
 	// VAULTWARDEN_ADMIN_TOKEN in .env.
-	Name string
+	Name string `yaml:"name"`
 	// Length is the size of the generated random value.
-	Length int
+	Length int `yaml:"length"`
 	// Hex makes it Length hexadecimal digits (e.g. a 256-bit key as 64)
 	// instead of letters and digits.
-	Hex bool
+	Hex bool `yaml:"hex"`
 }
 
 // SecretDeclarer is an optional interface for Apps whose Compose fragment
@@ -156,12 +165,12 @@ type Link struct {
 // File is a configuration file an App needs before its container first
 // starts, written to apps/<id>/<Path> (Path is relative to the App folder).
 type File struct {
-	Path    string
-	Content string
+	Path    string `yaml:"path"`
+	Content string `yaml:"content"`
 	// Mode defaults to 0644; use 0600 when Content holds a secret.
-	Mode uint32
+	Mode uint32 `yaml:"mode"`
 	// Keep leaves an existing file alone, e.g. one the App rewrites itself.
-	Keep bool
+	Keep bool `yaml:"keep"`
 }
 
 // FileDeclarer is an optional interface for Apps that need generated config

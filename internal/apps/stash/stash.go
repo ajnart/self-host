@@ -9,7 +9,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -73,8 +73,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return verify(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Complete the first visit with authentication enabled and no library paths or scans. Keep configuration and the database in /root/.stash; select /metadata, /cache, /blobs and /generated for their corresponding storage when wanted. New writes use a private umask and content at /data is read-only; existing permissions are not changed. Preserve existing paths and the single unscoped instance API key; self-host does not bootstrap accounts or generate keys in this partial App slice."

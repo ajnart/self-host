@@ -14,7 +14,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -216,8 +216,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	_, err := signedIn(ctx, h, (App{}).AdminEmail(h.AdminUser()), h.AdminPassword())
 	return err
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Create the first administrator on the first visit. Keep the configuration on a local filesystem. Books are mounted read-only; choose an existing library yourself when ready."

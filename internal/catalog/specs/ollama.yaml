@@ -1,0 +1,23 @@
+# Traps: docs/catalog/traps/ollama.md
+id: ollama
+name: Ollama
+category: Local AI
+description: Run AI chat models on your own computer, with nothing sent to the cloud
+image: ollama/ollama:latest
+docs: https://github.com/ollama/ollama/blob/main/docs/docker.md
+port: 11434
+compose: |
+  services:
+    ollama:
+      image: ollama/ollama:latest
+      restart: unless-stopped
+      environment:
+        OLLAMA_MODELS: /models
+      volumes:
+        - ./models:/models
+      ports:
+        - ${BIND_IP}:{{.Port}}:{{.ContainerPort}}
+setup:
+  kind: no-account
+  probe:
+    path: /api/version

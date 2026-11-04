@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 const (
 	bootstrapHint = "Open Bindery and finish first-administrator creation using the Admin login from self-host credentials. Automatic first-account and key bootstrap is not implemented yet. Preserve any existing account, then run self-host setup bindery."
@@ -48,8 +48,6 @@ func (App) Inputs() []app.Input {
 		Help: "Recover the current key privately, without regenerating it. This instance key grants administrator access; Bindery has no scoped read-only alternative. Reinstalling to import a private input requires reviewing and approving Compose replacement first.",
 	}}
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) Directories(rc app.RenderContext) []app.Directory {
 	return []app.Directory{{Path: "config", Mode: 0o755, UID: rc.Settings["PUID"], GID: rc.Settings["PGID"]}}

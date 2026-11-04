@@ -12,7 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 const serverService = "your-spotify-server"
 
@@ -118,8 +118,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return &helpers.ManualError{Hint: startupHint + " " + oauthHint + " " + ingestionHint}
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "The API server is held behind the your-spotify-manual Compose profile with automatic restart disabled; the browser client alone is not a working account. Before deliberately starting the server, separately review backup and preservation of any existing history: upstream startup runs migrations, repair and duplicate deletion, then polls Spotify. Supply existing developer credentials privately and review the exact browser/API Addresses and callback ending in oauth/spotify/callback. Spotify OAuth, existing Premium eligibility and ingestion need the person's explicit consent; no account linking, subscriptions, history imports or playback are automatic. Keep LOG_LEVEL at warn or error before using a public token because default request logs expose query tokens. A public token is read-only but indefinite and account-wide; regenerating it revokes existing sharing links."

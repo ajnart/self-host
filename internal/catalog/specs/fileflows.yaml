@@ -1,0 +1,31 @@
+# Traps: docs/catalog/traps/fileflows.md
+# Setup only proves the web console answers; the EULA, security, libraries,
+# flows and licence stay with the owner.
+id: fileflows
+name: FileFlows
+category: Media
+description: Process and convert files with flows you control
+image: revenz/fileflows:stable
+docs: https://fileflows.com/docs/installation/docker/
+port: 19200
+container_port: 5000
+standalone_guide: After the first start, review and accept the EULA on the first-run page, then set up users and security before exposing it.
+compose: |
+  services:
+    fileflows:
+      image: revenz/fileflows:stable
+      restart: unless-stopped
+      environment:
+        PUID: ${PUID}
+        PGID: ${PGID}
+        TZ: ${TZ}
+      volumes:
+        - ./data:/app/Data
+        - ./logs:/app/Logs
+        - ./temp:/temp
+      ports:
+        - ${BIND_IP}:{{.Port}}:{{.ContainerPort}}
+setup:
+  kind: no-account
+  probe:
+    path: /

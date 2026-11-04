@@ -10,7 +10,7 @@ import (
 )
 
 // App is Glances. Traps: docs/catalog/traps/glances.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -23,8 +23,6 @@ func (App) Info() app.Info {
 		Service:       "glances",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -56,5 +54,3 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }

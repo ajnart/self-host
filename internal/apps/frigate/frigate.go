@@ -18,7 +18,7 @@ import (
 )
 
 // App is Frigate. Traps: docs/catalog/traps/frigate.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -31,9 +31,6 @@ func (App) Info() app.Info {
 		Service:       "frigate",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Frigate generates the first administrator (admin) and prints its password once in the container logs; sign in with it and change it."

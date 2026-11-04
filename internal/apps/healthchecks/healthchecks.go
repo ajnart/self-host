@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/names"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -146,8 +146,6 @@ func (App) Preflight(_ context.Context, h *helpers.H) error {
 func (App) StandaloneGuide() string {
 	return "After starting both services, run the image's interactive createsuperuser management command in the healthchecks service, then sign in. Registration is closed. Preserve the database and SECRET_KEY. Choose a project and create a read-only API key in Project Settings. Outbound email, notification delivery and real job pings require separate configuration; Setup never sends test pings."
 }
-
-func (App) Links() []app.Link { return nil }
 
 var projectPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 var hostPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.-]*$`)

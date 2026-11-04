@@ -8,10 +8,21 @@ For media paths and user choices, read [Media Setup](media-setup.md).
 
 - Search `internal/apps/`, `internal/catalog/`, `dcm/src/tools/` and DCM's `ALIASES` before adding a product.
 - Verify image, ports, mounts and authentication against primary upstream sources; retain those URLs in `docs/catalog/traps/<id>.md`.
-- Implement the existing [`app.App` contract](../../internal/app/app.go): `Info`, `Inputs`, `Compose`, `Setup`, `Check`, `Links`.
+- Declare the App as a [YAML spec](#declarative-spec) when its Setup only proves the web page answers; otherwise implement the existing [`app.App` contract](../../internal/app/app.go): `Info`, `Inputs`, `Compose`, `Setup`, `Check`, `Links`.
 - Reuse a comparable App and [`internal/helpers/`](../../internal/helpers/); add no parallel Setup framework.
 - Servarr consumers reuse [`DownloadClientLinks`](../../internal/apps/servarr/downloadclients.go) for supported downloaders and [`ApplicationLink`](../../internal/apps/servarr/links.go) for consuming application Links. Pass the actual API prefix, category field and category rather than copying a downloader implementation; keep target-specific authentication and read-only prerequisites in the target owner.
-- `tools/appgen` is a historical importer, not a safe scaffold: it references removed `internal/onboard` and overwrites App sources and registration. Do not run it to add an App.
+
+## Declarative spec
+
+An App whose Setup is the `no-account` probe is one file, `internal/catalog/specs/<id>.yaml`, plus its icon. [`internal/appspec`](../../internal/appspec/appspec.go) embeds and loads it, so there is no Go and no registration. Copy `specs/ollama.yaml`; `specs/loki.yaml` shows `files`, `specs/stirling-pdf.yaml` a `standalone_guide`.
+
+- Required: `id name category description image docs port compose setup`. The file is named `<id>.yaml` and starts with `# Traps: docs/catalog/traps/<id>.md`.
+- Optional: `container_port` (defaults to `port`), `service` (defaults to `id`), the other `app.Info` keys (`path no_web_ui home_address_only websockets long_timeouts uses_media container_port_is_port`), `inputs`, `secrets`, `files` (`path content mode keep`) and `standalone_guide`. Keys are the lowercase snake_case of the Go field.
+- `setup` is a [`setupspec`](../../internal/setupspec/setupspec.go) block: `kind: no-account` and `probe: {path, contains}`.
+- `compose` and each file's `content` are `text/template`: `{{.Image}}`, `{{.Port}}` (the host port), `{{.ContainerPort}}` and `{{.Inputs.KEY}}`; files also take `{{secret "name"}}`. Host settings stay literal (`${BIND_IP}`, `${PUID}`) and secrets are `${<ID>_<NAME>}`.
+- Parsing is strict. An unknown key, a missing field, a file name that differs from the id, a template that does not render or a Compose without the `service` fails at startup, so any test that calls `catalog.Default()` fails first.
+
+An App that needs more than that (extra Setup steps, a first administrator, Links, deferred services) stays Go.
 
 ## Compose and optional interfaces
 
@@ -49,7 +60,7 @@ For media paths and user choices, read [Media Setup](media-setup.md).
 
 ## Registration and delivery
 
-- Follow edit-catalog for Recipes, descriptions and DCM collisions; run `go run ./tools/registrygen` to register the App.
+- Follow edit-catalog for Recipes, descriptions and DCM collisions; a spec needs no registration, a Go App runs `go run ./tools/registrygen`.
 - Icon and repository metadata default from the id and `Docs`; override them in `tools/sitegen/icons.go` and `tools/sitegen/stars.go` only when they differ.
 - Follow [generated-data ownership and counts](../agents/generated-data.md) for site/DCM generation, aliases, hand-kept counts and drift checks; never hand-edit generated output.
 - Use the applicable [repository gate](../../AGENTS.md); report focused verification separately from deferred runtime acceptance.
