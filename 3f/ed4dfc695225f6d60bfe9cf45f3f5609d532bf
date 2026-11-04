@@ -1,0 +1,41 @@
+internal/apps/actualbudget/actualbudget.go
+  s_56f298195c530e::t_45e5095cddf148 102
+internal/apps/beszel/beszel.go
+  s_0f0c9bce1f5af5::t_66acd919be6a5b 387
+internal/apps/deluge/deluge.go
+  s_56f298195c530e::t_8e77064de0e5e1 353
+internal/apps/nginxproxymanager/nginxproxymanager.go
+  s_56f298195c530e::t_c8b39ee7468988 122
+internal/apps/pihole/pihole.go
+  s_0f0c9bce1f5af5::t_dc689514fa224c 162
+internal/apps/plex/plex.go
+  s_56f298195c530e::t_74e80f3c185e81 296
+internal/apps/technitiumdns/technitiumdns.go
+  s_56f298195c530e::t_b71ba30cedead8 397
+internal/helpers/http.go
+  s_0f0c9bce1f5af5::t_946a86f440d389 215-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fed4dfc695225f6d60bfe9cf45f3f5609d532bf",
+  "prompts": {},
+  "sessions": {
+    "s_0f0c9bce1f5af5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "712ffc94-905e-4050-8762-641d8d842aeb",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_56f298195c530e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2990966a-f6b7-494c-a3ca-300ff1e53d3f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
