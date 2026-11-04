@@ -2,8 +2,6 @@ package tracearr
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,11 +26,6 @@ type homarrHealth struct {
 
 func homarrKeyNeeded(h *helpers.H) bool {
 	return h.Peer("homarr") != nil || h.Secret(h.Key("homarr_api_key")) != "" || h.Secret(h.Key("homarr_api_key_owner")) != "" || h.Secret(h.Key("homarr_api_key_hash")) != ""
-}
-
-func homarrKeyHash(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
 }
 
 func currentHomarrKey(ctx context.Context, h *helpers.H, session string) (string, error) {
@@ -68,7 +61,7 @@ func homarrKeyWorks(ctx context.Context, h *helpers.H, session, ownerID string) 
 	if key == "" {
 		return false, nil
 	}
-	if ownerID == "" || h.Secret(h.Key("homarr_api_key_owner")) != ownerID || h.Secret(h.Key("homarr_api_key_hash")) != homarrKeyHash(key) {
+	if ownerID == "" || h.Secret(h.Key("homarr_api_key_owner")) != ownerID || h.Secret(h.Key("homarr_api_key_hash")) != helpers.Fingerprint(key) {
 		return false, fmt.Errorf("%w: Tracearr key ownership is unverified; restore its Project credential checkpoint before retrying Setup", helpers.ErrManual)
 	}
 	current, err := currentHomarrKey(ctx, h, session)
@@ -103,7 +96,7 @@ func setupHomarrKey(ctx context.Context, h *helpers.H, session, ownerID string) 
 				return fmt.Errorf("%w: Tracearr key creation belongs to a different owner; restore the Project checkpoint", helpers.ErrManual)
 			}
 			if current != "" {
-				if checkpoint == "" || h.Secret(h.Key("homarr_api_key_hash")) != homarrKeyHash(current) {
+				if checkpoint == "" || h.Secret(h.Key("homarr_api_key_hash")) != helpers.Fingerprint(current) {
 					return fmt.Errorf("%w: Tracearr already has an unowned API key; preserve it and make an explicit credential ownership decision before retrying", helpers.ErrManual)
 				}
 				return h.SetSecret(h.Key("homarr_api_key"), current)
@@ -130,7 +123,7 @@ func setupHomarrKey(ctx context.Context, h *helpers.H, session, ownerID string) 
 			if resp.Status != 200 || resp.Decode(&created) != nil || !strings.HasPrefix(created.Token, "trr_pub_") {
 				return fmt.Errorf("%w: Tracearr key creation was not confirmed; inspect the owned account before retrying Setup", helpers.ErrManual)
 			}
-			if err := h.SetSecret(h.Key("homarr_api_key_hash"), homarrKeyHash(created.Token)); err != nil {
+			if err := h.SetSecret(h.Key("homarr_api_key_hash"), helpers.Fingerprint(created.Token)); err != nil {
 				return err
 			}
 			return h.SetSecret(h.Key("homarr_api_key"), created.Token)
@@ -143,7 +136,7 @@ func setupHomarrKey(ctx context.Context, h *helpers.H, session, ownerID string) 
 func readHomarrHealth(ctx context.Context, h *helpers.H) (homarrHealth, error) {
 	var health homarrHealth
 	key := h.Secret(h.Key("homarr_api_key"))
-	if !strings.HasPrefix(key, "trr_pub_") || h.Secret(h.Key("homarr_api_key_owner")) == "" || h.Secret(h.Key("homarr_api_key_hash")) != homarrKeyHash(key) {
+	if !strings.HasPrefix(key, "trr_pub_") || h.Secret(h.Key("homarr_api_key_owner")) == "" || h.Secret(h.Key("homarr_api_key_hash")) != helpers.Fingerprint(key) {
 		return health, fmt.Errorf("%w: Tracearr's owned Homarr key is missing; run self-host setup tracearr, then self-host setup homarr", helpers.ErrManual)
 	}
 	resp, err := h.HTTP(ctx, helpers.Request{

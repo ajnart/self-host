@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/ajnart/self-host/internal/apps/lidarr"
@@ -54,56 +55,29 @@ func verifyLidarr(ctx context.Context, from, to *helpers.H, integrationID string
 			return errors.New("Lidarr returned incomplete artist monitoring data; retry self-host setup lidarr")
 		}
 	}
-	now := from.Now().UTC()
-	value, err := apiKeyProcedure(ctx, from, "widget.calendar.findAllEvents", map[string]any{
-		"integrationIds": []string{integrationID}, "year": now.Year(), "month": int(now.Month()),
-		"releaseType": []string{}, "showUnmonitored": true,
-	})
+	events, err := readCalendarEvents(ctx, from, integrationID, "lidarr")
 	if err != nil {
-		return errors.New("Homarr could not read Lidarr's calendar; check the integration and retry self-host setup homarr")
+		return err
 	}
-	results, ok := value.([]any)
-	if !ok || len(results) != 1 {
-		return errors.New("Homarr did not return Lidarr's calendar; retry self-host setup homarr")
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok || result["error"] != nil {
-		return errors.New("Homarr's Lidarr calendar failed, not an empty calendar; retry self-host setup homarr")
-	}
-	integration, ok := result["integration"].(map[string]any)
-	if !ok || stringField(integration, "id") != integrationID || stringField(integration, "kind") != "lidarr" {
-		return errors.New("Homarr returned another integration's calendar; retry self-host setup homarr")
-	}
-	events, ok := result["events"].([]any)
-	if !ok {
-		return errors.New("Homarr returned incomplete Lidarr calendar data; retry self-host setup homarr")
-	}
-	for _, value := range events {
-		event, ok := value.(map[string]any)
-		if !ok || stringField(event, "title") == "" {
-			return errors.New("Homarr returned incomplete Lidarr release data; retry self-host setup homarr")
-		}
-		subtitle, present := event["subTitle"]
-		_, text := subtitle.(string)
-		if !present || subtitle != nil && !text {
-			return errors.New("Homarr returned invalid Lidarr artist data; retry self-host setup homarr")
-		}
-		if _, err := time.Parse(time.RFC3339Nano, stringField(event, "startDate")); err != nil {
-			return errors.New("Homarr returned an invalid Lidarr release date; retry self-host setup homarr")
-		}
+	if !calendarSubtitles(events) {
+		return errors.New("Homarr returned invalid Lidarr artist data; retry self-host setup homarr")
 	}
 	return nil
 }
 
 func verifyLidarrStats(sample statsSample) error {
-	for _, key := range []string{"artists", "monitored", "upcoming"} {
+	return verifyLibraryCounts(sample, "Lidarr", "artists")
+}
+
+func verifyLibraryCounts(sample statsSample, name, library string) error {
+	for _, key := range []string{library, "monitored", "upcoming"} {
 		count, ok := sample.values[key].(float64)
 		if sample.units[key] != "count" || !ok || count < 0 || math.IsNaN(count) || math.IsInf(count, 0) || count != math.Trunc(count) {
-			return errors.New("Homarr returned invalid Lidarr count statistics; retry self-host setup homarr")
+			return errors.New("Homarr returned invalid " + name + " count statistics; retry self-host setup homarr")
 		}
 	}
-	if sample.values["monitored"].(float64) > sample.values["artists"].(float64) {
-		return errors.New("Homarr returned inconsistent Lidarr artist statistics; retry self-host setup homarr")
+	if sample.values["monitored"].(float64) > sample.values[library].(float64) {
+		return errors.New("Homarr returned inconsistent " + name + " " + strings.TrimSuffix(library, "s") + " statistics; retry self-host setup homarr")
 	}
 	return nil
 }

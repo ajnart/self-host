@@ -1,5 +1,7 @@
 package testkit
 
+import "errors"
+
 type StartupReason string
 
 const (
@@ -34,6 +36,9 @@ func StartupReasons() map[StartupReason]string {
 	}
 }
 
+// ErrCleanupIncomplete marks a failure whose owned resources may remain.
+var ErrCleanupIncomplete = errors.New("cleanup incomplete")
+
 type StartupError struct {
 	reason  StartupReason
 	message string
@@ -46,3 +51,21 @@ func (e *StartupError) Reason() string { return string(e.reason) }
 func startupError(reason StartupReason, message string) error {
 	return &StartupError{reason: reason, message: message}
 }
+
+type OperationError struct {
+	primary error
+	reason  StartupReason
+	cleanup error
+}
+
+func (e *OperationError) Error() string {
+	message := e.primary.Error()
+	if e.cleanup != nil {
+		message += "; cleanup incomplete; private recovery marker retained"
+	}
+	return message
+}
+
+func (e *OperationError) Unwrap() error       { return e.primary }
+func (e *OperationError) Reason() string      { return string(e.reason) }
+func (e *OperationError) CleanupError() error { return e.cleanup }

@@ -22,6 +22,17 @@ var ErrStepFailed = errors.New("setup step failed")
 // ErrManual marks a step that needs a person to finish or verify it.
 var ErrManual = errors.New("manual step")
 
+type ManualError struct{ Hint string }
+
+func (e *ManualError) Error() string {
+	if e.Hint == "" {
+		return ErrManual.Error()
+	}
+	return e.Hint + ": " + ErrManual.Error()
+}
+
+func (*ManualError) Unwrap() error { return ErrManual }
+
 type Secrets interface {
 	Get(key string) string
 	Set(key, value string) error
@@ -43,6 +54,8 @@ type StepResult struct {
 	Msg    string
 	Error  string
 	Hint   string
+	// Verified marks a skip whose Check observed the outcome already holding.
+	Verified bool
 }
 
 // InstalledApp is the non-secret connection metadata for a Project App.
@@ -69,8 +82,9 @@ type Config struct {
 	Exec     Executor
 	Record   func(StepResult)
 	// Peer returns the helpers of another installed App, or nil.
-	Peer          func(id string) *H
-	InstalledApps func(context.Context) ([]InstalledApp, error)
+	Peer                func(id string) *H
+	InstalledApps       func(context.Context) ([]InstalledApp, error)
+	ExternalConnections func() ([]ExternalConnection, error)
 	// ReadConfig reads an App-owned configuration file through its container
 	// when its private file owner differs from the invoking host user.
 	// Nil keeps the ordinary local-file reader.
@@ -147,7 +161,7 @@ func (h *H) Step(ctx context.Context, id, msg string, spec StepSpec) error {
 				note = " (it already answered)"
 			}
 			h.Log.Emit(events.Event{Event: events.StepSkip, App: h.App, Step: id, Msg: msg + note})
-			h.Record(StepResult{ID: id, Status: status.StepSkip, Msg: msg})
+			h.Record(StepResult{ID: id, Status: status.StepSkip, Msg: msg, Verified: true})
 			return nil
 		}
 	}
@@ -172,6 +186,10 @@ func (h *H) Step(ctx context.Context, id, msg string, spec StepSpec) error {
 
 func (h *H) fail(id, msg string, spec StepSpec, err error) error {
 	if errors.Is(err, ErrManual) {
+		var manual *ManualError
+		if errors.As(err, &manual) && manual.Hint != "" {
+			spec.Hint = manual.Hint
+		}
 		h.Log.Emit(events.Event{Event: events.StepManual, App: h.App, Step: id, Msg: msg,
 			URL: h.URL, Credential: spec.Credential, Hint: spec.Hint})
 		h.Record(StepResult{ID: id, Status: status.StepManual, Msg: msg, Hint: spec.Hint})

@@ -28,6 +28,7 @@ type statsFixture struct {
 	afterRaw      string
 	retryAt       any
 	hasRetryAt    bool
+	keepValues    bool
 }
 
 func newStatsFixture() *statsFixture {
@@ -74,7 +75,7 @@ func (f *statsFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		values := f.values
-		if f.refreshes > 1 {
+		if f.refreshes > 1 && !f.keepValues {
 			values = map[string]any{"requests": float64(0)}
 		}
 		refreshed := map[string]any{"updatedAt": f.timestamp, "error": false, "stale": false, "values": values}
@@ -288,5 +289,21 @@ func TestStatsVerificationStopsAfterNativeFailure(t *testing.T) {
 	target.verify = func(context.Context, *helpers.H, *helpers.H, string) error { return nativeFailure }
 	if err := target.verifyData(t.Context(), h, h, "caddy-owned"); !errors.Is(err, nativeFailure) || fixture.catalogs != 0 || fixture.refreshes != 0 {
 		t.Fatalf("native failure must stop before Stats: err=%v catalogs=%d refreshes=%d", err, fixture.catalogs, fixture.refreshes)
+	}
+}
+
+func TestStatsTargetsVerifyBeforeTheirStatsRun(t *testing.T) {
+	descriptors := targets()
+	for _, c := range []helpers.ExternalConnection{scrutinyTestConnection(), wazuhTestConnection()} {
+		d, err := externalConnectionDescriptor(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		descriptors = append(descriptors, d)
+	}
+	for _, d := range descriptors {
+		if d.stats != nil && d.verify == nil {
+			t.Errorf("%s validates Stats without a verifier, so its Stats never run", d.name)
+		}
 	}
 }

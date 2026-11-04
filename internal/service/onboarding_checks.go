@@ -51,7 +51,7 @@ func (s *Service) onboardingChecks(opts InstallOptions, reserved []host.PortRequ
 	if err != nil {
 		return []host.Check{{ID: "plan", Title: "Selected Apps", Level: host.Fail, Detail: err.Error()}}
 	}
-	inputs, err := resolveInputs(apps, opts.Sets, nil)
+	inputs, err := ResolveInputs(apps, opts.Sets, nil)
 	if err != nil {
 		return []host.Check{{ID: "plan", Title: "Selected ports", Level: host.Fail, Detail: err.Error()}}
 	}

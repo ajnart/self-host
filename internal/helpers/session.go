@@ -22,6 +22,18 @@ type Session struct {
 }
 
 // Session starts a fresh cookie jar for one login flow.
+// WithoutCookies returns a copy of h whose client keeps no cookie jar.
+func (h *H) WithoutCookies() *H {
+	client := *http.DefaultClient
+	if h.Config.HTTP != nil {
+		client = *h.Config.HTTP
+	}
+	client.Jar = nil
+	isolated := *h
+	isolated.Config.HTTP = &client
+	return &isolated
+}
+
 func (h *H) Session() *Session {
 	return &Session{h: h, jar: map[string]string{}}
 }

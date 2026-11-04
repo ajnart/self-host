@@ -26,6 +26,7 @@ import (
 type fakeNtfy struct {
 	mu               sync.Mutex
 	users            map[string]string
+	roles            map[string]string
 	tokens           map[string]string
 	nextToken        int
 	anonymousCanRead bool
@@ -48,7 +49,11 @@ func (f *fakeNtfy) handler() http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"username": user, "role": "admin"})
+		role := f.roles[user]
+		if role == "" {
+			role = "admin"
+		}
+		json.NewEncoder(w).Encode(map[string]string{"username": user, "role": role})
 	})
 	mux.HandleFunc("POST /v1/account/token", func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
@@ -85,7 +90,7 @@ func (f *fakeNtfy) handler() http.Handler {
 }
 
 func setup(t *testing.T) (*system.Deps, *fakeNtfy, *httptest.Server, *catalog.Catalog) {
-	fake := &fakeNtfy{users: map[string]string{}, tokens: map[string]string{}}
+	fake := &fakeNtfy{users: map[string]string{}, roles: map[string]string{}, tokens: map[string]string{}}
 	server := httptest.NewServer(fake.handler())
 	t.Cleanup(server.Close)
 	deps := systemtest.NewDeps(t)
@@ -99,12 +104,19 @@ func setup(t *testing.T) (*system.Deps, *fakeNtfy, *httptest.Server, *catalog.Ca
 				return system.Result{ExitCode: 1, Stderr: []byte("user " + user + " already exists")}
 			}
 			fake.users[user] = clitest.Env(cmd)["NTFY_PASSWORD"]
+			fake.roles[user] = "admin"
 		}
 		if strings.Contains(line, "exec -T -e NTFY_PASSWORD ntfy ntfy user change-pass ") {
 			user := line[strings.LastIndex(line, " ")+1:]
 			fake.mu.Lock()
 			defer fake.mu.Unlock()
 			fake.users[user] = clitest.Env(cmd)["NTFY_PASSWORD"]
+		}
+		if strings.Contains(line, "exec -T ntfy ntfy user change-role ") {
+			fields := strings.Fields(line)
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			fake.roles[fields[len(fields)-2]] = fields[len(fields)-1]
 		}
 		return system.Result{}
 	})
@@ -193,15 +205,49 @@ func TestSetupRerunSkipsAdminCreation(t *testing.T) {
 	}
 }
 
-func TestSetupRepairsAChangedAdminPassword(t *testing.T) {
-	deps, fake, server, cat := setup(t)
-	clitest.Run(t, deps, cat, "install", "ntfy", "--yes", "--set", "ntfy.port="+clitest.Port(server))
-	fake.users["admin"] = "changed-by-hand"
-
-	r := clitest.Run(t, deps, cat, "setup", "ntfy", "--json")
-
-	if r.Code != 0 || r.StepEvent("ntfy", "admin-user") != "step.ok" {
-		t.Fatalf("exit %d, admin-user should be repaired:\n%s", r.Code, r.Out)
+func TestSetupPreservesRejectedExistingAccounts(t *testing.T) {
+	for _, reason := range []string{"password", "role"} {
+		t.Run(reason, func(t *testing.T) {
+			deps, fake, server, cat := setup(t)
+			installed := clitest.Run(t, deps, cat, "install", "ntfy", "--yes", "--set", "ntfy.port="+clitest.Port(server))
+			if installed.Code != 0 {
+				t.Fatal(installed.Out)
+			}
+			credentials := clitest.Run(t, deps, cat, "credentials", "--json").Out
+			fake.mu.Lock()
+			if reason == "password" {
+				fake.users["admin"] = "changed-by-hand"
+			} else {
+				fake.roles["admin"] = "user"
+			}
+			before, _ := json.Marshal([]any{fake.users, fake.roles, fake.tokens, fake.nextToken})
+			fake.mu.Unlock()
+			for attempt := 0; attempt < 2; attempt++ {
+				r := clitest.Run(t, deps, cat, "setup", "ntfy", "--json")
+				if r.Code != 3 || r.StepEvent("ntfy", "admin-user") != "step.manual" {
+					t.Fatalf("existing rejected account should require Manual recovery:\n%s", r.Out)
+				}
+				step := r.Step("ntfy", "admin-user")
+				hint, _ := step["hint"].(string)
+				if !strings.Contains(hint, "self-host credentials") || !strings.Contains(hint, "self-host setup ntfy") {
+					t.Fatal("existing account recovery lacks private inspection and retry instructions")
+				}
+				if strings.Contains(r.Out, "changed-by-hand") {
+					t.Fatal("existing credentials leaked into recovery output")
+				}
+			}
+			fake.mu.Lock()
+			after, _ := json.Marshal([]any{fake.users, fake.roles, fake.tokens, fake.nextToken})
+			fake.mu.Unlock()
+			if string(before) != string(after) || credentials != clitest.Run(t, deps, cat, "credentials", "--json").Out {
+				t.Fatal("Setup changed an existing password, role, token or saved credential")
+			}
+			for _, call := range deps.Runner.(*systemtest.Runner).Calls() {
+				if strings.Contains(call, "ntfy user change-pass") || strings.Contains(call, "ntfy user change-role") {
+					t.Fatal("Setup attempted to reset an existing account")
+				}
+			}
+		})
 	}
 }
 

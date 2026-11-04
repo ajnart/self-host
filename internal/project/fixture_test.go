@@ -51,16 +51,20 @@ func TestFixtureComposeCapsEveryServiceIncludingDeferredDependencies(t *testing.
 
 func TestFixtureComposeRefusesUnprovableScopeWithoutRewriting(t *testing.T) {
 	for name, source := range map[string]string{
-		"external bind":     "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['/etc:/host']\n",
-		"socket":            "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['/var/run/docker.sock:/socket']\n",
-		"host network":      "services:\n  fixture:\n    image: example/app:latest\n    network_mode: host\n",
-		"fixed name":        "services:\n  fixture:\n    image: example/app:latest\n    container_name: global\n",
-		"external resource": "services:\n  fixture:\n    image: example/app:latest\nvolumes:\n  data:\n    external: true\n",
-		"named volume":      "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['data:/data']\nvolumes:\n  data: {}\n",
-		"replicas":          "services:\n  fixture:\n    image: example/app:latest\n    deploy:\n      replicas: 9\n",
-		"broad port":        "services:\n  fixture:\n    image: example/app:latest\n    ports: ['12345:80']\n",
-		"unbounded image":   "services:\n  fixture:\n    image: '${IMAGE}'\n",
-		"six services":      "services:\n  fixture: {image: 'example/app:latest'}\n  b: {image: 'example/db:1'}\n  c: {image: 'example/db:1'}\n  d: {image: 'example/db:1'}\n  e: {image: 'example/db:1'}\n  f: {image: 'example/db:1'}\n",
+		"external bind":      "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['/etc:/host']\n",
+		"socket":             "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['/var/run/docker.sock:/socket']\n",
+		"host network":       "services:\n  fixture:\n    image: example/app:latest\n    network_mode: host\n",
+		"fixed name":         "services:\n  fixture:\n    image: example/app:latest\n    container_name: global\n",
+		"external resource":  "services:\n  fixture:\n    image: example/app:latest\nvolumes:\n  data:\n    external: true\n",
+		"named volume":       "services:\n  fixture:\n    image: example/app:latest\n    volumes: ['data:/data']\nvolumes:\n  data: {}\n",
+		"replicas":           "services:\n  fixture:\n    image: example/app:latest\n    deploy:\n      replicas: 9\n",
+		"broad port":         "services:\n  fixture:\n    image: example/app:latest\n    ports: ['12345:80']\n",
+		"unbounded image":    "services:\n  fixture:\n    image: '${IMAGE}'\n",
+		"six services":       "services:\n  fixture: {image: 'example/app:latest'}\n  b: {image: 'example/db:1'}\n  c: {image: 'example/db:1'}\n  d: {image: 'example/db:1'}\n  e: {image: 'example/db:1'}\n  f: {image: 'example/db:1'}\n",
+		"long external bind": "services:\n  fixture:\n    image: example/app:latest\n    volumes:\n      - {type: bind, source: /etc, target: /host}\n",
+		"long socket":        "services:\n  fixture:\n    image: example/app:latest\n    volumes:\n      - {type: bind, source: '${DATA_ROOT}/docker.sock', target: /socket}\n",
+		"long volume":        "services:\n  fixture:\n    image: example/app:latest\n    volumes:\n      - {type: volume, source: data, target: /data}\nvolumes:\n  data: {}\n",
+		"long propagation":   "services:\n  fixture:\n    image: example/app:latest\n    volumes:\n      - {type: bind, source: '${DATA_ROOT}', target: /data, bind: {propagation: shared}}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			p, policy := fixtureProject(t, source)
@@ -72,6 +76,13 @@ func TestFixtureComposeRefusesUnprovableScopeWithoutRewriting(t *testing.T) {
 				t.Fatal("refusal changed canonical Compose")
 			}
 		})
+	}
+}
+
+func TestFixtureComposeAcceptsPrivateLongFormBinds(t *testing.T) {
+	p, policy := fixtureProject(t, "services:\n  fixture:\n    image: example/app:latest\n    volumes:\n      - type: bind\n        source: ${DATA_ROOT}/library\n        target: /library\n        read_only: true\n        bind:\n          create_host_path: false\n")
+	if _, err := p.PrepareFixtureCompose(policy); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -100,5 +111,18 @@ func TestFixtureImageRefusesInterpolationAndCredentials(t *testing.T) {
 		if ValidFixtureImage(value) {
 			t.Fatal("unsafe selected image accepted")
 		}
+	}
+}
+
+func TestFixtureComposePairImageOverrides(t *testing.T) {
+	p, policy := fixtureProject(t, "services:\n  fixture: {image: 'example/app:latest'}\n  peer: {image: 'example/peer:latest'}\n")
+	policy.Images = map[string]string{"fixture": "example/app:selected", "peer": "example/peer:selected"}
+	plan, err := p.PrepareFixtureCompose(policy)
+	if err != nil || plan.Images["fixture"] != "example/app:selected" || plan.Images["peer"] != "example/peer:selected" {
+		t.Fatal("pair overrides not applied", err)
+	}
+	policy.Images["peer"] = "${UNSAFE}"
+	if _, err := p.PrepareFixtureCompose(policy); err == nil {
+		t.Fatal("unsafe pair image accepted")
 	}
 }

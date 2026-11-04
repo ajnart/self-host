@@ -20,7 +20,7 @@ func Guide(version string) string {
 func Topic(version, topic string) (string, error) {
 	topics := map[string][]string{
 		"core":      {},
-		"planning":  {"Setting up", "Doctor checks", "Shared media storage", "Beszel", "Responsible use"},
+		"planning":  {"Setting up", "Doctor checks", "Shared media storage", "Media configuration", "Beszel", "Responsible use"},
 		"repair":    {"JSON events", "Exit codes", "When a step fails", "Doctor checks"},
 		"access":    {"Reachability and Access"},
 		"backup":    {"Backups"},

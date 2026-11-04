@@ -71,6 +71,7 @@ func (r *ExecRunner) StreamIO(ctx context.Context, cmd Cmd, stdin io.Reader, std
 func (r *ExecRunner) command(ctx context.Context, cmd Cmd) *exec.Cmd {
 	c := exec.CommandContext(ctx, cmd.Name, cmd.Args...)
 	c.Dir = cmd.Dir
+	c.WaitDelay = cmd.WaitDelay
 	if r.environment != nil {
 		c.Env = append(slices.Clone(r.environment), cmd.Env...)
 	} else if len(cmd.Env) > 0 {

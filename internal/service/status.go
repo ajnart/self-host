@@ -15,11 +15,12 @@ import (
 )
 
 type StepStatus struct {
-	ID     string          `json:"id"`
-	Status stepstatus.Step `json:"status"`
-	Msg    string          `json:"msg,omitempty"`
-	Error  string          `json:"error,omitempty"`
-	Hint   string          `json:"hint,omitempty"`
+	ID       string          `json:"id"`
+	Status   stepstatus.Step `json:"status"`
+	Msg      string          `json:"msg,omitempty"`
+	Error    string          `json:"error,omitempty"`
+	Hint     string          `json:"hint,omitempty"`
+	Verified bool            `json:"verified,omitempty"`
 }
 
 type AppStatus struct {
@@ -61,10 +62,11 @@ type Status struct {
 	LANIP  string       `json:"lan_ip"`
 	// LANIPStale is true when LAN_IP is no longer an address of this
 	// machine; HostIPs then lists the addresses it has now.
-	LANIPStale bool              `json:"lan_ip_stale,omitempty"`
-	HostIPs    []string          `json:"host_ips,omitempty"`
-	Settings   map[string]string `json:"settings"`
-	Apps       []AppStatus       `json:"apps"`
+	LANIPStale  bool               `json:"lan_ip_stale,omitempty"`
+	HostIPs     []string           `json:"host_ips,omitempty"`
+	Settings    map[string]string  `json:"settings"`
+	Apps        []AppStatus        `json:"apps"`
+	Connections []ConnectionStatus `json:"connections,omitempty"`
 	// Home is the Home folder, where self-host keeps everything.
 	Home string `json:"home"`
 	// Dashboard is Homarr's Address when Homarr is installed.
@@ -96,6 +98,10 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	status := Status{Apps: []AppStatus{}, Project: ss.p.Root, Exposure: ss.settings["EXPOSURE"], Access: accessIDs(ss.settings["EXPOSURE"]), LANIP: ss.settings["LAN_IP"], Settings: ss.settings, Home: ss.p.Root}
+	status.Connections, err = ss.connectionStatuses("")
+	if err != nil {
+		return Status{}, err
+	}
 	rec, cleanup, err := loadCloudflareRecord(ss.p)
 	if err != nil {
 		return Status{}, err
@@ -157,7 +163,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 				if omitAbsentPeerWait(a, stepID, r, ids) {
 					continue
 				}
-				as.Steps = append(as.Steps, StepStatus{ID: stepID, Status: r.Status, Msg: s.Log.Redact(r.Msg), Error: s.Log.Redact(r.Error), Hint: s.Log.Redact(r.Hint)})
+				as.Steps = append(as.Steps, StepStatus{ID: stepID, Status: r.Status, Msg: s.Log.Redact(r.Msg), Error: s.Log.Redact(r.Error), Hint: s.Log.Redact(r.Hint), Verified: r.Verified})
 			}
 		}
 		if psErr != nil {

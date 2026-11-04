@@ -15,6 +15,7 @@ const gluetunReadinessHint = "Gluetun's saved read-only control key and running 
 func gluetunTarget() target {
 	return target{
 		id: "gluetun", name: "Gluetun", kind: "gluetun", internal: fixed("http://gluetun:8000"),
+		recovery: gluetunPrivacyHint + " " + gluetunReadinessHint,
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{{Kind: "apiKey", Value: to.Secret(to.Key("control_api_key"))}}
 		},

@@ -3,8 +3,10 @@ package arr_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ajnart/self-host/internal/app"
@@ -52,12 +54,20 @@ func failedSteps(a appStatus) []string {
 func TestAFailingLinkMakesItsConsumerIncompleteNotItsTarget(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
 	accept := false
-	e.Sonarr.AcceptDownloadClient = func(string, int, string, string) bool { return accept }
+	var attempts atomic.Int64
+	connect := e.Sonarr.AcceptDownloadClient
+	e.Sonarr.AcceptDownloadClient = func(host string, port int, user, password string) bool {
+		attempts.Add(1)
+		return accept && connect(host, port, user, password)
+	}
 
 	r := e.Run("install", "sonarr", "qbittorrent", "--yes", "--json")
 
 	if r.Code != 2 || r.StepEvent("sonarr", "link-qbittorrent") != "step.fail" {
 		t.Fatalf("exit %d, the Link failure belongs to Sonarr\n%s", r.Code, r.Out)
+	}
+	if attempts.Load() != 1 || len(e.Sonarr.DownloadClients()) != 0 {
+		t.Fatal("the Link must reach the rejected native creation test without leaving a resource")
 	}
 	if !strings.Contains(r.Out, "self-host setup sonarr") || strings.Contains(r.Out, "self-host setup qbittorrent") {
 		t.Fatalf("the hint must name the consuming App only:\n%s", r.Out)
@@ -73,7 +83,7 @@ func TestAFailingLinkMakesItsConsumerIncompleteNotItsTarget(t *testing.T) {
 	accept = true
 	retry := e.Run("setup", "qbittorrent", "--json")
 
-	if retry.Code != 0 || len(e.Sonarr.DownloadClients()) != 1 {
+	if retry.Code != 0 || attempts.Load() != 2 || len(e.Sonarr.DownloadClients()) != 1 {
 		t.Fatalf("rerunning the target's Setup must retry the Link (exit %d)\n%s", retry.Code, retry.Out)
 	}
 	if apps := appsStatus(t, e.Run("status", "--json").Out); apps["sonarr"].Setup != stepstatus.SetupOK {
@@ -84,13 +94,21 @@ func TestAFailingLinkMakesItsConsumerIncompleteNotItsTarget(t *testing.T) {
 func TestRerunningTheConsumerRetriesItsFailedLink(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
 	accept := false
-	e.Sonarr.AcceptDownloadClient = func(string, int, string, string) bool { return accept }
-	e.Run("install", "qbittorrent", "sonarr", "--yes")
+	var attempts atomic.Int64
+	connect := e.Sonarr.AcceptDownloadClient
+	e.Sonarr.AcceptDownloadClient = func(host string, port int, user, password string) bool {
+		attempts.Add(1)
+		return accept && connect(host, port, user, password)
+	}
+	initial := e.Run("install", "qbittorrent", "sonarr", "--yes", "--json")
+	if initial.Code != 2 || initial.StepEvent("sonarr", "link-qbittorrent") != "step.fail" || attempts.Load() != 1 || len(e.Sonarr.DownloadClients()) != 0 {
+		t.Fatal("consumer retry must start with a rejected native creation test, not a schema hold")
+	}
 
 	accept = true
 	r := e.Run("setup", "sonarr", "--json")
 
-	if r.Code != 0 || r.StepEvent("sonarr", "link-qbittorrent") != "step.ok" {
+	if r.Code != 0 || r.StepEvent("sonarr", "link-qbittorrent") != "step.ok" || attempts.Load() != 2 || len(e.Sonarr.DownloadClients()) != 1 {
 		t.Fatalf("exit %d\n%s", r.Code, r.Out)
 	}
 }
@@ -108,13 +126,41 @@ func TestALinkToAnUninstalledTargetIsNotScheduled(t *testing.T) {
 
 func TestAFailedUnlinkIsReportedAndKeptVisible(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
-	e.Run("install", "sonarr", "qbittorrent", "--yes")
+	schema := e.Sonarr.Handler()
+	var deletes atomic.Int64
+	e.Serve("sonarr", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "DELETE" && strings.HasPrefix(r.URL.Path, "/api/v3/downloadclient/") {
+			deletes.Add(1)
+		}
+		schema.ServeHTTP(w, r)
+	}))
+	initial := e.Run("install", "sonarr", "qbittorrent", "--yes", "--json")
+	if initial.Code != 0 || initial.StepEvent("sonarr", "link-qbittorrent") != "step.ok" || len(e.Sonarr.DownloadClients()) != 1 {
+		t.Fatal("failed unlink must start with a successfully created owned resource")
+	}
+	before, err := json.Marshal(e.Sonarr.DownloadClients())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ownership string
+	for line := range strings.SplitSeq(secrets(t, e), "\n") {
+		if strings.HasPrefix(line, "SONARR_LINK_QBITTORRENT_RESOURCE=") {
+			ownership = line
+		}
+	}
+	if ownership == "" {
+		t.Fatal("successful creation did not record its ownership")
+	}
 	e.Sonarr.FailDeletes = true
 
 	r := e.Run("remove", "qbittorrent", "--yes", "--json")
 
-	if r.Code != 2 || r.StepEvent("sonarr", "unlink-qbittorrent") != "step.fail" {
+	if r.Code != 2 || r.StepEvent("sonarr", "unlink-qbittorrent") != "step.fail" || deletes.Load() != 1 {
 		t.Fatalf("exit %d, a failed unlink must surface\n%s", r.Code, r.Out)
+	}
+	after, err := json.Marshal(e.Sonarr.DownloadClients())
+	if err != nil || string(after) != string(before) || !strings.Contains(secrets(t, e), ownership) {
+		t.Fatal("failed owned deletion must retain the complete resource and ownership")
 	}
 	apps := appsStatus(t, e.Run("status", "--json").Out)
 	if _, still := apps["qbittorrent"]; still {
@@ -127,18 +173,57 @@ func TestAFailedUnlinkIsReportedAndKeptVisible(t *testing.T) {
 
 func TestAUsersOwnQBittorrentClientIsLeftAlone(t *testing.T) {
 	e := newEnv(t, arr.Sonarr(), qbittorrent.App{})
-	e.Sonarr.SeedDownloadClient(map[string]any{"name": "NAS qBittorrent", "implementation": "QBittorrent",
-		"fields": []any{map[string]any{"name": "host", "value": "nas.local"}}})
-
-	e.Run("install", "sonarr", "qbittorrent", "--yes")
-	if got := len(e.Sonarr.DownloadClients()); got != 2 {
-		t.Fatalf("download clients = %d, want the user's and ours", got)
+	schema := e.Sonarr.Handler()
+	var mutations atomic.Int64
+	e.Serve("sonarr", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" && strings.HasPrefix(r.URL.Path, "/api/v3/downloadclient") {
+			mutations.Add(1)
+		}
+		schema.ServeHTTP(w, r)
+	}))
+	e.Sonarr.SeedDownloadClient(map[string]any{
+		"name": "NAS qBittorrent", "implementation": "QBittorrent", "implementationName": "qBittorrent",
+		"configContract": "QBittorrentSettings", "protocol": "torrent", "enable": true, "priority": 7, "tags": []int{4},
+		"removeCompletedDownloads": false, "removeFailedDownloads": true,
+		"fields": []any{
+			map[string]any{"name": "host", "value": "nas.local"},
+			map[string]any{"name": "port", "value": 8080},
+			map[string]any{"name": "useSsl", "value": false},
+			map[string]any{"name": "username", "value": "nas-user"},
+			map[string]any{"name": "password", "value": "synthetic-nas-password"},
+			map[string]any{"name": "tvCategory", "value": "personal-tv"},
+		},
+	})
+	before, err := json.Marshal(e.Sonarr.DownloadClients())
+	if err != nil {
+		t.Fatal(err)
 	}
-	e.Run("remove", "qbittorrent", "--yes")
+	r := e.Run("install", "sonarr", "qbittorrent", "--yes", "--json")
+	if r.Code != 3 || r.StepEvent("sonarr", "link-qbittorrent") != "step.manual" {
+		t.Fatalf("personal enabled torrent client must hold fresh creation (exit %d)\n%s", r.Code, r.Out)
+	}
+	hint, _ := r.Step("sonarr", "link-qbittorrent")["hint"].(string)
+	for _, want := range []string{"enabled competing client", "Settings > Download Clients", "configure the additional connection manually", "explicitly disable competing clients", "self-host setup sonarr", "does not change priorities, tags, indexer assignments or enabled flags"} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("selection recovery lacks %q", want)
+		}
+	}
+	apps := appsStatus(t, e.Run("status", "--json").Out)
+	if apps["sonarr"].Setup != stepstatus.SetupManual || apps["qbittorrent"].Setup != stepstatus.SetupOK {
+		t.Fatal("selection hold must remain isolated to the consuming App")
+	}
+	after, err := json.Marshal(e.Sonarr.DownloadClients())
+	if err != nil || string(after) != string(before) || mutations.Load() != 0 || e.Sonarr.DownloadClientTests() != 0 || strings.Contains(secrets(t, e), "SONARR_LINK_QBITTORRENT_RESOURCE") {
+		t.Fatal("selection hold changed the personal client or reached native/resource/ownership activity")
+	}
+	removed := e.Run("remove", "qbittorrent", "--yes", "--json")
+	if removed.Code != 0 || mutations.Load() != 0 || e.Sonarr.DownloadClientTests() != 0 || strings.Contains(secrets(t, e), "SONARR_LINK_QBITTORRENT_RESOURCE") {
+		t.Fatal("unowned target removal reached native/resource/ownership activity")
+	}
 
-	clients := e.Sonarr.DownloadClients()
-	if len(clients) != 1 || clients[0]["name"] != "NAS qBittorrent" {
-		t.Fatalf("the user's client must survive: %v", clients)
+	after, err = json.Marshal(e.Sonarr.DownloadClients())
+	if err != nil || string(after) != string(before) || len(e.Sonarr.DownloadClients()) != 1 || e.Sonarr.DownloadClients()[0]["enable"] != true {
+		t.Fatal("removal must preserve the complete genuinely enabled personal client")
 	}
 }
 

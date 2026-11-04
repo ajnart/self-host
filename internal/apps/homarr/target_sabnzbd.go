@@ -12,8 +12,9 @@ import (
 func sabnzbdTarget() target {
 	return target{
 		id: "sabnzbd", name: "SABnzbd", kind: "sabNzbd", internal: fixed("http://sabnzbd:8080"),
-		secrets: apiKeySecret,
-		widgets: []widget{plain("downloads"), statWidget("download", "paused")},
+		recovery: "SABnzbd credential-safety hold #363: use Homarr 2.5.1 or newer 2.x with the shipped privacy fix. Back up Homarr before changing its version, then retry self-host setup homarr. Older, unreadable or unreviewed versions remain Manual; do not bypass the hold or create a manual integration.",
+		secrets:  apiKeySecret,
+		widgets:  []widget{plain("downloads"), statWidget("download", "paused")},
 		preflight: func(ctx context.Context, from, to *helpers.H) error {
 			if err := requireCredentialSafeHomarr(ctx, from, "SABnzbd credential-safety hold #363: use Homarr 2.5.1 or newer 2.x with the shipped privacy fix. Back up Homarr before changing its version, then retry self-host setup homarr. Older, unreadable or unreviewed versions remain Manual; do not bypass the hold or create a manual integration."); err != nil {
 				return err

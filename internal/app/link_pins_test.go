@@ -64,7 +64,7 @@ func TestLinksKeepTheirStepIDsTitlesMessagesAndHints(t *testing.T) {
 			name: "arr download client", from: "sonarr", to: "qbittorrent", port: 8080,
 			links: arr.Sonarr().Links(), title: "download client: qBittorrent",
 			applyID: "link-qbittorrent", applyMsg: "use qBittorrent as the download client",
-			applyHint: "Open http://sonarr.example > Settings > Download Clients > add qBittorrent with host qbittorrent, port 8080 and the Admin login.",
+			applyHint: "Review http://sonarr.example > Settings and SONARR_LINK_QBITTORRENT_RESOURCE in the Project's private .env: the consumer's accepted API key is missing; restore consumer API access before retrying. Preserve person-owned entries; never claim an ID by matching its name or endpoint. Remove only a confirmed failed self-host creation manually. Clear an uncertain ownership record only after confirming that creation is absent, then run self-host setup sonarr.",
 			removeID:  "unlink-qbittorrent", removeMsg: "remove the qBittorrent download client",
 			rmHint: "Open http://sonarr.example > Settings > Download Clients and delete qBittorrent.",
 		},

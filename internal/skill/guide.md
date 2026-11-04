@@ -216,6 +216,10 @@ Expose every knob: specific Apps, `--set`, `--set-file`, `--exposure local`,
 | `self-host remove <app>...`                                      | Remove Apps; data is kept unless `--purge`                                                                          |
 | `self-host config set KEY=value...`                              | Change Host settings and recreate affected Apps (`LAN_IP=auto` re-detects)                                          |
 | `self-host config review [--yes]`                                | Compare Host settings with this machine now; `--yes` fixes drifted LAN IP and time zone, keeping every install      |
+| `self-host connections add <kind>`                               | Save an approved private external Homarr connection and run Homarr Setup; see Secrets                               |
+| `self-host connections update <id>`                              | Replace private credentials or selection while keeping the connection's identity, kind and endpoint                 |
+| `self-host connections status [id]`                              | Read stored connection evidence without endpoints, credentials or provider requests                                 |
+| `self-host connections remove <id>`                              | Disconnect only recorded owned Homarr bindings; never manage the external target                                    |
 | `self-host cloudflare plan`                                      | Inspect individually chosen Apps, allowed emails, warnings and publication risk without network calls               |
 | `self-host cloudflare publish`                                   | Publish chosen Apps behind an emailed-PIN login, only after the separate public-risk yes                            |
 | `self-host cloudflare remove`                                    | Unpublish in reverse order, with a fresh private API token                                                          |
@@ -240,6 +244,8 @@ Command flags:
 - status: `--updates`
 - access export: `--format caddy|nginx|traefik|json` (default `json`)
 - remove: `--purge` (also deletes the App's data folder), `--yes`
+- connections add/update: `--file PATH` or `--file -` for private JSON input, `--yes`
+- connections remove: `--yes`
 - logs: `--follow`, `--tail N` (default 200)
 - backup: `--output <path>` or `-o` (default `~/.self-host/backups/selfhost-DATE.tar.zst`,
   `.tar.zst.age` with `--encrypt`), `--encrypt`
@@ -257,7 +263,8 @@ after explicit approval to delete their data too.
 ## JSON events
 
 With `--json`, `install`, `setup`, `start`, `stop`, `restart`, `update`,
-`remove`, `config set`, `backup`, `restore` and `doctor` print one JSON object
+`remove`, `config set`, `connections add`, `connections update`, `connections remove`,
+`backup`, `restore` and `doctor` print one JSON object
 per line:
 
 ```json
@@ -296,7 +303,7 @@ satisfied, waiting for a peer or inapplicable; inspect its `msg` and the request
 outcome instead of treating every skip as completion.
 
 Document commands (`status`, `share`, `profile`, `debug`, `credentials`, `apps list`,
-`apps info`, `apps request`, `host report`, `config review`, `cloudflare plan`)
+`apps info`, `apps request`, `host report`, `config review`, `cloudflare plan`, `connections status`)
 print one result on stdout with `--json`; errors go to stderr. `config review
 --yes` may apply its reported fixes; the document is not post-apply verification.
 `access export` defaults to JSON, but explicit `--format` wins even with `--json`.
@@ -842,6 +849,49 @@ the CLI Backup passphrase prompt uses ordinary terminal input, so arrange a
 private credential-provider environment when concealment is required. Keep
 passphrase values out of shell commands and chat. Provider accounts and
 approvals remain prerequisites.
+
+### External Homarr connections
+
+External connections configure recorded Homarr bindings, not Catalog Apps or
+external target lifecycle. Privately review the exact endpoint, credential read
+scopes and existing-data selection with the person before each change. After
+their approval, add or update through an existing Project-owner-only regular
+JSON file with `--file PATH`, or private bounded stdin with `--file -` (64 KiB
+maximum). The JSON fields are `endpoint`, `credentials` (objects with `kind` and
+`value`) and provider-specific `selection`. Keep endpoint and credential values
+out of arguments, chat and reports; use the private input transport, not `--set`.
+
+```sh
+self-host connections add proxmox --file /owned/private/connection.json --yes --json
+self-host connections status --json
+self-host connections update <opaque-id> --file /owned/private/connection.json --yes --json
+self-host connections remove <opaque-id> --yes --json
+```
+
+Add, update and remove always require `--yes`. Read the opaque ID from connection
+status; compatible updates preserve it. Kind and endpoint are immutable: changing
+either requires separately approved removal and addition with a new identity.
+Status reports stored evidence only, also exposed as `connections` in ordinary
+Status. Follow recorded recovery hints and retry `self-host setup homarr` after
+its own Setup is ready. Preserve unknown ownership and existing user bindings;
+matching endpoints do not establish ownership. Removal disconnects only recorded
+owned Homarr resources, never revokes target credentials or changes target data.
+
+Proxmox currently remains Manual before credential forwarding, provider/native
+requests or integration creation because native redirect confinement is unproved.
+Saving a connection is not a working native integration. Keep this hold until an
+audited adapter repair; a successful CLI probe does not lift it. Preserve the
+token and selection without TLS bypasses, certificate enrollment or a forwarding
+proxy.
+
+`syncthingRelay` connects an existing Syncthing relay's HTTP status listener
+(normally port 22070) to Homarr Stats only: active sessions, connections and
+proxied bytes. The endpoint is a bare HTTP(S) origin; supply no credentials or
+selection, because `/status` is unauthenticated and the relay `-token` is not
+status authentication. A protected status proxy, redirect, non-JSON response or
+missing counter stays Manual with no TLS or authentication bypass. The status
+document has no relay Device ID, so identity attestation stays Manual. Setup
+never uses the Syncthing GUI, joins a pool, opens a public port or pairs devices.
 
 ## Telemetry
 

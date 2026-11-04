@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/ajnart/self-host/internal/apps/homarr"
+	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
@@ -210,11 +213,59 @@ func TestSetupPreservesUserIntegrationOnUnmarkedDuplicate(t *testing.T) {
 		t.Fatal("Setup deleted the unmarked App or detached its user integration")
 	}
 	for _, record := range fake.apps {
-		if record["id"] == "user-sonarr" && (record["href"] != "http://user.example" || record["name"] != "Sonarr" || record["pingUrl"] != "http://sonarr:8989" || record["iconUrl"] != "https://example.test/user.svg") {
+		if record["id"] == "user-sonarr" && (record["description"] != "" || record["href"] != "http://user.example" || record["name"] != "Sonarr" || record["pingUrl"] != "http://sonarr:8989" || record["iconUrl"] != "https://example.test/user.svg") {
 			t.Fatal("Setup changed the referenced App's navigation fields")
 		}
 		if record["id"] == "marked-sonarr" && (record["description"] != "self-host tile:sonarr" || record["name"] != "My Sonarr") {
 			t.Fatal("Setup replaced the owned App or its customized name")
+		}
+	}
+}
+
+func TestSetupRequiresOwnershipBeforeMigratingBlankDescriptionApps(t *testing.T) {
+	for _, count := range []int{1, 2} {
+		for _, description := range []any{"", nil} {
+			t.Run(fmt.Sprintf("count=%d/description=%v", count, description), func(t *testing.T) {
+				fake := newFake()
+				fake.apiKey, fake.adminExists, fake.adminName, fake.adminPassword, fake.step = "keyid.secret", true, "admin", "pw", "finish"
+				for index := range count {
+					id := fmt.Sprintf("user-app-%d", index)
+					fake.apps = append(fake.apps, map[string]any{"id": id, "name": "Sonarr", "description": description, "href": "http://user.example", "pingUrl": "http://sonarr:8989", "iconUrl": "https://example.test/user.svg"})
+					fake.items = append(fake.items, map[string]any{"id": "tile-" + id, "kind": "app", "options": map[string]any{"appId": id, "openInNewTab": false, "showTitle": false}})
+				}
+				before, _ := json.Marshal([]any{fake.apps, fake.items})
+				srv := serveLinkedApps(t, fake)
+				secrets := allSecrets()
+				h := homarrH(t, srv, secrets)
+				var logged []events.Event
+				h.Log = events.New(events.SinkFunc(func(event events.Event) { logged = append(logged, event) }))
+				h.InstalledApps = func(context.Context) ([]helpers.InstalledApp, error) {
+					return []helpers.InstalledApp{{ID: "sonarr", Name: "Sonarr", URL: "http://host.example:8989", Service: "sonarr", ContainerPort: 8989}}, nil
+				}
+				for attempt := 0; attempt < 2; attempt++ {
+					if err := (homarr.App{}).Setup(context.Background(), h); !errors.Is(err, helpers.ErrManual) {
+						t.Fatalf("unrecorded App ownership should require Manual recovery: %v", err)
+					}
+				}
+				fake.mu.Lock()
+				after, _ := json.Marshal([]any{fake.apps, fake.items})
+				fake.mu.Unlock()
+				if !bytes.Equal(before, after) || secrets["HOMARR_APP_IDS"] != "" {
+					t.Fatal("Setup adopted, rewrote or duplicated unrecorded Apps or their tiles")
+				}
+				manual, actionable := false, false
+				for _, event := range logged {
+					if event.Event == events.StepManual && event.Step == "app-tiles" {
+						manual = true
+					}
+					if event.Event == events.Info && strings.Contains(event.Msg, "HOMARR_APP_IDS") && strings.Contains(event.Msg, "self-host setup homarr") {
+						actionable = true
+					}
+				}
+				if !manual || !actionable {
+					t.Fatal("unrecorded App ownership lacks actionable Manual recovery")
+				}
+			})
 		}
 	}
 }

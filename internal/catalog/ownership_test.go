@@ -66,6 +66,7 @@ func TestCatalogAppOwnedServiceReferences(t *testing.T) {
 		"patchmon":      {"REDIS_HOST: patchmon-redis", "@patchmon-database:5432", "GUACD_ADDRESS: patchmon-guacd:4822"},
 		"seafile":       {"SEAFILE_MYSQL_DB_HOST: seafile-db", "REDIS_HOST: seafile-redis"},
 		"tracearr":      {"redis://tracearr-redis:6379", "@tracearr-timescale:5432"},
+		"tubearchivist": {"redis://tubearchivist-redis:6379", "http://tubearchivist-es:9200"},
 		"umami":         {"@umami-db:5432"},
 	}
 	for _, a := range Default().Apps() {

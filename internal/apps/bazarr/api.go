@@ -82,7 +82,7 @@ func verifyAPIKey(ctx context.Context, h *helpers.H, key string) error {
 }
 
 func readAPI(ctx context.Context, h *helpers.H, key, path string, value any) error {
-	resp, err := h.HTTP(ctx, helpers.Request{Path: path, Header: map[string]string{"X-API-KEY": key}})
+	resp, err := h.HTTP(ctx, helpers.Request{Path: path, NoRedirect: true, Header: map[string]string{"X-API-KEY": key}})
 	if err != nil {
 		return h.Log.RedactError(err)
 	}
@@ -91,6 +91,9 @@ func readAPI(ctx context.Context, h *helpers.H, key, path string, value any) err
 	}
 	if resp.Status != http.StatusOK {
 		return fmt.Errorf("Bazarr %s returned HTTP %d; inspect its Status and retry self-host setup bazarr", path, resp.Status)
+	}
+	if _, err := settingsDocument(resp.Body); err != nil {
+		return &helpers.ManualError{Hint: "Bazarr returned malformed, ambiguous or oversized API data. Review its current API contract and existing settings, then retry self-host setup bazarr without replacing credentials or adopting connections."}
 	}
 	if err := resp.Decode(value); err != nil {
 		return fmt.Errorf("Bazarr %s returned invalid API data; retry self-host setup bazarr", path)

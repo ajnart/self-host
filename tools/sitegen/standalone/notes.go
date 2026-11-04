@@ -31,6 +31,10 @@ func notesFor(ap app.App, c *converter, vars []variable, links []Link) (string, 
 		notes = append(notes, fmt.Sprintf("Needs files this Compose does not create before the first start (%s), expected in ${CONFIG_PATH}/%s/; without them it does not start.",
 			strings.Join(c.missing, ", "), id))
 	}
+	if len(c.networks) > 0 {
+		notes = append(notes, fmt.Sprintf("Keeps its services on its own private network (%s), which one shared Compose file cannot isolate; install it with self-host.",
+			strings.Join(c.networks, ", ")))
+	}
 	for _, v := range vars {
 		if v.required && c.facts.bound[v.Key] {
 			notes = append(notes, fmt.Sprintf("Set %s before the first start (%s); the default %s is only a placeholder, and without a file there the container does not start.",

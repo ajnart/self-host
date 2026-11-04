@@ -23,6 +23,17 @@
    "i": "svg/adguard-home.svg"
   },
   {
+   "id": "anchor",
+   "name": "Anchor",
+   "d": "Keep private notes and share selected notes with other people",
+   "c": "Productivity",
+   "img": "ghcr.io/zhfahim/anchor:latest",
+   "p": 3000,
+   "l": [],
+   "lt": [],
+   "i": "svg/anchor.svg"
+  },
+  {
    "id": "archive-team-warrior",
    "name": "ArchiveTeam Warrior",
    "d": "Lend your spare internet time to help save websites before they disappear",
@@ -78,14 +89,31 @@
    "i": "svg/authentik.svg"
   },
   {
+   "id": "autobrr",
+   "name": "Autobrr",
+   "d": "Watch release announcements and apply your chosen filters and actions",
+   "c": "Requests",
+   "img": "ghcr.io/autobrr/autobrr:latest",
+   "p": 7474,
+   "l": [],
+   "lt": [],
+   "i": "svg/autobrr.svg"
+  },
+  {
    "id": "bazarr",
    "name": "Bazarr",
    "d": "Automatically find subtitles for your movies and shows",
    "c": "Requests",
    "img": "lscr.io/linuxserver/bazarr:latest",
    "p": 6767,
-   "l": [],
-   "lt": [],
+   "l": [
+    "sonarr",
+    "radarr"
+   ],
+   "lt": [
+    "verify the Sonarr library connection",
+    "verify the Radarr library connection"
+   ],
    "i": "svg/bazarr.svg"
   },
   {
@@ -98,6 +126,17 @@
    "l": [],
    "lt": [],
    "i": "svg/beszel.svg"
+  },
+  {
+   "id": "bindery",
+   "name": "Bindery",
+   "d": "Find and organize ebooks and audiobooks in your own library",
+   "c": "Requests",
+   "img": "ghcr.io/vavallee/bindery:latest",
+   "p": 8787,
+   "l": [],
+   "lt": [],
+   "i": "svg/bindery.svg"
   },
   {
    "id": "bookstack",
@@ -131,6 +170,17 @@
    "l": [],
    "lt": [],
    "i": "svg/caddy.svg"
+  },
+  {
+   "id": "changedetection",
+   "name": "Changedetection.io",
+   "d": "Watch web pages for changes and receive notifications",
+   "c": "Monitoring",
+   "img": "ghcr.io/dgtlmoon/changedetection.io:latest",
+   "p": 5050,
+   "l": [],
+   "lt": [],
+   "i": "svg/changedetection.svg"
   },
   {
    "id": "cleanuparr",
@@ -215,6 +265,17 @@
    "l": [],
    "lt": [],
    "i": "svg/emby.svg"
+  },
+  {
+   "id": "fileflows",
+   "name": "FileFlows",
+   "d": "Process and convert files with flows you control",
+   "c": "Media",
+   "img": "revenz/fileflows:stable",
+   "p": 19200,
+   "l": [],
+   "lt": [],
+   "i": "svg/fileflows.svg"
   },
   {
    "id": "firefly-iii",
@@ -339,6 +400,17 @@
    "i": "svg/headscale.svg"
   },
   {
+   "id": "healthchecks",
+   "name": "Healthchecks",
+   "d": "Know when scheduled jobs stop running or finish late",
+   "c": "Monitoring",
+   "img": "healthchecks/healthchecks:latest",
+   "p": 8000,
+   "l": [],
+   "lt": [],
+   "i": "svg/healthchecks.svg"
+  },
+  {
    "id": "homarr",
    "name": "Homarr",
    "d": "Put all your apps on one home page, each a click away",
@@ -356,8 +428,11 @@
     "ntfy",
     "vaultwarden",
     "immich",
+    "jellystat",
     "caddy",
     "gatus",
+    "maintainerr",
+    "changedetection",
     "prometheus",
     "gotify",
     "technitium-dns",
@@ -368,8 +443,12 @@
     "audiobookshelf",
     "paperless-ngx",
     "linkwarden",
+    "mealie",
+    "karakeep",
     "nextcloud",
     "lidarr",
+    "bindery",
+    "sportarr",
     "emby",
     "pihole",
     "uptime-kuma",
@@ -391,9 +470,24 @@
     "peanut",
     "tdarr",
     "tracearr",
+    "romm",
     "slskd",
     "wud",
-    "patchmon"
+    "patchmon",
+    "jackett",
+    "healthchecks",
+    "tandoor",
+    "autobrr",
+    "homebox",
+    "stash",
+    "miniflux",
+    "thingport",
+    "spoolman",
+    "tubearchivist",
+    "anchor",
+    "trilium",
+    "unmanic",
+    "your-spotify"
    ],
    "lt": [
     "link Sonarr",
@@ -406,8 +500,11 @@
     "link ntfy",
     "add a Vaultwarden tile",
     "link Immich",
+    "link Jellystat",
     "link Caddy",
     "link Gatus",
+    "link Maintainerr",
+    "link Changedetection.io",
     "link Prometheus",
     "link Gotify",
     "link Technitium DNS Server",
@@ -418,8 +515,12 @@
     "link Audiobookshelf",
     "link Paperless-ngx",
     "link Linkwarden",
+    "link Mealie",
+    "link Karakeep",
     "link Nextcloud",
     "link Lidarr",
+    "link Bindery",
+    "link Sportarr",
     "link Emby",
     "link Pi-hole",
     "link Uptime Kuma",
@@ -441,9 +542,24 @@
     "link PeaNUT",
     "link Tdarr",
     "link Tracearr",
+    "link RomM",
     "link Slskd",
     "link What's Up Docker",
-    "link PatchMon"
+    "link PatchMon",
+    "link Jackett",
+    "link Healthchecks",
+    "link Tandoor",
+    "link Autobrr",
+    "link Homebox",
+    "link Stash",
+    "link Miniflux",
+    "link Thingport",
+    "link Spoolman",
+    "link Tube Archivist",
+    "link Anchor",
+    "link Trilium",
+    "link Unmanic",
+    "link Your Spotify"
    ],
    "i": "svg/homarr.svg"
   },
@@ -457,6 +573,17 @@
    "l": [],
    "lt": [],
    "i": "svg/home-assistant.svg"
+  },
+  {
+   "id": "homebox",
+   "name": "Homebox",
+   "d": "Keep track of your belongings, their locations and their warranties",
+   "c": "Productivity",
+   "img": "ghcr.io/sysadminsmedia/homebox:latest",
+   "p": 3100,
+   "l": [],
+   "lt": [],
+   "i": "svg/homebox.svg"
   },
   {
    "id": "homebridge",
@@ -481,6 +608,17 @@
    "i": "svg/immich.svg"
   },
   {
+   "id": "jackett",
+   "name": "Jackett",
+   "d": "Connect your download apps to the torrent search sites you choose",
+   "c": "Requests",
+   "img": "ghcr.io/hotio/jackett:latest",
+   "p": 9117,
+   "l": [],
+   "lt": [],
+   "i": "svg/jackett.svg"
+  },
+  {
    "id": "jellyfin",
    "name": "Jellyfin",
    "d": "Stream your movies and shows to every screen in the house",
@@ -492,6 +630,28 @@
    "i": "svg/jellyfin.svg"
   },
   {
+   "id": "jellystat",
+   "name": "Jellystat",
+   "d": "See playback statistics for your Jellyfin or Emby server",
+   "c": "Media",
+   "img": "cyfershepard/jellystat:latest",
+   "p": 3000,
+   "l": [],
+   "lt": [],
+   "i": "svg/jellystat.svg"
+  },
+  {
+   "id": "karakeep",
+   "name": "Karakeep",
+   "d": "Save and organize bookmarks, notes and files",
+   "c": "Productivity",
+   "img": "ghcr.io/karakeep-app/karakeep:release",
+   "p": 3000,
+   "l": [],
+   "lt": [],
+   "i": "svg/karakeep.svg"
+  },
+  {
    "id": "keycloak",
    "name": "Keycloak",
    "d": "Manage logins in one place, so people sign in once to reach many apps",
@@ -501,6 +661,17 @@
    "l": [],
    "lt": [],
    "i": "svg/keycloak.svg"
+  },
+  {
+   "id": "komga",
+   "name": "Komga",
+   "d": "Read your comics, manga and ebooks in a private library",
+   "c": "Media",
+   "img": "gotson/komga:1.x",
+   "p": 25600,
+   "l": [],
+   "lt": [],
+   "i": "svg/komga.svg"
   },
   {
    "id": "kopia",
@@ -521,10 +692,18 @@
    "img": "lscr.io/linuxserver/lidarr:latest",
    "p": 8686,
    "l": [
-    "qbittorrent"
+    "qbittorrent",
+    "sabnzbd",
+    "nzbget",
+    "deluge",
+    "transmission"
    ],
    "lt": [
-    "download client: qBittorrent"
+    "download client: qBittorrent",
+    "download client: SABnzbd",
+    "download client: NZBGet",
+    "download client: Deluge",
+    "download client: Transmission"
    ],
    "i": "svg/lidarr.svg"
   },
@@ -562,6 +741,17 @@
    "i": "svg/loki.svg"
   },
   {
+   "id": "maintainerr",
+   "name": "Maintainerr",
+   "d": "Review and manage how long movies and shows stay on your media server",
+   "c": "Media",
+   "img": "ghcr.io/maintainerr/maintainerr:latest",
+   "p": 6246,
+   "l": [],
+   "lt": [],
+   "i": "svg/maintainerr.svg"
+  },
+  {
    "id": "mayan-edms",
    "name": "Mayan EDMS",
    "d": "Store scanned paper documents, make them searchable and route them for review",
@@ -572,6 +762,28 @@
    "lt": [],
    "i": "svg/mayan-edms.svg",
    "il": "svg/mayan-edms-light.svg"
+  },
+  {
+   "id": "mealie",
+   "name": "Mealie",
+   "d": "Keep your recipes together and plan what to cook",
+   "c": "Productivity",
+   "img": "ghcr.io/mealie-recipes/mealie:latest",
+   "p": 9925,
+   "l": [],
+   "lt": [],
+   "i": "svg/mealie.svg"
+  },
+  {
+   "id": "miniflux",
+   "name": "Miniflux",
+   "d": "Read your favorite feeds in one quiet place",
+   "c": "Productivity",
+   "img": "docker.io/miniflux/miniflux:latest",
+   "p": 8080,
+   "l": [],
+   "lt": [],
+   "i": "svg/miniflux.svg"
   },
   {
    "id": "minio",
@@ -857,10 +1069,18 @@
    "img": "lscr.io/linuxserver/radarr:latest",
    "p": 7878,
    "l": [
-    "qbittorrent"
+    "qbittorrent",
+    "sabnzbd",
+    "nzbget",
+    "deluge",
+    "transmission"
    ],
    "lt": [
-    "download client: qBittorrent"
+    "download client: qBittorrent",
+    "download client: SABnzbd",
+    "download client: NZBGet",
+    "download client: Deluge",
+    "download client: Transmission"
    ],
    "i": "svg/radarr.svg"
   },
@@ -884,6 +1104,17 @@
    "p": 0,
    "l": [],
    "lt": []
+  },
+  {
+   "id": "romm",
+   "name": "RomM",
+   "d": "Organize your game collection and play it in your browser",
+   "c": "Media",
+   "img": "rommapp/romm:latest",
+   "p": 8080,
+   "l": [],
+   "lt": [],
+   "i": "svg/romm.svg"
   },
   {
    "id": "sabnzbd",
@@ -926,11 +1157,15 @@
    "p": 5055,
    "l": [
     "jellyfin",
+    "plex",
+    "emby",
     "sonarr",
     "radarr"
    ],
    "lt": [
     "media server: Jellyfin",
+    "media server: Plex",
+    "media server: Emby",
     "requests go to Sonarr",
     "requests go to Radarr"
    ],
@@ -955,10 +1190,18 @@
    "img": "lscr.io/linuxserver/sonarr:latest",
    "p": 8989,
    "l": [
-    "qbittorrent"
+    "qbittorrent",
+    "sabnzbd",
+    "nzbget",
+    "deluge",
+    "transmission"
    ],
    "lt": [
-    "download client: qBittorrent"
+    "download client: qBittorrent",
+    "download client: SABnzbd",
+    "download client: NZBGet",
+    "download client: Deluge",
+    "download client: Transmission"
    ],
    "i": "svg/sonarr.svg"
   },
@@ -973,6 +1216,28 @@
    "lt": []
   },
   {
+   "id": "spoolman",
+   "name": "Spoolman",
+   "d": "Keep track of your 3D-printer filament spools and remaining material",
+   "c": "Productivity",
+   "img": "ghcr.io/donkie/spoolman:latest",
+   "p": 7912,
+   "l": [],
+   "lt": [],
+   "i": "svg/spoolman.svg"
+  },
+  {
+   "id": "sportarr",
+   "name": "Sportarr",
+   "d": "Organize your sports event recordings and library",
+   "c": "Requests",
+   "img": "sportarr/sportarr:latest",
+   "p": 1867,
+   "l": [],
+   "lt": [],
+   "i": "svg/sportarr.svg"
+  },
+  {
    "id": "stalwart-mail",
    "name": "Stalwart Mail Server",
    "d": "Run your own email service, managed from a private admin page",
@@ -982,6 +1247,17 @@
    "l": [],
    "lt": [],
    "i": "svg/stalwart.svg"
+  },
+  {
+   "id": "stash",
+   "name": "Stash",
+   "d": "Organize your private adult-media library",
+   "c": "Media",
+   "img": "stashapp/stash:latest",
+   "p": 9999,
+   "l": [],
+   "lt": [],
+   "i": "svg/stash.svg"
   },
   {
    "id": "stirling-pdf",
@@ -1018,6 +1294,17 @@
    "il": "svg/tailscale-light.svg"
   },
   {
+   "id": "tandoor",
+   "name": "Tandoor",
+   "d": "Keep recipes organized and share them with family and friends",
+   "c": "Productivity",
+   "img": "docker.io/vabene1111/recipes:latest",
+   "p": 8080,
+   "l": [],
+   "lt": [],
+   "i": "svg/tandoor-recipes.svg"
+  },
+  {
    "id": "tdarr",
    "name": "Tdarr",
    "d": "Shrink and convert your video files automatically to save space",
@@ -1038,6 +1325,17 @@
    "l": [],
    "lt": [],
    "i": "svg/technitium.svg"
+  },
+  {
+   "id": "thingport",
+   "name": "Thingport",
+   "d": "Organize your private collection of 3D printing models",
+   "c": "Productivity",
+   "img": "ghcr.io/tautvydasderzinskas/thingport-frontend:latest",
+   "p": 8786,
+   "l": [],
+   "lt": [],
+   "i": "svg/thingport.svg"
   },
   {
    "id": "tracearr",
@@ -1073,6 +1371,28 @@
    "i": "svg/transmission.svg"
   },
   {
+   "id": "trilium",
+   "name": "Trilium",
+   "d": "Organize your notes and ideas in a private knowledge base",
+   "c": "Productivity",
+   "img": "triliumnext/trilium:v0.106.1",
+   "p": 8080,
+   "l": [],
+   "lt": [],
+   "i": "svg/triliumnext.svg"
+  },
+  {
+   "id": "tubearchivist",
+   "name": "Tube Archivist",
+   "d": "Keep and watch your own archive of YouTube videos",
+   "c": "Media",
+   "img": "bbilly1/tubearchivist:latest",
+   "p": 8000,
+   "l": [],
+   "lt": [],
+   "i": "png/tube-archivist.png"
+  },
+  {
    "id": "umami",
    "name": "Umami",
    "d": "See how many people visit your websites, without tracking them",
@@ -1094,6 +1414,17 @@
    "l": [],
    "lt": [],
    "i": "svg/unbound.svg"
+  },
+  {
+   "id": "unmanic",
+   "name": "Unmanic",
+   "d": "Monitor and configure automated processing for your file libraries",
+   "c": "Media",
+   "img": "josh5/unmanic:latest",
+   "p": 8888,
+   "l": [],
+   "lt": [],
+   "i": "png/unmanic.png"
   },
   {
    "id": "uptime-kuma",
@@ -1162,6 +1493,17 @@
    "l": [],
    "lt": [],
    "i": "svg/whats-up-docker.svg"
+  },
+  {
+   "id": "your-spotify",
+   "name": "Your Spotify",
+   "d": "Explore your Spotify listening history after you choose to connect your account",
+   "c": "Media",
+   "img": "yooooomi/your_spotify_client:latest",
+   "p": 3000,
+   "l": [],
+   "lt": [],
+   "i": "svg/your-spotify.svg"
   },
   {
    "id": "zerotier",

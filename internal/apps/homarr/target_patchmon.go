@@ -15,6 +15,7 @@ const patchmonNativeHint = patchmon.HomarrHint
 func patchmonTarget() target {
 	return target{
 		id: "patchmon", name: "PatchMon", kind: "patchmon",
+		recovery: patchmonNativeHint,
 		internal: fixed("http://patchmon:3000"),
 		secrets: func(_, to *helpers.H) []secret {
 			return []secret{

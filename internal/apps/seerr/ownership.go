@@ -3,10 +3,8 @@ package seerr
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 
@@ -30,10 +28,6 @@ func (s server) ownershipKey(h *helpers.H) string {
 func (s server) manualOwnership(h *helpers.H) error {
 	h.Info("Seerr's " + s.name + " entry has missing, uncertain or changed ownership. Review /settings/services manually before recovery; endpoint matches alone never permit adoption or deletion, and uncertain mutations are not retried automatically.")
 	return helpers.ErrManual
-}
-
-func serverKeyHash(key string) string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(key)))
 }
 
 func decodeServerResponse(resp helpers.Response, target any) error {
@@ -61,7 +55,7 @@ func (s server) validOwned(item map[string]any, record serverOwnership, to *help
 	id, valid := serverResourceID(item)
 	key, keyValid := item["apiKey"].(string)
 	baseURL, baseValid := item["baseUrl"].(string)
-	if !valid || record.ID == nil || id != *record.ID || !s.points(item, to) || !keyValid || key == "" || serverKeyHash(key) != record.KeyHash || !baseValid || baseURL != "" || item["useSsl"] != false || item["is4k"] != false {
+	if !valid || record.ID == nil || id != *record.ID || !s.points(item, to) || !keyValid || key == "" || helpers.Fingerprint(key) != record.KeyHash || !baseValid || baseURL != "" || item["useSsl"] != false || item["is4k"] != false {
 		return false
 	}
 	if s.id == "sonarr" {
@@ -118,7 +112,7 @@ func (s server) findOwned(ctx context.Context, from, to *helpers.H) ([]string, e
 func (s server) createOwned(ctx context.Context, from, to *helpers.H, body map[string]any) error {
 	record := serverOwnership{
 		Target: to.App, Implementation: s.id, Hostname: to.Service, Port: to.ContainerPort,
-		KeyHash: serverKeyHash(to.Secret(to.Key("api_key"))), Pending: true,
+		KeyHash: helpers.Fingerprint(to.Secret(to.Key("api_key"))), Pending: true,
 	}
 	if err := s.saveOwnership(from, record); err != nil {
 		return err

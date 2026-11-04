@@ -186,6 +186,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	}
 	user := h.AdminUser()
 	env := map[string]string{"NTFY_PASSWORD": h.AdminPassword()}
+	adminHint := "Inspect ntfy's existing administrator privately with self-host credentials. Preserve its password, role and tokens; restore the matching Admin login through the Project secret boundary or explicitly approve an account recovery plan, then run self-host setup ntfy. Setup does not reset existing accounts."
 	if err := h.Step(ctx, "admin-user", "create administrator "+user, helpers.StepSpec{
 		Check: func(ctx context.Context) (bool, error) { return adminWorks(ctx, h) },
 		Do: func(ctx context.Context) error {
@@ -196,13 +197,10 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 			if err == nil {
 				return nil
 			}
-			if _, err := h.Exec(ctx, env, "ntfy", "user", "change-pass", user); err != nil {
-				return err
-			}
-			_, err = h.Exec(ctx, nil, "ntfy", "user", "change-role", user, "admin")
-			return err
+			h.Info(adminHint)
+			return fmt.Errorf("ntfy's existing account does not accept the Admin login with administrator permissions: %w", helpers.ErrManual)
 		},
-		Hint:       "Run inside the container: ntfy user add --role=admin " + user + " (password from self-host credentials).",
+		Hint:       adminHint,
 		Credential: "admin",
 	}); err != nil {
 		return err

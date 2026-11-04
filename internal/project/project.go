@@ -404,10 +404,11 @@ func (p *Project) SaveAppearance(a Appearance) error {
 // State
 
 type StepRecord struct {
-	Status status.Step `json:"status"`
-	Msg    string      `json:"msg,omitempty"`
-	Error  string      `json:"error,omitempty"`
-	Hint   string      `json:"hint,omitempty"`
+	Status   status.Step `json:"status"`
+	Msg      string      `json:"msg,omitempty"`
+	Error    string      `json:"error,omitempty"`
+	Hint     string      `json:"hint,omitempty"`
+	Verified bool        `json:"verified,omitempty"`
 }
 
 type AppState struct {

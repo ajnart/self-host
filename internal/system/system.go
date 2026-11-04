@@ -20,6 +20,9 @@ type Cmd struct {
 	Dir   string
 	Env   []string
 	Stdin []byte
+	// WaitDelay bounds how long a canceled process may keep its pipes open;
+	// zero waits for them.
+	WaitDelay time.Duration
 }
 
 // Result is the captured outcome of a Cmd. A non-zero ExitCode is not an error.
