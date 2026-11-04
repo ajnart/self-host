@@ -22,9 +22,11 @@ This prints `cleanuparr`. The second ref defaults to `HEAD`; both refs must use 
 
 GitHub serves release assets as `application/octet-stream` downloads, so an SVG uploaded to a release never renders or animates in its notes. Commit the animated SVG instead and embed it through `raw.githubusercontent.com`, which serves it as `image/svg+xml`; upload the PNG to the release as the static fallback.
 
+From the repository root, keeping only Apps in the Catalog (the helper also lists hidden ones):
+
 ```bash
-APPS=$(scripts/release-new-apps.sh "$PREV" "$REF" | paste -sd, -)
-npm run release-visual -- --apps "$APPS" --version "$VERSION" --out /tmp/rv
+APPS=$(jq -r '.apps[].id' site/src/data/catalog.json | grep -Fx -f - <(scripts/release-new-apps.sh "$PREV" "$REF") | paste -sd, -)
+npm --prefix video/reel run release-visual -- --apps "$APPS" --version "$VERSION" --out /tmp/rv
 cp "/tmp/rv/new-apps-$VERSION.svg" docs/assets/releases/   # merge this in a PR, note the merge commit
 gh release upload "v$VERSION" "/tmp/rv/new-apps-$VERSION.png"
 ```

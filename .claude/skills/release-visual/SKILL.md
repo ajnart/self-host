@@ -19,10 +19,12 @@ Fetch the refs before comparing them.
 From the repository root, run:
 
 ```bash
-bash scripts/release-new-apps.sh <previous-tag> <target-ref>
+jq -r '.apps[].id' site/src/data/catalog.json | grep -Fx -f - <(bash scripts/release-new-apps.sh <previous-tag> <target-ref>)
 ```
 
-Use exactly the returned App ids. An empty result means no new-Apps visual:
+The script also lists Apps hidden from the Catalog; the filter keeps only
+Catalog Apps, which the renderer requires. Use exactly the filtered App ids and
+their count. An empty result means no new-Apps visual:
 report that and continue with ordinary release notes. Do not substitute sample
 Apps or announce existing Apps as new.
 
@@ -40,8 +42,7 @@ Up to six Apps render as one column; 7 to 24 render as a grid of up to six
 rows and four columns. Only for more than 24, split the ids into groups of at
 most 24 in separate output directories and rename each pair with a group
 suffix. Keep all Apps represented once. Keep renders outside tracked source
-files, except the SVG committed for embedding below. Leave Apps hidden from the
-Catalog out.
+files, except the SVG committed for embedding below.
 
 Check that the PNG and animated SVG exist, show the correct version and every
 selected App, and have readable labels. Preview the SVG through a local server
