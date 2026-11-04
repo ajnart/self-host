@@ -1,0 +1,45 @@
+.claude/skills/edit-catalog/SKILL.md
+  s_56f298195c530e::t_2a6c0921dc7c74 14,37,39,43,45
+.claude/skills/edit-catalog/evals/new-app-memos/graders/02-registered-by-registrygen.md
+  s_694505bc44e853::t_49eb03629d1560 7
+.claude/skills/edit-catalog/evals/new-app-memos/graders/04-sitegen-declarations.md
+  s_694505bc44e853::t_c313211bd312d1 7
+AGENTS.md
+  s_a4b9774c185942::t_570536af9c8365 28,49
+docs/agents/generated-data.md
+  s_56f298195c530e::t_11d02142e8d76c 8,18,23
+docs/catalog/adding-apps.md
+  s_56f298195c530e::t_76be0dfa2da71a 52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c9701b3399c16288f057067569c4acde5e42d08",
+  "prompts": {},
+  "sessions": {
+    "s_56f298195c530e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2990966a-f6b7-494c-a3ca-300ff1e53d3f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_694505bc44e853": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b0ca5ad-cb46-4e35-bce5-06d986d8e12c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_a4b9774c185942": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3da7f70e-d052-4990-8f53-1cdf54d4fe30",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
