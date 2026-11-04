@@ -1,0 +1,51 @@
+.claude/skills/edit-catalog/SKILL.md
+  s_6cbf180233097e::t_eb597772d5369e 3,8,57,59,61-68
+.claude/skills/edit-catalog/evals/hide-peanut/case.yaml
+  s_0f0d7a5be1128f::t_be28c1ba1e511f 4
+.claude/skills/edit-catalog/evals/hide-peanut/graders/04-visible-counts-fall.md
+  s_0f0d7a5be1128f::t_ac7a7420b3d12d 7
+.claude/skills/edit-catalog/evals/hide-peanut/graders/05-all-app-counts-unchanged.md
+  s_0f0d7a5be1128f::t_76531a64977535 7
+.claude/skills/edit-catalog/evals/new-app-memos/case.yaml
+  s_0f0d7a5be1128f::t_9a87a773f4b6e9 4
+.claude/skills/edit-catalog/evals/new-app-memos/graders/06-counts-computed.md
+  s_0f0d7a5be1128f::t_9484c72ea3261a 7
+.claude/skills/edit-catalog/evals/new-app-memos/graders/07-no-hand-kept-numbers.md
+  s_0f0d7a5be1128f::t_d5ac0010317b5a 7
+.claude/skills/edit-catalog/evals/new-app-memos/graders/08-inventory-regenerated.md
+  s_0f0d7a5be1128f::t_1c964687625298 7
+docs/agents/generated-data.md
+  s_0f0c9bce1f5af5::t_692d638dc61f9f 3,11,34-36,44,46-47,49,51-56,59,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8752d7cccbe9280fd1c9dda9134260c54a3ea2e0",
+  "prompts": {},
+  "sessions": {
+    "s_0f0c9bce1f5af5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "712ffc94-905e-4050-8762-641d8d842aeb",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_0f0d7a5be1128f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66c8ff99-15fa-427c-ad48-60466ed18b1f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_6cbf180233097e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4e34450e-b8af-4ce2-b408-f7837596002c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}

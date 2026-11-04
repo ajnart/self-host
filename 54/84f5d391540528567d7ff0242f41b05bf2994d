@@ -1,0 +1,29 @@
+README.md
+  s_0f0c9bce1f5af5::t_5787ae0d974e99 17,179,196
+e2e/acceptance.md
+  s_0f0c9bce1f5af5::t_9523d0901b9482 3-8
+e2e/acceptance_fixture_test.go
+  s_0f0c9bce1f5af5::t_93e686b8a9adef 5,15-16,19-27,36-37
+site/src/pages/badges/apps.json.ts
+  s_0f0c9bce1f5af5::t_cd2861e0a8fa49 1-14
+tools/sitegen/catalog.go
+  s_0f0c9bce1f5af5::t_c117504cbc2ca7 68-69
+tools/sitegen/counts.go
+  s_0f0c9bce1f5af5::t_56bf34a6cd68ed 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5484f5d391540528567d7ff0242f41b05bf2994d",
+  "prompts": {},
+  "sessions": {
+    "s_0f0c9bce1f5af5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "712ffc94-905e-4050-8762-641d8d842aeb",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
