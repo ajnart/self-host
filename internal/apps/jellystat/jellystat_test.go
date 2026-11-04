@@ -278,8 +278,8 @@ func TestJellystatComposeKeepsDatabasePrivateAndPersistent(t *testing.T) {
 				t.Errorf("Compose contains unsafe or unsupported %q", forbidden)
 			}
 		}
-		if strings.Count(definition, "driver: local") != 2 || strings.Count(definition, "restart: unless-stopped") != 2 || strings.Count(definition, "ports:") != 1 {
-			t.Fatal("restart/logging policies or database port isolation are missing")
+		if strings.Count(definition, "restart: unless-stopped") != 2 || strings.Count(definition, "ports:") != 1 {
+			t.Fatal("restart policies or database port isolation are missing")
 		}
 	}
 	if len(a.Secrets()) != 2 || len(a.Links()) != 0 {

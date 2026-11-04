@@ -48,11 +48,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ./library:/library:ro
     ports:
       - ${BIND_IP}:` + strconv.Itoa(rc.Port) + `:8888
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: "3"
 `
 }
 

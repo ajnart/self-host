@@ -59,11 +59,6 @@ func (App) Compose(rc app.RenderContext) string {
   jellystat:
     image: cyfershepard/jellystat:latest
     restart: unless-stopped
-    logging:
-      driver: local
-      options:
-        max-size: 10m
-        max-file: "3"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${JELLYSTAT_DB_PASSWORD}
@@ -90,11 +85,6 @@ func (App) Compose(rc app.RenderContext) string {
     image: postgres:18
     restart: unless-stopped
     shm_size: 1gb
-    logging:
-      driver: local
-      options:
-        max-size: 10m
-        max-file: "3"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${JELLYSTAT_DB_PASSWORD}
