@@ -3,8 +3,9 @@
 Real, isolated App fixtures for integration tests. Keep your existing API adapter;
 replace its mock Address and API key with a real App configured by self-host's Setup.
 
-This guide describes **1.3.0**, which adds `withApp`, ordered Pairs and the
-automatic-cleanup JavaScript Action. Version 1.2.1 has none of them.
+This guide describes **1.3.1**, which keeps the **1.3.0** testkit APIs compatible,
+including `withApp`, ordered Pairs and the automatic-cleanup JavaScript Action.
+Version 1.2.1 has none of them.
 
 ```javascript
 import { withApp } from "@ajnart/self-host-testkit";
@@ -145,12 +146,14 @@ only substitutes a selected Catalog App's image; it cannot remove these limits.
 
 ## Published release
 
-Version **1.3.0** is available on
-[npm](https://www.npmjs.com/package/@ajnart/self-host-testkit/v/1.3.0) and
-[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.3.0). For local use:
+Version **1.3.1** must exist on
+[npm](https://www.npmjs.com/package/@ajnart/self-host-testkit/v/1.3.1) and
+[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.3.1) before using
+these local commands. The CI quickstart above remains pinned to the separately
+verified 1.3.0 SDK/helper combination.
 
 ```bash
-npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.0
+npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.1
 npm exec -- self-host-testkit-setup
 ```
 
@@ -229,6 +232,32 @@ first argument. It starts real Docker Apps: run only in an approved runtime slot
 The integrated Sonarr verifier registration is required for advancing Stats.
 No downloader adapter or Kuma fix is needed. Pair/native/rendered acceptance is
 not established by helper or transport tests; see the Node guide for boundaries.
+
+### Opt-in Sonarr preservation witness
+
+The matching Go helper and Node SDK expose
+`CreateSonarrFilterWitness` / `ReadSonarrFilterWitness` and
+`createSonarrFilterWitness()` / `readSonarrFilterWitness()`. Enable the capability
+explicitly with `PairOptions.SonarrFilterWitness` in Go or
+`sonarrFilterWitness: true` in Node, only for a Homarr consumer and Sonarr target.
+Select Sonarr through the existing `Images` / `images` option using a reviewed
+immutable `repository@sha256:...` reference. Default and standalone fixtures do
+not gain write permission or perform capability negotiation.
+
+The Node SDK checks the helper's static capability before starting that opted-in
+Pair. Creation then requires the complete owned fixture, authenticated Sonarr v4
+identity and an empty custom-filter collection. It writes exactly one unique,
+unselected saved series filter with empty predicates, returning only its original
+ID and opaque content hash. Reads address that original object and fail on
+missing/changed data or image drift; they never reseed after reinstall. A tag is
+not used because Sonarr housekeeping deletes unused tags.
+
+This capability is not an arbitrary HTTP/configuration writer and starts no
+series, provider, scan or download job. Non-purge target removals must retain the
+witness; normal final Pair cleanup removes the disposable fixture. Use requires
+separate approval of the actual image/source contract and runtime slot. Fake
+tests and compiled capability support do not prove native data preservation.
+See the [Node witness contract](node/README.md#sonarr-data-preservation-witness).
 
 ## Guides
 

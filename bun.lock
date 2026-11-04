@@ -81,7 +81,7 @@
     },
     "testkit/node": {
       "name": "@ajnart/self-host-testkit",
-      "version": "1.2.1",
+      "version": "1.3.1",
       "bin": {
         "self-host-testkit-setup": "./setup.mjs",
       },

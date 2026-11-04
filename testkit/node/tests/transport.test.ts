@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import {
 	chmodSync,
+	existsSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
@@ -22,7 +23,11 @@ import {
 const directories: string[] = [];
 const handles: SelfHost[] = [];
 
-function fixture(timeoutMs = 1000, mode = "valid", cleanupFails = false) {
+function fixture(
+	timeoutMs = 1000,
+	witnessMode = "valid",
+	cleanupFails = false,
+) {
 	const directory = mkdtempSync(join(tmpdir(), "testkit-transport-"));
 	directories.push(directory);
 	chmodSync(directory, 0o700);
@@ -33,7 +38,10 @@ function fixture(timeoutMs = 1000, mode = "valid", cleanupFails = false) {
 		"utf8",
 	);
 	const selected = source
-		.replace('const mode = "valid";', `const mode = ${JSON.stringify(mode)};`)
+		.replace(
+			'const witnessMode = "valid";',
+			`const witnessMode = ${JSON.stringify(witnessMode)};`,
+		)
 		.replace(
 			"const cleanupFails = false;",
 			`const cleanupFails = ${cleanupFails};`,
@@ -67,9 +75,12 @@ function protocolFailure(
 	expect(error.cleanupFailed).toBe(cleanupFailed);
 	const output = inspect(error) + JSON.stringify(error);
 	expect(
-		[manifest, "private-test-api-key", "private-test-password"].some((value) =>
-			output.includes(value),
-		),
+		[
+			manifest,
+			"private-witness-body",
+			"private-test-api-key",
+			"private-test-password",
+		].some((value) => output.includes(value)),
 	).toBe(false);
 }
 
@@ -93,6 +104,8 @@ async function disabledPair(pair: Pair, manifest: string) {
 		() => pair.setup("homarr"),
 		() => pair.remove("sonarr"),
 		() => pair.install("sonarr"),
+		() => pair.createSonarrFilterWitness(),
+		() => pair.readSonarrFilterWitness(),
 		() => pair.target.info(),
 		() => pair.target.getApiKey(),
 		() => pair.target.credentials(),
@@ -118,6 +131,211 @@ afterEach(async () => {
 		rmSync(directory, { recursive: true, force: true });
 });
 
+const witnessImages = { sonarr: `example/sonarr@sha256:${"a".repeat(64)}` };
+
+for (const order of ["consumer-first", "target-first"] as const) {
+	test(`Sonarr witness ${order} delegates once and preserves immutable receipts`, async () => {
+		const { selfHost, manifest } = fixture();
+		const pair = await selfHost.spinupPair("homarr", "sonarr", {
+			order,
+			images: witnessImages,
+			sonarrFilterWitness: true,
+		});
+		const baseline = await pair.createSonarrFilterWitness();
+		expect(baseline).toEqual({
+			kind: "sonarr-custom-filter-v1",
+			objectId: 17,
+			contentSha256: "a".repeat(64),
+		});
+		expect(Object.isFrozen(baseline)).toBe(true);
+		expect(JSON.stringify(baseline)).not.toContain("label");
+		for (let cycle = 0; cycle < 2; cycle++) {
+			await pair.remove("sonarr");
+			await pair.install("sonarr");
+			expect(await pair.readSonarrFilterWitness()).toEqual(baseline);
+		}
+		const methods = events(manifest).map((value) => value.method);
+		expect(methods.slice(0, 2)).toEqual(["capabilities", "spinupPair"]);
+		expect(
+			methods.filter((method) => method === "createSonarrFilterWitness"),
+		).toHaveLength(1);
+		expect(
+			methods.filter((method) => method === "readSonarrFilterWitness"),
+		).toHaveLength(2);
+		await pair.close();
+	});
+}
+
+test("Sonarr witness opt-in preserves legacy defaults and rejects scope/image overrides before startup", async () => {
+	const { selfHost, manifest } = fixture();
+	for (const [consumer, target, images] of [
+		["sonarr", "homarr", witnessImages],
+		["outside", "sonarr", witnessImages],
+		["homarr", "sonarr", {}],
+		["homarr", "sonarr", { sonarr: "example/sonarr:latest" }],
+	] as const) {
+		await expect(
+			selfHost.spinupPair(consumer, target, {
+				order: "consumer-first",
+				images,
+				sonarrFilterWitness: true,
+			}),
+		).rejects.toThrow("Invalid testkit protocol.");
+	}
+	expect(existsSync(manifest)).toBe(false);
+	const legacy = await selfHost.spinupPair("homarr", "sonarr", {
+		order: "consumer-first",
+	});
+	await expect(legacy.createSonarrFilterWitness()).rejects.toThrow(
+		"Fixture is not available.",
+	);
+	await expect(legacy.readSonarrFilterWitness()).rejects.toThrow(
+		"Fixture is not available.",
+	);
+	expect(events(manifest).map((value) => value.method)).toEqual(["spinupPair"]);
+});
+
+for (const mode of [
+	"old-helper",
+	"wrong-capability-envelope",
+	"missing-capability",
+	"false-capability",
+	"string-capability",
+	"wrong-capability-revision",
+	"null-capabilities",
+	"slow-capabilities",
+]) {
+	test(`Sonarr witness ${mode} rejects before native startup`, async () => {
+		const { selfHost, manifest } = fixture(
+			mode === "slow-capabilities" ? 25 : 1000,
+			mode,
+		);
+		let caught: unknown;
+		try {
+			await selfHost.spinupPair("homarr", "sonarr", {
+				order: "consumer-first",
+				images: witnessImages,
+				sonarrFilterWitness: true,
+			});
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(TestkitError);
+		expect(inspect(caught)).not.toContain("private-witness-body");
+		expect(
+			events(manifest).some((event) => event.method === "spinupPair"),
+		).toBe(false);
+	});
+}
+
+test("Sonarr witness requires the matching helper startup echo", async () => {
+	const { selfHost, manifest } = fixture(1000, "missing-echo");
+	let caught: unknown;
+	try {
+		await selfHost.spinupPair("homarr", "sonarr", {
+			order: "consumer-first",
+			images: witnessImages,
+			sonarrFilterWitness: true,
+		});
+	} catch (error) {
+		caught = error;
+	}
+	protocolFailure(caught, manifest, false);
+	ownedCleanup(manifest);
+});
+
+for (const mode of [
+	"bad-kind",
+	"bad-id-zero",
+	"bad-id-fraction",
+	"bad-id-range",
+	"bad-hash",
+	"extra-receipt-field",
+	"missing-receipt-field",
+	"null-receipt",
+]) {
+	for (const method of [
+		"createSonarrFilterWitness",
+		"readSonarrFilterWitness",
+	] as const) {
+		test(`Sonarr ${mode} ${method} invalid receipt cleans and disables owner`, async () => {
+			let selected = mode;
+			if (method === "readSonarrFilterWitness") selected = `read-${mode}`;
+			const { selfHost, manifest } = fixture(1000, selected);
+			const pair = await selfHost.spinupPair("homarr", "sonarr", {
+				order: "target-first",
+				images: witnessImages,
+				sonarrFilterWitness: true,
+			});
+			if (method === "readSonarrFilterWitness")
+				await pair.createSonarrFilterWitness();
+			let caught: unknown;
+			try {
+				await pair[method]();
+			} catch (error) {
+				caught = error;
+			}
+			protocolFailure(caught, manifest, false);
+			ownedCleanup(manifest);
+			await disabledPair(pair, manifest);
+			await pair.close();
+			expect(
+				events(manifest).filter((event) => event.method === "cleanup"),
+			).toHaveLength(1);
+		});
+	}
+}
+
+for (const method of [
+	"createSonarrFilterWitness",
+	"readSonarrFilterWitness",
+] as const) {
+	test(`Sonarr ${method} integrity failure preserves secondary cleanup failure`, async () => {
+		let mode = "bad-hash";
+		if (method === "readSonarrFilterWitness") mode = "read-bad-hash";
+		const { selfHost, manifest } = fixture(1000, mode, true);
+		const pair = await selfHost.spinupPair("homarr", "sonarr", {
+			order: "consumer-first",
+			images: witnessImages,
+			sonarrFilterWitness: true,
+		});
+		if (method === "readSonarrFilterWitness")
+			await pair.createSonarrFilterWitness();
+		let caught: unknown;
+		try {
+			await pair[method]();
+		} catch (error) {
+			caught = error;
+		}
+		protocolFailure(caught, manifest, true);
+		const owner = ownedCleanup(manifest);
+		await disabledPair(pair, manifest);
+		await expect(pair.close()).rejects.toThrow("Fixture cleanup failed");
+		unlinkSync(`${manifest}.${owner}.failed`);
+		await pair.close();
+		await disabledPair(pair, manifest);
+		expect(
+			events(manifest).filter((event) => event.method === "cleanup"),
+		).toHaveLength(3);
+	});
+}
+
+test("Sonarr invalid startup echo preserves protocol and cleanup failure", async () => {
+	const { selfHost, manifest } = fixture(1000, "missing-echo", true);
+	let caught: unknown;
+	try {
+		await selfHost.spinupPair("homarr", "sonarr", {
+			order: "consumer-first",
+			images: witnessImages,
+			sonarrFilterWitness: true,
+		});
+	} catch (error) {
+		caught = error;
+	}
+	protocolFailure(caught, manifest, true);
+	ownedCleanup(manifest);
+});
+
 test("pair startup timeout preserves its code when cleanup also fails", async () => {
 	const { selfHost, manifest } = fixture(1000, "valid", true);
 	let caught: unknown;
@@ -133,6 +351,58 @@ test("pair startup timeout preserves its code when cleanup also fails", async ()
 	expect(caught.cleanupFailed).toBe(true);
 	expect(caught.reason).toBeUndefined();
 	ownedCleanup(manifest);
+});
+
+test("Sonarr witness read-before-create and second create cannot seed twice", async () => {
+	const { selfHost, manifest } = fixture();
+	const pair = await selfHost.spinupPair("homarr", "sonarr", {
+		order: "consumer-first",
+		images: witnessImages,
+		sonarrFilterWitness: true,
+	});
+	await expect(pair.readSonarrFilterWitness()).rejects.toThrow(
+		"Fixture is not available.",
+	);
+	await pair.createSonarrFilterWitness();
+	await expect(pair.createSonarrFilterWitness()).rejects.toThrow(
+		"Fixture is not available.",
+	);
+	expect(
+		events(manifest).filter(
+			(event) => event.method === "createSonarrFilterWitness",
+		),
+	).toHaveLength(2);
+});
+
+test("Sonarr witness operation failure retains the primary and separately reports cleanup", async () => {
+	const { binary, manifest } = fixture(1000, "operation-cleanup");
+	let notified = false;
+	let caught: unknown;
+	try {
+		await withPair(
+			"homarr",
+			"sonarr",
+			(pair) => pair.createSonarrFilterWitness(),
+			{
+				binary,
+				manifest,
+				timeoutMs: 1000,
+				order: "consumer-first",
+				images: witnessImages,
+				sonarrFilterWitness: true,
+				onCleanupError(error) {
+					notified = error.code === "CLEANUP";
+				},
+			},
+		);
+	} catch (error) {
+		caught = error;
+	}
+	expect(caught).toBeInstanceOf(TestkitError);
+	expect(caught instanceof TestkitError && caught.code).toBe("OPERATION");
+	expect(caught instanceof TestkitError && caught.cleanupFailed).toBe(true);
+	expect(notified).toBe(true);
+	expect(inspect(caught)).not.toContain("private-witness-body");
 });
 
 test("fragmented private transport exposes the explicit App contract", async () => {
