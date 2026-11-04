@@ -1,0 +1,25 @@
+internal/apps/deluge/deluge.go
+  s_0812986ae533ff::t_9c3d5c80bfa019 71
+internal/apps/sportarr/api.go
+  s_0812986ae533ff::t_775fa2b8d37e58 26
+internal/apps/yourspotify/account.go
+  s_0812986ae533ff::t_2e061b502f757f 45
+internal/helpers/session.go
+  s_0812986ae533ff::t_c19b617c42263f 25-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32333d421232b0efe1105881a441c6c1041dffcc",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
