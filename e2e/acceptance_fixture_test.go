@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"flag"
 	"github.com/ajnart/self-host/internal/catalog"
 	"github.com/ajnart/self-host/internal/events"
 	stepstatus "github.com/ajnart/self-host/internal/status"
@@ -11,8 +12,19 @@ import (
 	"testing"
 )
 
+var updateInventory = flag.Bool("update", false, "rewrite testdata/inventory.json from the compiled Catalog")
+
 func TestAcceptanceInventory(t *testing.T) {
 	got := acceptanceInventory(catalog.Default())
+	if *updateInventory {
+		doc, err := json.MarshalIndent(got, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile("testdata/inventory.json", append(doc, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	data, err := os.ReadFile("testdata/inventory.json")
 	if err != nil {
 		t.Fatal(err)
@@ -21,8 +33,8 @@ func TestAcceptanceInventory(t *testing.T) {
 	if err := json.Unmarshal(data, &want); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 129 || !reflect.DeepEqual(got, want) {
-		t.Fatalf("inventory differs: got %d targets, want %d", len(got), len(want))
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("testdata/inventory.json is stale: Catalog has %d targets, file has %d; run go test ./e2e -run TestAcceptanceInventory -update", len(got), len(want))
 	}
 }
 

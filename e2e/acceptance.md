@@ -1,8 +1,11 @@
 # Runtime acceptance evidence
 
-`E2E_TARGETS=all` selects 121 Apps and 7 Recipes (6 legacy Recipes plus
-`media`). `testdata/inventory.json` is the explicit inventory checked against
-the compiled Catalog. App/Recipe names in evidence are distinct, for example
+`E2E_TARGETS=all` selects every App, the hidden ones included, and every Recipe,
+including the hidden `homarr-control-plane` compatibility Recipe; their counts
+are `allApps` and `allRecipes` under `counts` in `site/src/data/catalog.json`.
+`testdata/inventory.json` is the explicit inventory checked against the
+compiled Catalog; `go test ./e2e -run TestAcceptanceInventory -update`
+regenerates it. App/Recipe names in evidence are distinct, for example
 `app-ntfy.json` and `recipe-media.json`.
 
 Use a bounded batch after the Project lock, redaction, backup and restore fixes
