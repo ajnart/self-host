@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/compose"
@@ -507,6 +508,7 @@ func (ss *session) purgeAppDir(ctx context.Context, id, dir string, services []s
 
 // runAfter runs Setup (and Links) or only Check for the targets.
 func (s *Service) runAfter(ctx context.Context, ss *session, step afterStep, ids []string) error {
+	ss.dashboardExplicit = slices.Contains(ids, dashboardAppID)
 	switch step {
 	case afterSetup:
 		var apps []app.App
@@ -522,7 +524,10 @@ func (s *Service) runAfter(ctx context.Context, ss *session, step afterStep, ids
 		if !slices.Contains(ids, "homarr") || slices.Contains(ids, tailscaleID) || slices.Contains(ids, cloudflareConnector) {
 			err = errors.Join(err, ss.refreshDashboard(ctx))
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		return ss.dashboardError
 	case afterCheck:
 		var apps []app.App
 		targets := slices.Clone(ss.refreshed)
@@ -562,7 +567,7 @@ func (s *Service) runAfter(ctx context.Context, ss *session, step afterStep, ids
 		if len(manual) > 0 {
 			return fmt.Errorf("%w: check needs manual steps after update for %s; follow their hints, then run: self-host setup %s", ErrManual, strings.Join(manual, ", "), strings.Join(manual, " "))
 		}
-		return setupManual
+		return errors.Join(setupManual, ss.dashboardError)
 	case afterDashboard:
 		return ss.refreshDashboard(ctx)
 	case afterUnmanagedDashboard:
@@ -608,6 +613,9 @@ func (ss *session) refreshRunningDashboard(ctx context.Context) error {
 	if !found || !ss.ready(dashboardAppID) {
 		return nil
 	}
+	if err := ss.homarrAvailable(ctx, a); err != nil {
+		return err
+	}
 	ss.invalidateNavigation()
 	containers, err := ss.compose.Ps(ctx)
 	if err != nil {
@@ -616,9 +624,6 @@ func (ss *session) refreshRunningDashboard(ctx context.Context) error {
 	byService := map[string]compose.Container{}
 	for _, c := range containers {
 		byService[c.Service] = c
-	}
-	if byService[a.Info().Service].State != "running" {
-		return nil
 	}
 	ids, err := ss.p.AppIDs()
 	if err != nil {
@@ -637,13 +642,8 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 	if !found || !ss.ready("homarr") {
 		return nil
 	}
-	if err := ctx.Err(); err != nil {
+	if err := ss.homarrAvailable(ctx, a); err != nil {
 		return err
-	}
-	if ss.homarrStopped(ctx, a) {
-		hint := "Homarr is not running; start it with self-host start homarr, then run self-host setup homarr"
-		ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: "homarr", Step: "reconcile", Msg: "dashboard not refreshed", Hint: hint})
-		return fmt.Errorf("%w: dashboard reconciliation needs manual steps; %s", ErrManual, hint)
 	}
 	incomplete, err := ss.runSetup(ctx, a)
 	if err != nil {
@@ -658,17 +658,40 @@ func (ss *session) reconcileDashboard(ctx context.Context) error {
 	return nil
 }
 
-func (ss *session) homarrStopped(ctx context.Context, a app.App) bool {
+func (ss *session) homarrAvailable(ctx context.Context, a app.App) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if ss.dashboardChecked {
+		return ss.dashboardError
+	}
 	containers, err := ss.compose.Ps(ctx)
 	if err != nil {
-		return false
+		return err
 	}
-	for _, c := range containers {
-		if c.Service == a.Info().Service {
-			return c.State != "running"
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	hint := "Homarr is not running; start it with self-host start homarr, then run self-host setup homarr"
+	if slices.ContainsFunc(containers, func(c compose.Container) bool {
+		return c.Service == a.Info().Service && c.State == "running"
+	}) {
+		probe, cancel := context.WithTimeout(ctx, 2*time.Second)
+		response, err := ss.helpers(a).HTTP(probe, helpers.Request{Path: "/api/health/live", NoRedirect: true})
+		cancel()
+		if err := ctx.Err(); err != nil {
+			return err
 		}
+		if err == nil && response.OK() {
+			ss.dashboardChecked = true
+			return nil
+		}
+		hint = "Homarr is not responding; check self-host logs homarr, start it with self-host start homarr, then run self-host setup homarr"
 	}
-	return false
+	ss.dashboardChecked = true
+	ss.dashboardError = fmt.Errorf("%w: dashboard reconciliation needs manual steps; %s", ErrManual, hint)
+	ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: dashboardAppID, Step: "reconcile", Msg: "dashboard not refreshed", Hint: hint})
+	return ss.dashboardError
 }
 
 // clearStartFailure overwrites a start failure left by an earlier run once the
@@ -739,11 +762,15 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 		if ctx.Err() != nil {
 			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StagePull, Msg: "pull cancelled", Error: "cancelled", Hint: "Run self-host to resume the install."}))
 		}
-		image := pullImageName(ss, ids, err)
-		hint := fmt.Sprintf("Run `docker pull %s`, then check the network and the registry, and retry.", image)
-		failed, others := ss.splitByImage(ids, image)
-		if len(failed) == 0 {
-			failed, others = ids, nil
+		image := pullImageName(err)
+		hint := "Check the network and the registry, then retry."
+		failed, others := ids, []string(nil)
+		var perr *compose.PullError
+		if errors.As(err, &perr) && perr.Image != "" {
+			hint = fmt.Sprintf("Run `docker pull %s`, then check the network and the registry, and retry.", image)
+			if matching, remaining := ss.splitByImage(ids, perr.Image); len(matching) > 0 {
+				failed, others = matching, remaining
+			}
 		}
 		fail := events.Event{Event: events.StepFail, Step: StagePull, Msg: "could not pull " + image, Error: err.Error(), Hint: hint}
 		skip := events.Event{Event: events.StepSkip, Step: StagePull, Msg: "not pulled: could not pull " + image + " for another App"}

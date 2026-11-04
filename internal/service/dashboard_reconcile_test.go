@@ -2,12 +2,17 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"testing"
 )
 
 func TestDashboardSeesAppsAfterInstallRemoveAndAddressChange(t *testing.T) {
 	dashboard := &inventoryProbeApp{testApp: &testApp{id: "homarr", done: map[string]bool{}}, inspect: true}
 	h := newHarness(t, dashboard, &testApp{id: "one", done: map[string]bool{}})
+	(&tailnet{running: []string{"homarr"}}).install(h)
+	h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
 	if err := h.install("homarr"); err != nil {
 		t.Fatal(err)
 	}

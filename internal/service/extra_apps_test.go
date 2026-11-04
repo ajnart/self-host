@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,13 +67,16 @@ func TestInstallRefusesAnAppNamedLikeAnExtraApp(t *testing.T) {
 func TestStartingAnExtraAppLetsTheDashboardAddItsTile(t *testing.T) {
 	dashboard := &inventoryProbeApp{testApp: &testApp{id: "homarr", done: map[string]bool{}}, inspect: true}
 	h := newHarness(t, dashboard)
+	h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
 	if err := h.install("homarr"); err != nil {
 		t.Fatal(err)
 	}
 	h.writeExtra("whoami", extraWhoami)
 	h.runner.OnFunc("docker compose --project-directory", func(cmd system.Cmd) system.Result {
 		if strings.Contains(systemtest.Line(cmd), " ps ") {
-			return system.Result{Stdout: []byte(`[{"Service":"whoami","State":"running","Publishers":[{"PublishedPort":8099,"TargetPort":80,"Protocol":"tcp"}]}]`)}
+			return system.Result{Stdout: []byte(`[{"Service":"homarr","State":"running"},{"Service":"whoami","State":"running","Publishers":[{"PublishedPort":8099,"TargetPort":80,"Protocol":"tcp"}]}]`)}
 		}
 		return system.Result{}
 	})

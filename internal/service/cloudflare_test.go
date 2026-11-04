@@ -46,6 +46,9 @@ type cloudflareTransport struct {
 }
 
 func (tr cloudflareTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Hostname() == "127.0.0.1" && req.URL.Path == "/api/health/live" {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: req}, nil
+	}
 	if req.URL.Hostname() == "api.cloudflare.com" {
 		copy := req.Clone(req.Context())
 		target, _ := url.Parse(tr.server.URL)

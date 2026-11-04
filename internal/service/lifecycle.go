@@ -95,15 +95,10 @@ func (s *Service) Update(ctx context.Context, ids []string) error {
 	})
 }
 
-func pullImageName(ss *session, ids []string, err error) string {
+func pullImageName(err error) string {
 	var perr *compose.PullError
 	if errors.As(err, &perr) && perr.Image != "" {
 		return perr.Image
-	}
-	for _, id := range ids {
-		if a, found := ss.s.Catalog.App(id); found {
-			return a.Info().Image
-		}
 	}
 	return "the image"
 }

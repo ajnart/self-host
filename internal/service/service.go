@@ -220,6 +220,9 @@ type session struct {
 	navigationError      error
 	navigationWarnings   []string
 	deferDashboard       bool
+	dashboardExplicit    bool
+	dashboardChecked     bool
+	dashboardError       error
 	refreshed            []string
 }
 
@@ -467,6 +470,14 @@ func (ss *session) runSetup(ctx context.Context, a app.App) ([]string, error) {
 			if !slices.ContainsFunc(links, func(l app.Link) bool { return l.Target == id }) {
 				continue
 			}
+			if otherID == dashboardAppID && !ss.dashboardExplicit {
+				if err := ss.homarrAvailable(ctx, other); err != nil {
+					if errors.Is(err, ErrManual) {
+						continue
+					}
+					return incomplete, errors.Join(err, ss.p.SaveState(ss.state))
+				}
+			}
 			// A Link that failed earlier may have been waiting on this App
 			// indirectly (Seerr's servers need its Jellyfin Link), so retry it.
 			for _, link := range links {
@@ -629,8 +640,6 @@ type inputError struct{ err error }
 func (e inputError) Error() string { return e.err.Error() }
 func (e inputError) Unwrap() error { return e.err }
 
-// Input marks err as a mistake in what the person typed, an expected outcome
-// that Telemetry does not report.
 func Input(err error) error {
 	if err == nil {
 		return nil
@@ -638,8 +647,6 @@ func Input(err error) error {
 	return inputError{err}
 }
 
-// Expected reports whether err is an expected outcome rather than a failure:
-// a usage mistake or a missing Project.
 func Expected(err error) bool {
 	var in inputError
 	return errors.As(err, &in) || errors.Is(err, ErrNoProject)

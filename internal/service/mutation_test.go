@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -392,17 +393,19 @@ func TestLastAppTeardownFailureKeepsRemovalRetryable(t *testing.T) {
 }
 
 func TestFailedPullStopsBeforeUp(t *testing.T) {
-	h := newHarness(t, &testApp{id: "one", done: map[string]bool{}})
+	h := newHarness(t, &testApp{id: "one", image: "example/one:latest", done: map[string]bool{}}, &testApp{id: "two", image: "example/two:latest", done: map[string]bool{}})
 	h.runner.OnStreamError("--progress json pull", "", errors.New("exit status 125"))
 
-	if err := h.install("one"); err == nil {
+	if err := h.install("one", "two"); err == nil {
 		t.Fatal("install succeeded despite a failed pull")
 	}
-	if calls := h.composeCalls(); len(calls) != 1 || calls[0] != "--progress json pull one" {
+	if calls := h.composeCalls(); len(calls) != 1 || calls[0] != "--progress json pull one two" {
 		t.Fatalf("Compose ran past the failed pull: %v", calls)
 	}
-	if e := h.rec.find("", "pull"); e == nil || e.Event != events.StepFail {
-		t.Fatalf("pull failure not reported: %+v", e)
+	for _, id := range []string{"one", "two"} {
+		if e := h.rec.find(id, "pull"); e == nil || e.Event != events.StepFail {
+			t.Fatalf("unattributed pull failure not reported for %s: %+v", id, e)
+		}
 	}
 }
 
@@ -563,19 +566,55 @@ func (a *linkedTestApp) Links() []app.Link {
 }
 
 func TestManualSetupBlocksLinksUntilRetry(t *testing.T) {
-	target := &testApp{id: "one", fail: helpers.ErrManual, done: map[string]bool{}}
-	consumer := &linkedTestApp{testApp: &testApp{id: "two", done: map[string]bool{}}}
-	h := newHarness(t, target, consumer)
-	_ = h.install("one", "two")
-	if consumer.linked {
-		t.Fatal("Link used an App with a manual Setup step")
-	}
-	target.fail = nil
-	if err := h.svc.Setup(context.Background(), []string{"one"}); err != nil {
-		t.Fatal(err)
-	}
-	if !consumer.linked {
-		t.Fatal("Link did not run after manual Setup completed")
+	for _, id := range []string{"two", "homarr"} {
+		t.Run(id, func(t *testing.T) {
+			target := &testApp{id: "one", fail: helpers.ErrManual, done: map[string]bool{}}
+			consumer := &linkedTestApp{testApp: &testApp{id: id, done: map[string]bool{}}}
+			h := newHarness(t, target, consumer)
+			net := &tailnet{}
+			net.install(h)
+			health := http.StatusServiceUnavailable
+			h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Path != "/api/health/live" {
+					t.Fatalf("unexpected request: %s", r.URL.Path)
+				}
+				if deadline, bounded := r.Context().Deadline(); !bounded || time.Until(deadline) > 2*time.Second {
+					t.Fatal("implicit availability request is not bounded to two seconds")
+				}
+				return &http.Response{StatusCode: health, Body: http.NoBody}, nil
+			})}
+			_ = h.install("one", id)
+			if consumer.linked {
+				t.Fatal("Link used an App with a manual Setup step")
+			}
+			target.fail = nil
+			if id == "homarr" {
+				for _, running := range [][]string{nil, {"homarr"}} {
+					net.running = running
+					if err := h.svc.Setup(context.Background(), []string{"one"}); !errors.Is(err, ErrManual) || errors.Is(err, ErrIncomplete) {
+						t.Fatalf("unavailable Homarr did not stay Manual: %v", err)
+					}
+					if consumer.linked || !target.done["one"] {
+						t.Fatal("unavailable Homarr ran its Link or blocked the target's Setup")
+					}
+				}
+			}
+			health = http.StatusOK
+			if err := h.svc.Setup(context.Background(), []string{"one"}); err != nil {
+				t.Fatal(err)
+			}
+			if !consumer.linked {
+				t.Fatal("Link did not run after manual Setup completed")
+			}
+			if id == "homarr" {
+				net.running = nil
+				consumer.done[id] = false
+				consumer.fail = errors.New("explicit Setup failed")
+				if err := h.svc.Setup(context.Background(), []string{id}); !errors.Is(err, ErrIncomplete) || errors.Is(err, ErrManual) {
+					t.Fatalf("explicit Homarr Setup did not report its actual failure: %v", err)
+				}
+			}
+		})
 	}
 }
 
