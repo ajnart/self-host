@@ -1,0 +1,16 @@
+internal/service/connections_test.go
+  h_d6e478ca18e517 400,412-415
+internal/service/oxynote_access_test.go
+  h_d6e478ca18e517 5,25-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "582402ec4fe51fc3eeda963f707ec6533af48473",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
