@@ -22,6 +22,9 @@ type Probe struct {
 	Want []int `yaml:"want,omitempty"`
 	// Timeout is a duration such as 5m; empty waits two minutes.
 	Timeout string `yaml:"timeout,omitempty"`
+	// Web words the ready step "wait for the web server" and accepts any
+	// status below 500 unless Want is set. Only first-admin reads it.
+	Web bool `yaml:"web,omitempty"`
 }
 
 // Spec is the plain-data Setup of one App. Kind picks the engine and the
@@ -70,7 +73,7 @@ func (s Spec) Setup(ctx context.Context, h *helpers.H) error {
 	case KindNoAccount:
 		return s.noAccount().Setup(ctx, h)
 	case KindFirstAdmin:
-		return s.firstAdmin().Setup(ctx, h)
+		return s.setupFirstAdmin(ctx, h)
 	}
 	return fmt.Errorf("unknown setup kind %q", s.Kind)
 }

@@ -36,6 +36,9 @@ type Call struct {
 	// empty value counts as a refusal.
 	Capture map[string]string `yaml:"capture,omitempty"`
 	Assert  []Assert          `yaml:"assert,omitempty"`
+	// Require is an Assert whose failure is an error: the response is not
+	// the shape the App promises, so it is no answer at all.
+	Require []Assert `yaml:"require,omitempty"`
 }
 
 // Assert checks one value of a JSON response. Path is dotted keys, numbers
@@ -44,6 +47,8 @@ type Assert struct {
 	Path    string `yaml:"path,omitempty"`
 	Equals  string `yaml:"equals,omitempty"`
 	Present bool   `yaml:"present,omitempty"`
+	// Type requires a JSON bool, string, number, array or object.
+	Type string `yaml:"type,omitempty"`
 	// Some requires the array at Path to have an element that meets every
 	// nested assertion.
 	Some []Assert `yaml:"some,omitempty"`
@@ -141,18 +146,17 @@ func (c Call) run(ctx context.Context, h *helpers.H, vars scope, defaultDenied [
 		return false, nil
 	}
 	if !ok {
-		method := req.Method
-		if method == "" {
-			method = http.MethodGet
-		}
-		return false, fmt.Errorf("%s %s returned HTTP %d", method, c.Path, resp.Status)
+		return false, fmt.Errorf("%s %s returned HTTP %d", orGet(req.Method), c.Path, resp.Status)
 	}
-	if len(c.Capture) == 0 && len(c.Assert) == 0 {
+	if len(c.Capture) == 0 && len(c.Assert) == 0 && len(c.Require) == 0 {
 		return true, nil
 	}
 	var body any
 	if err := resp.Decode(&body); err != nil {
 		return false, err
+	}
+	if !holdAll(c.Require, body, vars) {
+		return false, fmt.Errorf("%s %s returned an unexpected response", orGet(req.Method), c.Path)
 	}
 	for name, path := range c.Capture {
 		value, found := lookup(body, path)
@@ -187,6 +191,13 @@ func (cs calls) validate(role string) error {
 	return nil
 }
 
+func orGet(method string) string {
+	if method == "" {
+		return http.MethodGet
+	}
+	return method
+}
+
 func holdAll(asserts []Assert, body any, vars scope) bool {
 	return !slices.ContainsFunc(asserts, func(a Assert) bool { return !a.holds(body, vars) })
 }
@@ -197,6 +208,9 @@ func (a Assert) holds(body any, vars scope) bool {
 		return false
 	}
 	if a.Present && empty(value) {
+		return false
+	}
+	if a.Type != "" && jsonType(value) != a.Type {
 		return false
 	}
 	if a.Equals != "" && fmt.Sprint(value) != vars.expand(a.Equals) {
@@ -235,6 +249,22 @@ func lookup(value any, path string) (any, bool) {
 		}
 	}
 	return value, true
+}
+
+func jsonType(value any) string {
+	switch value.(type) {
+	case bool:
+		return "bool"
+	case string:
+		return "string"
+	case float64:
+		return "number"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	}
+	return "null"
 }
 
 func empty(value any) bool {

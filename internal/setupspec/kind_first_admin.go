@@ -69,6 +69,24 @@ func (s Spec) login(ctx context.Context, h *helpers.H) (bool, error) {
 	return calls(s.Login).run(ctx, h, s.scope(h), loginDenied)
 }
 
+func (s Spec) setupFirstAdmin(ctx context.Context, h *helpers.H) error {
+	f := s.firstAdmin()
+	if !s.Probe.Web {
+		return f.Setup(ctx, h)
+	}
+	var opts []helpers.ReadyOption
+	if len(s.Probe.Want) > 0 {
+		opts = append(opts, helpers.WantStatus(s.Probe.Want...))
+	}
+	if timeout, _ := s.Probe.duration(); timeout > 0 {
+		opts = append(opts, helpers.Timeout(timeout))
+	}
+	if err := h.WebReady(ctx, s.Probe.Path, opts...); err != nil {
+		return err
+	}
+	return f.Admin(ctx, h)
+}
+
 func (s Spec) firstAdmin() firstadmin.FirstAdmin {
 	f := firstadmin.FirstAdmin{Ready: s.probe(), StepID: s.StepID, Manual: s.Manual}
 	if len(s.Exists) > 0 {
