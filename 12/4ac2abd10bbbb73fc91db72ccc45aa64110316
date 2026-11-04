@@ -1,0 +1,19 @@
+internal/apps/mayanedms/mayanedms.go
+  s_6d228c2c874b91::t_017c13ba998628 15,135-153,169,197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "124ac2abd10bbbb73fc91db72ccc45aa64110316",
+  "prompts": {},
+  "sessions": {
+    "s_6d228c2c874b91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f3e87db-5bf7-46a0-aa47-41fb53e062a5",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
