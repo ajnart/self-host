@@ -1,0 +1,16 @@
+testkit/node/README.md
+  h_d6e478ca18e517 7,10
+testkit/sonarr_filter_witness.go
+  h_d6e478ca18e517 123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d66d1ecb281af2b4fb9add0ddaff22a61db7a6a7",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
