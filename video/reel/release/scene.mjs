@@ -149,7 +149,6 @@ export function scene({ apps, version, animate }) {
       const cls = kf([[0, "stroke-dashoffset:6"], [t0, "stroke-dashoffset:6;animation-timing-function:ease-in-out"], [arrive, "stroke-dashoffset:-100"], [loop, "stroke-dashoffset:-100"]], { base: "stroke-dashoffset:6;" });
       body += `<path class="${cls}" d="${d}" pathLength="100" fill="none" stroke="${C.at}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="7 100"/>`;
     }
-    body += dot(ex, y, arrive);
     let nodes = "";
     if (grid) {
       const span = (row.length - 1) * GRID.col;
@@ -171,6 +170,7 @@ export function scene({ apps, version, animate }) {
       nodes += icon(a, NODE_X + 9, y - 21, 42);
       nodes += text(heading, a.name, NODE_X + 78, y + 9, 25, C.bright, { ls: -0.025, maxW: W - NODE_X - 78 - 40 });
     }
+    body += dot(ex, y, arrive);
     const out = loop - 1.3 + r * 0.04;
     const inn = loop - 0.85 + r * 0.1;
     body += reveal(nodes, { out: [out, out + 0.25], inn: [inn, inn + 0.35], from: "translate(40px,0px)" });
