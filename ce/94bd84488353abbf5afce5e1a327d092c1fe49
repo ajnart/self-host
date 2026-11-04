@@ -1,0 +1,45 @@
+internal/catalog/batch_monitoring.go
+  s_694505bc44e853::t_b08f90713bd2cd 10-11,16
+internal/catalog/default.go
+  s_694505bc44e853::t_61bf2e4cc98fce 16
+internal/catalog/generated_test.go
+  s_694505bc44e853::t_551b4daa926d97 40-53
+internal/catalog/specapps_test.go
+  s_694505bc44e853::t_459a1d34a11a17 1,4,7,14,17-18,25-33,40,53,85-163
+internal/catalog/specs.go
+  s_694505bc44e853::t_d6170b5555d850 1,4-5,8,11-12,14-19,21-25
+internal/catalog/specs/fileflows.yaml
+  s_694505bc44e853::t_e62c53b496549b 1-31
+internal/catalog/specs/loki.yaml
+  s_0f0d7a5be1128f::t_0bc98470b1c839 1-25
+internal/catalog/specs/ollama.yaml
+  s_0f0d7a5be1128f::t_1f0ce2eb06daad 1-23
+internal/catalog/specs/stirling-pdf.yaml
+  s_694505bc44e853::t_b34d19dcba8537 1-24
+internal/catalog/specs/victoria-metrics.yaml
+  s_694505bc44e853::t_f93d5d63aaf9c2 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce94bd84488353abbf5afce5e1a327d092c1fe49",
+  "prompts": {},
+  "sessions": {
+    "s_0f0d7a5be1128f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66c8ff99-15fa-427c-ad48-60466ed18b1f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_694505bc44e853": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b0ca5ad-cb46-4e35-bce5-06d986d8e12c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
