@@ -1,0 +1,14 @@
+internal/telemetry/telemetry_test.go
+  h_d6e478ca18e517 381-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c33935cf0d64c5c0ca7bcb55dbdaefac589a4dc8",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
