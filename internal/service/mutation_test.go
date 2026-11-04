@@ -577,6 +577,7 @@ func TestManualSetupBlocksLinksUntilRetry(t *testing.T) {
 			net := &tailnet{}
 			net.install(h)
 			health := http.StatusServiceUnavailable
+			recoverHealth := false
 			h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(r *http.Request) (*http.Response, error) {
 				if r.URL.Path != "/api/health/live" {
 					t.Fatalf("unexpected request: %s", r.URL.Path)
@@ -584,7 +585,12 @@ func TestManualSetupBlocksLinksUntilRetry(t *testing.T) {
 				if deadline, bounded := r.Context().Deadline(); !bounded || time.Until(deadline) > 2*time.Second {
 					t.Fatal("implicit availability request is not bounded to two seconds")
 				}
-				return &http.Response{StatusCode: health, Body: http.NoBody}, nil
+				status := health
+				if recoverHealth {
+					health = http.StatusOK
+					recoverHealth = false
+				}
+				return &http.Response{StatusCode: status, Body: http.NoBody}, nil
 			})}
 			_ = h.install("one", id)
 			if consumer.linked {
@@ -600,6 +606,10 @@ func TestManualSetupBlocksLinksUntilRetry(t *testing.T) {
 					if consumer.linked || !target.done["one"] {
 						t.Fatal("unavailable Homarr ran its Link or blocked the target's Setup")
 					}
+				}
+				recoverHealth = true
+				if err := h.svc.Setup(context.Background(), []string{"one"}); err != nil || !consumer.linked {
+					t.Fatalf("Homarr recovery within the same operation stayed deferred: %v", err)
 				}
 			}
 			health = http.StatusOK

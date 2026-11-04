@@ -697,11 +697,11 @@ func (ss *session) homarrAvailable(ctx context.Context, a app.App) error {
 		}
 		if err == nil && response.OK() {
 			ss.dashboardChecked = true
+			ss.dashboardError = nil
 			return nil
 		}
 		hint = "Homarr is not responding; check self-host logs homarr, start it with self-host start homarr, then run self-host setup homarr"
 	}
-	ss.dashboardChecked = true
 	ss.dashboardError = fmt.Errorf("%w: dashboard reconciliation needs manual steps; %s", ErrManual, hint)
 	ss.s.Log.Emit(events.Event{Event: events.StepWarn, App: dashboardAppID, Step: "reconcile", Msg: "dashboard not refreshed", Hint: hint})
 	return ss.dashboardError
