@@ -163,14 +163,13 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 				return out, errors.New("unsupported fixture mounts")
 			}
 			for _, mount := range mounts.Content {
-				if mount.Kind != yaml.ScalarNode {
-					return out, errors.New("unsupported fixture mount")
+				source, target, mode, err := fixtureMount(mount)
+				if err != nil {
+					return out, err
 				}
-				parts := strings.Split(mount.Value, ":")
-				if len(parts) < 2 || len(parts) > 3 || !strings.HasPrefix(parts[1], "/") || strings.Contains(strings.ToLower(mount.Value), "docker.sock") {
+				if !strings.HasPrefix(target, "/") || strings.Contains(strings.ToLower(source+":"+target), "docker.sock") {
 					return out, errors.New("unsafe fixture mount")
 				}
-				source := parts[0]
 				for _, key := range []string{"DATA_ROOT", "MEDIA_ROOT", "DOWNLOADS_ROOT"} {
 					source = strings.ReplaceAll(source, "${"+key+"}", settings[key])
 				}
@@ -183,7 +182,7 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 				if strings.Contains(source, "$") || !fixtureInside(policy.Root, source) || !fixtureNoSymlink(policy.Root, source) {
 					return out, errors.New("fixture bind escapes private root")
 				}
-				if len(parts) == 3 && parts[2] != "ro" && parts[2] != "rw" {
+				if mode != "ro" && mode != "rw" {
 					return out, errors.New("unsupported fixture bind mode")
 				}
 			}
@@ -229,6 +228,45 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 		return out, err
 	}
 	return out, p.writeFile(p.Path("compose.yml"), data, 0o600)
+}
+
+func fixtureMount(mount *yaml.Node) (source, target, mode string, err error) {
+	if mount.Kind == yaml.ScalarNode {
+		parts := strings.Split(mount.Value, ":")
+		if len(parts) < 2 || len(parts) > 3 {
+			return "", "", "", errors.New("unsafe fixture mount")
+		}
+		mode = "rw"
+		if len(parts) == 3 {
+			mode = parts[2]
+		}
+		return parts[0], parts[1], mode, nil
+	}
+	if mount.Kind != yaml.MappingNode {
+		return "", "", "", errors.New("unsupported fixture mount")
+	}
+	mode = "rw"
+	for i := 0; i+1 < len(mount.Content); i += 2 {
+		key, value := mount.Content[i].Value, mount.Content[i+1]
+		switch {
+		case key == "type" && value.Kind == yaml.ScalarNode && value.Value == "bind":
+		case key == "source" && value.Kind == yaml.ScalarNode:
+			source = value.Value
+		case key == "target" && value.Kind == yaml.ScalarNode:
+			target = value.Value
+		case key == "read_only" && value.Kind == yaml.ScalarNode && (value.Value == "true" || value.Value == "false"):
+			if value.Value == "true" {
+				mode = "ro"
+			}
+		case key == "bind" && value.Kind == yaml.MappingNode && len(value.Content) == 2 && value.Content[0].Value == "create_host_path" && (value.Content[1].Value == "true" || value.Content[1].Value == "false"):
+		default:
+			return "", "", "", errors.New("unsupported fixture mount")
+		}
+	}
+	if field(mount, "type") == nil || source == "" || target == "" {
+		return "", "", "", errors.New("unsupported fixture mount")
+	}
+	return source, target, mode, nil
 }
 
 func fixtureInside(root, path string) bool {
