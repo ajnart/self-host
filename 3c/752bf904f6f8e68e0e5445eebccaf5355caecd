@@ -1,0 +1,23 @@
+internal/apps/patchmon/patchmon.go
+  s_6d228c2c874b91::t_3ddc1b7ee641d3 15,130-142,144-154,156-169,173,190
+internal/setupspec/kind_first_admin.go
+  s_6d228c2c874b91::t_93b51c67bb0e85 64-71,73,81,98-99
+internal/setupspec/setupspec.go
+  s_6d228c2c874b91::t_5a0458558e6f6b 40-42,56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c752bf904f6f8e68e0e5445eebccaf5355caecd",
+  "prompts": {},
+  "sessions": {
+    "s_6d228c2c874b91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f3e87db-5bf7-46a0-aa47-41fb53e062a5",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
