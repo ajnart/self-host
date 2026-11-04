@@ -182,6 +182,17 @@ Only advertise a bare registry install after publication succeeds and its
 downloaded tarball matches the checksummed GitHub release asset. For ongoing
 releases, prefer npm trusted publishing from GitHub Actions over a stored token.
 
+The [consumer smoke workflow](../.github/workflows/testkit-smoke.yml) installs
+the published SDK from an isolated npm lockfile, downloads its matching helper
+through the pinned release-mode Action, and checks a real Sonarr fixture plus
+owned cleanup on success and callback failure. It runs on relevant pull
+requests, weekly and manually; it does not build or publish a release. When
+updating the documented SDK release, update
+`testkit/node/examples/ci/package.json`, its lockfile and the reviewed Action
+pin in both the workflow and [consumer quickstart](../testkit/README.md#ci-in-another-repository).
+Require a passing smoke run before treating that combination as verified;
+single-App smoke coverage is not whole-Catalog or Pair acceptance.
+
 ### Docker image
 
 The `docker` job in `release.yml` runs after release verification/publication,
