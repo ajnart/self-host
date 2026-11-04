@@ -1,0 +1,26 @@
+.github/workflows/testkit-smoke.yml
+  h_d6e478ca18e517 1-45
+docs/releasing.md
+  h_d6e478ca18e517 186-196
+testkit/README.md
+  h_d6e478ca18e517 30-164,217-219
+testkit/node/README.md
+  h_d6e478ca18e517 26,29,38-47,234-265,407-410
+testkit/node/examples/ci/package-lock.json
+  h_d6e478ca18e517 1-26
+testkit/node/examples/ci/package.json
+  h_d6e478ca18e517 1-11
+testkit/node/examples/ci/sonarr.test.mts
+  h_d6e478ca18e517 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f291a2f1c20d6a15ec25ad8e38d82ee8ca294774",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
