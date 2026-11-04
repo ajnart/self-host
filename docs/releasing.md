@@ -22,6 +22,7 @@ and [Node guide](../testkit/node/README.md). Version 1.2.1 adds the helper setup
 command and cleanup fixes without replacing the immutable v1.2.0 assets.
 Version 1.3.0 adds `withApp`, ordered Pairs, the opt-in Sonarr witness and the
 JavaScript Action's automatic post cleanup.
+Version 1.3.1 fixes Setup and Telemetry while preserving the 1.3.0 testkit API.
 
 The installer and `self-host self-update` pick the highest semver among
 non-draft, non-prerelease releases that carry `checksums.txt` and a

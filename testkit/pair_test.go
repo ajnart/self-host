@@ -381,8 +381,14 @@ func TestPairDirectCloseFailurePermanentlyDisablesOwner(t *testing.T) {
 		if _, err := p.Remove(t.Context(), "peer"); err == nil {
 			t.Fatal("closing Pair accepted Remove")
 		}
-		if _, err := p.Install(t.Context(), "peer"); err == nil || len(f.runner.Calls()) != before {
+		if _, err := p.Install(t.Context(), "peer"); err == nil {
 			t.Fatal("closing Pair accepted Install")
+		}
+		if _, err := p.CreateSonarrFilterWitness(t.Context()); err == nil {
+			t.Fatal("closing Pair accepted a witness create")
+		}
+		if _, err := p.ReadSonarrFilterWitness(t.Context()); err == nil || len(f.runner.Calls()) != before {
+			t.Fatal("closing Pair reached its runner")
 		}
 	}
 	assertDisabled()
