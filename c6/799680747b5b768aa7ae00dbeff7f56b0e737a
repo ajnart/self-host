@@ -1,0 +1,31 @@
+.claude/skills/edit-catalog/SKILL.md
+  s_694505bc44e853::t_23e7fa59011d03 13,31,33-36,56
+docs/catalog/adding-apps.md
+  s_56f298195c530e::t_61de2d900801c0 11,14-20,22-25
+docs/catalog/traps/beszel.md
+  s_56f298195c530e::t_2fd46639d163f9 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c6799680747b5b768aa7ae00dbeff7f56b0e737a",
+  "prompts": {},
+  "sessions": {
+    "s_56f298195c530e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2990966a-f6b7-494c-a3ca-300ff1e53d3f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_694505bc44e853": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b0ca5ad-cb46-4e35-bce5-06d986d8e12c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
