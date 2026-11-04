@@ -124,7 +124,7 @@ func (p *Project) PrepareFixtureCompose(policy FixturePolicy) (FixtureCompose, e
 			return out, errors.New("invalid fixture service")
 		}
 		for j := 0; j < len(svc.Content); j += 2 {
-			if !slices.Contains([]string{"image", "environment", "command", "entrypoint", "ports", "volumes", "depends_on", "restart", "healthcheck", "logging", "user", "working_dir", "hostname", "expose", "init", "stop_grace_period", "cpus", "mem_limit", "pids_limit"}, svc.Content[j].Value) {
+			if !slices.Contains([]string{"image", "environment", "command", "entrypoint", "ports", "volumes", "depends_on", "restart", "healthcheck", "logging", "user", "working_dir", "hostname", "expose", "init", "stop_grace_period", "shm_size", "cpus", "mem_limit", "pids_limit"}, svc.Content[j].Value) {
 				return out, errors.New("testkit refuses unprovable service configuration")
 			}
 		}
