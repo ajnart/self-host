@@ -4,24 +4,16 @@ package nginxproxymanager
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 type App struct{}
 
-func (App) AdminEmail(username string) string {
-	if username == "" {
-		return ""
-	}
-	return username + emailSuffix
-}
+func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -51,133 +43,54 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-const emailSuffix = "@selfhost.local"
-
-func adminEmail(h *helpers.H) string { return (App{}).AdminEmail(h.AdminUser()) }
-
-func setupPending(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.Expect(ctx, helpers.Request{Path: "/api/"}, http.StatusOK)
-	if err != nil {
-		return false, err
-	}
-	var body struct {
-		Setup *bool `json:"setup"`
-	}
-	if err := resp.Decode(&body); err != nil {
-		return false, errors.New("Nginx Proxy Manager returned an invalid setup state")
-	}
-	if body.Setup == nil {
-		return false, errors.New("Nginx Proxy Manager did not report its setup state")
-	}
+var setup = setupspec.Spec{
+	Kind:  setupspec.KindFirstAdmin,
+	Name:  "Nginx Proxy Manager",
+	Probe: setupspec.Probe{Path: "/api/", Web: true},
+	Email: "{user}@selfhost.local",
 	// v2.16.0's setup flag means an active user already exists.
-	return !*body.Setup, nil
-}
-
-func adminSignedIn(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{Method: http.MethodPost, Path: "/api/tokens",
-		JSON: map[string]string{"identity": adminEmail(h), "secret": h.AdminPassword()}})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status != http.StatusOK {
-		return false, nil
-	}
-	var token struct {
-		Token string `json:"token"`
-	}
-	if err := resp.Decode(&token); err != nil {
-		return false, err
-	}
-	if token.Token == "" {
-		return false, nil
-	}
-	me, err := h.HTTP(ctx, helpers.Request{Path: "/api/users/me",
-		Header: map[string]string{"Authorization": "Bearer " + token.Token}})
-	if err != nil {
-		return false, err
-	}
-	if me.Status != http.StatusOK {
-		return false, nil
-	}
-	var user struct {
-		Email      string   `json:"email"`
-		Roles      []string `json:"roles"`
-		IsDisabled bool     `json:"is_disabled"`
-	}
-	if err := me.Decode(&user); err != nil {
-		return false, err
-	}
-	return user.Email == adminEmail(h) && !user.IsDisabled && hasRole(user.Roles, "admin"), nil
-}
-
-func hasRole(roles []string, want string) bool {
-	for _, role := range roles {
-		if role == want {
-			return true
-		}
-	}
-	return false
-}
-
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/api/"); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		StepID:   "admin-login",
-		Username: func(_ context.Context, h *helpers.H) (string, error) { return adminEmail(h), nil },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminSignedIn(ctx, h)
+	Exists: []setupspec.Call{{
+		Path:    "/api/",
+		Ok:      []int{200},
+		Require: []setupspec.Assert{{Path: "setup", Type: "bool"}},
+		Assert:  []setupspec.Assert{{Path: "setup", Equals: "true"}},
+	}},
+	Create: []setupspec.Call{{
+		Path: "/api/users",
+		JSON: map[string]any{
+			"name": "Administrator", "nickname": "Admin", "email": "{email}",
+			"auth": map[string]any{"type": "password", "secret": "{password}"},
 		},
-		Create: func(ctx context.Context, h *helpers.H, user, _ string) error {
-			pending, err := setupPending(ctx, h)
-			if err != nil {
-				return err
-			}
-			if !pending {
-				return errors.New("this server already has an administrator outside setup")
-			}
-			_, err = h.Expect(ctx, helpers.Request{Method: http.MethodPost, Path: "/api/users",
-				JSON: map[string]any{
-					"name":     "Administrator",
-					"nickname": "Admin",
-					"email":    user,
-					"auth":     map[string]string{"type": "password", "secret": h.AdminPassword()},
-				}}, http.StatusCreated)
-			return err
+		Ok: []int{201},
+	}},
+	Login: []setupspec.Call{
+		{
+			Path:    "/api/tokens",
+			JSON:    map[string]any{"identity": "{email}", "secret": "{password}"},
+			Ok:      []int{200},
+			Lenient: true,
+			Capture: map[string]string{"token": "token"},
 		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + " and create the administrator " + user +
-				" with the password shown by `self-host credentials`, then run: self-host setup nginx-proxy-manager"
+		{
+			Path:    "/api/users/me",
+			Header:  map[string]string{"Authorization": "Bearer {token}"},
+			Ok:      []int{200},
+			Lenient: true,
+			Assert: []setupspec.Assert{
+				{Path: "email", Equals: "{email}"},
+				{Path: "is_disabled", Equals: "false"},
+				{Path: "roles", Some: []setupspec.Assert{{Equals: "admin"}}},
+			},
 		},
-	}.Admin(ctx, h)
+	},
+	StepID: "admin-login",
+	Title:  "create the administrator {email}",
+	Hint:   "Open {url} and create the administrator {email} with the password shown by `self-host credentials`, then run: self-host setup nginx-proxy-manager",
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	ok, err := adminSignedIn(ctx, h)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return errors.New("the Admin login cannot sign in to Nginx Proxy Manager")
-	}
-	return nil
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
+
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }
 

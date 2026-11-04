@@ -5,27 +5,68 @@ package setupspec
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-const KindNoAccount = "no-account"
+const (
+	KindNoAccount  = "no-account"
+	KindFirstAdmin = "first-admin"
+)
 
 type Probe struct {
 	Path     string `yaml:"path"`
 	Contains string `yaml:"contains,omitempty"`
+	// Want lists the accepted statuses; empty accepts any 2xx.
+	Want []int `yaml:"want,omitempty"`
+	// Timeout is a duration such as 5m; empty waits two minutes.
+	Timeout string `yaml:"timeout,omitempty"`
+	// Web words the ready step "wait for the web server" and accepts any
+	// status below 500 unless Want is set. Only first-admin reads it.
+	Web bool `yaml:"web,omitempty"`
 }
 
+// Spec is the plain-data Setup of one App. Kind picks the engine and the
+// other fields feed it; fields a kind does not read must stay empty.
 type Spec struct {
 	Kind  string `yaml:"kind"`
 	Probe Probe  `yaml:"probe,omitempty"`
+
+	// Name is how Check errors call the App; empty uses the App id.
+	Name string `yaml:"name,omitempty"`
+	// Email is the sign-in address template, e.g. {user}@selfhost.local.
+	Email string `yaml:"email,omitempty"`
+	// EmailInput names an App input whose value, when the person set it,
+	// replaces the Email template.
+	EmailInput string `yaml:"email_input,omitempty"`
+	// Exists proves an administrator is already there; Create makes it;
+	// Login proves the Admin login signs in. Each is run in order and all
+	// calls must pass.
+	Exists []Call `yaml:"exists,omitempty"`
+	Create []Call `yaml:"create,omitempty"`
+	Login  []Call `yaml:"login,omitempty"`
+	// CreateWait polls Login for this long, as a duration such as 5m, for an
+	// App that creates its administrator from its own start-up settings.
+	CreateWait string `yaml:"create_wait,omitempty"`
+	// CreateError is the failure for an App that cannot create it at all.
+	CreateError string `yaml:"create_error,omitempty"`
+	// MinPassword rejects an Admin password shorter than this.
+	MinPassword int `yaml:"min_password,omitempty"`
+	// StepID, Title, Hint and Manual word the administrator step; Title,
+	// Hint and Manual may use {user}, {email}, {url} and {app}.
+	StepID string `yaml:"step_id,omitempty"`
+	Title  string `yaml:"title,omitempty"`
+	Hint   string `yaml:"hint,omitempty"`
+	Manual string `yaml:"manual,omitempty"`
 }
 
 func (s Spec) Validate() error {
 	switch s.Kind {
 	case KindNoAccount:
 		return nil
+	case KindFirstAdmin:
+		return s.validateFirstAdmin()
 	}
 	return fmt.Errorf("unknown setup kind %q", s.Kind)
 }
@@ -34,6 +75,8 @@ func (s Spec) Setup(ctx context.Context, h *helpers.H) error {
 	switch s.Kind {
 	case KindNoAccount:
 		return s.noAccount().Setup(ctx, h)
+	case KindFirstAdmin:
+		return s.setupFirstAdmin(ctx, h)
 	}
 	return fmt.Errorf("unknown setup kind %q", s.Kind)
 }
@@ -42,10 +85,15 @@ func (s Spec) Check(ctx context.Context, h *helpers.H) error {
 	switch s.Kind {
 	case KindNoAccount:
 		return s.noAccount().Check(ctx, h)
+	case KindFirstAdmin:
+		return s.checkFirstAdmin(ctx, h)
 	}
 	return fmt.Errorf("unknown setup kind %q", s.Kind)
 }
 
-func (s Spec) noAccount() firstadmin.NoAccount {
-	return firstadmin.NoAccount{Probe: firstadmin.Probe{Path: s.Probe.Path, Contains: s.Probe.Contains}}
+func (p Probe) duration() (time.Duration, error) {
+	if p.Timeout == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(p.Timeout)
 }

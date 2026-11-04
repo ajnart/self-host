@@ -4,13 +4,11 @@ package linkwarden
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Linkwarden. Traps: docs/catalog/traps/linkwarden.md.
@@ -84,65 +82,41 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-// login signs in through the session endpoint and reads the managed
-// administrator back with the returned bearer token.
-func login(ctx context.Context, h *helpers.H, user, password string) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Method: http.MethodPost, Path: "/api/v1/session",
-		JSON: map[string]string{"username": user, "password": password},
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusBadRequest {
-		return false, nil
-	}
-	if resp.Status != http.StatusOK {
-		return false, fmt.Errorf("the session endpoint returned HTTP %d", resp.Status)
-	}
-	var body struct {
-		Response struct {
-			Token string `json:"token"`
-		} `json:"response"`
-	}
-	if err := resp.Decode(&body); err != nil {
-		return false, err
-	}
-	if body.Response.Token == "" {
-		return false, nil
-	}
-	h.Log.Secret(body.Response.Token)
-	me, err := h.HTTP(ctx, helpers.Request{
-		Path:   "/api/v1/users/me",
-		Header: map[string]string{"Authorization": "Bearer " + body.Response.Token},
-	})
-	if err != nil {
-		return false, err
-	}
-	if me.Status != http.StatusOK {
-		return false, nil
-	}
-	var identity struct {
-		Response struct {
-			Username string `json:"username"`
-			ID       int    `json:"id"`
-		} `json:"response"`
-	}
-	if err := me.Decode(&identity); err != nil {
-		return false, err
-	}
-	return identity.Response.Username == user && identity.Response.ID == 1, nil
+var setup = setupspec.Spec{
+	Kind: setupspec.KindFirstAdmin,
+	Name: "Linkwarden",
+	// v2.16.3 has no health route. The protected current-user route proves
+	// API routing before signup; Login separately verifies authenticated identity.
+	Probe: setupspec.Probe{Path: "/api/v1/users/me", Want: []int{401}, Contains: `"response":"You must be logged in."`},
+	Create: []setupspec.Call{{
+		Path: "/api/v1/users",
+		JSON: map[string]any{"username": "{user}", "password": "{password}"},
+		Ok:   []int{201},
+	}},
+	Login: []setupspec.Call{
+		{
+			Path:    "/api/v1/session",
+			JSON:    map[string]any{"username": "{user}", "password": "{password}"},
+			Denied:  []int{400, 401},
+			Ok:      []int{200},
+			Capture: map[string]string{"token": "response.token"},
+		},
+		{
+			Path:    "/api/v1/users/me",
+			Header:  map[string]string{"Authorization": "Bearer {token}"},
+			Ok:      []int{200},
+			Lenient: true,
+			Assert: []setupspec.Assert{
+				{Path: "response.username", Equals: "{user}"},
+				{Path: "response.id", Equals: "1"},
+			},
+		},
+	},
+	Manual: "Linkwarden signs up its first account on the private instance.",
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := (firstadmin.FirstAdmin{
-		// v2.16.3 has no health route. The protected current-user route proves
-		// API routing before signup; Login separately verifies authenticated identity.
-		Ready:  firstadmin.Probe{Path: "/api/v1/users/me", Want: []int{http.StatusUnauthorized}, Contains: `"response":"You must be logged in."`},
-		Create: create,
-		Login:  login,
-		Manual: "Linkwarden signs up its first account on the private instance.",
-	}).Setup(ctx, h); err != nil {
+	if err := setup.Setup(ctx, h); err != nil {
 		return err
 	}
 	if h.Peer("homarr") == nil {
@@ -157,17 +131,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	})
 }
 
-func create(ctx context.Context, h *helpers.H, user, password string) error {
-	_, err := h.Expect(ctx, helpers.Request{
-		Method: http.MethodPost, Path: "/api/v1/users",
-		JSON: map[string]string{"username": user, "password": password},
-	}, http.StatusCreated)
-	return err
-}
-
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	return (firstadmin.FirstAdmin{Create: create, Login: login}).Check(ctx, h)
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }
 
