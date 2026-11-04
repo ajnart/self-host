@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/firstadmin"
@@ -119,23 +118,8 @@ func hasRole(roles []string, want string) bool {
 	return false
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/api/"); err != nil {
+	if err := h.WebReady(ctx, "/api/"); err != nil {
 		return err
 	}
 	return firstadmin.FirstAdmin{

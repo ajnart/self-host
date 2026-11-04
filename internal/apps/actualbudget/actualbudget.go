@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -99,23 +98,8 @@ func signedIn(ctx context.Context, h *helpers.H, password string) (bool, error) 
 	return check.Data.Validated && check.Data.Permission == "ADMIN", nil
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/account/needs-bootstrap"); err != nil {
+	if err := h.WebReady(ctx, "/account/needs-bootstrap"); err != nil {
 		return err
 	}
 	password := h.AdminPassword()

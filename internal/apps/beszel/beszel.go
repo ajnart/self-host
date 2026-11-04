@@ -383,23 +383,8 @@ func startAgent(ctx context.Context, h *helpers.H) error {
 	return h.SetSecret(h.Key("machine_id"), found.ID)
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path, NoRedirect: true})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status == http.StatusOK, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/api/health"); err != nil {
+	if err := h.WebReady(ctx, "/api/health", helpers.WantStatus(http.StatusOK), helpers.NoRedirect()); err != nil {
 		return err
 	}
 	user := AdminEmail(h)

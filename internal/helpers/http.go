@@ -212,7 +212,33 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	attempt := func(ctx context.Context) (bool, error) {
+	attempt := h.readyProbe(path, cfg)
+	return h.Step(ctx, "ready", "wait for "+h.App+" to answer on "+path, StepSpec{
+		Check: attempt,
+		Do: func(ctx context.Context) error {
+			return h.Poll(ctx, cfg.timeout, attempt)
+		},
+		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
+	})
+}
+
+// WebReady is Ready worded for Apps whose web server may answer before the
+// App is usable: it waits up to two minutes for any status below 500 on path.
+func (h *H) WebReady(ctx context.Context, path string, opts ...ReadyOption) error {
+	cfg := readyConfig{timeout: 2 * time.Minute}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	attempt := h.readyProbe(path, cfg)
+	return h.Step(ctx, "ready", "wait for the web server on "+path, StepSpec{
+		Check: attempt,
+		Do:    func(ctx context.Context) error { return h.Poll(ctx, cfg.timeout, attempt) },
+		Hint:  "Check the App's logs: self-host logs " + h.App,
+	})
+}
+
+func (h *H) readyProbe(path string, cfg readyConfig) func(context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
 		resp, err := h.HTTP(ctx, Request{Path: path, NoRedirect: cfg.noRedirect})
 		if err != nil {
 			return false, err
@@ -225,13 +251,6 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 		}
 		return true, nil
 	}
-	return h.Step(ctx, "ready", "wait for "+h.App+" to answer on "+path, StepSpec{
-		Check: func(ctx context.Context) (bool, error) { return attempt(ctx) },
-		Do: func(ctx context.Context) error {
-			return h.Poll(ctx, cfg.timeout, attempt)
-		},
-		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
-	})
 }
 
 func (c readyConfig) wanted(status int) bool {
