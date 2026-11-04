@@ -1,0 +1,21 @@
+dcm/src/data/selfhost.json
+  s_0812986ae533ff::t_98ee5619411e26 2399,6098
+internal/apps/jellystat/jellystat_test.go
+  s_0812986ae533ff::t_e40b0630fc22f9 281-282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "adcfb145b4fa3a3f7f565d886588e4039b0b3b9f",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
