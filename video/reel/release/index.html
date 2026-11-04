@@ -41,7 +41,8 @@
   </nav>
 <script>
   const q = new URLSearchParams(location.search);
-  const n = Math.min(6, Math.max(1, +(q.get("n") || 3)));
+  const counts = [1, 2, 3, 4, 5, 6, 9, 12, 18, 24];
+  const n = counts.includes(+q.get("n")) ? +q.get("n") : 3;
   const t = q.get("t") === "light" ? "light" : "dark";
   const f = q.get("f") === "png" ? "png" : "svg";
   document.body.className = t === "light" ? "light" : "";
@@ -53,7 +54,7 @@
     const el = document.getElementById(id);
     el.innerHTML = values.map((v) => `<a href="?n=${key === "n" ? v : n}&t=${key === "t" ? v : t}&f=${f}"${v === value ? ' aria-current="page"' : ""}>${v}</a>`).join("");
   };
-  pick("ns", [1, 2, 3, 4, 5, 6], n, "n");
+  pick("ns", counts, n, "n");
   pick("ts", ["dark", "light"], t, "t");
   document.getElementById("fs").innerHTML = `<a href="?n=${n}&t=${t}&f=svg"${f === "svg" ? ' aria-current="page"' : ""}>svg</a><a href="?n=${n}&t=${t}&f=png"${f === "png" ? ' aria-current="page"' : ""}>png</a>`;
 </script>

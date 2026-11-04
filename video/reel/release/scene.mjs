@@ -18,13 +18,14 @@ const markSrc = readFileSync(join(reel, "../../docs/assets/brand/mark/mark-dark.
 const markRects = markSrc.match(/<rect [^>]*\/>/g).join("");
 const markLights = markSrc.match(/<circle [^>]*\/>/g).map((c) => ({ cx: +c.match(/cx="([\d.]+)"/)[1], cy: +c.match(/cy="([\d.]+)"/)[1] }));
 
-export const MAX_APPS = 6;
+export const MAX_APPS = 24;
+const ROWS = 6;
 const W = 880;
-const LOOP = 6;
 const PITCH = 78;
 const NODE_X = 560;
+const GRID = { col: 150, tile: 52, pitch: 90, label: 136, hop: 0.35 };
 
-function kit(h, animate) {
+function kit(w, h, animate, LOOP) {
   const glyphs = new Map();
   const images = new Map();
   const sheet = [];
@@ -93,7 +94,7 @@ function kit(h, animate) {
       + `<g id="mark">${markRects}</g>`
       + `<radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(200 ${n(h / 2)}) scale(800 500)"><stop offset="0" stop-color="#241651"/><stop offset=".7" stop-color="${C.bg}"/></radialGradient>`;
     const css = animate && sheet.length ? `<style>${sheet.join("")}@media (prefers-reduced-motion:reduce){*{animation:none!important}}</style>` : "";
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" role="img" aria-labelledby="t d"><title id="t">${xml(title)}</title><desc id="d">${xml(desc)}</desc><defs>${defs}</defs>${css}<rect width="${W}" height="${h}" rx="20" fill="url(#bg)"/>${body}<rect x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="19.5" fill="none" stroke="rgba(255,255,255,.14)"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-labelledby="t d"><title id="t">${xml(title)}</title><desc id="d">${xml(desc)}</desc><defs>${defs}</defs>${css}<rect width="${w}" height="${h}" rx="20" fill="url(#bg)"/>${body}<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="19.5" fill="none" stroke="rgba(255,255,255,.14)"/></svg>`;
   };
   return { kf, text, measure, icon, mark, ring, reveal, finish };
 }
@@ -103,8 +104,16 @@ const list = (apps) => apps.map((a) => a.name).join(", ");
 
 export function scene({ apps, version, animate }) {
   const N = apps.length;
-  const H = Math.max(350, 70 + N * PITCH);
-  const { text, measure, icon, mark, ring, reveal, kf, finish } = kit(H, animate);
+  const cols = Math.ceil(N / ROWS);
+  const rows = Math.ceil(N / cols);
+  const grid = cols > 1;
+  const pitch = grid ? GRID.pitch : PITCH;
+  const loop = grid ? 8 : 6;
+  const spread = (cols - 1) * GRID.col + GRID.tile + (GRID.label - GRID.tile) / 2 + 40;
+  const w = grid ? Math.max(W, 410 + spread) : W;
+  const gx = w - spread;
+  const H = Math.max(350, 70 + rows * pitch);
+  const { text, icon, mark, ring, reveal, kf, finish } = kit(w, H, animate, loop);
   let body = "";
 
   const size = 150;
@@ -117,32 +126,59 @@ export function scene({ apps, version, animate }) {
   body += text(heading, version, 40, my + size + 94, 62, C.bright, { ls: -0.05 });
   body += text(mono6, `+${N} ${N === 1 ? "App" : "Apps"} in the Catalog`, 42, my + size + 124, 15, C.at);
 
-  const y0 = (H - (N - 1) * PITCH) / 2;
+  const beam = (d, length, t0, t1) => {
+    if (!animate) return "";
+    const cls = kf([[0, "stroke-dashoffset:28"], [t0, "stroke-dashoffset:28;animation-timing-function:ease-in-out"], [t1, `stroke-dashoffset:-${length}`], [loop, `stroke-dashoffset:-${length}`]], { base: "stroke-dashoffset:28;" });
+    return `<path class="${cls}" d="${d}" fill="none" stroke="${C.at}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="28 ${length + 28}"/>`;
+  };
+  const dot = (x, y, t) => `${animate ? ring(x, y, 4.5, C.ok, t) : ""}<circle cx="${n(x)}" cy="${n(y)}" r="4.5" fill="${C.ok}"/>`;
+
+  const y0 = (H - (rows - 1) * pitch) / 2 - (grid ? 10 : 0);
   const sx = hubX + 14;
   const sy = hubY;
-  apps.forEach((a, i) => {
-    const y = y0 + i * PITCH;
-    const ex = NODE_X - 14;
+  for (let r = 0; r < rows; r++) {
+    const y = y0 + r * pitch;
+    const row = apps.slice(r * cols, r * cols + cols);
+    const left = grid ? gx : NODE_X;
+    const ex = left - 14;
     const d = `M${n(sx)} ${n(sy)}C${n(sx + 150)} ${n(sy)} ${n(ex - 150)} ${n(y)} ${n(ex)} ${n(y)}`;
     body += `<path d="${d}" fill="none" stroke="${C.edge}" stroke-width="2" stroke-linecap="round"/>`;
+    const t0 = 0.4 + r * (grid ? 0.45 : 0.5);
+    const arrive = t0 + 1.2;
     if (animate) {
-      const t0 = 0.4 + i * 0.5;
-      const cls = kf([[0, "stroke-dashoffset:6"], [t0, "stroke-dashoffset:6;animation-timing-function:ease-in-out"], [t0 + 1.2, "stroke-dashoffset:-100"], [LOOP, "stroke-dashoffset:-100"]], { base: "stroke-dashoffset:6;" });
+      const cls = kf([[0, "stroke-dashoffset:6"], [t0, "stroke-dashoffset:6;animation-timing-function:ease-in-out"], [arrive, "stroke-dashoffset:-100"], [loop, "stroke-dashoffset:-100"]], { base: "stroke-dashoffset:6;" });
       body += `<path class="${cls}" d="${d}" pathLength="100" fill="none" stroke="${C.at}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="7 100"/>`;
-      body += ring(ex, y, 4.5, C.ok, t0 + 1.2);
     }
-    body += `<circle cx="${n(ex)}" cy="${n(y)}" r="4.5" fill="${C.ok}"/>`;
-    let node = `<rect x="${NODE_X}" y="${n(y - 30)}" width="60" height="60" rx="16" fill="${C.panel}" stroke="${C.edge}"/>`;
-    node += icon(a, NODE_X + 9, y - 21, 42);
-    node += text(heading, a.name, NODE_X + 78, y - 2, 25, C.bright, { ls: -0.025, maxW: W - NODE_X - 78 - 40 });
-    const cw = measure(mono6, a.category, 11) + 16;
-    node += `<rect x="${NODE_X + 78}" y="${n(y + 7)}" width="${n(cw)}" height="20" rx="10" fill="none" stroke="${C.accent}"/>${text(mono6, a.category, NODE_X + 78 + cw / 2, y + 21, 11, C.at, { anchor: "middle" })}`;
-    body += reveal(node, { out: [4.7 + i * 0.04, 4.95 + i * 0.04], inn: [5.15 + i * 0.1, 5.5 + i * 0.1], from: "translate(40px,0px)" });
-  });
+    body += dot(ex, y, arrive);
+    let nodes = "";
+    if (grid) {
+      const span = (row.length - 1) * GRID.col;
+      if (span > 0) {
+        const track = `M${n(ex)} ${n(y)}H${n(ex + span)}`;
+        body += `<path d="${track}" fill="none" stroke="${C.edge}" stroke-width="2" stroke-linecap="round"/>`;
+        body += beam(track, span, arrive, arrive + GRID.hop * (row.length - 1));
+        for (let c = 1; c < row.length; c++) body += dot(ex + c * GRID.col, y, arrive + GRID.hop * c);
+      }
+      row.forEach((a, c) => {
+        const x = left + c * GRID.col;
+        nodes += `<rect x="${n(x)}" y="${n(y - GRID.tile / 2)}" width="${GRID.tile}" height="${GRID.tile}" rx="14" fill="${C.panel}" stroke="${C.edge}"/>`;
+        nodes += icon(a, x + 8, y - GRID.tile / 2 + 8, GRID.tile - 16);
+        nodes += text(heading, a.name, x + GRID.tile / 2, y + GRID.tile / 2 + 21, 15, C.bright, { ls: -0.02, anchor: "middle", maxW: GRID.label });
+      });
+    } else {
+      const a = row[0];
+      nodes += `<rect x="${NODE_X}" y="${n(y - 30)}" width="60" height="60" rx="16" fill="${C.panel}" stroke="${C.edge}"/>`;
+      nodes += icon(a, NODE_X + 9, y - 21, 42);
+      nodes += text(heading, a.name, NODE_X + 78, y + 9, 25, C.bright, { ls: -0.025, maxW: W - NODE_X - 78 - 40 });
+    }
+    const out = loop - 1.3 + r * 0.04;
+    const inn = loop - 0.85 + r * 0.1;
+    body += reveal(nodes, { out: [out, out + 0.25], inn: [inn, inn + 0.35], from: "translate(40px,0px)" });
+  }
   body += ring(hubX, hubY, 4, C.ok, 0.4);
 
   return {
-    w: W,
+    w,
     h: H,
     alt: `self-host ${version} adds ${plural(N, "App", "Apps")}: ${list(apps)}, each connected to the self-host Logo.`,
     svg: finish({ title: `self-host ${version}: ${plural(N, "new App", "new Apps")}`, desc: `The Logo sends a pulse to ${list(apps)}.`, body }),

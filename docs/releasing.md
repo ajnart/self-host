@@ -68,8 +68,9 @@ still need the matching `dist/` artifacts.
 For release-note images, follow
 [the release-visual skill](../.claude/skills/release-visual/SKILL.md).
 It compares the previous CLI tag with the release ref and renders the Logo hub
-only when Apps were added. Upload the PNG and animated SVG as release assets;
-embed the PNG in the notes and link the animation separately.
+only when Apps were added. Commit the animated SVG to `docs/assets/releases/`
+and embed it from `raw.githubusercontent.com` at that commit; release assets
+download instead of rendering. Upload the PNG as the release's static fallback.
 
 Push the tag. `.github/workflows/release.yml` validates the tag against
 `^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`, packages with
