@@ -1,0 +1,21 @@
+tools/sitegen/icons.go
+  s_0f0d7a5be1128f::t_59004edaf0f4e7 4,7-10,12,17-19,61-66,68,70-73,75-120,124-126,129,131-137
+tools/sitegen/stars.go
+  s_0f0d7a5be1128f::t_ef51dc8440f0ac 10,13,17-19,115,119-133,150,152-155,158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8661d09dbcd13da5fe9d814b1429060413e0ce98",
+  "prompts": {},
+  "sessions": {
+    "s_0f0d7a5be1128f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66c8ff99-15fa-427c-ad48-60466ed18b1f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
