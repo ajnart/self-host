@@ -1,0 +1,16 @@
+docs/assets/releases/new-apps-1.3.0.svg
+  h_d6e478ca18e517 1
+video/reel/release/scene.mjs
+  h_d6e478ca18e517 173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "46ce498ff4c1cf4fc6e972394ba8b7e7f9bcd7a6",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
