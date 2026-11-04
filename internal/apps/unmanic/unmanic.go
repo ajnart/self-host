@@ -109,7 +109,7 @@ type Statistics struct {
 }
 
 func manual(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", helpers.ErrManual, fmt.Sprintf(format, args...)+" "+recoveryHint)
+	return &helpers.ManualError{Hint: fmt.Sprintf(format, args...) + " " + recoveryHint}
 }
 
 func get(ctx context.Context, h *helpers.H, request helpers.Request, what string, into any) error {

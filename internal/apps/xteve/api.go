@@ -32,18 +32,17 @@ type credentials struct{ user, password string }
 
 func (c credentials) none() bool { return c.user == "" && c.password == "" }
 
-func manual(h *helpers.H, format string, args ...any) error {
-	h.Info(recoveryHint)
-	return fmt.Errorf("%w: "+format, append([]any{helpers.ErrManual}, args...)...)
+func manual(format string, args ...any) error {
+	return &helpers.ManualError{Hint: fmt.Sprintf(format, args...) + " " + recoveryHint}
 }
 
 func selected(h *helpers.H) (credentials, error) {
 	c := credentials{user: h.Secret(h.Key("username")), password: h.Secret(h.Key("password"))}
 	switch {
 	case (c.user == "") != (c.password == ""):
-		return c, manual(h, "xTeVe requires both saved API credentials, never a partial or unauthenticated fallback")
+		return c, manual("xTeVe requires both saved API credentials, never a partial or unauthenticated fallback")
 	case c.none() && h.Secret(h.Key("auth")) != "none":
-		return c, manual(h, "no xTeVe API credentials are saved; missing credentials are not proof that authentication is disabled")
+		return c, manual("no xTeVe API credentials are saved; missing credentials are not proof that authentication is disabled")
 	}
 	return c, nil
 }
@@ -55,9 +54,9 @@ func call(ctx context.Context, h *helpers.H, body map[string]string) (apiReply, 
 	}
 	switch {
 	case response.Status == http.StatusLocked:
-		return apiReply{}, manual(h, "the xTeVe API is disabled in its settings")
+		return apiReply{}, manual("the xTeVe API is disabled in its settings")
 	case response.Status == http.StatusUnauthorized || response.Status == http.StatusForbidden || response.Status >= 300 && response.Status < 400:
-		return apiReply{}, manual(h, "xTeVe requires a different authentication scheme or Address than the Catalog's internal HTTP Address (HTTP %d)", response.Status)
+		return apiReply{}, manual("xTeVe requires a different authentication scheme or Address than the Catalog's internal HTTP Address (HTTP %d)", response.Status)
 	case response.Status != http.StatusOK:
 		return apiReply{}, fmt.Errorf("xTeVe API returned HTTP %d; retry self-host setup xteve", response.Status)
 	}
@@ -122,7 +121,7 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	if base, err := url.Parse(h.BaseURL); err != nil || base.Scheme != "http" {
-		return manual(h, "the native xTeVe Link requires the Catalog's internal HTTP Address; preserve existing HTTPS")
+		return manual("the native xTeVe Link requires the Catalog's internal HTTP Address; preserve existing HTTPS")
 	}
 	if err := verifyIdentity(ctx, h); err != nil {
 		return err
@@ -136,20 +135,20 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	if !session.Status || session.Err != "" {
-		return manual(h, "xTeVe rejected the selected API credentials or the account lacks API permission")
+		return manual("xTeVe rejected the selected API credentials or the account lacks API permission")
 	}
 	if credential.none() && session.Token != "" {
-		return manual(h, "xTeVe API authentication is enabled; recover the matching API credentials instead of the unauthenticated mode")
+		return manual("xTeVe API authentication is enabled; recover the matching API credentials instead of the unauthenticated mode")
 	}
 	if !credential.none() && session.Token == "" {
-		return manual(h, "xTeVe API authentication is disabled while credentials are saved; confirm the intended authentication mode without changing it for you")
+		return manual("xTeVe API authentication is disabled while credentials are saved; confirm the intended authentication mode without changing it for you")
 	}
 	reply, err := call(ctx, h, map[string]string{"cmd": "status", "token": session.Token})
 	if err != nil {
 		return err
 	}
 	if !reply.Status && reply.Err != "" {
-		return manual(h, "xTeVe rejected the API status request")
+		return manual("xTeVe rejected the API status request")
 	}
 	return verifyStatus(reply)
 }
