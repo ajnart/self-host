@@ -1,0 +1,25 @@
+cmd/self-host-testkit/main.go
+  s_0812986ae533ff::t_08d0b8489b33ef 265-280,331,362
+cmd/self-host-testkit/main_test.go
+  s_0812986ae533ff::t_a01d387d31cf25 486-507
+testkit/errors.go
+  s_0812986ae533ff::t_97df131e99036f 3-4,39-41
+testkit/testkit.go
+  s_0812986ae533ff::t_ecbc8fb5f77b45 179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cdd653793bd1eee4d9156c1f6ed1f12fb808f530",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
