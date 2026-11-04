@@ -1,0 +1,25 @@
+internal/apps/healthchecks/healthchecks.go
+  s_0812986ae533ff::t_27539444d3fd4a 163-164
+internal/apps/homarr/external_targets.go
+  s_0812986ae533ff::t_b26c6ea0332724 59
+internal/apps/yourspotify/yourspotify.go
+  s_0812986ae533ff::t_ade6c1bac69b9e 163
+internal/helpers/address.go
+  s_0812986ae533ff::t_2138754e54fa46 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d79adf8b3b5f02890c83c0a75f08210139965f9",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
