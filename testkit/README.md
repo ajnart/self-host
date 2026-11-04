@@ -3,7 +3,7 @@
 Real, isolated App fixtures for integration tests. Keep your existing API adapter;
 replace its mock Address and API key with a real App configured by self-host's Setup.
 
-This guide describes **1.3.1**, which keeps the **1.3.0** testkit APIs compatible,
+This guide describes **1.3.2**, which keeps the **1.3.0** testkit APIs compatible,
 including `withApp`, ordered Pairs and the automatic-cleanup JavaScript Action.
 Version 1.2.1 has none of them.
 
@@ -146,14 +146,14 @@ only substitutes a selected Catalog App's image; it cannot remove these limits.
 
 ## Published release
 
-Version **1.3.1** must exist on
-[npm](https://www.npmjs.com/package/@ajnart/self-host-testkit/v/1.3.1) and
-[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.3.1) before using
+Version **1.3.2** must exist on
+[npm](https://www.npmjs.com/package/@ajnart/self-host-testkit/v/1.3.2) and
+[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.3.2) before using
 these local commands. The CI quickstart above remains pinned to the separately
 verified 1.3.0 SDK/helper combination.
 
 ```bash
-npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.1
+npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.2
 npm exec -- self-host-testkit-setup
 ```
 
