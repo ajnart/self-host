@@ -1,0 +1,19 @@
+internal/apps/keycloak/keycloak.go
+  s_992c69df8bdd12::t_2e0b8979812957 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d6568d7ff12a3a64ffd6cffdd8f8d75bbec5c84",
+  "prompts": {},
+  "sessions": {
+    "s_992c69df8bdd12": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "27090797-e5d0-4667-8fce-2244575bb738",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
