@@ -3,7 +3,7 @@
 Real App fixtures for integration tests, using self-host's existing headless
 Setup. ESM only, Node.js 22+, no runtime npm dependencies or test-runner plugin.
 
-This guide describes **1.3.1**, which keeps the **1.3.0** testkit APIs compatible.
+This guide describes **1.3.2**, which keeps the **1.3.0** testkit APIs compatible.
 `withApp`, ordered Pairs, `recoveryPath` getters, the Sonarr witness and the JavaScript
 Action's automatic post cleanup are not in 1.2.1. For 1.2.1, see its
 [immutable guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
@@ -23,11 +23,11 @@ containers, Docker-in-Docker, remote/TCP Docker and native Windows are unsupport
 A mounted socket is insufficient: App loopback Addresses and bind-mount paths
 belong to the daemon host, not the test container. See the [support matrix](../README.md#headless-and-container-requirements).
 
-**Published release:** version 1.3.1 must exist on npm and GitHub before using
+**Published release:** version 1.3.2 must exist on npm and GitHub before using
 these commands. Install it and explicitly prepare its matching helper for local use:
 
 ```bash
-npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.1
+npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.2
 npm exec -- self-host-testkit-setup
 ```
 
