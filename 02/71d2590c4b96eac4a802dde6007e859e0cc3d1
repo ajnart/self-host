@@ -1,0 +1,19 @@
+internal/setupspec/setupspec.go
+  s_95f4681ac6a8de::t_ed88eab1b96f55 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0271d2590c4b96eac4a802dde6007e859e0cc3d1",
+  "prompts": {},
+  "sessions": {
+    "s_95f4681ac6a8de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65a48337-3e6c-4c83-b39f-3309cffa257f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
