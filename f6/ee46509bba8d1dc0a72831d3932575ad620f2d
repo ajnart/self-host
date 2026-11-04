@@ -1,0 +1,20 @@
+internal/service/cloudflare.go
+  h_d6e478ca18e517 441,443-444,446,689,692
+internal/service/cloudflare_test.go
+  h_d6e478ca18e517 381-387,393-395,400-413
+internal/service/mutation.go
+  h_d6e478ca18e517 224,525,611-617,628-630,635-640,724,782
+internal/service/mutation_test.go
+  h_d6e478ca18e517 396-399,401-410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f6ee46509bba8d1dc0a72831d3932575ad620f2d",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
