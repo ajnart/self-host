@@ -1,0 +1,243 @@
+internal/apps/actualbudget/actualbudget.go
+  s_694505bc44e853::t_de07beb98c5119 16
+internal/apps/adguard/adguard.go
+  s_694505bc44e853::t_d2a21c09d0bdbc 21,35
+internal/apps/anchor/anchor.go
+  s_694505bc44e853::t_4d9640bd126442 11
+internal/apps/archiveteamwarrior/archiveteamwarrior.go
+  s_694505bc44e853::t_2123380d9a6ce7 15
+internal/apps/aria2/aria2.go
+  s_694505bc44e853::t_9b311c93e835bf 17
+internal/apps/arr/arr.go
+  s_694505bc44e853::t_4b22e9dc16e41e 19
+internal/apps/audiobookshelf/audiobookshelf.go
+  s_694505bc44e853::t_73174b0d1c0cb2 17,32
+internal/apps/authelia/authelia.go
+  s_694505bc44e853::t_0e288afec91bad 18
+internal/apps/authentik/authentik.go
+  s_694505bc44e853::t_e339974cd39bd3 18
+internal/apps/autobrr/autobrr.go
+  s_694505bc44e853::t_2824036aa76d7e 15
+internal/apps/bazarr/bazarr.go
+  s_694505bc44e853::t_aff5ca96bf2510 20
+internal/apps/beszel/beszel.go
+  s_694505bc44e853::t_9b6bb1911fb097 20
+internal/apps/bindery/bindery.go
+  s_694505bc44e853::t_d23a7140daf3b6 18
+internal/apps/bookstack/bookstack.go
+  s_694505bc44e853::t_6bd21e906d3fdf 23
+internal/apps/borgmatic/borgmatic.go
+  s_694505bc44e853::t_7e10c78fb1a6bb 14
+internal/apps/caddy/caddy.go
+  s_694505bc44e853::t_8a3adefed46c2c 17
+internal/apps/changedetection/changedetection.go
+  s_694505bc44e853::t_77992c9292a04c 11
+internal/apps/cleanuparr/cleanuparr.go
+  s_694505bc44e853::t_ebf47d71c706af 19
+internal/apps/cloudflaretunnel/cloudflaretunnel.go
+  s_694505bc44e853::t_b3624ef2ba3d7c 15
+internal/apps/dashdot/dashdot.go
+  s_694505bc44e853::t_43c90b68bd6a54 14
+internal/apps/deluge/deluge.go
+  s_694505bc44e853::t_75e748c1fac07e 19
+internal/apps/dockge/dockge.go
+  s_694505bc44e853::t_a47ba57eae9f5b 15
+internal/apps/docmost/docmost.go
+  s_694505bc44e853::t_7d1c61e5179fb8 18
+internal/apps/emby/emby.go
+  s_694505bc44e853::t_2e443649d2d42d 18,33
+internal/apps/fireflyiii/fireflyiii.go
+  s_694505bc44e853::t_cbe9bb5e159684 20
+internal/apps/forgejo/forgejo.go
+  s_694505bc44e853::t_686d8864068d28 23,37
+internal/apps/freshrss/freshrss.go
+  s_694505bc44e853::t_b71d0fcceb86c3 17,31
+internal/apps/frigate/frigate.go
+  s_694505bc44e853::t_4afb9fa2902603 21,35
+internal/apps/gatus/gatus.go
+  s_694505bc44e853::t_76d3d0d24437ba 19
+internal/apps/glances/glances.go
+  s_694505bc44e853::t_c5881f19e76b74 13
+internal/apps/gluetun/gluetun.go
+  s_694505bc44e853::t_d31d50c96380e0 18
+internal/apps/gotify/gotify.go
+  s_694505bc44e853::t_54bd29c4868563 16
+internal/apps/grafana/grafana.go
+  s_694505bc44e853::t_231913ba8da951 18
+internal/apps/haproxy/haproxy.go
+  s_694505bc44e853::t_fcdd215c3f6a1f 18
+internal/apps/headscale/headscale.go
+  s_694505bc44e853::t_ef10be61cba7bc 20
+internal/apps/healthchecks/healthchecks.go
+  s_694505bc44e853::t_0e83a4005676fa 18
+internal/apps/homarr/homarr.go
+  s_694505bc44e853::t_39546c3995d58b 22
+internal/apps/homeassistant/homeassistant.go
+  s_694505bc44e853::t_af032856c89a02 19
+internal/apps/homebox/homebox.go
+  s_694505bc44e853::t_5e78defc1152f7 13
+internal/apps/homebridge/homebridge.go
+  s_694505bc44e853::t_193ed43d09b577 16,30
+internal/apps/immich/immich.go
+  s_694505bc44e853::t_198b5223f75277 19
+internal/apps/jackett/jackett.go
+  s_694505bc44e853::t_c9d94e5a53cd66 18
+internal/apps/jellyfin/jellyfin.go
+  s_694505bc44e853::t_fbfe43e6bbf3b3 35,51
+internal/apps/jellystat/jellystat.go
+  s_694505bc44e853::t_d9262ab95a4084 12
+internal/apps/karakeep/karakeep.go
+  s_694505bc44e853::t_6ce754b0b99e24 12
+internal/apps/keycloak/keycloak.go
+  s_694505bc44e853::t_53226237b46b1c 19
+internal/apps/komga/komga.go
+  s_694505bc44e853::t_00c22579bb81dc 17
+internal/apps/kopia/kopia.go
+  s_694505bc44e853::t_e28d3f33c1bec6 19
+internal/apps/lidarr/lidarr.go
+  s_694505bc44e853::t_e2950805252f44 20
+internal/apps/linkwarden/linkwarden.go
+  s_694505bc44e853::t_016d65e5a9e662 17
+internal/apps/lldap/lldap.go
+  s_694505bc44e853::t_08be1cd6d99343 16
+internal/apps/maintainerr/maintainerr.go
+  s_694505bc44e853::t_9b3360d2245791 11
+internal/apps/mayanedms/mayanedms.go
+  s_694505bc44e853::t_bd680f89b4072d 19
+internal/apps/mealie/mealie.go
+  s_694505bc44e853::t_06dbb454cca006 17
+internal/apps/miniflux/miniflux.go
+  s_694505bc44e853::t_a00d6e7326dfc3 15
+internal/apps/minio/minio.go
+  s_694505bc44e853::t_20ed0fda1992b7 22
+internal/apps/navidrome/navidrome.go
+  s_694505bc44e853::t_af8331b655cb4e 15
+internal/apps/netbird/netbird.go
+  s_694505bc44e853::t_28b11efbd440d1 18
+internal/apps/netdata/netdata.go
+  s_694505bc44e853::t_4b98ea16906e7a 14
+internal/apps/nextcloud/nextcloud.go
+  s_694505bc44e853::t_af806780c8f06c 25
+internal/apps/nginxproxymanager/nginxproxymanager.go
+  s_694505bc44e853::t_89763223e246ac 17
+internal/apps/nodered/nodered.go
+  s_694505bc44e853::t_0c9a77cc7ee54d 19
+internal/apps/ntfy/ntfy.go
+  s_694505bc44e853::t_1a0d9f67556886 18
+internal/apps/nzbget/nzbget.go
+  s_694505bc44e853::t_cf5e58e442960f 24
+internal/apps/openwebui/openwebui.go
+  s_694505bc44e853::t_60b1dac4d84224 22
+internal/apps/oxynote/oxynote.go
+  s_694505bc44e853::t_9e7ce57c3b3ca3 18
+internal/apps/pangolin/pangolin.go
+  s_694505bc44e853::t_ed03adc390bae4 21
+internal/apps/paperlessngx/paperlessngx.go
+  s_694505bc44e853::t_817eeae0c0dbd3 20
+internal/apps/passbolt/passbolt.go
+  s_694505bc44e853::t_4055fa428650e4 18
+internal/apps/patchmon/patchmon.go
+  s_694505bc44e853::t_480ecac83c9df5 19
+internal/apps/peanut/peanut.go
+  s_694505bc44e853::t_ac3417ff1a8d1f 19
+internal/apps/photoprism/photoprism.go
+  s_694505bc44e853::t_6f94107d1f5be7 18
+internal/apps/pihole/pihole.go
+  s_694505bc44e853::t_e8383895476c0a 18
+internal/apps/plantit/plantit.go
+  s_694505bc44e853::t_f7133e52b211ee 27
+internal/apps/plex/plex.go
+  s_694505bc44e853::t_2e964705f2c93d 18
+internal/apps/portainer/portainer.go
+  s_694505bc44e853::t_9237a82855336b 18,33
+internal/apps/postgresql/postgresql.go
+  s_694505bc44e853::t_416aeed3cdf7e7 17
+internal/apps/prometheus/prometheus.go
+  s_694505bc44e853::t_1bcae247a37e16 15
+internal/apps/qbittorrent/qbittorrent.go
+  s_694505bc44e853::t_3129a06f3c7c74 34
+internal/apps/renovate/renovate.go
+  s_694505bc44e853::t_d5ae212fcb0bc1 14
+internal/apps/restic/restic.go
+  s_694505bc44e853::t_dde6e283edeb55 14
+internal/apps/romm/romm.go
+  s_694505bc44e853::t_22ade1e3c00247 14,27
+internal/apps/sabnzbd/sabnzbd.go
+  s_694505bc44e853::t_923195fcf61331 22
+internal/apps/scrypted/scrypted.go
+  s_694505bc44e853::t_25890f40532449 16
+internal/apps/seafile/seafile.go
+  s_694505bc44e853::t_9840b1f7063aa0 23
+internal/apps/slskd/slskd.go
+  s_694505bc44e853::t_71d62a1bac4c00 19
+internal/apps/speedtesttracker/speedtesttracker.go
+  s_694505bc44e853::t_ce02f14a774529 45
+internal/apps/spoolman/spoolman.go
+  s_694505bc44e853::t_93cd1c0b599591 17
+internal/apps/sportarr/sportarr.go
+  s_694505bc44e853::t_e2c91b443be232 12
+internal/apps/stalwartmail/stalwartmail.go
+  s_694505bc44e853::t_fd2531a6f7a25a 16
+internal/apps/stash/stash.go
+  s_694505bc44e853::t_839fc610af5360 12
+internal/apps/syncthing/syncthing.go
+  s_694505bc44e853::t_b1dec8a35bf153 20
+internal/apps/tailscale/tailscale.go
+  s_694505bc44e853::t_15cb01d797e85f 22
+internal/apps/tandoor/tandoor.go
+  s_694505bc44e853::t_ffa086bfd53428 16
+internal/apps/tdarr/tdarr.go
+  s_694505bc44e853::t_b6dd996eda90c6 20
+internal/apps/technitiumdns/technitiumdns.go
+  s_694505bc44e853::t_04199c50cb1439 20
+internal/apps/thingport/thingport.go
+  s_694505bc44e853::t_76c9a11b1b14be 14
+internal/apps/tracearr/tracearr.go
+  s_694505bc44e853::t_4cf606e6f9aad2 21
+internal/apps/traefik/traefik.go
+  s_694505bc44e853::t_6a750c163cb69b 22
+internal/apps/transmission/transmission.go
+  s_694505bc44e853::t_ee2cf559f802a7 20
+internal/apps/trilium/trilium.go
+  s_694505bc44e853::t_7e65a8f93d478a 12
+internal/apps/tubearchivist/tubearchivist.go
+  s_694505bc44e853::t_7a454f0368469a 15
+internal/apps/umami/umami.go
+  s_694505bc44e853::t_7477c7f86245cc 24
+internal/apps/unbound/unbound.go
+  s_694505bc44e853::t_1a673b7546406f 17
+internal/apps/unmanic/unmanic.go
+  s_694505bc44e853::t_6b5acf7a73e8b1 18,33
+internal/apps/uptimekuma/uptimekuma.go
+  s_694505bc44e853::t_4afc489aabfd1c 17
+internal/apps/valkey/valkey.go
+  s_694505bc44e853::t_86a46e0f17ab03 17
+internal/apps/vaultwarden/vaultwarden.go
+  s_694505bc44e853::t_a57e8842008046 19
+internal/apps/vector/vector.go
+  s_694505bc44e853::t_b7f271840e8889 15
+internal/apps/wud/wud.go
+  s_694505bc44e853::t_e21d87c95a1d1a 26
+internal/apps/xteve/xteve.go
+  s_694505bc44e853::t_b81740757dd617 16
+internal/apps/yourspotify/yourspotify.go
+  s_694505bc44e853::t_918960681dff91 15
+internal/apps/zerotier/zerotier.go
+  s_694505bc44e853::t_6cb1cdd40aa8d9 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1b14983a0ff39009146835855106fd24be142c3",
+  "prompts": {},
+  "sessions": {
+    "s_694505bc44e853": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b0ca5ad-cb46-4e35-bce5-06d986d8e12c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
