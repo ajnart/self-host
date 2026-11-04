@@ -389,13 +389,19 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	err := firstadmin.FirstAdmin{
 		StepID: "wizard",
 		Title:  func(*helpers.H, string) string { return "finish the startup wizard with the Admin login" },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
+		Login: func(ctx context.Context, h *helpers.H, user, _ string) (bool, error) {
 			done, err := wizardDone(ctx, h)
 			if err != nil || !done {
 				return false, err
 			}
 			token, err := signIn(ctx, h)
-			return token != "", err
+			if err != nil {
+				return false, err
+			}
+			if token == "" {
+				return false, &helpers.ManualError{Hint: wizardHint(h, user)}
+			}
+			return true, nil
 		},
 		Create: func(ctx context.Context, h *helpers.H, user, _ string) error {
 			done, err := wizardDone(ctx, h)
