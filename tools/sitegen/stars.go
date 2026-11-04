@@ -7,15 +7,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/catalog"
 )
 
-var repos = map[string]string{
+// starRepoOverrides names the GitHub repository of an App whose Docs URL is not
+// its own GitHub repository; "" means no star count.
+var starRepoOverrides = map[string]string{
 	"actual-budget":        "actualbudget/actual",
-	"adguard-home":         "AdguardTeam/AdGuardHome",
-	"anchor":               "ZhFahim/anchor",
 	"archive-team-warrior": "ArchiveTeam/warrior-dockerfile",
 	"aria2":                "aria2/aria2",
 	"audiobookshelf":       "advplyr/audiobookshelf",
@@ -24,23 +26,18 @@ var repos = map[string]string{
 	"autobrr":              "autobrr/autobrr",
 	"bazarr":               "morpheus65535/bazarr",
 	"beszel":               "henrygd/beszel",
-	"bindery":              "vavallee/bindery",
 	"bookstack":            "BookStackApp/BookStack",
 	"borgmatic":            "borgmatic-collective/borgmatic",
 	"caddy":                "caddyserver/caddy",
-	"changedetection":      "dgtlmoon/changedetection.io",
 	"cleanuparr":           "Cleanuparr/Cleanuparr",
 	"cloudflare-tunnel":    "cloudflare/cloudflared",
 	"dashdot":              "MauriceNino/dashdot",
 	"deluge":               "deluge-torrent/deluge",
-	"dockge":               "louislam/dockge",
 	"docmost":              "docmost/docmost",
 	"emby":                 "MediaBrowser/Emby",
 	"fileflows":            "revenz/FileFlows",
 	"firefly-iii":          "firefly-iii/firefly-iii",
-	"freshrss":             "FreshRSS/FreshRSS",
 	"frigate":              "blakeblackshear/frigate",
-	"gatus":                "TwiN/gatus",
 	"glances":              "nicolargo/glances",
 	"gluetun":              "qdm12/gluetun",
 	"gotify":               "gotify/server",
@@ -51,18 +48,15 @@ var repos = map[string]string{
 	"homarr":               "homarr-labs/homarr",
 	"home-assistant":       "home-assistant/core",
 	"homebox":              "sysadminsmedia/homebox",
-	"homebridge":           "homebridge/homebridge",
 	"immich":               "immich-app/immich",
 	"jackett":              "Jackett/Jackett",
 	"jellyfin":             "jellyfin/jellyfin",
-	"jellystat":            "CyferShepard/Jellystat",
 	"karakeep":             "karakeep-app/karakeep",
 	"keycloak":             "keycloak/keycloak",
 	"komga":                "gotson/komga",
 	"kopia":                "kopia/kopia",
 	"lidarr":               "Lidarr/Lidarr",
 	"linkwarden":           "linkwarden/linkwarden",
-	"lldap":                "lldap/lldap",
 	"loki":                 "grafana/loki",
 	"maintainerr":          "Maintainerr/Maintainerr",
 	"mayan-edms":           "mayan-edms/Mayan-EDMS",
@@ -77,21 +71,17 @@ var repos = map[string]string{
 	"node-red":             "node-red/node-red",
 	"ntfy":                 "binwiederhier/ntfy",
 	"nzbget":               "nzbgetcom/nzbget",
-	"ollama":               "ollama/ollama",
 	"open-webui":           "open-webui/open-webui",
-	"oxynote":              "oxynote/oxynote",
 	"pangolin":             "fosrl/pangolin",
 	"paperless-ngx":        "paperless-ngx/paperless-ngx",
 	"passbolt":             "passbolt/passbolt_api",
 	"patchmon":             "PatchMon/PatchMon",
-	"peanut":               "Brandawg93/PeaNUT",
 	"photoprism":           "photoprism/photoprism",
 	"pihole":               "pi-hole/pi-hole",
 	"portainer":            "portainer/portainer",
 	"postgresql":           "postgres/postgres",
 	"prometheus":           "prometheus/prometheus",
 	"prowlarr":             "Prowlarr/Prowlarr",
-	"qbittorrent":          "qbittorrent/qBittorrent",
 	"radarr":               "Radarr/Radarr",
 	"renovate":             "renovatebot/renovate",
 	"restic":               "restic/restic",
@@ -100,10 +90,8 @@ var repos = map[string]string{
 	"scrypted":             "koush/scrypted",
 	"seafile":              "haiwen/seafile",
 	"seerr":                "seerr-team/seerr",
-	"slskd":                "slskd/slskd",
 	"sonarr":               "Sonarr/Sonarr",
 	"speedtest-tracker":    "alexjustesen/speedtest-tracker",
-	"spoolman":             "Donkie/Spoolman",
 	"sportarr":             "Sportarr/Sportarr",
 	"stalwart-mail":        "stalwartlabs/stalwart",
 	"stash":                "stashapp/stash",
@@ -112,27 +100,37 @@ var repos = map[string]string{
 	"tailscale":            "tailscale/tailscale",
 	"tandoor":              "TandoorRecipes/recipes",
 	"tdarr":                "HaveAGitGat/Tdarr",
-	"technitium-dns":       "TechnitiumSoftware/DnsServer",
 	"thingport":            "TautvydasDerzinskas/Thingport",
 	"tracearr":             "connorgallopo/Tracearr",
 	"traefik":              "traefik/traefik",
-	"transmission":         "transmission/transmission",
 	"trilium":              "TriliumNext/Trilium",
 	"tubearchivist":        "tubearchivist/tubearchivist",
 	"umami":                "umami-software/umami",
 	"unbound":              "NLnetLabs/unbound",
 	"unmanic":              "Unmanic/unmanic",
-	"uptime-kuma":          "louislam/uptime-kuma",
 	"valkey":               "valkey-io/valkey",
-	"vaultwarden":          "dani-garcia/vaultwarden",
 	"vector":               "vectordotdev/vector",
 	"victoria-metrics":     "VictoriaMetrics/VictoriaMetrics",
 	"wud":                  "getwud/wud",
-	"your-spotify":         "Yooooomi/your_spotify",
+	"xteve":                "",
 	"zerotier":             "zerotier/ZeroTierOne",
 }
 
-func query(ids []string) string {
+var githubRepo = regexp.MustCompile(`^https://github\.com/([^/#?]+)/([^/#?]+)`)
+
+// starRepo is the owner/name an App's stars are read from: an override, else the
+// repository its Docs URL points into, else "".
+func starRepo(info app.Info) string {
+	if repo, ok := starRepoOverrides[info.ID]; ok {
+		return repo
+	}
+	if m := githubRepo.FindStringSubmatch(info.Docs); m != nil {
+		return m[1] + "/" + m[2]
+	}
+	return ""
+}
+
+func query(ids []string, repos map[string]string) string {
 	var b strings.Builder
 	b.WriteString("{")
 	for i, id := range ids {
@@ -149,12 +147,15 @@ func writeStars() error {
 		return fmt.Errorf("set GITHUB_TOKEN to read star counts")
 	}
 	ids := []string{}
+	repos := map[string]string{}
 	for _, ap := range catalog.Default().Apps() {
-		if _, ok := repos[ap.Info().ID]; ok {
-			ids = append(ids, ap.Info().ID)
+		info := ap.Info()
+		if repo := starRepo(info); repo != "" {
+			ids = append(ids, info.ID)
+			repos[info.ID] = repo
 		}
 	}
-	body, err := json.Marshal(map[string]string{"query": query(ids)})
+	body, err := json.Marshal(map[string]string{"query": query(ids, repos)})
 	if err != nil {
 		return err
 	}
