@@ -1,0 +1,14 @@
+internal/apps/nextcloud/nextcloud_test.go
+  h_d6e478ca18e517 127-132,136,148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "578dc7ba5805707d9b7d09cad5e119b039c192ec",
+  "prompts": {},
+  "humans": {
+    "h_d6e478ca18e517": {
+      "author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
