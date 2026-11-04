@@ -2,6 +2,7 @@ package tubearchivist
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,8 +13,15 @@ import (
 
 const homarrRecoveryHint = "Restore the matching private Project credentials for the Tube Archivist administrator, review the account in Tube Archivist settings, then run self-host setup tubearchivist and self-host setup homarr. Never delete cache/db.sqlite3, reset passwords, or rotate or revoke tokens to continue."
 
+var homarrIssuance = helpers.CredentialIssuance{SecretName: "homarr_api_key", OwnershipName: "homarr_token_ownership", PendingName: "homarr_token_pending"}
+
+type tokenOwnership struct {
+	AccountID   string `json:"accountId"`
+	Fingerprint string `json:"fingerprint"`
+}
+
 func homarrKeyNeeded(h *helpers.H) bool {
-	return h.Peer("homarr") != nil || h.Secret(h.Key("homarr_api_key")) != "" || h.Secret(h.Key("homarr_api_key_owner")) != "" || h.Secret(h.Key("homarr_api_key_hash")) != ""
+	return h.Peer("homarr") != nil || h.Secret(h.Key("homarr_api_key")) != "" || h.Secret(h.Key("homarr_token_ownership")) != "" || h.Secret(h.Key("homarr_token_pending")) != ""
 }
 
 func homarrManual(reason string) error {
@@ -21,12 +29,21 @@ func homarrManual(reason string) error {
 }
 
 func homarrKeyOwned(h *helpers.H) (key, owner string, err error) {
-	key, owner = h.Secret(h.Key("homarr_api_key")), h.Secret(h.Key("homarr_api_key_owner"))
-	id, parseErr := strconv.ParseInt(owner, 10, 64)
-	if key == "" || parseErr != nil || id <= 0 || h.Secret(h.Key("homarr_api_key_hash")) != helpers.Fingerprint(key) {
-		return "", "", homarrManual("Tube Archivist's owned Homarr token or its account checkpoint is missing or inconsistent.")
+	inconsistent := homarrManual("Tube Archivist's owned Homarr token or its account checkpoint is missing or inconsistent.")
+	if _, pending, err := homarrIssuance.Pending(h); err != nil || pending {
+		return "", "", inconsistent
 	}
-	return key, owner, nil
+	key = h.Secret(h.Key("homarr_api_key"))
+	var ownership tokenOwnership
+	decoder := json.NewDecoder(strings.NewReader(h.Secret(h.Key("homarr_token_ownership"))))
+	decoder.DisallowUnknownFields()
+	if key == "" || decoder.Decode(&ownership) != nil || ownership.Fingerprint != helpers.Fingerprint(key) {
+		return "", "", inconsistent
+	}
+	if id, err := strconv.ParseInt(ownership.AccountID, 10, 64); err != nil || id <= 0 {
+		return "", "", inconsistent
+	}
+	return key, ownership.AccountID, nil
 }
 
 func tokenIdentity(ctx context.Context, h *helpers.H, key string) (id string, err error) {
@@ -103,10 +120,14 @@ func setupHomarrKey(ctx context.Context, h *helpers.H, session *helpers.Session,
 				_, err := homarrKeyWorks(ctx, h, accountID)
 				return err
 			}
-			if h.Secret(h.Key("homarr_api_key_owner")) != "" || h.Secret(h.Key("homarr_api_key_hash")) != "" {
+			if _, pending, err := homarrIssuance.Pending(h); err != nil || pending || h.Secret(h.Key("homarr_token_ownership")) != "" {
 				return homarrManual("Tube Archivist token creation was already attempted without a saved token.")
 			}
-			if err := h.SetSecret(h.Key("homarr_api_key_owner"), accountID); err != nil {
+			intent, err := json.Marshal(map[string]string{"accountId": accountID})
+			if err != nil {
+				return err
+			}
+			if err := homarrIssuance.Begin(h, intent); err != nil {
 				return err
 			}
 			resp, err := session.HTTP(ctx, helpers.Request{Path: "/api/appsettings/token/", NoRedirect: true})
@@ -119,11 +140,14 @@ func setupHomarrKey(ctx context.Context, h *helpers.H, session *helpers.Session,
 			if resp.Status != http.StatusOK || resp.Decode(&created) != nil || len(created.Token) < 16 || strings.ContainsAny(created.Token, " \t\r\n") {
 				return homarrManual("Tube Archivist token creation was not confirmed.")
 			}
-			h.Log.Secret(created.Token)
-			if err := h.SetSecret(h.Key("homarr_api_key_hash"), helpers.Fingerprint(created.Token)); err != nil {
+			if err := homarrIssuance.Capture(h, helpers.CredentialEvidence{Secret: created.Token}); err != nil {
 				return err
 			}
-			return h.SetSecret(h.Key("homarr_api_key"), created.Token)
+			ownership, err := json.Marshal(tokenOwnership{AccountID: accountID, Fingerprint: helpers.Fingerprint(created.Token)})
+			if err != nil {
+				return err
+			}
+			return homarrIssuance.Commit(h, ownership)
 		},
 		Hint:       homarrRecoveryHint,
 		Credential: "admin",

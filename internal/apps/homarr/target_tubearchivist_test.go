@@ -105,7 +105,7 @@ func TestTubearchivistDescriptorStatsVerification(t *testing.T) {
 			}))
 			t.Cleanup(peer.Close)
 			sum := sha256.Sum256([]byte(token))
-			secrets := statsSecrets{"TUBEARCHIVIST_HOMARR_API_KEY": token, "TUBEARCHIVIST_HOMARR_API_KEY_OWNER": "42", "TUBEARCHIVIST_HOMARR_API_KEY_HASH": hex.EncodeToString(sum[:])}
+			secrets := statsSecrets{"TUBEARCHIVIST_HOMARR_API_KEY": token, "TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP": `{"accountId":"42","fingerprint":"` + hex.EncodeToString(sum[:]) + `"}`}
 			if scenario.missing {
 				secrets = statsSecrets{}
 			}

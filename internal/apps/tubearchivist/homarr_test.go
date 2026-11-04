@@ -23,6 +23,10 @@ func tokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func tokenOwnership(account, token string) string {
+	return `{"accountId":"` + account + `","fingerprint":"` + tokenHash(token) + `"}`
+}
+
 type tokenFake struct {
 	valid      tubeArchivistFake
 	issued     string
@@ -106,8 +110,7 @@ func adminSecrets() tubeArchivistSecrets {
 func ownedSecrets() tubeArchivistSecrets {
 	secrets := adminSecrets()
 	secrets["TUBEARCHIVIST_HOMARR_API_KEY"] = synthetic
-	secrets["TUBEARCHIVIST_HOMARR_API_KEY_OWNER"] = "42"
-	secrets["TUBEARCHIVIST_HOMARR_API_KEY_HASH"] = tokenHash(synthetic)
+	secrets["TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP"] = tokenOwnership("42", synthetic)
 	return secrets
 }
 
@@ -134,8 +137,8 @@ func TestTubeArchivistIssuesOneOwnedTokenAndReusesIt(t *testing.T) {
 	if fake.tokenCalls != 1 || fake.deletes != 0 {
 		t.Fatalf("token calls = %d deletes = %d", fake.tokenCalls, fake.deletes)
 	}
-	if secrets["TUBEARCHIVIST_HOMARR_API_KEY"] != synthetic || secrets["TUBEARCHIVIST_HOMARR_API_KEY_OWNER"] != "42" || secrets["TUBEARCHIVIST_HOMARR_API_KEY_HASH"] != tokenHash(synthetic) {
-		t.Fatal("token, owner or hash was not saved")
+	if secrets["TUBEARCHIVIST_HOMARR_API_KEY"] != synthetic || secrets["TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP"] != tokenOwnership("42", synthetic) || secrets["TUBEARCHIVIST_HOMARR_TOKEN_PENDING"] != "" {
+		t.Fatal("token or its ownership was not committed")
 	}
 	for _, header := range fake.headers {
 		if header != "Token "+synthetic {
@@ -169,17 +172,24 @@ func TestTubeArchivistLostRejectedOrMismatchedTokenStaysManual(t *testing.T) {
 		{"lost-after-attempt", func(s tubeArchivistSecrets) {
 			delete(s, "TUBEARCHIVIST_HOMARR_API_KEY")
 		}, nil},
-		{"pending-owner-only", func(s tubeArchivistSecrets) {
+		{"pending-intent-only", func(s tubeArchivistSecrets) {
 			delete(s, "TUBEARCHIVIST_HOMARR_API_KEY")
-			delete(s, "TUBEARCHIVIST_HOMARR_API_KEY_HASH")
+			delete(s, "TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP")
+			s["TUBEARCHIVIST_HOMARR_TOKEN_PENDING"] = `{"version":1,"intent":{"accountId":"42"},"issued":null}`
 		}, nil},
 		{"rejected", func(s tubeArchivistSecrets) {
 			s["TUBEARCHIVIST_HOMARR_API_KEY"] = "rejected-token-0123456789"
-			s["TUBEARCHIVIST_HOMARR_API_KEY_HASH"] = tokenHash("rejected-token-0123456789")
+			s["TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP"] = tokenOwnership("42", "rejected-token-0123456789")
 		}, nil},
-		{"owner-mismatch", func(s tubeArchivistSecrets) { s["TUBEARCHIVIST_HOMARR_API_KEY_OWNER"] = "7" }, nil},
-		{"hash-mismatch", func(s tubeArchivistSecrets) { s["TUBEARCHIVIST_HOMARR_API_KEY_HASH"] = "bad" }, nil},
-		{"malformed-owner", func(s tubeArchivistSecrets) { s["TUBEARCHIVIST_HOMARR_API_KEY_OWNER"] = "admin" }, nil},
+		{"owner-mismatch", func(s tubeArchivistSecrets) {
+			s["TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP"] = tokenOwnership("7", synthetic)
+		}, nil},
+		{"hash-mismatch", func(s tubeArchivistSecrets) {
+			s["TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP"] = `{"accountId":"42","fingerprint":"bad"}`
+		}, nil},
+		{"malformed-owner", func(s tubeArchivistSecrets) {
+			s["TUBEARCHIVIST_HOMARR_TOKEN_OWNERSHIP"] = tokenOwnership("admin", synthetic)
+		}, nil},
 		{"token-resolves-elsewhere", nil, func(f *tokenFake) {
 			f.tokenAcct = `{"id":7}`
 			f.tokenPing = `{"response":"pong","user":7,"version":"v0.6.0"}`
