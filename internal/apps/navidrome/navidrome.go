@@ -12,7 +12,7 @@ import (
 )
 
 // App is Navidrome. Traps: docs/catalog/traps/navidrome.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -25,8 +25,6 @@ func (App) Info() app.Info {
 		Service:       "navidrome",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -41,8 +39,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:4533
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the first administrator on the sign-in page."

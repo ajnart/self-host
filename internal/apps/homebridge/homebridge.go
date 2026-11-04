@@ -13,7 +13,7 @@ import (
 )
 
 // App is Homebridge. Traps: docs/catalog/traps/homebridge.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -27,8 +27,7 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, complete the setup wizard and create the administrator. " +

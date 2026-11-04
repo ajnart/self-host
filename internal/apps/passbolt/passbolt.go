@@ -15,7 +15,7 @@ import (
 )
 
 // App is Passbolt. Traps: docs/catalog/traps/passbolt.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -204,5 +204,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

@@ -20,7 +20,7 @@ import (
 // user so it matches the recipe's email convention.
 func adminEmail(h *helpers.H) string { return (App{}).AdminEmail(h.AdminUser()) }
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -40,8 +40,6 @@ func (App) Info() app.Info {
 		Service:       "seafile",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{
@@ -179,8 +177,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in with the email made of the ADMIN_USER value and @selfhost.local, and the ADMIN_PASSWORD value."

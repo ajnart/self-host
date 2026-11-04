@@ -18,7 +18,7 @@ import (
 
 const defaultEmail = "admin@selfhost.local"
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -359,8 +359,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return errors.Join(err, authStatus(ctx, h, observed))
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the first owner on the first visit."

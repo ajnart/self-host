@@ -32,7 +32,7 @@ const apiKeyApp = "selfhost"
 // wizard unfinished while the server still boots, POST /Startup/User 404s
 // unless GET /Startup/User ran first, creating an existing library name makes
 // "Movies2", and 12.x only accepts the `Authorization: MediaBrowser` header.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -48,8 +48,7 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, finish the startup wizard: create the administrator and add your media library."

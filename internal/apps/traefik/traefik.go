@@ -19,7 +19,7 @@ import (
 const apiRule = "Method(`GET`) && (Path(`/api/version`) || Path(`/api/entrypoints`) || Path(`/api/http/routers`) || Path(`/api/http/services`) || Path(`/api/http/middlewares`) || Path(`/api/tcp/routers`) || Path(`/api/tcp/services`) || Path(`/api/tcp/middlewares`) || Path(`/api/udp/routers`) || Path(`/api/udp/services`))"
 
 // App is Traefik. Traps: docs/catalog/traps/traefik.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -32,8 +32,6 @@ func (App) Info() app.Info {
 		Service:       "traefik",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -181,5 +179,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -28,8 +28,6 @@ func (App) Info() app.Info {
 		Service:       "ntfy",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Files prepares the bind source before rootful Docker starts the non-root
 // container. Otherwise the daemon creates ./data as root and ntfy cannot create
@@ -238,8 +236,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Access is deny-all and login is on, so create the administrator inside the container: " +

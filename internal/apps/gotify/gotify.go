@@ -13,7 +13,7 @@ import (
 )
 
 // App is Gotify. Traps: docs/catalog/traps/gotify.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -27,8 +27,6 @@ func (App) Info() app.Info {
 		Service:       "gotify",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	return `services:
@@ -137,5 +135,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

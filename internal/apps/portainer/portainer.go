@@ -15,7 +15,7 @@ import (
 )
 
 // App is Portainer. Traps: docs/catalog/traps/portainer.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -30,8 +30,7 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link { return nil }
 
 // Files writes the shared Admin password to the bootstrap file Portainer
 // reads with --admin-password-file at first start.

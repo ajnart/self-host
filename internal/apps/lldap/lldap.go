@@ -13,7 +13,7 @@ import (
 )
 
 // App is LLDAP. Traps: docs/catalog/traps/lldap.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -26,8 +26,6 @@ func (App) Info() app.Info {
 		Service:       "lldap",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{
@@ -173,8 +171,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in with the ADMIN_USER and ADMIN_PASSWORD values. The base DN is dc=example,dc=com (LLDAP_LDAP_BASE_DN); LDAP settings in other services must match it, so change it before connecting any."

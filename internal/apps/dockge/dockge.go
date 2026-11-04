@@ -12,7 +12,7 @@ import (
 )
 
 // App is Dockge. Traps: docs/catalog/traps/dockge.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -26,8 +26,6 @@ func (App) Info() app.Info {
 		Service:       "dockge",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -66,8 +64,6 @@ func firstAdmin() firstadmin.FirstAdmin {
 func (App) Setup(ctx context.Context, h *helpers.H) error { return firstAdmin().Setup(ctx, h) }
 
 func (App) Check(ctx context.Context, h *helpers.H) error { return firstAdmin().Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the first administrator account on the first visit. " +

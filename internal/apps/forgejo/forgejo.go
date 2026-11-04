@@ -20,7 +20,7 @@ const (
 )
 
 // App is Forgejo. Traps: docs/catalog/traps/forgejo.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -34,8 +34,7 @@ func (App) Info() app.Info {
 	}
 }
 
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
+func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Installation and registration are locked, so after the first start create the first administrator: " +

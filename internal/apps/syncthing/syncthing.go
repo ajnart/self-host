@@ -17,7 +17,7 @@ import (
 )
 
 // App is Syncthing. Traps: docs/catalog/traps/syncthing.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -30,8 +30,6 @@ func (App) Info() app.Info {
 		Service:       "syncthing",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -48,8 +46,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:8384
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, set the GUI administrator login in Actions > Settings > GUI. " +

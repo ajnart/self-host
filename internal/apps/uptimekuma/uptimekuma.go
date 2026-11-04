@@ -14,7 +14,7 @@ import (
 )
 
 // App is Uptime Kuma. Traps: docs/catalog/traps/uptime-kuma.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -64,8 +64,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:3001
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the first visit."

@@ -15,7 +15,7 @@ import (
 )
 
 // App is Gluetun. Traps: docs/catalog/traps/gluetun.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -149,8 +149,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func controlStatus(ctx context.Context, h *helpers.H) (string, error) {
 	key := h.Secret(h.Key("control_api_key"))

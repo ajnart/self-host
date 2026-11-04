@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -59,8 +59,6 @@ func (App) Compose(rc app.RenderContext) string {
 func (App) StandaloneGuide() string {
 	return "Before sharing access, set an administrator password in Jackett. Its login uses only a password, not a username. Keep the existing instance key and tracker settings; choose any trackers and accounts yourself. Setup does not set the first password, test trackers, search or download releases."
 }
-
-func (App) Links() []app.Link { return nil }
 
 const (
 	configPath  = "/api/v2.0/server/Config"

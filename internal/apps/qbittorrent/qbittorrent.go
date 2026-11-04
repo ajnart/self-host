@@ -31,7 +31,7 @@ const (
 // writing). Traps from docs/qbittorrent.md: login answers 204 with a
 // QBT_SID_<port> cookie, every API call needs a matching Referer, and five
 // failed logins ban the caller.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -256,8 +256,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "The WebUI starts with a temporary administrator password printed in the container logs; sign in with it, set your own and set the default save path to /data/torrents."

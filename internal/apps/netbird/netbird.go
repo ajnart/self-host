@@ -15,7 +15,7 @@ import (
 )
 
 // App is NetBird. Traps: docs/catalog/traps/netbird.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -244,8 +244,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the first visit."

@@ -16,7 +16,7 @@ import (
 )
 
 // App is Cleanuparr. Traps: docs/catalog/traps/cleanuparr.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,8 +29,6 @@ func (App) Info() app.Info {
 		Service:       "cleanuparr",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Links() []app.Link {
 	return []app.Link{arrLink("sonarr", "Sonarr", 4), arrLink("radarr", "Radarr", 6), qbittorrentLink()}

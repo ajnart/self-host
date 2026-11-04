@@ -15,7 +15,7 @@ import (
 )
 
 // App is PhotoPrism. Traps: docs/catalog/traps/photoprism.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -28,8 +28,6 @@ func (App) Info() app.Info {
 		Service:       "photoprism",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -133,5 +131,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

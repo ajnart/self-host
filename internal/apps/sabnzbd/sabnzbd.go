@@ -19,7 +19,7 @@ import (
 )
 
 // App is SABnzbd. Traps: docs/catalog/traps/sabnzbd.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -33,8 +33,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -59,8 +57,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:8080
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, set the WebUI username and password in Config > General, then add your own Usenet provider in Config > Servers. Set Temporary Download Folder to /data/usenet/incomplete and Completed Download Folder to /data/usenet/complete in Config > Folders. In Config > Categories, use relative folders tv, movies and music beneath the completed folder, matching your import App's category. Review existing paths and categories before changing them."

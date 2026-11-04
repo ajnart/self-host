@@ -17,7 +17,7 @@ import (
 	"github.com/ajnart/self-host/internal/names"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -30,8 +30,6 @@ func (App) Info() app.Info {
 		Service:       "paperless-ngx",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Place copies of documents to import in the mounted consume folder at /usr/src/paperless/consume, or upload them through the web page. Successfully consumed files are removed from that folder and stored in the document archive; keep original backups elsewhere. Administrator environment settings create a missing account only; changing them cannot reset an existing user's password."
@@ -188,5 +186,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

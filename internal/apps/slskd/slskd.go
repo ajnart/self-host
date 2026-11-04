@@ -16,7 +16,7 @@ import (
 )
 
 // App is slskd. Traps: docs/catalog/traps/slskd.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -197,5 +197,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return noteSoulseek(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }

@@ -22,7 +22,7 @@ import (
 	"github.com/ajnart/self-host/internal/names"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -293,8 +293,6 @@ func trustedHostsWork(ctx context.Context, h *helpers.H) (bool, error) {
 	}
 	return true, nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func installed(ctx context.Context, h *helpers.H) (bool, error) {
 	resp, err := h.HTTP(ctx, helpers.Request{Path: "/status.php", NoRedirect: true})

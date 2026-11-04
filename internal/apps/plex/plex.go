@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -348,8 +348,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Before the first start, create a private claim-token file (mode 0600) containing a token from https://www.plex.tv/claim (valid 4 minutes). Use the App's read-only claim-token mount and the image's file-based claim option; if an export substitutes a claim environment entry, restore that private-file configuration instead of putting the token in the environment or command arguments. Keep the server private and verify it in your own Plex account. An expired or failed first-run claim needs inspection and reviewed recovery, not an automatic reclaim."

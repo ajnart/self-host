@@ -15,7 +15,7 @@ import (
 )
 
 // App is Authentik. Traps: docs/catalog/traps/authentik.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -43,8 +43,6 @@ func (App) Info() app.Info {
 		Service:       service,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the database password shared with postgresql, the signing
 // secret, and the bootstrap token Setup uses to read the administrator back.
@@ -169,8 +167,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in as " + admin + " with the ADMIN_PASSWORD value; the ADMIN_USER value only forms that account's email, followed by @selfhost.local."

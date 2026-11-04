@@ -18,7 +18,7 @@ import (
 )
 
 // App is Pangolin. Traps: docs/catalog/traps/pangolin.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -294,8 +294,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the first administrator on the setup page with the PANGOLIN_SETUP_TOKEN value."

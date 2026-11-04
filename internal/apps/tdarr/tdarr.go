@@ -17,7 +17,7 @@ import (
 )
 
 // App is Tdarr. Traps: docs/catalog/traps/tdarr.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -30,8 +30,6 @@ func (App) Info() app.Info {
 		Service:       "tdarr",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "api_key_seed", Length: 32}}
@@ -72,8 +70,6 @@ func (App) Compose(rc app.RenderContext) string {
       - ${BIND_IP}:` + port + `:8265
 `
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, register the first administrator on the first-run page."

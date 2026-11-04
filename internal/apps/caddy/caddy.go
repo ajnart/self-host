@@ -14,7 +14,7 @@ import (
 )
 
 // App is Caddy. Traps: docs/catalog/traps/caddy.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -27,8 +27,6 @@ func (App) Info() app.Info {
 		Service:       "caddy",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 const caddyfile = `{
   admin 127.0.0.1:2019
@@ -113,5 +111,3 @@ func VerifyStatistics(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

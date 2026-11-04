@@ -16,7 +16,7 @@ import (
 )
 
 // App is Keycloak. Traps: docs/catalog/traps/keycloak.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 const service = "keycloak"
 
@@ -31,8 +31,6 @@ func (App) Info() app.Info {
 		Service:       service,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "db_password", Length: 48}}
@@ -149,5 +147,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

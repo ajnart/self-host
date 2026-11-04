@@ -13,7 +13,7 @@ import (
 )
 
 // App is Stalwart Mail Server. Traps: docs/catalog/traps/stalwart-mail.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -169,8 +169,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return firstAdmin().Check(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, finish the first-run setup wizard on the admin port to create the administrator; it runs again whenever the configuration folder is empty. " +
