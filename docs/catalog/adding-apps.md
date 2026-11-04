@@ -49,7 +49,7 @@ For media paths and user choices, read [Media Setup](media-setup.md).
 
 ## Registration and delivery
 
-- Follow edit-catalog for `internal/catalog/batch_*.go`, Recipes, descriptions and DCM collisions; leave generated registration alone.
-- Declare icon/repository metadata in `tools/sitegen/icons.go` and `tools/sitegen/stars.go`.
+- Follow edit-catalog for Recipes, descriptions and DCM collisions; run `go run ./tools/registrygen` to register the App.
+- Icon and repository metadata default from the id and `Docs`; override them in `tools/sitegen/icons.go` and `tools/sitegen/stars.go` only when they differ.
 - Follow [generated-data ownership and counts](../agents/generated-data.md) for site/DCM generation, aliases, hand-kept counts and drift checks; never hand-edit generated output.
 - Use the applicable [repository gate](../../AGENTS.md); report focused verification separately from deferred runtime acceptance.

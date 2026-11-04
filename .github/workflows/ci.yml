@@ -49,6 +49,8 @@ jobs:
         run: go build ./... && go vet ./... && go vet -tags e2e ./e2e/
       - name: Generated testkit reasons are current
         run: go run ./tools/testkitgen -check
+      - name: Generated registry is current
+        run: go run ./tools/registrygen -check
       - name: Generated data is current
         run: |
           go run ./tools/sitegen

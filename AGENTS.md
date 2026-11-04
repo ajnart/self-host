@@ -25,6 +25,7 @@ One package owns one boundary. Do not reach around it.
 - Project directory, secrets, state: `internal/project/`.
 - Backup archives: `internal/backup/`. Release lookup, install and self-update: `internal/release/`.
 - Progress reporting: `internal/events/`; what a person sees of it: `internal/activity/`.
+- App registration: `tools/registrygen` owns `internal/catalog/apps_gen.go`. Add or remove a package under `internal/apps/` and run `go run ./tools/registrygen`; never edit the file by hand.
 - Generated data: `tools/sitegen` owns `site/src/data/`, `site/src/styles/theme.css` and `dcm/src/data/`. Change the Go App or the generator and rerun it; leave generated files to it.
 - DCM-only containers: `dcm/src/tools/`. Apps in the Catalog come from `internal/apps/` and are edited there.
 
@@ -45,6 +46,7 @@ These runs from the repository root are the gate:
 export GOFLAGS=-buildvcs=false
 gofmt -l .                       # must print nothing
 go build ./... && go vet ./... && go vet -tags e2e ./e2e/
+go run ./tools/registrygen -check
 go test ./...
 go test -race ./internal/tui/ ./internal/activity/   # plus any package with goroutines you touched
 bash -n install.sh
