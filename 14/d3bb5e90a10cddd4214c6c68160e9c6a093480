@@ -1,0 +1,25 @@
+docs/releasing.md
+  s_0812986ae533ff::t_9cb07636bbb39e 23-24
+testkit/README.md
+  s_0812986ae533ff::t_fe622d31f2463a 6-7,33,46,48-49,52,58-59,99,108,116
+testkit/node/README.md
+  s_0812986ae533ff::t_8a099b39931320 6-9,30-31,34,41,149,151,229-231,253,301-302
+testkit/node/package.json
+  s_0812986ae533ff::t_8e1791f218a5bb 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14d3bb5e90a10cddd4214c6c68160e9c6a093480",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
