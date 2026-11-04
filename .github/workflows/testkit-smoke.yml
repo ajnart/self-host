@@ -1,0 +1,45 @@
+name: testkit consumer smoke
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/testkit-smoke.yml
+      - testkit/**
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testkit-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  sonarr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Copy isolated consumer outside the workspace
+        run: |
+          mkdir "$RUNNER_TEMP/testkit-consumer"
+          cp testkit/node/examples/ci/{package.json,package-lock.json,sonarr.test.mts} "$RUNNER_TEMP/testkit-consumer/"
+      - name: Install published SDK from the consumer lockfile
+        working-directory: ${{ runner.temp }}/testkit-consumer
+        run: npm ci
+      - name: Prepare matching released helper and post cleanup
+        uses: ajnart/self-host/testkit@eb8569ec50a8c62d1406d55b19f6bfee218a4240
+        with:
+          working-directory: ${{ runner.temp }}/testkit-consumer
+      - name: Check real fixture identity, rejected credentials and scoped cleanup
+        working-directory: ${{ runner.temp }}/testkit-consumer
+        timeout-minutes: 30
+        run: npm test

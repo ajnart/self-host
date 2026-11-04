@@ -27,6 +27,141 @@ Each fixture gets a temporary Project, loopback-only Address and private credent
 it never uses your normal self-host Project. See the [Node guide](node/README.md)
 for mock replacement, timeouts, recovery and CI.
 
+## CI in another repository
+
+Use the published SDK and released helper; **no Go or self-host checkout is
+needed**. This example runs one Sonarr fixture on a disposable GitHub-hosted
+Ubuntu runner, with tests running directly on the host rather than in a job
+container.
+
+1. In your Node.js 22+ repository, add the exact SDK version and commit both
+   `package.json` and `package-lock.json`:
+
+   ```bash
+   npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.0
+   ```
+
+2. Save this as `tests/sonarr.integration.test.mjs`:
+
+   ```javascript
+   import assert from "node:assert/strict";
+   import { test } from "node:test";
+   import { withApp } from "@ajnart/self-host-testkit";
+
+   test("Sonarr authenticates", { timeout: 900_000 }, async () => {
+     await withApp("sonarr", async (sonarr) => {
+       const response = await fetch(`${sonarr.url}/api/v3/system/status`, {
+         headers: { "X-Api-Key": await sonarr.getApiKey() },
+         signal: AbortSignal.timeout(10_000),
+       });
+       assert.equal(response.ok, true);
+       const status = await response.json();
+       assert.equal(status.appName, "Sonarr");
+       assert.equal(typeof status.version, "string");
+     });
+   });
+   ```
+
+3. Save this as `.github/workflows/integration.yml`:
+
+   ```yaml
+   name: integration
+
+   on:
+     pull_request:
+     workflow_dispatch:
+
+   permissions:
+     contents: read
+
+   jobs:
+     sonarr:
+       runs-on: ubuntu-latest
+       timeout-minutes: 20
+       steps:
+         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+           with:
+             persist-credentials: false
+         - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+           with:
+             node-version: "24"
+             package-manager-cache: false
+         - run: npm ci
+         - uses: ajnart/self-host/testkit@eb8569ec50a8c62d1406d55b19f6bfee218a4240
+         - run: node --test --test-concurrency=1 tests/sonarr.integration.test.mjs
+   ```
+
+The testkit Action pin above is from **v1.3.0**. It resolves your installed SDK,
+downloads its exact matching checksummed helper, exports the helper/manifest
+environment and registers automatic post cleanup. Do not add `source: true` or
+a Go setup step. The Action does not install your dependencies or start Apps.
+No extra secret or write permission is needed for this public-package example;
+fork pull requests may still need maintainer approval under GitHub's runner policy.
+
+Keep your own adapter assertions inside `withApp` once this smoke test works;
+testkit provides Setup, not your test datasets or complete integration acceptance.
+For monorepos and Bun/pnpm, see the [Node CI guide](node/README.md#github-actions).
+For a local run after installation, first run
+`npm exec -- self-host-testkit-setup`, then the same `node --test` command; this
+starts a real App and needs local Docker.
+
+### CI limits and diagnostics
+
+- Start with **one fixture at a time**. Each container is capped at 1 GiB, one
+  CPU and 512 PIDs; a fixture may use five containers, including dependencies.
+  Budget up to 5 GiB and five CPUs per simultaneous fixture plus runner overhead.
+- Cold pulls and Setup can take minutes. `withApp` defaults to a **12-minute
+  lifetime**, not merely a startup timeout; Node permits at most 14 minutes.
+  Keep the longer test/job timeouts above so cleanup has time to finish.
+- `withApp` attempts cleanup on success and callback failure. Action post cleanup
+  is a second attempt, not protection against runner loss or an unavailable
+  Docker daemon. Prefer disposable runners; no Backup/Restore cache is provided.
+- On failure, check the sanitized `TestkitError.code` and `reason`, Docker/Compose
+  availability, image access and resource budget. Do not upload manifests,
+  Project files, credentials or raw response bodies. See [private recovery](node/README.md#errors-and-private-recovery).
+
+### Fixture validation status
+
+Catalog membership does **not** mean runtime-verified fixture support. The
+[consumer smoke workflow](../.github/workflows/testkit-smoke.yml) uses the
+published 1.3.0 SDK/helper on Linux x64, checks authenticated Sonarr identity and
+rejected credentials, and verifies owned containers/networks are removed after
+successful and deliberately failing callbacks. Check its
+[actual workflow runs](https://github.com/ajnart/self-host/actions/workflows/testkit-smoke.yml)
+for passing evidence; a configured workflow or skipped run is not a pass.
+
+| App IDs                                                              | Validation boundary                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sonarr`                                                             | Covered by the consumer smoke workflow above; not a promise for every image version or platform.                                                                                                                                                                  |
+| `radarr`, `prowlarr`, `bazarr`, `sabnzbd`, `qbittorrent`, `jellyfin` | Consumer candidates in [Homarr's profiles](https://github.com/homarr-labs/homarr/blob/5ea802234adff615cc78a2041522ca3f09ac4917/packages/integrations/weekly/profiles.ts); not covered by this smoke workflow. Profile definitions alone are not runtime evidence. |
+| `homarr` + `sonarr` ordered Pair                                     | Source example exists; Pair/native/rendered acceptance remains separate from single-App smoke coverage.                                                                                                                                                           |
+| Other Catalog Apps                                                   | Unverified as testkit fixtures; check their Setup and the restrictions below before adopting.                                                                                                                                                                     |
+| Products outside the Catalog                                         | Not accepted by `withApp`; an arbitrary Docker image is not an App definition.                                                                                                                                                                                    |
+
+Apps needing Manual steps, external accounts, hardware, host networking, socket
+mounts or named volumes are unsupported fixtures. Containerized test runners,
+Docker-in-Docker, remote Docker and native Windows are also unsupported; see the
+[environment matrix](#headless-and-container-requirements). The `image` option
+only substitutes a selected Catalog App's image; it cannot remove these limits.
+
+## Published release
+
+Version **1.3.1** must exist on
+[npm](https://www.npmjs.com/package/@ajnart/self-host-testkit/v/1.3.1) and
+[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.3.1) before using
+these local commands. The CI quickstart above remains pinned to the separately
+verified 1.3.0 SDK/helper combination.
+
+```bash
+npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.1
+npm exec -- self-host-testkit-setup
+```
+
+Explicit setup verifies and caches the matching released helper; **no Go required**.
+Package installation and import never download a helper or start Docker.
+The 1.2.1 composite Action requires its documented separate cleanup step; for
+1.2.1, follow its [immutable Node guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
+
 ## Try this source checkout
 
 You need Node.js 22+, Bun 1.4.3+, a Go launcher able to obtain Go 1.27.3, and the
@@ -43,21 +178,6 @@ SELF_HOST_TESTKIT_BINARY="$PWD/dist/self-host-testkit" node testkit/node/example
 
 The final command starts a real Sonarr App. Run it only when you intend to use
 Docker. The explicit helper path prevents mixing a released helper with source SDK.
-
-## Published release
-
-Version 1.3.1 must exist on npm and GitHub before using these commands; until
-then, use the source checkout above:
-
-```bash
-npm install --save-dev @ajnart/self-host-testkit@1.3.1
-npm exec -- self-host-testkit-setup
-```
-
-Explicit setup verifies and caches the matching released helper; **no Go required**.
-Package installation and import never download a helper or start Docker.
-The 1.2.1 composite Action requires its documented separate cleanup step; for
-1.2.1, follow its [immutable Node guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
 
 ## Headless and container requirements
 
@@ -94,8 +214,9 @@ post step. Prefer disposable CI runners.
 
 Apps requiring browser-only Manual steps, external accounts, hardware, host
 networking, socket mounts or named volumes fail explicitly. Not every Catalog
-App is a supported fixture. Live App acceptance and Backup/Restore caching remain
-deferred; passing transport tests does not establish either.
+App is a supported fixture. See [fixture validation status](#fixture-validation-status)
+for the narrow consumer smoke coverage. Broader live App acceptance and
+Backup/Restore caching remain deferred; passing transport tests establishes neither.
 
 ## Ordered pairs
 

@@ -22,16 +22,11 @@ containers, Docker-in-Docker, remote/TCP Docker and native Windows are unsupport
 A mounted socket is insufficient: App loopback Addresses and bind-mount paths
 belong to the daemon host, not the test container. See the [support matrix](../README.md#headless-and-container-requirements).
 
-**Source:** follow the [checkout build](../README.md#try-this-source-checkout),
-which builds generated SDK exports with Bun and the helper with Go, then selects
-that helper using `SELF_HOST_TESTKIT_BINARY`. Run the included demo from this
-checkout so the package self-import resolves to its matching SDK.
-
 **Published release:** version 1.3.1 must exist on npm and GitHub before using
-these commands. Install it and explicitly prepare its matching helper:
+these commands. Install it and explicitly prepare its matching helper for local use:
 
 ```bash
-npm install --save-dev @ajnart/self-host-testkit@1.3.1
+npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.1
 npm exec -- self-host-testkit-setup
 ```
 
@@ -39,6 +34,16 @@ Released setup requires network access and `tar`, verifies the archive's SHA-256
 checksum and reuses a private versioned helper cache. It needs **no Go** and does
 not start Docker or modify PATH. Neither npm installation nor import downloads
 anything.
+
+For CI, follow the complete [external-repository quickstart](../README.md#ci-in-another-repository).
+The Action prepares the helper for you; no separate setup command or Go is needed.
+See [fixture validation status](../README.md#fixture-validation-status) before
+selecting an App; the Catalog is not a tested-fixture list.
+
+**Source:** follow the [checkout build](../README.md#try-this-source-checkout),
+which builds generated SDK exports with Bun and the helper with Go, then selects
+that helper using `SELF_HOST_TESTKIT_BINARY`. Run the included demo from this
+checkout so the package self-import resolves to its matching SDK.
 
 Helper resolution: `binary` option, `SELF_HOST_TESTKIT_BINARY`, private versioned
 cache, then `self-host-testkit` on PATH. Keep SDK and helper on the same release
@@ -226,6 +231,38 @@ building or importing the SDK.
 
 ## GitHub Actions
 
+**Another repository:** start with the complete
+[published-package workflow and test](../README.md#ci-in-another-repository).
+Install your locked SDK dependency before the SHA-pinned Action. It selects the
+installed SDK's exact helper release; changing the Action pin alone does not
+upgrade that dependency. Keep ordinary `withApp` cleanup as well as the Action's
+automatic post cleanup.
+
+**Monorepos:** installation, Action resolution and tests must all use the
+consumer's package directory. For a package under `packages/api`, set
+`working-directory: packages/api` on its `run` steps (or `defaults.run`) and
+pass this separately to the Action:
+
+```yaml
+- uses: ajnart/self-host/testkit@eb8569ec50a8c62d1406d55b19f6bfee218a4240
+  with:
+    working-directory: packages/api
+```
+
+For a shared workspace lockfile, install at the workspace root as required by
+your package manager, then resolve/run tests from the consuming package.
+`defaults.run.working-directory` does not apply to `uses` steps. The Action does
+not link a source SDK into your consumer.
+
+**Other package managers:** Bun and pnpm can install the same exact dependency
+using their normal locked CI commands (`bun install --frozen-lockfile` or
+`pnpm install --frozen-lockfile`) before the Action. Ensure their runtime is set
+up and that the package is resolvable through `node_modules` from the consumer
+directory. Yarn Plug'n'Play without `node_modules` is not supported by this
+Action's Node package resolver. Vitest/Jest users can keep their own async test
+API and invoke their existing test command; increase test/hook timeouts and
+bound worker concurrency rather than using the runner's short defaults.
+
 **Source workflow:** the local Action builds its helper and uses the generated
 SDK from the same checkout. The demo starts a real Sonarr App; run it only when
 you intend to use Docker.
@@ -367,5 +404,7 @@ semantics, rendering, cross-kind survivors or stored-key corruption/recovery.
 run `bun run --cwd testkit/node build`, then `check` and `lint` with the same
 command prefix. Never mix source SDK output with an unrelated released helper.
 For Go callers, see the [Go API](https://pkg.go.dev/github.com/ajnart/self-host/testkit).
-Live App acceptance and Backup/Restore caching remain deferred; transport tests
-do not establish either.
+The [consumer smoke workflow](../../.github/workflows/testkit-smoke.yml) covers
+the narrow published Sonarr path described in the [validation status](../README.md#fixture-validation-status).
+Broader live App acceptance and Backup/Restore caching remain deferred;
+transport tests do not establish either.
