@@ -25,13 +25,20 @@ type pairFixtureApp struct {
 	extra       int
 	linkFailure bool
 	target      string
+	inputs      []app.Input
 }
+
+func (a pairFixtureApp) Inputs() []app.Input { return a.inputs }
 
 func (a pairFixtureApp) Info() app.Info {
 	return app.Info{ID: a.id, Name: a.id, Service: a.id, Image: "example/app:latest", Port: 8199, ContainerPort: 80}
 }
 func (a pairFixtureApp) Compose(rc app.RenderContext) string {
-	text := fmt.Sprintf("services:\n  %s:\n    image: example/app:latest\n    ports: ['${BIND_IP}:%d:80']\n    volumes: ['./config:/config']\n", a.id, rc.Port)
+	ports := fmt.Sprintf("'${BIND_IP}:%d:80'", rc.Port)
+	if port := rc.Inputs["peer-port"]; port != "" {
+		ports += ", '${BIND_IP}:" + port + ":81/udp'"
+	}
+	text := fmt.Sprintf("services:\n  %s:\n    image: example/app:latest\n    ports: [%s]\n    volumes: ['./config:/config']\n", a.id, ports)
 	for i := range a.extra {
 		text += fmt.Sprintf("  %s-db%d: {image: 'example/db:1'}\n", a.id, i)
 	}
@@ -722,5 +729,21 @@ func TestGuardAdmitsConsumerCommandsOnlyForOwnedContainers(t *testing.T) {
 		if (err == nil) != c.admitted {
 			t.Errorf("%v admitted=%v, want %v", c.args, err == nil, c.admitted)
 		}
+	}
+}
+
+func TestPairSuppliesDefaultAndHostPortInputsButRefusesRequiredValues(t *testing.T) {
+	supplied := []app.Input{{Key: "mode", Default: "basic", Required: true}, {Key: "peer-port", Default: "40000", HostPortProtocols: []string{"udp"}}, {Key: "note"}}
+	p, _, err := pairFake(t, "target-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer", inputs: supplied})
+	if err != nil {
+		t.Fatalf("defaulted and host-port inputs were refused: %v", err)
+	}
+	if observed, err := p.Inspect(t.Context()); err != nil || observed.Outcome != "complete" {
+		t.Fatalf("inspection=%+v error=%v", observed, err)
+	}
+	_, _, err = pairFake(t, "target-first", pairFixtureApp{id: "consumer", consumer: true}, pairFixtureApp{id: "peer", inputs: []app.Input{{Key: "server", Required: true}}})
+	var startup *StartupError
+	if !errors.As(err, &startup) || startup.Reason() != string(StartupReasonUnsupported) {
+		t.Fatalf("a required input without a default was not refused: %v", err)
 	}
 }

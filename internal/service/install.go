@@ -158,8 +158,8 @@ func checkInputKey(apps []app.App, key string) error {
 	return fmt.Errorf("--set %s: unknown input; known inputs: %s", key, strings.Join(known, ", "))
 }
 
-// resolveInputs applies sets and defaults and reports missing required inputs.
-func resolveInputs(apps []app.App, sets []string, previous map[string]map[string]string) (map[string]map[string]string, error) {
+// ResolveInputs applies sets and defaults and reports missing required inputs.
+func ResolveInputs(apps []app.App, sets []string, previous map[string]map[string]string) (map[string]map[string]string, error) {
 	scoped := map[string]map[string]string{}
 	global := map[string]string{}
 	for _, set := range sets {
@@ -289,7 +289,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 			}
 			previous[id] = st.Inputs
 		}
-		return resolveInputs(apps, opts.Sets, previous)
+		return ResolveInputs(apps, opts.Sets, previous)
 	}
 	existed := p.Exists()
 	if !existed {

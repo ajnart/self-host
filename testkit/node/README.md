@@ -170,8 +170,8 @@ await withPair(
 same Pair for explicit lifetime management. `order` must be `consumer-first` or
 `target-first`; both are sequential production installs into one fresh Project.
 `images` may override only selected main App images, keyed by App ID.
-Initial support requires web Apps without additional Inputs and one declared
-consumer Link. Unsupported Compose/account/hardware/private-input boundaries
+Pairs need web Apps whose required Inputs have defaults or are host ports, and
+one declared consumer Link. Unsupported Compose/account/hardware/private-input boundaries
 remain explicit errors or Manual outcomes, not automatic skips.
 
 - `consumer`/`target` expose `url`, `getApiKey`, `credentials`, `info` and private

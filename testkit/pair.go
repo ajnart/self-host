@@ -123,8 +123,13 @@ func pairSelection(cat *catalog.Catalog, options PairOptions) (app.App, error) {
 		return nil, startupError(StartupReasonOptions, "testkit pair requires one declared consumer Link")
 	}
 	for _, selected := range []app.App{consumer, target} {
-		if len(selected.Inputs()) != 0 || selected.Info().Port <= 0 || selected.Info().NoWebUI {
-			return nil, startupError(StartupReasonUnsupported, "testkit pair requires web Apps without additional inputs")
+		if selected.Info().Port <= 0 || selected.Info().NoWebUI {
+			return nil, startupError(StartupReasonUnsupported, "testkit pair requires web Apps")
+		}
+		for _, input := range selected.Inputs() {
+			if input.Required && input.Default == "" && len(input.HostPortProtocols) == 0 {
+				return nil, startupError(StartupReasonUnsupported, "testkit pair cannot supply a required App input")
+			}
 		}
 	}
 	for id, image := range options.Images {
@@ -152,13 +157,17 @@ func (a *App) startPair(ctx context.Context, options PairOptions, apps []app.App
 	if err := preview.SaveSettings(settings); err != nil {
 		return err
 	}
+	inputs, err := service.ResolveInputs(apps, install.Sets, nil)
+	if err != nil {
+		return startupError(StartupReasonUnsupported, "testkit pair cannot supply a required App input")
+	}
 	images := map[string]string{}
 	for _, selected := range apps {
 		id := selected.Info().ID
 		if image := options.Images[id]; image != "" {
 			images[selected.Info().Service] = image
 		}
-		if err := preview.WriteFragment(id, selected.Compose(app.RenderContext{Port: ports[id], Settings: settings})); err != nil {
+		if err := preview.WriteFragment(id, selected.Compose(app.RenderContext{Port: ports[id], Inputs: inputs[id], Settings: settings})); err != nil {
 			return startupError(StartupReasonUnsupported, "testkit pair Compose admission failed")
 		}
 	}
