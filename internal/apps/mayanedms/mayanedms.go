@@ -147,7 +147,7 @@ var setup = setupspec.Spec{
 		Assert: []setupspec.Assert{
 			{Path: "username", Equals: "{user}"},
 			{Path: "is_active", Present: true},
-			{Path: "id", Type: "number"},
+			{Path: "id", Type: "number", Positive: true},
 		},
 	}},
 }

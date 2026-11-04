@@ -70,7 +70,7 @@ var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
 	Name:       "Node-RED",
 	CheckError: "the administrator {user} cannot sign in to Node-RED",
-	Probe:      setupspec.Probe{Path: "/auth/login", Timeout: "3m"},
+	Probe:      setupspec.Probe{Live: true, Path: "/auth/login", Timeout: "3m"},
 	Login: []setupspec.Call{
 		{
 			Path:    "/auth/login",
@@ -88,7 +88,7 @@ var setup = setupspec.Spec{
 			Capture: map[string]string{"token": "access_token"},
 			Assert: []setupspec.Assert{
 				{Path: "token_type", Equals: "Bearer"},
-				{Path: "expires_in", Present: true},
+				{Path: "expires_in", Type: "number", Positive: true},
 			},
 		},
 		{

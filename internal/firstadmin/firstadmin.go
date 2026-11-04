@@ -30,6 +30,8 @@ type Probe struct {
 	Want     []int
 	Contains string
 	Timeout  time.Duration
+	// Live accepts any status below 500 when Want is empty: the App answers.
+	Live bool
 }
 
 func (p Probe) path() string {
@@ -59,6 +61,9 @@ func (p Probe) timeout() time.Duration {
 
 func (p Probe) wanted(status int) bool {
 	if len(p.Want) == 0 {
+		if p.Live {
+			return status < 500
+		}
 		return status >= 200 && status < 300
 	}
 	for _, want := range p.Want {

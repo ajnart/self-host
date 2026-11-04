@@ -70,7 +70,7 @@ func (App) Compose(rc app.RenderContext) string {
 // back with the resulting access token.
 var setup = setupspec.Spec{
 	Kind:        setupspec.KindFirstAdmin,
-	Probe:       setupspec.Probe{Path: "/realms/master"},
+	Probe:       setupspec.Probe{Live: true, Path: "/realms/master"},
 	Name:        "Keycloak",
 	CheckError:  "the Admin login {user} cannot read the master realm",
 	Title:       "the Admin login reads the master realm",

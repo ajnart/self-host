@@ -53,7 +53,7 @@ var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
 	Name:       "Portainer",
 	CheckError: "the preseeded Portainer administrator cannot sign in",
-	Probe:      setupspec.Probe{Path: "/", Timeout: "3m"},
+	Probe:      setupspec.Probe{Live: true, Path: "/", Timeout: "3m"},
 	Login: []setupspec.Call{
 		{
 			Path:    "/api/auth",

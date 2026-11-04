@@ -48,7 +48,7 @@ var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
 	Name:       "PhotoPrism",
 	CheckError: "the Admin login {user} cannot open a PhotoPrism session",
-	Probe:      setupspec.Probe{Path: "/api/v1/status", Timeout: "3m"},
+	Probe:      setupspec.Probe{Live: true, Path: "/api/v1/status", Timeout: "3m"},
 	Login: []setupspec.Call{
 		{Path: "/api/v1/session", Ok: []int{401}, Lenient: true},
 		{

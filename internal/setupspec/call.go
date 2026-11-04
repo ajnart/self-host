@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -49,6 +50,8 @@ type Assert struct {
 	Present bool   `yaml:"present,omitempty"`
 	// Type requires a JSON bool, string, number, array or object.
 	Type string `yaml:"type,omitempty"`
+	// Positive requires a number above zero.
+	Positive bool `yaml:"positive,omitempty"`
 	// Some requires the array at Path to have an element that meets every
 	// nested assertion.
 	Some []Assert `yaml:"some,omitempty"`
@@ -146,7 +149,7 @@ func (c Call) run(ctx context.Context, h *helpers.H, vars scope, defaultDenied [
 		return false, nil
 	}
 	if !ok {
-		return false, fmt.Errorf("%s %s returned HTTP %d", orGet(req.Method), c.Path, resp.Status)
+		return false, fmt.Errorf("%s %s returned HTTP %d: %s", orGet(req.Method), req.Path, resp.Status, resp.Snippet())
 	}
 	if len(c.Capture) == 0 && len(c.Assert) == 0 && len(c.Require) == 0 {
 		return true, nil
@@ -156,7 +159,7 @@ func (c Call) run(ctx context.Context, h *helpers.H, vars scope, defaultDenied [
 		return false, err
 	}
 	if !holdAll(c.Require, body, vars) {
-		return false, fmt.Errorf("%s %s returned an unexpected response", orGet(req.Method), c.Path)
+		return false, fmt.Errorf("%s %s returned an unexpected response", orGet(req.Method), req.Path)
 	}
 	for name, path := range c.Capture {
 		value, found := lookup(body, path)
@@ -182,10 +185,98 @@ func (cs calls) run(ctx context.Context, h *helpers.H, vars scope, defaultDenied
 	return true, nil
 }
 
+var (
+	placeholder = regexp.MustCompile(`\{([a-z_][a-z0-9_]*)\}`)
+	callNames   = []string{"user", "password", "email", "url", "app"}
+	textNames   = []string{"user", "email", "url", "app"}
+	jsonTypes   = []string{"bool", "string", "number", "array", "object"}
+	httpMethods = []string{"", http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead}
+)
+
+func unknownPlaceholder(text string, known []string) string {
+	for _, match := range placeholder.FindAllStringSubmatch(text, -1) {
+		if !slices.Contains(known, match[1]) {
+			return match[1]
+		}
+	}
+	return ""
+}
+
+func (c Call) strings() []string {
+	out := []string{c.Path}
+	var walk func(any)
+	walk = func(v any) {
+		switch v := v.(type) {
+		case string:
+			out = append(out, v)
+		case map[string]any:
+			for _, item := range v {
+				walk(item)
+			}
+		case []any:
+			for _, item := range v {
+				walk(item)
+			}
+		}
+	}
+	walk(c.JSON)
+	for _, v := range c.Form {
+		out = append(out, v)
+	}
+	for _, v := range c.Header {
+		out = append(out, v)
+	}
+	var asserts func([]Assert)
+	asserts = func(list []Assert) {
+		for _, a := range list {
+			out = append(out, a.Equals)
+			asserts(a.Some)
+		}
+	}
+	asserts(c.Assert)
+	asserts(c.Require)
+	return out
+}
+
+func (a Assert) validate() error {
+	if a.Type != "" && !slices.Contains(jsonTypes, a.Type) {
+		return fmt.Errorf("assert type %q is not one of %s", a.Type, strings.Join(jsonTypes, ", "))
+	}
+	for _, nested := range a.Some {
+		if err := nested.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (cs calls) validate(role string) error {
+	known := slices.Clone(callNames)
 	for i, c := range cs {
+		where := fmt.Sprintf("%s call %d", role, i+1)
 		if c.Path == "" {
-			return fmt.Errorf("%s call %d has no path", role, i+1)
+			return fmt.Errorf("%s has no path", where)
+		}
+		if !slices.Contains(httpMethods, c.Method) {
+			return fmt.Errorf("%s has unknown method %q", where, c.Method)
+		}
+		for _, text := range c.strings() {
+			if bad := unknownPlaceholder(text, known); bad != "" {
+				return fmt.Errorf("%s uses unknown placeholder {%s}", where, bad)
+			}
+		}
+		for _, list := range [][]Assert{c.Assert, c.Require} {
+			for _, a := range list {
+				if err := a.validate(); err != nil {
+					return fmt.Errorf("%s: %w", where, err)
+				}
+			}
+		}
+		for name := range c.Capture {
+			if slices.Contains(callNames, name) {
+				return fmt.Errorf("%s captures %q, which is already a placeholder", where, name)
+			}
+			known = append(known, name)
 		}
 	}
 	return nil
@@ -212,6 +303,11 @@ func (a Assert) holds(body any, vars scope) bool {
 	}
 	if a.Type != "" && jsonType(value) != a.Type {
 		return false
+	}
+	if a.Positive {
+		if n, isNumber := value.(float64); !isNumber || n <= 0 {
+			return false
+		}
 	}
 	if a.Equals != "" && fmt.Sprint(value) != vars.expand(a.Equals) {
 		return false

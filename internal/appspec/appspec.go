@@ -1,6 +1,8 @@
 // Package appspec builds an App from a declarative YAML spec: its metadata, a
 // Compose template and a setupspec Setup. An App that needs nothing the spec
 // language lacks is one YAML file and an icon, with no Go and no registration.
+// Links are deliberately not expressible: no spec needs one yet, so an App
+// with Links stays Go until a real case shapes the field.
 package appspec
 
 import (

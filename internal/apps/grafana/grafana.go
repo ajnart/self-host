@@ -52,7 +52,7 @@ func (App) Compose(rc app.RenderContext) string {
 var setup = setupspec.Spec{
 	Kind:  setupspec.KindFirstAdmin,
 	Name:  "Grafana",
-	Probe: setupspec.Probe{Path: "/api/health", Timeout: "3m"},
+	Probe: setupspec.Probe{Live: true, Path: "/api/health", Timeout: "3m"},
 	Login: []setupspec.Call{{
 		Path:  "/api/user",
 		Basic: true,

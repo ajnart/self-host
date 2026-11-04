@@ -57,7 +57,7 @@ var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
 	Name:       "Open WebUI",
 	CheckError: "the administrator {email} cannot sign in to Open WebUI",
-	Probe:      setupspec.Probe{Path: "/health", Timeout: "3m"},
+	Probe:      setupspec.Probe{Live: true, Path: "/health", Timeout: "3m"},
 	Email:      "{user}@selfhost.local",
 	Login: []setupspec.Call{{
 		Path:    "/api/v1/auths/signin",

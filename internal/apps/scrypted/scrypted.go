@@ -49,10 +49,11 @@ var setup = setupspec.Spec{
 	CheckError: "the Admin login cannot sign in to scrypted",
 	Probe:      setupspec.Probe{Path: "/", Want: []int{200, 302}},
 	Exists: []setupspec.Call{{
-		Path:   "/login",
-		JSON:   map[string]any{"username": "", "password": ""},
-		Denied: []int{401, 403},
-		Assert: []setupspec.Assert{{Path: "hasLogin", Equals: "true"}},
+		Path:    "/login",
+		JSON:    map[string]any{"username": "", "password": ""},
+		Denied:  []int{401, 403},
+		Lenient: true,
+		Assert:  []setupspec.Assert{{Path: "hasLogin", Equals: "true"}},
 	}},
 	Create: []setupspec.Call{{
 		Path:   "/login",

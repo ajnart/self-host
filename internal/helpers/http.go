@@ -35,6 +35,9 @@ type Response struct {
 	Body   []byte
 }
 
+// Snippet is the start of the body, for error messages.
+func (r Response) Snippet() string { return snippet(r.Body) }
+
 func (r Response) Decode(v any) error {
 	if err := json.Unmarshal(r.Body, v); err != nil {
 		return fmt.Errorf("decode response (HTTP %d): %w", r.Status, err)

@@ -43,7 +43,6 @@ func (App) Compose(rc app.RenderContext) string {
 
 var setup = setupspec.Spec{
 	Kind:       setupspec.KindFirstAdmin,
-	Name:       "Nginx Proxy Manager",
 	CheckError: "the Admin login cannot sign in to Nginx Proxy Manager",
 	Probe:      setupspec.Probe{Path: "/api/", Web: true},
 	Email:      "{user}@selfhost.local",

@@ -1,28 +1,24 @@
 package setupspec
 
 import (
-	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ajnart/self-host/internal/firstadmin"
-	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type noAccountKind struct{}
-
-func (noAccountKind) validate(s Spec) error {
+func (s Spec) validateNoAccount() error {
 	if _, err := s.Probe.duration(); err != nil {
 		return fmt.Errorf("probe timeout: %w", err)
 	}
+	if s.Probe.Web {
+		return errors.New("probe.web belongs to the first-admin kind")
+	}
+	if s.Name != "" || s.Email != "" || s.EmailInput != "" || len(s.Exists)+len(s.Create)+len(s.Login) > 0 ||
+		s.CreateWait != "" || s.CreateError != "" || s.CheckError != "" || s.StepID != "" || s.Title != "" || s.Hint != "" || s.Manual != "" {
+		return errors.New("the no-account kind reads only probe")
+	}
 	return nil
-}
-
-func (noAccountKind) setup(s Spec) func(context.Context, *helpers.H) error {
-	return s.noAccount().Setup
-}
-
-func (noAccountKind) check(s Spec) func(context.Context, *helpers.H) error {
-	return s.noAccount().Check
 }
 
 func (s Spec) noAccount() firstadmin.NoAccount {
@@ -31,5 +27,5 @@ func (s Spec) noAccount() firstadmin.NoAccount {
 
 func (s Spec) probe() firstadmin.Probe {
 	timeout, _ := s.Probe.duration()
-	return firstadmin.Probe{Path: s.Probe.Path, Contains: s.Probe.Contains, Want: s.Probe.Want, Timeout: timeout}
+	return firstadmin.Probe{Path: s.Probe.Path, Contains: s.Probe.Contains, Want: s.Probe.Want, Timeout: timeout, Live: s.Probe.Live}
 }

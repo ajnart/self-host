@@ -13,18 +13,6 @@ import (
 
 var loginDenied = []int{401, 403}
 
-type firstAdminKind struct{}
-
-func (firstAdminKind) validate(s Spec) error { return s.validateFirstAdmin() }
-
-func (firstAdminKind) setup(s Spec) func(context.Context, *helpers.H) error {
-	return func(ctx context.Context, h *helpers.H) error { return s.setupFirstAdmin(ctx, h) }
-}
-
-func (firstAdminKind) check(s Spec) func(context.Context, *helpers.H) error {
-	return func(ctx context.Context, h *helpers.H) error { return s.checkFirstAdmin(ctx, h) }
-}
-
 // AdminEmail is the sign-in address the Email template makes for user.
 func (s Spec) AdminEmail(user string) string {
 	if user == "" && strings.Contains(s.Email, "{user}") {
@@ -47,6 +35,11 @@ func (s Spec) validateFirstAdmin() error {
 	for _, role := range roles {
 		if err := calls(role.calls).validate(role.name); err != nil {
 			return err
+		}
+	}
+	for name, text := range map[string]string{"title": s.Title, "hint": s.Hint, "manual": s.Manual, "check_error": s.CheckError} {
+		if bad := unknownPlaceholder(text, textNames); bad != "" {
+			return fmt.Errorf("%s uses unknown placeholder {%s}", name, bad)
 		}
 	}
 	creators := 0
@@ -77,8 +70,8 @@ func (s Spec) scope(h *helpers.H) scope {
 	return vars
 }
 
-// EmailFor is AdminEmail for the Admin login, honouring EmailInput.
-func (s Spec) EmailFor(h *helpers.H) string {
+// emailFor is AdminEmail for the Admin login, honouring EmailInput.
+func (s Spec) emailFor(h *helpers.H) string {
 	if email := h.Inputs[s.EmailInput]; s.EmailInput != "" && email != "" {
 		return email
 	}
@@ -86,7 +79,7 @@ func (s Spec) EmailFor(h *helpers.H) string {
 }
 
 func (s Spec) textScope(h *helpers.H) scope {
-	return scope{"user": h.AdminUser(), "email": s.EmailFor(h), "url": h.URL, "app": h.App}
+	return scope{"user": h.AdminUser(), "email": s.emailFor(h), "url": h.URL, "app": h.App}
 }
 
 func (s Spec) login(ctx context.Context, h *helpers.H) (bool, error) {
@@ -156,9 +149,15 @@ func (s Spec) checkFirstAdmin(ctx context.Context, h *helpers.H) error {
 	if len(s.Login) == 0 {
 		return fmt.Errorf("%w: this App has no headless way to verify its administrator login", helpers.ErrManual)
 	}
+	if len(s.Exists) > 0 {
+		exists, err := calls(s.Exists).run(ctx, h, s.scope(h), nil)
+		if err == nil && !exists {
+			return fmt.Errorf("%w: %s has no administrator yet; run: self-host setup %s", helpers.ErrManual, h.App, h.App)
+		}
+	}
 	ok, err := s.login(ctx, h)
 	if err != nil {
-		return err
+		return fmt.Errorf("admin login failed: %w", err)
 	}
 	if !ok {
 		return errors.New(s.failure(h))

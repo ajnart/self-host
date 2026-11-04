@@ -20,6 +20,8 @@ type Probe struct {
 	Contains string `yaml:"contains,omitempty"`
 	// Want lists the accepted statuses; empty accepts any 2xx.
 	Want []int `yaml:"want,omitempty"`
+	// Live accepts any status below 500 when Want is empty: the App answers.
+	Live bool `yaml:"live,omitempty"`
 	// Timeout is a duration such as 5m; empty waits two minutes.
 	Timeout string `yaml:"timeout,omitempty"`
 	// Web words the ready step "wait for the web server" and accepts any
@@ -62,50 +64,36 @@ type Spec struct {
 	Manual string `yaml:"manual,omitempty"`
 }
 
-// kind is one engine: everything a kind reads and does in one place.
-type kind interface {
-	validate(s Spec) error
-	setup(s Spec) func(context.Context, *helpers.H) error
-	check(s Spec) func(context.Context, *helpers.H) error
-}
-
-var kinds = map[string]kind{
-	KindNoAccount:  noAccountKind{},
-	KindFirstAdmin: firstAdminKind{},
-}
-
-func (s Spec) engine() (kind, error) {
-	k, ok := kinds[s.Kind]
-	if !ok {
-		return nil, fmt.Errorf("unknown setup kind %q", s.Kind)
-	}
-	return k, nil
-}
-
 func (s Spec) Validate() error {
-	k, err := s.engine()
-	if err != nil {
-		return err
+	switch s.Kind {
+	case KindNoAccount:
+		return s.validateNoAccount()
+	case KindFirstAdmin:
+		return s.validateFirstAdmin()
 	}
-	return k.validate(s)
+	return fmt.Errorf("unknown setup kind %q", s.Kind)
 }
 
-// Setup validates first so a Go App's spec is rejected on the same terms as
-// an embedded spec file.
+// Setup and Check validate first so a Go App's spec is rejected on the same
+// terms as an embedded spec file.
 func (s Spec) Setup(ctx context.Context, h *helpers.H) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-	k, _ := s.engine()
-	return k.setup(s)(ctx, h)
+	if s.Kind == KindNoAccount {
+		return s.noAccount().Setup(ctx, h)
+	}
+	return s.setupFirstAdmin(ctx, h)
 }
 
 func (s Spec) Check(ctx context.Context, h *helpers.H) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-	k, _ := s.engine()
-	return k.check(s)(ctx, h)
+	if s.Kind == KindNoAccount {
+		return s.noAccount().Check(ctx, h)
+	}
+	return s.checkFirstAdmin(ctx, h)
 }
 
 func (p Probe) duration() (time.Duration, error) {
