@@ -4,9 +4,10 @@ Real App fixtures for integration tests, using self-host's existing headless
 Setup. ESM only, Node.js 22+, no runtime npm dependencies or test-runner plugin.
 
 This guide describes **1.3.1**, which keeps the **1.3.0** testkit APIs compatible.
-`withApp`, ordered Pairs, recovery paths, the Sonarr witness and the JavaScript
+`withApp`, ordered Pairs, `recoveryPath` getters, the Sonarr witness and the JavaScript
 Action's automatic post cleanup are not in 1.2.1. For 1.2.1, see its
 [immutable guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
+Version 1.2.1 already supports manifest-based cleanup recovery.
 
 ## Requirements and setup
 

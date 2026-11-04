@@ -120,7 +120,7 @@ func sonarrWitnessRequest(ctx context.Context, h *helpers.H, key string, req hel
 	if ctx.Err() != nil {
 		return helpers.Response{}, ctx.Err()
 	}
-	if err != nil || response.Status != 200 && !(req.Method == "POST" && response.Status == 201) {
+	if err != nil || (response.Status != 200 && (req.Method != "POST" || response.Status != 201)) {
 		return helpers.Response{}, sonarrWitnessFailure(StartupReasonSetup)
 	}
 	return response, nil
