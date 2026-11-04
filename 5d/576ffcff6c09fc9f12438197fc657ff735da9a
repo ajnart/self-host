@@ -1,0 +1,39 @@
+internal/app/app.go
+  s_0f0c9bce1f5af5::t_76c5251fb8af86 11-14,16-17,19-20,24,26,28,30-31,35-36,38,51-56,58,62,64,111,113,116,160-161,163,165
+internal/appspec/appspec.go
+  s_694505bc44e853::t_7a5e25bebd3b24 1-239
+internal/appspec/appspec_test.go
+  s_56f298195c530e::t_4dab127f680de2 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d576ffcff6c09fc9f12438197fc657ff735da9a",
+  "prompts": {},
+  "sessions": {
+    "s_0f0c9bce1f5af5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "712ffc94-905e-4050-8762-641d8d842aeb",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_56f298195c530e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2990966a-f6b7-494c-a3ca-300ff1e53d3f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_694505bc44e853": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b0ca5ad-cb46-4e35-bce5-06d986d8e12c",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
