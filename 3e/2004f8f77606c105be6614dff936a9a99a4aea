@@ -1,0 +1,31 @@
+internal/apps/homarr/homarr.go
+  s_24105cba895f85::t_8f1def647d45e7 324
+internal/apps/homarr/homarr_test.go
+  s_680a2f0210d8a4::t_5567c1099fd6b3 694,704-705,708-709
+internal/service/mutation.go
+  s_680a2f0210d8a4::t_ddef2e924dc6b3 643-647,661-673,688-689,691-692,744-754,759-769
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e2004f8f77606c105be6614dff936a9a99a4aea",
+  "prompts": {},
+  "sessions": {
+    "s_24105cba895f85": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6617425-f596-4d80-b777-180017af8d5f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    },
+    "s_680a2f0210d8a4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86eb58e8-788d-47f3-b351-cf745b75d4c1",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
