@@ -1,5 +1,7 @@
 package testkit
 
+import "errors"
+
 type StartupReason string
 
 const (
@@ -33,6 +35,9 @@ func StartupReasons() map[StartupReason]string {
 		StartupReasonSetup:        "App Setup failed or requires a Manual step.",
 	}
 }
+
+// ErrCleanupIncomplete marks a failure whose owned resources may remain.
+var ErrCleanupIncomplete = errors.New("cleanup incomplete")
 
 type StartupError struct {
 	reason  StartupReason

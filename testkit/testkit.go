@@ -176,7 +176,7 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 			defer stop()
 			cleanupErr := a.Close(cleanupCtx)
 			if cleanupErr != nil {
-				err = fmt.Errorf("testkit start failed; cleanup incomplete; recovery: %s", root)
+				err = fmt.Errorf("testkit start failed; %w; recovery: %s", ErrCleanupIncomplete, root)
 			} else {
 				err = errors.New("testkit start failed; owned resources and storage cleaned")
 			}

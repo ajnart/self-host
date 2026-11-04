@@ -262,6 +262,22 @@ func writeResponse(output io.Writer, res response) error {
 	return err
 }
 
+func startFailure(ctx context.Context, err error) *protocolError {
+	result := failure("START")
+	result.Reason = string(testkit.StartupReasonSetup)
+	var safe *testkit.StartupError
+	if errors.As(err, &safe) {
+		result.Reason = safe.Reason()
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		result = failure("TIMEOUT")
+	} else if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		result = failure("CANCELED")
+	}
+	result.CleanupFailed = errors.Is(err, testkit.ErrCleanupIncomplete)
+	return result
+}
+
 func failure(code string) *protocolError {
 	messages := map[string]string{
 		"PROTOCOL":    "Invalid testkit protocol.",
@@ -312,15 +328,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		b.app, err = b.start(appCtx, testkit.Options{App: p.App, Timeout: timeout, RootParent: parent, Image: p.Image})
 		if err != nil {
 			cancel()
-			res.Error = failure("START")
-			res.Error.Reason = string(testkit.StartupReasonSetup)
-			var safe *testkit.StartupError
-			if errors.As(err, &safe) {
-				res.Error.Reason = safe.Reason()
-			}
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				res.Error = failure("TIMEOUT")
-			}
+			res.Error = startFailure(ctx, err)
 			return res
 		}
 		b.appCancel = cancel
@@ -351,15 +359,7 @@ func (b *bridge) handle(ctx context.Context, req request) response {
 		b.pair, err = b.startPair(lifetime, testkit.PairOptions{Consumer: p.Consumer, Target: p.Target, Order: testkit.PairOrder(p.Order), Images: p.Images, Timeout: timeout, RootParent: parent, SonarrFilterWitness: p.SonarrFilterWitness})
 		if err != nil {
 			cancel()
-			res.Error = failure("START")
-			res.Error.Reason = string(testkit.StartupReasonSetup)
-			var safe *testkit.StartupError
-			if errors.As(err, &safe) {
-				res.Error.Reason = safe.Reason()
-			}
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				res.Error = failure("TIMEOUT")
-			}
+			res.Error = startFailure(ctx, err)
 			return res
 		}
 		b.appCancel = cancel

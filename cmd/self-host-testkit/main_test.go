@@ -483,3 +483,25 @@ func TestCredentialOrdinaryErrorsKeepLegacyDispatch(t *testing.T) {
 		}
 	}
 }
+
+func TestStartFailureMapsCancellationAndIncompleteCleanup(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	incomplete := fmt.Errorf("testkit start failed; %w; recovery: /private", testkit.ErrCleanupIncomplete)
+	for _, c := range []struct {
+		ctx     context.Context
+		err     error
+		code    string
+		cleanup bool
+	}{
+		{context.Background(), errors.New("setup"), "START", false},
+		{context.Background(), errors.Join(context.Canceled, incomplete), "CANCELED", true},
+		{canceled, incomplete, "CANCELED", true},
+		{context.Background(), errors.Join(context.DeadlineExceeded, incomplete), "TIMEOUT", true},
+	} {
+		got := startFailure(c.ctx, c.err)
+		if got.Code != c.code || got.CleanupFailed != c.cleanup {
+			t.Errorf("%v: got %s cleanup=%v, want %s cleanup=%v", c.err, got.Code, got.CleanupFailed, c.code, c.cleanup)
+		}
+	}
+}
