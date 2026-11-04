@@ -4,14 +4,11 @@ package grafana
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Grafana. Traps: docs/catalog/traps/grafana.md.
@@ -54,55 +51,28 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-type adminUser struct {
-	Login          string `json:"login"`
-	IsGrafanaAdmin bool   `json:"isGrafanaAdmin"`
-	IsDisabled     bool   `json:"isDisabled"`
+var setup = setupspec.Spec{
+	Kind:  setupspec.KindFirstAdmin,
+	Name:  "Grafana",
+	Probe: setupspec.Probe{Path: "/api/health", Timeout: "3m"},
+	Login: []setupspec.Call{{
+		Path:  "/api/user",
+		Basic: true,
+		Assert: []setupspec.Assert{
+			{Path: "login", Equals: "{user}"},
+			{Path: "isGrafanaAdmin", Equals: "true"},
+			{Path: "isDisabled", Equals: "false"},
+		},
+	}},
+	StepID:      "admin-login",
+	Title:       "verify the administrator {user}",
+	CreateError: "Grafana reads GF_SECURITY_ADMIN_USER and GF_SECURITY_ADMIN_PASSWORD only on first start",
+	Hint: "Grafana applies the Admin login on first start. Recreate the container so it reads .env: " +
+		"self-host start grafana, then sign in at {url} with the password from `self-host credentials`.",
 }
 
-func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/user", User: h.AdminUser(), Password: h.AdminPassword()})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == http.StatusUnauthorized {
-		return false, nil
-	}
-	if resp.Status != http.StatusOK {
-		return false, fmt.Errorf("GET /api/user returned HTTP %d", resp.Status)
-	}
-	var user adminUser
-	if err := resp.Decode(&user); err != nil {
-		return false, err
-	}
-	return user.Login == h.AdminUser() && user.IsGrafanaAdmin && !user.IsDisabled, nil
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/api/health"); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		StepID: "admin-login",
-		Title:  func(_ *helpers.H, user string) string { return "verify the administrator " + user },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminWorks(ctx, h)
-		},
-		Create: func(context.Context, *helpers.H, string, string) error {
-			return errors.New("Grafana reads GF_SECURITY_ADMIN_USER and GF_SECURITY_ADMIN_PASSWORD only on first start")
-		},
-		Hint: func(h *helpers.H, _ string) string {
-			return "Grafana applies the Admin login on first start. Recreate the container so it reads .env: " +
-				"self-host start grafana, then sign in at " + h.URL + " with the password from `self-host credentials`."
-		},
-	}.Admin(ctx, h)
-}
-
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	if ok, err := adminWorks(ctx, h); !ok {
-		return fmt.Errorf("the Admin login %s cannot sign in to Grafana: %v", h.AdminUser(), err)
-	}
-	return nil
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }

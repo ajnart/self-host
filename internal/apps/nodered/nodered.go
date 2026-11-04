@@ -5,14 +5,11 @@ package nodered
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Node-RED. Traps: docs/catalog/traps/node-red.md.
@@ -71,86 +68,46 @@ func (App) Files(_ app.RenderContext, secret func(name string) string) []app.Fil
 	}
 }
 
-// adminWorks proves editor authentication is enabled, anonymous flow access is
-// denied, and the saved password mints an expiring bearer token that can read
-// the flows.
-func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
-	scheme, err := h.HTTP(ctx, helpers.Request{Path: "/auth/login"})
-	if err != nil {
-		return false, err
-	}
-	if scheme.Status != http.StatusOK {
-		return false, nil
-	}
-	var login struct {
-		Type string `json:"type"`
-	}
-	if err := scheme.Decode(&login); err != nil {
-		return false, err
-	}
-	if login.Type != "credentials" {
-		return false, nil
-	}
-	anonymous, err := h.HTTP(ctx, helpers.Request{Path: "/flows"})
-	if err != nil {
-		return false, err
-	}
-	if anonymous.Status != http.StatusUnauthorized && anonymous.Status != http.StatusForbidden {
-		return false, nil
-	}
-	issued, err := h.HTTP(ctx, helpers.Request{Method: http.MethodPost, Path: "/auth/token", JSON: map[string]string{
-		"client_id": "node-red-admin", "grant_type": "password", "scope": "*",
-		"username": h.AdminUser(), "password": h.AdminPassword(),
-	}})
-	if err != nil {
-		return false, err
-	}
-	if issued.Status != http.StatusOK {
-		return false, nil
-	}
-	var token struct {
-		AccessToken string  `json:"access_token"`
-		TokenType   string  `json:"token_type"`
-		ExpiresIn   float64 `json:"expires_in"`
-	}
-	if err := issued.Decode(&token); err != nil {
-		return false, err
-	}
-	if token.AccessToken == "" || token.TokenType != "Bearer" || token.ExpiresIn <= 0 {
-		return false, nil
-	}
-	flows, err := h.HTTP(ctx, helpers.Request{Path: "/flows", Header: map[string]string{"Authorization": "Bearer " + token.AccessToken}})
-	if err != nil {
-		return false, err
-	}
-	return flows.Status == http.StatusOK, nil
+var setup = setupspec.Spec{
+	Kind:  setupspec.KindFirstAdmin,
+	Name:  "Node-RED",
+	Probe: setupspec.Probe{Path: "/auth/login", Timeout: "3m"},
+	Login: []setupspec.Call{
+		{
+			Path:    "/auth/login",
+			Lenient: true,
+			Assert:  []setupspec.Assert{{Path: "type", Equals: "credentials"}},
+		},
+		{Path: "/flows", Ok: []int{401, 403}, Lenient: true},
+		{
+			Path: "/auth/token",
+			JSON: map[string]any{
+				"client_id": "node-red-admin", "grant_type": "password", "scope": "*",
+				"username": "{user}", "password": "{password}",
+			},
+			Lenient: true,
+			Capture: map[string]string{"token": "access_token"},
+			Assert: []setupspec.Assert{
+				{Path: "token_type", Equals: "Bearer"},
+				{Path: "expires_in", Present: true},
+			},
+		},
+		{
+			Path:    "/flows",
+			Header:  map[string]string{"Authorization": "Bearer {token}"},
+			Ok:      []int{200},
+			Lenient: true,
+		},
+	},
+	StepID:      "admin-login",
+	Title:       "verify the administrator {user}",
+	CreateError: "Node-RED reads /data/settings.js at start; the file is generated before the container starts",
+	Hint: "Regenerate /data/settings.js and recreate the container: self-host install node-red, then self-host start node-red. " +
+		"Sign in at {url} as {user} with the password from `self-host credentials`.",
 }
 
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/auth/login"); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		StepID: "admin-login",
-		Title:  func(_ *helpers.H, user string) string { return "verify the administrator " + user },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminWorks(ctx, h)
-		},
-		Create: func(context.Context, *helpers.H, string, string) error {
-			return errors.New("Node-RED reads /data/settings.js at start; the file is generated before the container starts")
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Regenerate /data/settings.js and recreate the container: self-host install node-red, then self-host start node-red. " +
-				"Sign in at " + h.URL + " as " + user + " with the password from `self-host credentials`."
-		},
-	}.Admin(ctx, h)
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	if ok, err := adminWorks(ctx, h); !ok {
-		return fmt.Errorf("the administrator %s cannot sign in to Node-RED: %v", h.AdminUser(), err)
-	}
-	return nil
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) Links() []app.Link { return nil }
