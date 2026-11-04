@@ -1,0 +1,33 @@
+cmd/self-host-testkit/main.go
+  s_820b67bd2be060::t_6ec12c1e6d42ea 29-36,83-91,343,356
+cmd/self-host-testkit/main_test.go
+  s_820b67bd2be060::t_4484dfb34ceb92 219-221,253
+testkit/node/README.md
+  s_820b67bd2be060::t_48e9c6faedd041 6-7
+testkit/node/index.mjs
+  s_820b67bd2be060::t_b67a831f298d91 504,696
+testkit/node/tests/fake-helper.mjs
+  s_820b67bd2be060::t_03d4b5239e4cfc 23,26,35,55,162,199,209-210,251,253,255,257,267,274-275,279-280,295,301,303,318,323,326,332-335,360-361,370-371
+testkit/node/tests/transport.test.ts
+  s_820b67bd2be060::t_65472995c03316 25,36,70-72
+testkit/pair.go
+  s_820b67bd2be060::t_f6f57733bbdbd1 35-40,79-85
+testkit/pair_test.go
+  s_820b67bd2be060::t_4c02cd3846fbb2 384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b97f7fb6f5256b67274726fa97f89c5603b94038",
+  "prompts": {},
+  "sessions": {
+    "s_820b67bd2be060": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30126712-835c-48c7-be31-ba3c35c5da46",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
