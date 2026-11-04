@@ -1,0 +1,61 @@
+video/reel/assets/icons/anchor.svg
+  s_0812986ae533ff::t_f3dc4ead2c6b7b 1-3
+video/reel/assets/icons/autobrr.svg
+  s_0812986ae533ff::t_bfc5d7f64a212c 1
+video/reel/assets/icons/bindery.svg
+  s_0812986ae533ff::t_6edf7df87de8d8 1-18
+video/reel/assets/icons/changedetection.svg
+  s_0812986ae533ff::t_662fcb9030fe0d 1
+video/reel/assets/icons/fileflows.svg
+  s_0812986ae533ff::t_28b719d1a0d707 1
+video/reel/assets/icons/healthchecks.svg
+  s_0812986ae533ff::t_a89538067bc63a 1
+video/reel/assets/icons/homebox.svg
+  s_0812986ae533ff::t_ab4dc9b24e270d 1-11
+video/reel/assets/icons/jackett.svg
+  s_0812986ae533ff::t_2266cdd1e7eb7b 1
+video/reel/assets/icons/jellystat.svg
+  s_0812986ae533ff::t_db22fb190d432d 1-6
+video/reel/assets/icons/karakeep.svg
+  s_0812986ae533ff::t_034c44641bea07 1
+video/reel/assets/icons/komga.svg
+  s_0812986ae533ff::t_6b25908d4df6a5 1
+video/reel/assets/icons/maintainerr.svg
+  s_0812986ae533ff::t_e73ff670cdb494 1-16
+video/reel/assets/icons/mealie.svg
+  s_0812986ae533ff::t_51f42cab2a2f70 1
+video/reel/assets/icons/miniflux.svg
+  s_0812986ae533ff::t_f9e938a9c73099 1
+video/reel/assets/icons/romm.svg
+  s_0812986ae533ff::t_1d2cecb512cc91 1
+video/reel/assets/icons/spoolman.svg
+  s_0812986ae533ff::t_65bee3a479e39c 1
+video/reel/assets/icons/sportarr.svg
+  s_0812986ae533ff::t_0f2427d7cefb7a 1-19
+video/reel/assets/icons/stash.svg
+  s_0812986ae533ff::t_af03c3239724a8 1
+video/reel/assets/icons/tandoor.svg
+  s_0812986ae533ff::t_e7809dfb217502 1
+video/reel/assets/icons/thingport.svg
+  s_0812986ae533ff::t_78379fc6eed8ed 1-8
+video/reel/assets/icons/trilium.svg
+  s_0812986ae533ff::t_c04f2e07dffea8 1
+video/reel/assets/icons/your-spotify.svg
+  s_0812986ae533ff::t_c4a10c3dac362b 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed755a77ad1bdc334b99e3d477392680dfde6c12",
+  "prompts": {},
+  "sessions": {
+    "s_0812986ae533ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bbe04e5-d84f-4a2c-bed0-ca8e8c80d517",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
