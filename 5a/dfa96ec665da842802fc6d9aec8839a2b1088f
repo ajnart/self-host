@@ -1,0 +1,21 @@
+internal/catalog/apps_gen.go
+  s_05ef861992d1bd::t_2a2217bb33fe47 26,36,65,84,146,156,185,204
+tools/registrygen/main.go
+  s_05ef861992d1bd::t_ca06dc39b0515c 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5adfa96ec665da842802fc6d9aec8839a2b1088f",
+  "prompts": {},
+  "sessions": {
+    "s_05ef861992d1bd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a6e7-d402-7d23-bf4e-544804888af2",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
