@@ -1,0 +1,25 @@
+internal/apps/authelia/authelia.go
+  s_24105cba895f85::t_51972fd9c65f49 141-143,165-169,174
+internal/apps/jellyfin/jellyfin.go
+  s_24105cba895f85::t_9638fd8353b977 137-142,146-163,380-384,393-398,400-404,406
+internal/apps/pangolin/pangolin.go
+  s_24105cba895f85::t_0434944c5c566c 213-215
+internal/apps/stalwartmail/stalwartmail.go
+  s_24105cba895f85::t_09467fc74849fd 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56bd166f83bbce3b8d064e81e3cce02db423e40e",
+  "prompts": {},
+  "sessions": {
+    "s_24105cba895f85": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6617425-f596-4d80-b777-180017af8d5f",
+        "model": "unknown"
+      },
+      "human_author": "Thomas Camlong <thomas@ajnart.fr>"
+    }
+  }
+}
