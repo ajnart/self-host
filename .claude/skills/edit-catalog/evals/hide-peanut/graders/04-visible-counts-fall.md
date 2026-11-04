@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-README.md says 92 Apps in the badge, the Catalog paragraph and the table row
+site/src/data/catalog.json shows counts.apps one lower after regeneration, and README.md was not edited

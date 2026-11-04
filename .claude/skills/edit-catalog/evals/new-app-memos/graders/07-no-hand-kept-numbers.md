@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-e2e/acceptance.md says 95 Apps
+README.md and e2e/acceptance.md were not edited, and no App count literal was added to any file

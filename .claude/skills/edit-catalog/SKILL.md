@@ -1,11 +1,11 @@
 ---
 name: edit-catalog
-description: Catalog edits in Go. Use for any task that adds an App, changes an App's image, port, Compose, env, notes or StandaloneGuide (even a one-line image bump), changes a Recipe, or hides or unhides an App. Each of these changes generated site and DCM data and hand-kept App counts. DCM-only Containers go to add-container; Homarr wiring goes to docs/agents/homarr-integrations.md.
+description: Catalog edits in Go. Use for any task that adds an App, changes an App's image, port, Compose, env, notes or StandaloneGuide (even a one-line image bump), changes a Recipe, or hides or unhides an App. Each of these changes generated site and DCM data and the generated e2e inventory. DCM-only Containers go to add-container; Homarr wiring goes to docs/agents/homarr-integrations.md.
 ---
 
 # Edit the Catalog
 
-Read `CONTEXT.md` for App, Recipe and Catalog, and `docs/agents/generated-data.md` for what is derived from what and which counts are hand-kept. For a new App, copy the shape of the last one: `git show --stat ca78641b` (Cleanuparr).
+Read `CONTEXT.md` for App, Recipe and Catalog, and `docs/agents/generated-data.md` for what is derived from what. For a new App, copy the shape of the last one: `git show --stat ca78641b` (Cleanuparr).
 
 Pick the branch, then run its steps in order:
 
@@ -54,11 +54,18 @@ Add `StandaloneGuide` to the App only when its standalone Compose needs a senten
 
 **Done:** a second run changes nothing, and `git status` shows only your files plus `site/src/data/catalog.json` and `dcm/src/data/selfhost.json`.
 
-## 7. Fix the counts
+## 7. Refresh the goldens and inventory
 
-Follow the "App counts" table in `docs/agents/generated-data.md`: README, `e2e/acceptance.md`, the fixture and `inventory.json`, and the TUI goldens (`go test ./internal/tui -update`, then read the diff). The counts differ on purpose, so move each by the amount that table gives.
+App and Recipe counts are computed, so no README or `e2e/acceptance.md` number moves. Regenerate the two files that record the Catalog:
 
-**Done:** the `jq` and `grep` commands in that page show the new numbers, and `go test ./e2e/ ./internal/tui` passes.
+```bash
+go test ./internal/tui -update
+go test ./e2e -run TestAcceptanceInventory -update
+```
+
+Read both diffs: in the goldens only the `N more` line moves, and `e2e/testdata/inventory.json` gains or loses the App.
+
+**Done:** `go test ./e2e/ ./internal/tui` passes and `git status` shows no `README.md` change.
 
 ## 8. Gate
 

@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-e2e/acceptance_fixture_test.go expects 103 targets, e2e/testdata/inventory.json lists memos, and go test ./e2e/ -run TestAcceptanceInventory passes
+e2e/testdata/inventory.json lists memos after go test ./e2e -run TestAcceptanceInventory -update, and that test passes without -update

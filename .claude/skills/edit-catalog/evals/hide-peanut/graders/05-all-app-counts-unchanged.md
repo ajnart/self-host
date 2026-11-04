@@ -4,4 +4,4 @@ focus: trace
 weight: 1
 ---
 
-e2e/acceptance.md still says 94, the fixture still expects 102 and e2e/testdata/inventory.json still lists peanut
+counts.allApps is unchanged, e2e/testdata/inventory.json still lists peanut, and neither e2e/acceptance.md nor e2e/acceptance_fixture_test.go was edited
