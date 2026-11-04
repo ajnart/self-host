@@ -397,6 +397,7 @@ func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *test
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			h, consumer := externalConnectionHarness(t, true)
+			(&tailnet{running: []string{"peer", "homarr"}}).install(h)
 			p, _ := h.svc.Project()
 			secrets, _ := p.LoadSecrets()
 			raw := scenario.raw
@@ -408,7 +409,10 @@ func TestExternalConnectionMalformedRecordDoesNotBlockOrdinaryOperations(t *test
 			}
 			later := New(h.deps, events.New(h.rec), h.svc.Catalog)
 			requests := 0
-			h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+			h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Hostname() == "127.0.0.1" && req.URL.Path == "/api/health/live" {
+					return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+				}
 				requests++
 				return nil, errors.New("unexpected request while external inventory is malformed")
 			})}

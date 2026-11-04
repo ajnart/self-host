@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -21,6 +22,9 @@ func TestOxynoteKeepsOnlyItsAuthenticatedHomeAddress(t *testing.T) {
 		t.Run(map[bool]string{false: "remote added later", true: "install with remote"}[installTogether], func(t *testing.T) {
 			dashboard := &inventoryProbeApp{testApp: &testApp{id: "homarr", done: map[string]bool{}}, inspect: true}
 			h := newHarness(t, oxynoteAccessApp{}, tsapp.App{}, dashboard)
+			h.deps.HTTP = &http.Client{Transport: tailscaleHTTP(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+			})}
 			net := &tailnet{running: []string{"oxynote", "homarr", "access-caddy"}, trackStartup: true}
 			net.install(h)
 			if installTogether {
