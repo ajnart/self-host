@@ -1,0 +1,24 @@
+# Traps: docs/catalog/traps/stirling-pdf.md
+id: stirling-pdf
+name: Stirling PDF
+category: Documents
+description: Edit, merge, convert and sign PDF files without uploading them anywhere
+image: ghcr.io/stirling-tools/stirling-pdf:latest
+docs: https://docs.stirlingpdf.com/
+port: 8080
+standalone_guide: 'Login is off (SECURITY_ENABLELOGIN is "false"), so anyone who can reach the page can use it; keep it on a trusted network.'
+compose: |
+  services:
+    stirling-pdf:
+      image: ghcr.io/stirling-tools/stirling-pdf:latest
+      restart: unless-stopped
+      environment:
+        SECURITY_ENABLELOGIN: "false"
+      volumes:
+        - ./configs:/configs
+      ports:
+        - ${BIND_IP}:{{.Port}}:{{.ContainerPort}}
+setup:
+  kind: no-account
+  probe:
+    path: /api/v1/info/status

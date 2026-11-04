@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"github.com/ajnart/self-host/internal/apps/bindery"
-	"github.com/ajnart/self-host/internal/apps/fileflows"
 	"github.com/ajnart/self-host/internal/apps/lidarr"
 	"github.com/ajnart/self-host/internal/apps/navidrome"
 	"github.com/ajnart/self-host/internal/apps/plantit"
@@ -19,7 +18,6 @@ import (
 func init() {
 	register(
 		bindery.App{},
-		fileflows.App{},
 		lidarr.App{},
 		navidrome.App{},
 		plantit.App{},
