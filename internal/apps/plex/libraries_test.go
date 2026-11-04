@@ -49,7 +49,7 @@ func TestReadServerLibrariesUsesVerifiedLocalTokenAndFiltersUnsupportedLibraries
 			}
 			continue
 		}
-		if err != nil || id != machineID || !reflect.DeepEqual(libraries, []plex.Library{{ID: "movie", Type: "movie"}}) {
+		if err != nil || id != machineID || !reflect.DeepEqual(libraries, map[string]string{"movie": "movie"}) {
 			t.Fatal(id, libraries, err)
 		}
 	}

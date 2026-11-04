@@ -8,12 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type Library struct {
-	ID   string
-	Type string
-}
-
-func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID string) (string, []Library, error) {
+func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID string) (string, map[string]string, error) {
 	if key == "" {
 		return "", nil, &helpers.ManualError{Hint: "Restore the existing Emby connection credential through its owner before retrying. No key was created or replaced."}
 	}
@@ -49,7 +44,7 @@ func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID stri
 	if resp.Status != http.StatusOK || resp.Decode(&data) != nil || data.Items == nil || data.TotalRecordCount == nil || *data.TotalRecordCount != len(data.Items) {
 		return "", nil, errors.New("Emby did not return complete authenticated library folders; review its identity, credential and library inventory before retrying")
 	}
-	libraries := []Library{}
+	libraries := map[string]string{}
 	seen := map[string]bool{}
 	for _, item := range data.Items {
 		if item.ID == "" || item.Type == "" || seen[item.ID] || item.ServerID != "" && item.ServerID != id {
@@ -63,9 +58,9 @@ func ReadServerLibraries(ctx context.Context, h *helpers.H, key, expectedID stri
 		case "music", "books", "musicvideos", "homevideos", "boxsets":
 			continue
 		case "movies":
-			libraries = append(libraries, Library{ID: item.ID, Type: "movie"})
+			libraries[item.ID] = "movie"
 		default:
-			libraries = append(libraries, Library{ID: item.ID, Type: "show"})
+			libraries[item.ID] = "show"
 		}
 	}
 	return id, libraries, nil

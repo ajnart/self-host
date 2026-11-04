@@ -184,20 +184,12 @@ func verifyMediaBackend(ctx context.Context, from, to *helpers.H, id string) err
 	if libraries == nil {
 		return errors.New("Seerr returned no explicit library selection; review its media-server settings")
 	}
-	available := map[string]string{}
-	serverID := ""
+	var serverID string
+	var available map[string]string
 	if id == "plex" {
-		var target []plex.Library
-		serverID, target, err = plex.ReadServerLibraries(ctx, to)
-		for _, library := range target {
-			available[library.ID] = library.Type
-		}
+		serverID, available, err = plex.ReadServerLibraries(ctx, to)
 	} else {
-		var target []emby.Library
-		serverID, target, err = emby.ReadServerLibraries(ctx, to, configured.APIKey, configured.ServerID)
-		for _, library := range target {
-			available[library.ID] = library.Type
-		}
+		serverID, available, err = emby.ReadServerLibraries(ctx, to, configured.APIKey, configured.ServerID)
 	}
 	if err != nil {
 		return backendTargetError(id, err)

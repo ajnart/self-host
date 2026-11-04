@@ -72,7 +72,7 @@ func TestReadServerLibrariesReusesExistingCredentialWithoutHomarrOrAuthenticatio
 				}
 				return
 			}
-			if err != nil || id != "emby-id" || !reflect.DeepEqual(libraries, []emby.Library{{ID: "movie", Type: "movie"}}) {
+			if err != nil || id != "emby-id" || !reflect.DeepEqual(libraries, map[string]string{"movie": "movie"}) {
 				t.Fatal(id, libraries, err)
 			}
 		})
