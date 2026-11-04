@@ -6,28 +6,16 @@ package seafile
 
 import (
 	"context"
-	"fmt"
-	"net/url"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
-// adminEmail is the first administrator's login, built from the shared Admin
-// user so it matches the recipe's email convention.
-func adminEmail(h *helpers.H) string { return (App{}).AdminEmail(h.AdminUser()) }
+type App struct{ app.Defaults }
 
-type App struct{}
-
-func (App) AdminEmail(username string) string {
-	if username == "" {
-		return ""
-	}
-	return username + "@selfhost.local"
-}
+func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -40,8 +28,6 @@ func (App) Info() app.Info {
 		Service:       "seafile",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{
@@ -106,81 +92,36 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-// adminWorks acquires an account token from the saved password and then reads
-// an administrator-only endpoint, so a token alone is not accepted as proof.
-func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
-	login, err := h.HTTP(ctx, helpers.Request{
-		Method: "POST", Path: "/api2/auth-token/",
-		Form: url.Values{"username": {adminEmail(h)}, "password": {h.AdminPassword()}},
-	})
-	if err != nil {
-		return false, err
-	}
-	if login.Status == 401 || login.Status == 403 {
-		return false, nil
-	}
-	if login.Status != 200 {
-		return false, fmt.Errorf("Seafile account-token login returned HTTP %d", login.Status)
-	}
-	var token struct {
-		Token string `json:"token"`
-	}
-	if err := login.Decode(&token); err != nil {
-		return false, err
-	}
-	if token.Token == "" {
-		return false, nil
-	}
-	admin, err := h.HTTP(ctx, helpers.Request{
-		Path:   "/api/v2.1/admin/users/?page=1&per_page=1",
-		Header: map[string]string{"Authorization": "Bearer " + token.Token},
-	})
-	if err != nil {
-		return false, err
-	}
-	if admin.Status == 401 || admin.Status == 403 {
-		return false, nil
-	}
-	if admin.Status != 200 {
-		return false, fmt.Errorf("Seafile admin API returned HTTP %d", admin.Status)
-	}
-	return true, nil
+// setup signs in with the saved password and then reads an administrator-only
+// endpoint, so a token alone is not accepted as proof.
+var setup = setupspec.Spec{
+	Kind:       setupspec.KindFirstAdmin,
+	Probe:      setupspec.Probe{Path: "/", Want: []int{200, 302}, Timeout: "10m"},
+	Email:      "{user}@selfhost.local",
+	StepID:     "admin-login",
+	Title:      "administrator {email} signs in",
+	Hint:       "Open {url} and sign in as {email} with the password shown by `self-host credentials`; read the logs with: self-host logs seafile",
+	CreateWait: "10m",
+	Name:       "Seafile",
+	CheckError: "the administrator {email} cannot sign in to Seafile",
+	Login: []setupspec.Call{
+		{
+			Path:    "/api2/auth-token/",
+			Form:    map[string]string{"username": "{email}", "password": "{password}"},
+			Ok:      []int{200},
+			Capture: map[string]string{"token": "token"},
+		},
+		{
+			Path:   "/api/v2.1/admin/users/?page=1&per_page=1",
+			Header: map[string]string{"Authorization": "Bearer {token}"},
+			Ok:     []int{200},
+		},
+	},
 }
 
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	ready := firstadmin.NoAccount{Probe: firstadmin.Probe{Path: "/", Want: []int{200, 302}, Timeout: 10 * time.Minute}}
-	if err := ready.Setup(ctx, h); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		StepID:   "admin-login",
-		Username: func(_ context.Context, h *helpers.H) (string, error) { return adminEmail(h), nil },
-		Title:    func(_ *helpers.H, user string) string { return "administrator " + user + " signs in" },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminWorks(ctx, h)
-		},
-		Create: func(ctx context.Context, h *helpers.H, _, _ string) error {
-			return h.Poll(ctx, 10*time.Minute, func(ctx context.Context) (bool, error) { return adminWorks(ctx, h) })
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + " and sign in as " + user +
-				" with the password shown by `self-host credentials`; read the logs with: self-host logs seafile"
-		},
-	}.Admin(ctx, h)
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	ok, err := adminWorks(ctx, h)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("the administrator %s cannot sign in to Seafile", adminEmail(h))
-	}
-	return nil
-}
-
-func (App) Links() []app.Link { return nil }
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) StandaloneGuide() string {
 	return "Sign in with the email made of the ADMIN_USER value and @selfhost.local, and the ADMIN_PASSWORD value."

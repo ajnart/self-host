@@ -16,7 +16,7 @@ import (
 const infoPath = "/api/v1/info"
 
 // App is PeaNUT. Traps: docs/catalog/traps/peanut.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,8 +29,6 @@ func (App) Info() app.Info {
 		Service:       "peanut",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -193,5 +191,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return noteUPS(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }

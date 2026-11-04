@@ -8,7 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -87,8 +87,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return checkNotes(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "The image includes PostgreSQL and keeps its database, uploads and signing secret in ./data. On a genuinely new instance, deliberately create the intended first administrator; otherwise preserve and use the existing account. Registration is enabled by default: review registration in the administrator settings before allowing untrusted access. Configure APP_URL for the actual browser Address when using a proxy."

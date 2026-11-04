@@ -15,7 +15,7 @@ import (
 )
 
 // App is Unmanic. Traps: docs/catalog/traps/unmanic.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,9 +29,6 @@ func (App) Info() app.Info {
 		WebSockets:    true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	return `services:

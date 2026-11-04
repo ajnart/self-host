@@ -12,7 +12,7 @@ import (
 )
 
 // App is Vector. Traps: docs/catalog/traps/vector.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -25,8 +25,6 @@ func (App) Info() app.Info {
 		Service:       "vector",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 const config = `api:
   enabled: true
@@ -71,8 +69,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Check(ctx context.Context, h *helpers.H) error { return probe.Check(ctx, h) }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "The starter configuration sends only Vector's own internal_logs to the console; it collects no other App or host logs and sends nothing to Loki. Review the configuration mounted at /etc/vector/vector.yaml before adding sources or destinations. A healthy API does not prove log delivery."

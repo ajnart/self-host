@@ -15,7 +15,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -158,23 +158,8 @@ root=false; readable=false; basename=false; explicit=false
 printf 'root=%s\nreadable=%s\nbasename=%s\nexplicit=%s\n' "$root" "$readable" "$basename" "$explicit"
 `
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/admin/"); err != nil {
+	if err := h.WebReady(ctx, "/admin/"); err != nil {
 		return err
 	}
 	if err := h.Step(ctx, "admin-login", "authenticate the web password", helpers.StepSpec{
@@ -212,8 +197,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in with the ADMIN_PASSWORD value. If systemd-resolved already holds port 53 on the host, the container cannot bind it: turn off its DNSStubListener. Pi-hole answers every network that can reach port 53, so do not forward port 53 from the internet."

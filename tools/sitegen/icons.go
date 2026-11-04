@@ -1,137 +1,46 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
+	"time"
 
 	"github.com/ajnart/self-host/internal/catalog"
 )
 
-// icons maps every App to its icon path in Dashboard Icons; "" means none. An App has to be
-// listed: a guessed path that does not exist leaves a broken image on the site and in DCM.
-var icons = map[string]string{
-	"actual-budget":        "svg/actual-budget.svg",
-	"adguard-home":         "svg/adguard-home.svg",
-	"anchor":               "svg/anchor.svg",
+// iconOverrides names the Dashboard Icons path of an App whose icon is not
+// svg/<id>.svg; "" means the App has none.
+var iconOverrides = map[string]string{
 	"archive-team-warrior": "png/archiveteam-warrior.png",
 	"aria2":                "png/ariang.png",
-	"audiobookshelf":       "svg/audiobookshelf.svg",
-	"authelia":             "svg/authelia.svg",
-	"authentik":            "svg/authentik.svg",
-	"autobrr":              "svg/autobrr.svg",
-	"bazarr":               "svg/bazarr.svg",
-	"beszel":               "svg/beszel.svg",
-	"bindery":              "svg/bindery.svg",
-	"bookstack":            "svg/bookstack.svg",
 	"borgmatic":            "svg/borg.svg",
-	"caddy":                "svg/caddy.svg",
-	"changedetection":      "svg/changedetection.svg",
 	"cleanuparr":           "png/cleanuparr.png",
 	"cloudflare-tunnel":    "svg/cloudflare.svg",
 	"dashdot":              "png/dashdot.png",
-	"deluge":               "svg/deluge.svg",
-	"dockge":               "svg/dockge.svg",
 	"docmost":              "",
-	"emby":                 "svg/emby.svg",
-	"fileflows":            "svg/fileflows.svg",
-	"firefly-iii":          "svg/firefly-iii.svg",
-	"forgejo":              "svg/forgejo.svg",
-	"freshrss":             "svg/freshrss.svg",
-	"frigate":              "svg/frigate.svg",
-	"gatus":                "svg/gatus.svg",
-	"glances":              "svg/glances.svg",
-	"gluetun":              "svg/gluetun.svg",
-	"gotify":               "svg/gotify.svg",
-	"grafana":              "svg/grafana.svg",
-	"haproxy":              "svg/haproxy.svg",
-	"headscale":            "svg/headscale.svg",
-	"healthchecks":         "svg/healthchecks.svg",
-	"homarr":               "svg/homarr.svg",
-	"home-assistant":       "svg/home-assistant.svg",
-	"homebox":              "svg/homebox.svg",
-	"homebridge":           "svg/homebridge.svg",
-	"immich":               "svg/immich.svg",
-	"jackett":              "svg/jackett.svg",
-	"jellyfin":             "svg/jellyfin.svg",
-	"jellystat":            "svg/jellystat.svg",
-	"karakeep":             "svg/karakeep.svg",
-	"keycloak":             "svg/keycloak.svg",
-	"komga":                "svg/komga.svg",
-	"kopia":                "svg/kopia.svg",
-	"lidarr":               "svg/lidarr.svg",
 	"linkwarden":           "",
-	"lldap":                "svg/lldap.svg",
-	"loki":                 "svg/loki.svg",
-	"maintainerr":          "svg/maintainerr.svg",
-	"mayan-edms":           "svg/mayan-edms.svg",
-	"mealie":               "svg/mealie.svg",
-	"miniflux":             "svg/miniflux.svg",
-	"minio":                "svg/minio.svg",
-	"navidrome":            "svg/navidrome.svg",
-	"netbird":              "svg/netbird.svg",
-	"netdata":              "svg/netdata.svg",
-	"nextcloud":            "svg/nextcloud.svg",
-	"nginx-proxy-manager":  "svg/nginx-proxy-manager.svg",
-	"node-red":             "svg/node-red.svg",
-	"ntfy":                 "svg/ntfy.svg",
-	"nzbget":               "svg/nzbget.svg",
-	"ollama":               "svg/ollama.svg",
-	"open-webui":           "svg/open-webui.svg",
 	"oxynote":              "",
-	"pangolin":             "svg/pangolin.svg",
-	"paperless-ngx":        "svg/paperless-ngx.svg",
 	"passbolt":             "",
-	"patchmon":             "svg/patchmon.svg",
-	"peanut":               "svg/peanut.svg",
-	"photoprism":           "svg/photoprism.svg",
 	"pihole":               "svg/pi-hole.svg",
 	"plant-it":             "png/plant-it.png",
-	"plex":                 "svg/plex.svg",
-	"portainer":            "svg/portainer.svg",
-	"postgresql":           "svg/postgresql.svg",
-	"prometheus":           "svg/prometheus.svg",
-	"prowlarr":             "svg/prowlarr.svg",
-	"qbittorrent":          "svg/qbittorrent.svg",
-	"radarr":               "svg/radarr.svg",
-	"renovate":             "svg/renovate.svg",
 	"restic":               "",
-	"romm":                 "svg/romm.svg",
-	"sabnzbd":              "svg/sabnzbd.svg",
 	"scrypted":             "",
-	"seafile":              "svg/seafile.svg",
-	"seerr":                "svg/seerr.svg",
-	"slskd":                "svg/slskd.svg",
-	"sonarr":               "svg/sonarr.svg",
 	"speedtest-tracker":    "",
-	"spoolman":             "svg/spoolman.svg",
-	"sportarr":             "svg/sportarr.svg",
 	"stalwart-mail":        "svg/stalwart.svg",
-	"stash":                "svg/stash.svg",
-	"stirling-pdf":         "svg/stirling-pdf.svg",
-	"syncthing":            "svg/syncthing.svg",
-	"tailscale":            "svg/tailscale.svg",
 	"tandoor":              "svg/tandoor-recipes.svg",
-	"tdarr":                "svg/tdarr.svg",
 	"technitium-dns":       "svg/technitium.svg",
-	"thingport":            "svg/thingport.svg",
-	"tracearr":             "svg/tracearr.svg",
-	"traefik":              "svg/traefik.svg",
-	"transmission":         "svg/transmission.svg",
 	"trilium":              "svg/triliumnext.svg",
 	"tubearchivist":        "png/tube-archivist.png",
-	"umami":                "svg/umami.svg",
-	"unbound":              "svg/unbound.svg",
 	"unmanic":              "png/unmanic.png",
-	"uptime-kuma":          "svg/uptime-kuma.svg",
-	"valkey":               "svg/valkey.svg",
-	"vaultwarden":          "svg/vaultwarden.svg",
-	"vector":               "svg/vector.svg",
 	"victoria-metrics":     "svg/victoriametrics.svg",
 	"wud":                  "svg/whats-up-docker.svg",
 	"xteve":                "png/xteve.png",
-	"your-spotify":         "svg/your-spotify.svg",
-	"zerotier":             "svg/zerotier.svg",
 }
 
 var lightIcons = map[string]string{
@@ -149,23 +58,83 @@ var lightIcons = map[string]string{
 	"victoria-metrics": "svg/victoriametrics-light.svg",
 }
 
+var iconBase = regexp.MustCompile(`SELFHOST_ICON_BASE =\s*"([^"]+)"`)
+
+// verified holds the icon paths known to exist: those already in the committed
+// catalog.json, read before the first write, and those answered by the CDN.
+var verified map[string]bool
+
 func icon(id string) (string, error) {
-	path, ok := icons[id]
+	path, ok := iconOverrides[id]
 	if !ok {
-		return "", fmt.Errorf("%s: no icon declared; add it to icons with its path, or \"\" for none (tools/sitegen/icons.go)", id)
+		path = "svg/" + id + ".svg"
 	}
-	return path, nil
+	if path == "" {
+		return "", nil
+	}
+	return path, verifyIcon(id, path)
+}
+
+// verifyIcon asks the pinned Dashboard Icons CDN for a path the committed
+// catalog.json does not already hold, so a new App with a wrong default fails
+// here and a plain regeneration never needs the network. Only a definite 404
+// is an error; an unreachable CDN is a warning.
+func verifyIcon(id, path string) error {
+	if verified == nil {
+		verified = map[string]bool{}
+		var committed struct {
+			Apps []struct {
+				Icon      string `json:"i"`
+				LightIcon string `json:"il"`
+			} `json:"apps"`
+		}
+		if raw, err := os.ReadFile(filepath.Join("site", "src", "data", "catalog.json")); err == nil && json.Unmarshal(raw, &committed) == nil {
+			for _, a := range committed.Apps {
+				verified[a.Icon] = true
+				verified[a.LightIcon] = true
+			}
+		}
+	}
+	if verified[path] {
+		return nil
+	}
+	source, err := os.ReadFile(filepath.Join("dcm", "src", "lib", "selfhost.ts"))
+	if err != nil {
+		return err
+	}
+	base := iconBase.FindSubmatch(source)
+	if base == nil {
+		return fmt.Errorf("dcm/src/lib/selfhost.ts has no SELFHOST_ICON_BASE")
+	}
+	client := http.Client{Timeout: 10 * time.Second}
+	res, err := client.Head(string(base[1]) + path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: could not check Dashboard Icons for %s: %v\n", id, path, err)
+		return nil
+	}
+	res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("%s: Dashboard Icons has no %s; add the App to iconOverrides with its real path, or \"\" for none (tools/sitegen/icons.go)", id, path)
+	}
+	verified[path] = true
+	return nil
 }
 
 func checkIcons(cat *catalog.Catalog) error {
-	for _, id := range slices.Sorted(maps.Keys(lightIcons)) {
-		if icons[id] == "" {
-			return fmt.Errorf("lightIcons names %q, which has no base icon", id)
+	for _, id := range slices.Sorted(maps.Keys(iconOverrides)) {
+		if _, found := cat.App(id); !found {
+			return fmt.Errorf("iconOverrides names %q, which is not in the Catalog", id)
 		}
 	}
-	for _, id := range slices.Sorted(maps.Keys(icons)) {
+	for _, id := range slices.Sorted(maps.Keys(lightIcons)) {
 		if _, found := cat.App(id); !found {
-			return fmt.Errorf("icons names %q, which is not in the Catalog", id)
+			return fmt.Errorf("lightIcons names %q, which is not in the Catalog", id)
+		}
+		if path, overridden := iconOverrides[id]; overridden && path == "" {
+			return fmt.Errorf("lightIcons names %q, which has no base icon", id)
+		}
+		if err := verifyIcon(id, lightIcons[id]); err != nil {
+			return err
 		}
 	}
 	return nil

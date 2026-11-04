@@ -1,0 +1,22 @@
+# Traps: docs/catalog/traps/victoria-metrics.md
+id: victoria-metrics
+name: VictoriaMetrics
+category: Observability
+description: Keep long histories of numbers about your computers and apps, stored compactly
+image: victoriametrics/victoria-metrics:latest
+docs: https://docs.victoriametrics.com/quick-start/
+port: 8428
+compose: |
+  services:
+    victoria-metrics:
+      image: victoriametrics/victoria-metrics:latest
+      command: ["-storageDataPath=/victoria-metrics-data", "-selfScrapeInterval=5s"]
+      restart: unless-stopped
+      volumes:
+        - ./data:/victoria-metrics-data
+      ports:
+        - ${BIND_IP}:{{.Port}}:{{.ContainerPort}}
+setup:
+  kind: no-account
+  probe:
+    path: /health

@@ -12,7 +12,7 @@ import (
 	"github.com/ajnart/self-host/internal/names"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 const (
 	prerequisiteHint = "Tube Archivist startup is held until Elasticsearch's Docker host or VM has verified vm.max_map_count of at least 1048576, writable nonroot persistent storage, and reviewed resource admission above its 1 GiB Java heap. Its automatic schedules and outbound activity also need containment. Review docs/catalog/traps/tubearchivist.md before retrying installation; do not change host settings, lower the heap or bypass fixture guards to continue."
@@ -32,8 +32,6 @@ func (App) Info() app.Info {
 		LongTimeouts:  true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "elastic_password", Length: 48, Hex: true}}
@@ -217,8 +215,6 @@ func signIn(ctx context.Context, h *helpers.H) (*helpers.Session, int64, error) 
 	}
 	return session, *identity.ID, nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Before starting, verify Elasticsearch's Docker host or VM has vm.max_map_count of at least 1048576, a nonroot user with writable persistent folders, and memory above its 1 GiB Java heap. Review automatic schedules and outbound activity before allowing startup. Set TA_HOST to the intended browser origins. Initial administrator environment settings do not reset an existing account. Keep cache and both database folders; archived media needs a separate backup."

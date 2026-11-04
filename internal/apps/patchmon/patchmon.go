@@ -7,16 +7,15 @@ package patchmon
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -124,112 +123,55 @@ func (a App) LegacyComposes(rc app.RenderContext) []string {
 	return []string{strings.Replace(a.Compose(rc), "    cap_drop: [\"ALL\"]\n    tmpfs:", "    cap_drop: [\"ALL\"]\n    mem_limit: 512m\n    cpus: \"1\"\n    tmpfs:", 1)}
 }
 
-func adminEmail(h *helpers.H) string {
-	if email := h.Inputs["admin_email"]; email != "" {
-		return email
-	}
-	return h.AdminUser() + "@selfhost.local"
-}
-
 // A stable, non-secret client identity lets the pinned server reuse the
 // bootstrap session when an immediate check issues the same refresh JWT.
 const clientDeviceID = "self-host-patchmon"
 
-type profile struct {
-	User struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Role     string `json:"role"`
-		IsActive bool   `json:"is_active"`
-	} `json:"user"`
-}
-
-func signedIn(ctx context.Context, h *helpers.H, user, password string) (bool, error) {
-	login, err := h.HTTP(ctx, helpers.Request{
-		Method: "POST", Path: "/api/v1/auth/login",
-		NoRedirect: true,
-		Header:     map[string]string{"X-Device-ID": clientDeviceID},
-		JSON:       map[string]string{"username": user, "password": password},
-	})
-	if err != nil {
-		return false, err
-	}
-	if login.Status == 401 || login.Status == 403 {
-		return false, nil
-	}
-	if login.Status != 200 {
-		return false, fmt.Errorf("PatchMon login returned HTTP %d", login.Status)
-	}
-	var token struct {
-		Token        string `json:"token"`
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := login.Decode(&token); err != nil {
-		return false, err
-	}
-	h.Log.Secret(token.Token)
-	h.Log.Secret(token.RefreshToken)
-	if token.Token == "" {
-		return false, nil
-	}
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Path:       "/api/v1/auth/profile",
-		NoRedirect: true,
-		Header:     map[string]string{"Authorization": "Bearer " + token.Token},
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == 401 || resp.Status == 403 {
-		return false, nil
-	}
-	if resp.Status != 200 {
-		return false, fmt.Errorf("PatchMon profile returned HTTP %d", resp.Status)
-	}
-	var p profile
-	if err := resp.Decode(&p); err != nil {
-		return false, err
-	}
-	return p.User.ID != "" && p.User.Username == user && p.User.Email == adminEmail(h) &&
-		p.User.Role == "superadmin" && p.User.IsActive, nil
-}
-
-func adminExists(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.Expect(ctx, helpers.Request{Path: "/api/v1/settings/login-settings"})
-	if err != nil {
-		return false, err
-	}
-	var settings struct {
-		HasAdminUsers bool `json:"hasAdminUsers"`
-	}
-	if err := resp.Decode(&settings); err != nil {
-		return false, err
-	}
-	return settings.HasAdminUsers, nil
-}
-
-func createAdmin(ctx context.Context, h *helpers.H, user, password string) error {
-	_, err := h.Expect(ctx, helpers.Request{
-		Method: "POST", Path: "/api/v1/auth/setup-admin",
+var setup = setupspec.Spec{
+	Kind:       setupspec.KindFirstAdmin,
+	CheckError: "the Admin login cannot sign in to patchmon",
+	Probe:      setupspec.Probe{Path: "/health", Want: []int{200}},
+	Email:      "{user}@selfhost.local",
+	EmailInput: "admin_email",
+	Manual:     "Open {url} and create the first administrator as {email}.",
+	Exists: []setupspec.Call{{
+		Path:    "/api/v1/settings/login-settings",
+		Require: []setupspec.Assert{{Path: "hasAdminUsers", Type: "bool"}},
+		Assert:  []setupspec.Assert{{Path: "hasAdminUsers", Present: true}},
+	}},
+	Create: []setupspec.Call{{
+		Path:   "/api/v1/auth/setup-admin",
 		Header: map[string]string{"X-Device-ID": clientDeviceID},
-		JSON: map[string]string{
-			"firstName": "Dashboard", "lastName": "Administrator",
-			"username": user, "email": adminEmail(h), "password": password,
+		JSON:   map[string]any{"firstName": "Dashboard", "lastName": "Administrator", "username": "{user}", "email": "{email}", "password": "{password}"},
+		Ok:     []int{201},
+	}},
+	Login: []setupspec.Call{
+		{
+			Path:       "/api/v1/auth/login",
+			NoRedirect: true,
+			Header:     map[string]string{"X-Device-ID": clientDeviceID},
+			JSON:       map[string]any{"username": "{user}", "password": "{password}"},
+			Ok:         []int{200},
+			Capture:    map[string]string{"token": "token"},
 		},
-	}, 201)
-	return err
+		{
+			Path:       "/api/v1/auth/profile",
+			NoRedirect: true,
+			Header:     map[string]string{"Authorization": "Bearer {token}"},
+			Ok:         []int{200},
+			Assert: []setupspec.Assert{
+				{Path: "user.id", Present: true},
+				{Path: "user.username", Equals: "{user}"},
+				{Path: "user.email", Equals: "{email}"},
+				{Path: "user.role", Equals: "superadmin"},
+				{Path: "user.is_active", Present: true},
+			},
+		},
+	},
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	first := firstadmin.FirstAdmin{
-		Ready:  firstadmin.Probe{Path: "/health", Want: []int{200}},
-		Exists: adminExists,
-		Create: createAdmin,
-		Login:  signedIn,
-		Manual: "Open " + h.URL + " and create the first administrator as " + adminEmail(h) + ".",
-	}
-	if err := first.Setup(ctx, h); err != nil {
+	if err := setup.Setup(ctx, h); err != nil {
 		return err
 	}
 	if h.Peer("homarr") == nil {
@@ -246,11 +188,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	})
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	return (firstadmin.FirstAdmin{Login: signedIn}).Check(ctx, h)
-}
-
-func (App) Links() []app.Link { return nil }
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the first visit."

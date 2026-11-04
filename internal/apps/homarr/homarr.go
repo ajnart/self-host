@@ -19,7 +19,7 @@ import (
 )
 
 // App is Homarr. Traps: docs/catalog/traps/homarr.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -32,8 +32,6 @@ func (App) Info() app.Info {
 		Service:       "homarr",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the key Homarr encrypts stored secrets with. It has to
 // exist before the first start and must never rotate, or stored secrets become

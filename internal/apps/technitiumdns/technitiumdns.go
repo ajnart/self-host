@@ -11,13 +11,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -394,23 +393,8 @@ func createHomarrKey(ctx context.Context, h *helpers.H) error {
 	return h.SetSecret(h.Key("homarr_api_key"), created.Response.Token)
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/"); err != nil {
+	if err := h.WebReady(ctx, "/"); err != nil {
 		return err
 	}
 	if err := h.Step(ctx, "admin-login", "authenticate the administrator "+adminUsername(h), helpers.StepSpec{
@@ -443,8 +427,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Sign in as admin with the ADMIN_PASSWORD value. If systemd-resolved already holds port 53 on the host, the container cannot bind it: turn off its DNSStubListener."

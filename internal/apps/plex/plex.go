@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -293,23 +292,8 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 	return verifySavedToken(ctx, h)
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/identity"); err != nil {
+	if err := h.WebReady(ctx, "/identity"); err != nil {
 		return err
 	}
 	if err := h.Step(ctx, "claim-token", "read the Plex claim token", helpers.StepSpec{
@@ -348,8 +332,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Before the first start, create a private claim-token file (mode 0600) containing a token from https://www.plex.tv/claim (valid 4 minutes). Use the App's read-only claim-token mount and the image's file-based claim option; if an export substitutes a claim environment entry, restore that private-file configuration instead of putting the token in the environment or command arguments. Keep the server private and verify it in your own Plex account. An expired or failed first-run claim needs inspection and reviewed recovery, not an automatic reclaim."

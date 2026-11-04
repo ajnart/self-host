@@ -65,7 +65,8 @@ func writeCatalog() error {
 	doc, err := json.MarshalIndent(struct {
 		Apps    []appJSON    `json:"apps"`
 		Recipes []recipeJSON `json:"recipes"`
-	}{apps, recipes}, "", " ")
+		Counts  countsJSON   `json:"counts"`
+	}{apps, recipes, catalogCounts(cat)}, "", " ")
 	if err != nil {
 		return err
 	}

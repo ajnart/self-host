@@ -8,7 +8,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -69,8 +69,6 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return verify(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Do not start this Compose on a fresh datastore: the official image creates and fetches external demo watches. Managed startup remains held until an approved upstream-supported no-demo bootstrap exists. Do not delete matching watches or edit the datastore to bypass this hold. Keep the complete /datastore private and persistent. Existing-instance verification requires password protection and the existing write-capable API key from Settings > API; Setup does not create or reset either credential. A browser backend is optional for JavaScript watches, not required for API statistics."

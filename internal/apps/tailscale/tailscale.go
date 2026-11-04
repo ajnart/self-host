@@ -19,7 +19,7 @@ import (
 	ts "github.com/ajnart/self-host/internal/tailscale"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -186,5 +186,3 @@ func reason(err error) string {
 	}
 	return ": " + err.Error()
 }
-
-func (App) Links() []app.Link { return nil }

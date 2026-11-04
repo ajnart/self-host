@@ -1601,5 +1601,11 @@
     "caddy"
    ]
   }
- ]
+ ],
+ "counts": {
+  "apps": 118,
+  "recipes": 7,
+  "allApps": 121,
+  "allRecipes": 8
+ }
 }

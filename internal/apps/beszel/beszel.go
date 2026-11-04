@@ -17,7 +17,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -69,8 +69,6 @@ func (App) Info() app.Info {
 		Service:       "beszel",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -383,23 +381,8 @@ func startAgent(ctx context.Context, h *helpers.H) error {
 	return h.SetSecret(h.Key("machine_id"), found.ID)
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path, NoRedirect: true})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status == http.StatusOK, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/api/health"); err != nil {
+	if err := h.WebReady(ctx, "/api/health", helpers.WantStatus(http.StatusOK), helpers.NoRedirect()); err != nil {
 		return err
 	}
 	user := AdminEmail(h)
@@ -464,8 +447,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the hub's first visit. The agent needs the key and token the hub shows when you add a system: " +

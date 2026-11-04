@@ -15,7 +15,7 @@ import (
 )
 
 // App is Emby. Traps: docs/catalog/traps/emby.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,9 +29,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, finish the first-run wizard and create the administrator."

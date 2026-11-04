@@ -3,18 +3,16 @@ package audiobookshelf
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/apps/mediastorage"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Audiobookshelf. Traps: docs/catalog/traps/audiobookshelf.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -28,9 +26,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
-func (App) Links() []app.Link   { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Before the first start, create ${DATA_PATH}/media and any missing audiobook or podcast subfolders with your Host user's ownership so Docker does not create the media parent as root. The shared media folder is mounted at /data/media. After starting, create the root account on the first visit, then select the media subfolders in Settings > Libraries. Review existing libraries before adding any, without replacing their folders or importing automatically."
@@ -53,74 +48,31 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-type status struct {
-	App           string `json:"app"`
-	ServerVersion string `json:"serverVersion"`
-	IsInit        bool   `json:"isInit"`
-}
-
-func initialized(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.Expect(ctx, helpers.Request{Path: "/status"})
-	if err != nil {
-		return false, err
-	}
-	var s status
-	if err := resp.Decode(&s); err != nil {
-		return false, err
-	}
-	return s.IsInit, nil
-}
-
-func adminExists(ctx context.Context, h *helpers.H) (bool, error) {
-	return initialized(ctx, h)
-}
-
-func createAdmin(ctx context.Context, h *helpers.H, user, password string) error {
-	_, err := h.Expect(ctx, helpers.Request{
-		Method: http.MethodPost, Path: "/init",
-		JSON: map[string]any{"newRoot": map[string]string{"username": user, "password": password}},
-	})
-	return err
-}
-
-func loginWorks(ctx context.Context, h *helpers.H, user, password string) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Method: http.MethodPost, Path: "/login",
-		JSON: map[string]string{"username": user, "password": password},
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden {
-		return false, nil
-	}
-	if !resp.OK() {
-		return false, fmt.Errorf("POST /login returned HTTP %d", resp.Status)
-	}
-	var body struct {
-		User struct {
-			Username string `json:"username"`
-			Type     string `json:"type"`
-		} `json:"user"`
-	}
-	if err := resp.Decode(&body); err != nil {
-		return false, err
-	}
-	return body.User.Username == user && body.User.Type == "root", nil
-}
-
-func firstAdmin() firstadmin.FirstAdmin {
-	return firstadmin.FirstAdmin{
-		Ready:  firstadmin.Probe{Path: "/status"},
-		Exists: adminExists,
-		Create: createAdmin,
-		Login:  loginWorks,
-		Manual: "the first visit offers to create the root account",
-	}
+var setup = setupspec.Spec{
+	Kind:  setupspec.KindFirstAdmin,
+	Name:  "Audiobookshelf",
+	Probe: setupspec.Probe{Path: "/status"},
+	Exists: []setupspec.Call{{
+		Path:   "/status",
+		Assert: []setupspec.Assert{{Path: "isInit", Equals: "true"}},
+	}},
+	Create: []setupspec.Call{{
+		Path: "/init",
+		JSON: map[string]any{"newRoot": map[string]any{"username": "{user}", "password": "{password}"}},
+	}},
+	Login: []setupspec.Call{{
+		Path: "/login",
+		JSON: map[string]any{"username": "{user}", "password": "{password}"},
+		Assert: []setupspec.Assert{
+			{Path: "user.username", Equals: "{user}"},
+			{Path: "user.type", Equals: "root"},
+		},
+	}},
+	Manual: "the first visit offers to create the root account",
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := firstAdmin().Setup(ctx, h); err != nil {
+	if err := setup.Setup(ctx, h); err != nil {
 		return err
 	}
 	h.Info("The media folder is mounted at " + mediastorage.Media(h.Settings) + ". Create missing audiobook or podcast subfolders as the Host user, then choose them in Audiobookshelf Settings > Libraries. Setup does not create libraries or import media; preserve existing folders and settings.")
@@ -131,13 +83,4 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	return setupHomarrCredential(ctx, h)
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	ok, err := loginWorks(ctx, h, h.AdminUser(), h.AdminPassword())
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("the Admin login %s cannot sign in to Audiobookshelf", h.AdminUser())
-	}
-	return nil
-}
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }

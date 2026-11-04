@@ -16,6 +16,7 @@ import (
 )
 
 type App struct {
+	app.Defaults
 	info app.Info
 	// api is the API prefix: /api/v3 or /api/v1.
 	api string
@@ -83,7 +84,6 @@ func Prowlarr() App {
 }
 
 func (a App) Info() app.Info    { return a.info }
-func (App) Inputs() []app.Input { return nil }
 func (a App) Links() []app.Link { return a.links }
 
 func (a App) StandaloneGuide() string {

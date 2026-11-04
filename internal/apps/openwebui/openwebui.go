@@ -5,28 +5,17 @@ package openwebui
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
-// adminEmail is the shared Admin login's email form.
-func adminEmail(h *helpers.H) string { return (App{}).AdminEmail(h.AdminUser()) }
-
 // App is Open WebUI. Traps: docs/catalog/traps/open-webui.md.
-type App struct{}
+type App struct{ app.Defaults }
 
-func (App) AdminEmail(username string) string {
-	if username == "" {
-		return ""
-	}
-	return username + "@selfhost.local"
-}
+func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -39,8 +28,6 @@ func (App) Info() app.Info {
 		Service:       "open-webui",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the persistent session key that keeps sign-ins valid across
 // restarts.
@@ -66,60 +53,35 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-// adminWorks signs in the seeded administrator and checks its role.
-func adminWorks(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{Method: http.MethodPost, Path: "/api/v1/auths/signin", JSON: map[string]string{
-		"email": adminEmail(h), "password": h.AdminPassword(),
-	}})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status != http.StatusOK {
-		return false, nil
-	}
-	var account struct {
-		Token string `json:"token"`
-		Email string `json:"email"`
-		Role  string `json:"role"`
-	}
-	if err := resp.Decode(&account); err != nil {
-		return false, err
-	}
-	return account.Token != "" && account.Email == adminEmail(h) && account.Role == "admin", nil
+var setup = setupspec.Spec{
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Open WebUI",
+	CheckError: "the administrator {email} cannot sign in to Open WebUI",
+	Probe:      setupspec.Probe{Live: true, Path: "/health", Timeout: "3m"},
+	Email:      "{user}@selfhost.local",
+	Login: []setupspec.Call{{
+		Path:    "/api/v1/auths/signin",
+		JSON:    map[string]any{"email": "{email}", "password": "{password}"},
+		Ok:      []int{200},
+		Lenient: true,
+		Assert: []setupspec.Assert{
+			{Path: "token", Present: true},
+			{Path: "email", Equals: "{email}"},
+			{Path: "role", Equals: "admin"},
+		},
+	}},
+	StepID:      "admin-login",
+	Title:       "verify the administrator {email}",
+	CreateError: "Open WebUI creates the first administrator from WEBUI_ADMIN_EMAIL/WEBUI_ADMIN_PASSWORD only when the user database is empty",
+	Hint: "Open WebUI seeds the first administrator only on an empty database. Recreate the container with an empty " +
+		"data volume (self-host start open-webui), then open {url} and sign in as {email} with the password from `self-host credentials`.",
 }
 
-func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/health"); err != nil {
-		return err
-	}
-	return firstadmin.FirstAdmin{
-		StepID:   "admin-login",
-		Username: func(_ context.Context, h *helpers.H) (string, error) { return adminEmail(h), nil },
-		Title:    func(_ *helpers.H, user string) string { return "verify the administrator " + user },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return adminWorks(ctx, h)
-		},
-		Create: func(context.Context, *helpers.H, string, string) error {
-			return errors.New("Open WebUI creates the first administrator from WEBUI_ADMIN_EMAIL/WEBUI_ADMIN_PASSWORD only when the user database is empty")
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open WebUI seeds the first administrator only on an empty database. Recreate the container with an empty " +
-				"data volume (self-host start open-webui), then open " + h.URL + " and sign in as " + user +
-				" with the password from `self-host credentials`."
-		},
-	}.Admin(ctx, h)
-}
+func (App) Setup(ctx context.Context, h *helpers.H) error { return setup.Setup(ctx, h) }
 
 // Check verifies the administrator login only; model provider and API-key
 // access stay separate acceptance steps.
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	if ok, err := adminWorks(ctx, h); !ok {
-		return fmt.Errorf("the administrator %s cannot sign in to Open WebUI: %v", adminEmail(h), err)
-	}
-	return nil
-}
-
-func (App) Links() []app.Link { return nil }
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) StandaloneGuide() string {
 	return "Sign in with the email made of the ADMIN_USER value and @selfhost.local, and the ADMIN_PASSWORD value."

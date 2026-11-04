@@ -35,6 +35,9 @@ type Response struct {
 	Body   []byte
 }
 
+// Snippet is the start of the body, for error messages.
+func (r Response) Snippet() string { return snippet(r.Body) }
+
 func (r Response) Decode(v any) error {
 	if err := json.Unmarshal(r.Body, v); err != nil {
 		return fmt.Errorf("decode response (HTTP %d): %w", r.Status, err)
@@ -178,6 +181,8 @@ type readyConfig struct {
 	contains   string
 	noRedirect bool
 	timeout    time.Duration
+	title      string
+	hint       string
 }
 
 // ReadyOption changes one aspect of a Ready probe.
@@ -204,6 +209,10 @@ func Timeout(d time.Duration) ReadyOption {
 	return func(c *readyConfig) { c.timeout = d }
 }
 
+func wording(title, hint string) ReadyOption {
+	return func(c *readyConfig) { c.title, c.hint = title, hint }
+}
+
 // Ready is the one readiness step every App needs: Check is a single probe,
 // Do polls until it passes or the timeout ends. A rerun whose App already
 // answers skips instead of polling again.
@@ -212,7 +221,35 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	attempt := func(ctx context.Context) (bool, error) {
+	attempt := h.readyProbe(path, cfg)
+	title := "wait for " + h.App + " to answer on " + path
+	if cfg.title != "" {
+		title = cfg.title
+	}
+	hint := h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App
+	if cfg.hint != "" {
+		hint = cfg.hint
+	}
+	return h.Step(ctx, "ready", title, StepSpec{
+		Check: attempt,
+		Do: func(ctx context.Context) error {
+			return h.Poll(ctx, cfg.timeout, attempt)
+		},
+		Hint: hint,
+	})
+}
+
+// WebReady is Ready worded for Apps whose web server may answer before the
+// App is usable: it waits up to two minutes for any status below 500 on path.
+func (h *H) WebReady(ctx context.Context, path string, opts ...ReadyOption) error {
+	return h.Ready(ctx, path, append([]ReadyOption{
+		Timeout(2 * time.Minute),
+		wording("wait for the web server on "+path, "Check the App's logs: self-host logs "+h.App),
+	}, opts...)...)
+}
+
+func (h *H) readyProbe(path string, cfg readyConfig) func(context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
 		resp, err := h.HTTP(ctx, Request{Path: path, NoRedirect: cfg.noRedirect})
 		if err != nil {
 			return false, err
@@ -225,13 +262,6 @@ func (h *H) Ready(ctx context.Context, path string, opts ...ReadyOption) error {
 		}
 		return true, nil
 	}
-	return h.Step(ctx, "ready", "wait for "+h.App+" to answer on "+path, StepSpec{
-		Check: func(ctx context.Context) (bool, error) { return attempt(ctx) },
-		Do: func(ctx context.Context) error {
-			return h.Poll(ctx, cfg.timeout, attempt)
-		},
-		Hint: h.App + " did not answer on " + path + "; it may still be starting, so rerun self-host setup " + h.App + " to resume, or read its logs with: self-host logs " + h.App,
-	})
 }
 
 func (c readyConfig) wanted(status int) bool {

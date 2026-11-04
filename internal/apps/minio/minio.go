@@ -19,7 +19,7 @@ import (
 )
 
 // App is MinIO AIStor (licensed). Traps: docs/catalog/traps/minio.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 const image = "quay.io/minio/aistor/minio:latest"
 
@@ -168,5 +168,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }

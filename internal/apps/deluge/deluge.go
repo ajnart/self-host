@@ -9,14 +9,13 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/apps/mediastorage"
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -30,8 +29,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -350,23 +347,8 @@ func VerifyHomarr(ctx context.Context, h *helpers.H) error {
 	return verifyQueue(ctx, s)
 }
 
-func ready(ctx context.Context, h *helpers.H, path string) error {
-	probe := func(ctx context.Context) (bool, error) {
-		resp, err := h.HTTP(ctx, helpers.Request{Path: path})
-		if err != nil {
-			return false, err
-		}
-		return resp.Status < 500, nil
-	}
-	return h.Step(ctx, "ready", "wait for the web server on "+path, helpers.StepSpec{
-		Check: probe,
-		Do:    func(ctx context.Context) error { return h.Poll(ctx, 2*time.Minute, probe) },
-		Hint:  "Check the App's logs: self-host logs " + h.App,
-	})
-}
-
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := ready(ctx, h, "/"); err != nil {
+	if err := h.WebReady(ctx, "/"); err != nil {
 		return err
 	}
 	if err := h.Step(ctx, "web-password", "verify and save the Deluge Web password", helpers.StepSpec{
@@ -413,8 +395,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return `The Web UI starts with the password "` + initialPassword + `"; change it on the first sign-in. Set Download to and Move completed to to /data/torrents in Preferences > Downloads.`

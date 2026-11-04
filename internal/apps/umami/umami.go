@@ -21,7 +21,7 @@ const (
 	username       = "admin"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -34,8 +34,6 @@ func (App) Info() app.Info {
 		Service:       "umami",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{
@@ -202,8 +200,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return `Umami starts with the seeded administrator ` + username + ` and password "` + seededPassword + `"; sign in and change the password right away.`

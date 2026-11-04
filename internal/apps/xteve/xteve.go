@@ -13,7 +13,7 @@ import (
 )
 
 // App is xTeVe. Traps: docs/catalog/traps/xteve.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -89,5 +89,3 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error {
 	return VerifyHomarr(ctx, h)
 }
-
-func (App) Links() []app.Link { return nil }

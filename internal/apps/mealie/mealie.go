@@ -14,7 +14,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 var identityID = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
@@ -237,8 +237,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	_, err := VerifyHomarr(ctx, h)
 	return err
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Mealie uses SQLite on local storage; keep the complete data folder across updates and removal. Finish the initial administrator in Mealie manually and keep authentication enabled. Plain Compose does not issue a Homarr token or configure its native integration; Mealie tokens inherit full account access without read-only scopes."

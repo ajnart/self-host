@@ -9,7 +9,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 const (
 	image              = "triliumnext/trilium:v0.106.1"
@@ -29,8 +29,6 @@ func (App) Info() app.Info {
 		WebSockets:    true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	return `services:
@@ -76,8 +74,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "On the first visit, choose a new notebook, sync an existing notebook or Restore a Backup, then set its password yourself. Trilium has one password, not a username. Keep the entire data folder and a separate Backup. The image is versioned because server and desktop sync protocols must remain compatible; review all clients before deliberately changing the image. ETAPI tokens grant full notebook API access, not read-only statistics access."

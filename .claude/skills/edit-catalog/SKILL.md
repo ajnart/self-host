@@ -1,17 +1,17 @@
 ---
 name: edit-catalog
-description: Catalog edits in Go. Use for any task that adds an App, changes an App's image, port, Compose, env, notes or StandaloneGuide (even a one-line image bump), changes a Recipe, or hides or unhides an App. Each of these changes generated site and DCM data and hand-kept App counts. DCM-only Containers go to add-container; Homarr wiring goes to docs/agents/homarr-integrations.md.
+description: Catalog edits in YAML or Go. Use for any task that adds an App, changes an App's image, port, Compose, env, notes or StandaloneGuide (even a one-line image bump), changes a Recipe, or hides or unhides an App. Each of these changes generated site and DCM data and the generated e2e inventory. DCM-only Containers go to add-container; Homarr wiring goes to docs/agents/homarr-integrations.md.
 ---
 
 # Edit the Catalog
 
-Read `CONTEXT.md` for App, Recipe and Catalog, and `docs/agents/generated-data.md` for what is derived from what and which counts are hand-kept. For a new App, copy the shape of the last one: `git show --stat ca78641b` (Cleanuparr).
+Read `CONTEXT.md` for App, Recipe and Catalog, and `docs/agents/generated-data.md` for what is derived from what. For a new App, copy the shape of the last one: `git show --stat ca78641b` (Cleanuparr).
 
 Pick the branch, then run its steps in order:
 
 - **New App**: steps 1 to 8.
-- **Change an App**: steps 1, 2, 6 and 8, plus 5 when its repository or icon changes. Edit the App's package under `internal/apps/`; its directory is the id without hyphens or a shorter name (`paperless-ngx` lives in `paperlessngx`), so find it with `grep -rl 'ID: "<id>"' internal/apps`.
-- **Change a Recipe**: edit `registerRecipes` in `internal/catalog/batch_recipes.go`, then steps 6, 7 and 8.
+- **Change an App**: steps 1, 2, 6 and 8, plus 5 when its repository or icon changes. If `internal/catalog/specs/<id>.yaml` exists, edit that file. Otherwise edit the App's package under `internal/apps/`; its directory is the id without hyphens or a shorter name (`paperless-ngx` lives in `paperlessngx`), so find it with `grep -rl 'ID: "<id>"' internal/apps`.
+- **Change a Recipe**: edit `defaultRecipes` in `internal/catalog/recipes.go`, then steps 6, 7 and 8.
 - **Hide or unhide an App**: edit `unavailable` in `internal/catalog/catalog.go` with the reason and the issue that tracks the way back, then steps 6, 7 and 8.
 
 ## 1. Resolve upstream facts
@@ -28,21 +28,24 @@ Search `internal/apps/`, `internal/catalog/`, `dcm/src/tools/` and `ALIASES` in 
 
 ## 3. Write the App
 
-Add `internal/apps/<name>/<name>.go` and its test, where `<name>` is the id without hyphens, and `docs/catalog/traps/<id>.md`, which keeps the hyphens. `Info().ID` is the id itself. The description is at most 100 characters in plain words (`internal/catalog/descriptions_test.go` enforces it). Extra services are named `<id>-...`. Setup follows `internal/helpers/` and the Protected invariants in `AGENTS.md`: credentials stay in the private Project `.env`, and public Host settings are filtered before output.
+Write `docs/catalog/traps/<id>.md` (it keeps the hyphens) and then the App. The description is at most 100 characters in plain words (`internal/catalog/descriptions_test.go` enforces it). Extra services are named `<id>-...`.
 
-**Done:** `go test ./internal/apps/<name>/` passes.
+- **YAML, the default.** When Setup only proves the web page answers (`setup.kind: no-account`), write `internal/catalog/specs/<id>.yaml`: copy `specs/ollama.yaml` and read "Declarative spec" in `docs/catalog/adding-apps.md` for the keys. No Go, no test and no registration; `<id>.yaml` is the file name and its first line is `# Traps: docs/catalog/traps/<id>.md`.
+- **Go.** For extra Setup steps, a first administrator, Links or deferred services, add `internal/apps/<name>/<name>.go` and its test, where `<name>` is the id without hyphens. `Info().ID` is the id itself. Setup follows `internal/helpers/` and the Protected invariants in `AGENTS.md`: credentials stay in the private Project `.env`, and public Host settings are filtered before output.
+
+**Done:** `go test ./internal/appspec/ ./internal/catalog/` passes for a spec, `go test ./internal/apps/<name>/` for Go.
 
 ## 4. Register
 
-Add the import and `<name>.App{}` to a `batch_*.go` in `internal/catalog/`, in alphabetical order. `generated.go` is generated; leave it.
+A spec is embedded and needs no registration; skip to step 5. For a Go App, run `go run ./tools/registrygen`. It scans `internal/apps/` and rewrites `internal/catalog/apps_gen.go`; never edit that file by hand.
 
-**Done:** `go test ./internal/catalog/` passes. A `parity_test.go` failure on a ported App means a legacy fact changed: add a `deviations` entry with the reason; leave `legacy-facts.json` as it is.
+**Done:** `git diff internal/catalog/apps_gen.go` shows your App's import and registration, and `go test ./internal/catalog/` passes. A `parity_test.go` failure on a ported App means a legacy fact changed: add a `deviations` entry with the reason; leave `legacy-facts.json` as it is.
 
 ## 5. Declare site metadata
 
-In `tools/sitegen/icons.go` add the id to `icons` with its Dashboard Icons path (`""` for none); sitegen's error names the entry when one is missing. In `tools/sitegen/stars.go` add the upstream repository to `repos`. Nothing fails when `repos` lacks the App; its star count never appears.
+Usually nothing. The icon defaults to `svg/<id>.svg` on Dashboard Icons, and sitegen checks that a new path exists. Add the id to `iconOverrides` in `tools/sitegen/icons.go` only when the icon lives at another path (`""` for none). The star repository comes from `Docs` when it is a `github.com/<owner>/<repo>` URL; otherwise add the upstream repository to `starRepoOverrides` in `tools/sitegen/stars.go` (`""` for none). Nothing fails when an App has no repository; its star count never appears.
 
-**Done:** `grep -n "<id>" tools/sitegen/icons.go tools/sitegen/stars.go` prints a line from each file.
+**Done:** `go run ./tools/sitegen` passes, and `Docs` is the GitHub repository or the id is in `starRepoOverrides`.
 
 ## 6. Regenerate
 
@@ -50,15 +53,22 @@ In `tools/sitegen/icons.go` add the id to `icons` with its Dashboard Icons path 
 go run ./tools/sitegen
 ```
 
-Add `StandaloneGuide` to the App only when its standalone Compose needs a sentence of guidance; sitegen fails when the guide names a variable or folder the converted Compose lacks.
+Add `standalone_guide` (or `StandaloneGuide()` in Go) only when its standalone Compose needs a sentence of guidance; sitegen fails when the guide names a variable or folder the converted Compose lacks.
 
 **Done:** a second run changes nothing, and `git status` shows only your files plus `site/src/data/catalog.json` and `dcm/src/data/selfhost.json`.
 
-## 7. Fix the counts
+## 7. Refresh the goldens and inventory
 
-Follow the "App counts" table in `docs/agents/generated-data.md`: README, `e2e/acceptance.md`, the fixture and `inventory.json`, and the TUI goldens (`go test ./internal/tui -update`, then read the diff). The counts differ on purpose, so move each by the amount that table gives.
+App and Recipe counts are computed, so no README or `e2e/acceptance.md` number moves. Regenerate the two files that record the Catalog:
 
-**Done:** the `jq` and `grep` commands in that page show the new numbers, and `go test ./e2e/ ./internal/tui` passes.
+```bash
+go test ./internal/tui -update
+go test ./e2e -run TestAcceptanceInventory -update
+```
+
+Read both diffs: in the goldens only the `N more` line moves, and `e2e/testdata/inventory.json` gains or loses the App.
+
+**Done:** `go test ./e2e/ ./internal/tui` passes and `git status` shows no `README.md` change.
 
 ## 8. Gate
 

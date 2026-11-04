@@ -4,21 +4,17 @@ package immich
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/ajnart/self-host/internal/app"
-	"github.com/ajnart/self-host/internal/firstadmin"
 	"github.com/ajnart/self-host/internal/helpers"
+	"github.com/ajnart/self-host/internal/setupspec"
 )
 
 // App is Immich. Traps: docs/catalog/traps/immich.md.
-type App struct{}
+type App struct{ app.Defaults }
 
-func (App) AdminEmail(string) string { return email }
+func (App) AdminEmail(username string) string { return setup.AdminEmail(username) }
 
 const (
 	service = "immich"
@@ -38,8 +34,6 @@ func (App) Info() app.Info {
 		Service:       service,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{{Name: "db_password", Length: 48}}
@@ -109,84 +103,38 @@ func (App) Compose(rc app.RenderContext) string {
 `
 }
 
-func initialized(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{Path: "/api/server/config"})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status != http.StatusOK {
-		return false, fmt.Errorf("the server config returned HTTP %d", resp.Status)
-	}
-	var config struct {
-		IsInitialized bool `json:"isInitialized"`
-	}
-	if err := resp.Decode(&config); err != nil {
-		return false, err
-	}
-	return config.IsInitialized, nil
-}
-
-func login(ctx context.Context, h *helpers.H) (bool, error) {
-	resp, err := h.HTTP(ctx, helpers.Request{
-		Method: http.MethodPost, Path: "/api/auth/login",
-		JSON: map[string]string{"email": email, "password": h.AdminPassword()},
-	})
-	if err != nil {
-		return false, err
-	}
-	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusBadRequest {
-		return false, nil
-	}
-	if resp.Status != http.StatusCreated && resp.Status != http.StatusOK {
-		return false, fmt.Errorf("the login endpoint returned HTTP %d", resp.Status)
-	}
-	var body struct {
-		UserEmail   string `json:"userEmail"`
-		IsAdmin     bool   `json:"isAdmin"`
-		AccessToken string `json:"accessToken"`
-	}
-	if err := resp.Decode(&body); err != nil {
-		return false, err
-	}
-	return body.UserEmail == email && body.IsAdmin && body.AccessToken != "", nil
+var setup = setupspec.Spec{
+	Kind:       setupspec.KindFirstAdmin,
+	Name:       "Immich",
+	CheckError: "the administrator {email} cannot sign in",
+	Probe:      setupspec.Probe{Live: true, Path: "/api/server/config", Timeout: "10m"},
+	Email:      email,
+	Exists: []setupspec.Call{{
+		Path:   "/api/server/config",
+		Assert: []setupspec.Assert{{Path: "isInitialized", Equals: "true"}},
+	}},
+	Create: []setupspec.Call{{
+		Path: "/api/auth/admin-sign-up",
+		JSON: map[string]any{"email": "{email}", "name": "Admin", "password": "{password}"},
+		Ok:   []int{201},
+	}},
+	Login: []setupspec.Call{{
+		Path:   "/api/auth/login",
+		JSON:   map[string]any{"email": "{email}", "password": "{password}"},
+		Ok:     []int{200, 201},
+		Denied: []int{400, 401},
+		Assert: []setupspec.Assert{
+			{Path: "userEmail", Equals: "{email}"},
+			{Path: "isAdmin", Equals: "true"},
+			{Path: "accessToken", Present: true},
+		},
+	}},
+	Title: "create the first administrator {email}",
+	Hint:  "Open {url}, finish the Immich setup with email {email} and the password shown by `self-host credentials`, then run: self-host setup immich",
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/api/server/config", helpers.Timeout(10*time.Minute)); err != nil {
-		return err
-	}
-	if err := (firstadmin.FirstAdmin{
-		Username: func(context.Context, *helpers.H) (string, error) { return email, nil },
-		Title:    func(_ *helpers.H, user string) string { return "create the first administrator " + user },
-		Login: func(ctx context.Context, h *helpers.H, _, _ string) (bool, error) {
-			return login(ctx, h)
-		},
-		Create: func(ctx context.Context, h *helpers.H, _, _ string) error {
-			setUp, err := initialized(ctx, h)
-			if err != nil {
-				return err
-			}
-			if !setUp {
-				if _, err := h.Expect(ctx, helpers.Request{
-					Method: http.MethodPost, Path: "/api/auth/admin-sign-up",
-					JSON: map[string]string{"email": email, "name": "Admin", "password": h.AdminPassword()},
-				}, http.StatusCreated); err != nil {
-					return err
-				}
-			}
-			ok, err := login(ctx, h)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return errors.New("the administrator was created but cannot sign in")
-			}
-			return nil
-		},
-		Hint: func(h *helpers.H, user string) string {
-			return "Open " + h.URL + ", finish the Immich setup with email " + user + " and the password shown by `self-host credentials`, then run: self-host setup immich"
-		},
-	}).Admin(ctx, h); err != nil {
+	if err := setup.Setup(ctx, h); err != nil {
 		return err
 	}
 	if h.Peer("homarr") == nil {
@@ -201,18 +149,7 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 	})
 }
 
-func (App) Check(ctx context.Context, h *helpers.H) error {
-	ok, err := login(ctx, h)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("the administrator %s cannot sign in", email)
-	}
-	return nil
-}
-
-func (App) Links() []app.Link { return nil }
+func (App) Check(ctx context.Context, h *helpers.H) error { return setup.Check(ctx, h) }
 
 func (App) StandaloneGuide() string {
 	return "After the first start, create the administrator on the first visit."

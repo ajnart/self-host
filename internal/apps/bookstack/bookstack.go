@@ -20,7 +20,7 @@ import (
 )
 
 // App is BookStack. Traps: docs/catalog/traps/bookstack.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) AdminEmail(username string) string {
 	if username == "" {
@@ -57,8 +57,6 @@ func (App) Info() app.Info {
 		Service:       service,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Secrets() []app.SecretSpec {
 	return []app.SecretSpec{
@@ -429,8 +427,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "BookStack starts with a seeded administrator account (admin@admin.com, password \"password\"); sign in and replace it."

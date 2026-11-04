@@ -21,7 +21,7 @@ import (
 const version = "26.3"
 
 // App is NZBGet. Traps: docs/catalog/traps/nzbget.md.
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -35,8 +35,6 @@ func (App) Info() app.Info {
 		UsesMedia:     true,
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 func (App) Compose(rc app.RenderContext) string {
 	port := strconv.Itoa(rc.Port)
@@ -222,8 +220,6 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
 
 func (App) StandaloneGuide() string {
 	return "Set DestDir to /data/usenet/complete and InterDir to /data/usenet/incomplete in Settings > Paths. The /downloads mount retains queue/history and existing downloads; changing defaults does not move existing jobs or files."

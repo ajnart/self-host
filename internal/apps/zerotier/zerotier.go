@@ -16,7 +16,7 @@ import (
 	"github.com/ajnart/self-host/internal/helpers"
 )
 
-type App struct{}
+type App struct{ app.Defaults }
 
 func (App) Info() app.Info {
 	return app.Info{
@@ -29,8 +29,6 @@ func (App) Info() app.Info {
 		Service:       "zerotier",
 	}
 }
-
-func (App) Inputs() []app.Input { return nil }
 
 // Secrets declares the native service API token, handed to the container as
 // ZEROTIER_API_SECRET and never written to Compose.
@@ -176,5 +174,3 @@ func (App) Check(ctx context.Context, h *helpers.H) error {
 	}
 	return nil
 }
-
-func (App) Links() []app.Link { return nil }
