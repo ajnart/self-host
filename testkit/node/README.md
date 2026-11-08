@@ -1,5 +1,121 @@
 # @ajnart/self-host-testkit
 
+## Run your existing tests (unreleased)
+
+This checkout adds a command runner and optional Action `apps` / `config` / `run`
+inputs. **These are not included in the published 1.3.2 package or the v1.3.0
+Action pin shown elsewhere in this guide.** They require a built source checkout
+until a new SDK and Action release is published together.
+
+The runner handles App startup, environment, cleanup and reports. Keep your test
+runner and assertions, including Vitest, Jest, Playwright or pytest. There is no
+new test DSL and no special test-file suffix. Tests that already read configurable
+endpoints need only an environment-name mapping; hardcoded URLs or mocks still
+need to be changed. Starting an App alone cannot establish adapter correctness.
+
+From a source checkout, build the SDK and matching helper as described in the
+[parent guide](../README.md#try-this-source-checkout), then:
+
+```bash
+SELF_HOST_TESTKIT_BINARY="$PWD/dist/self-host-testkit" \
+  node testkit/node/cli.mjs --apps sonarr,radarr -- npm test
+```
+
+The packaged form after release is `self-host-testkit-run --apps sonarr,radarr --
+npm test`. The command after `--` is passed as an argument vector, without shell
+interpolation. For a shell pipeline, explicitly use `-- sh -eu -c '…'`.
+
+Every declared App starts concurrently by default. The runner waits for all
+starts to settle, runs the existing command once only if every App is ready, and
+always attempts cleanup. A failed startup skips the test command and remains a
+failure. A failed test preserves its exit code. Failed cleanup also fails the run.
+
+Each App exports the following variables only to the test command and its children:
+
+- `SELF_HOST_SONARR_URL`
+- `SELF_HOST_SONARR_API_KEY`
+- `SELF_HOST_SONARR_USERNAME`, `SELF_HOST_SONARR_PASSWORD`, `SELF_HOST_SONARR_EMAIL`
+
+Aliases are uppercase with hyphens converted to underscores. To use existing
+variable names or test multiple image versions, add `self-host.testkit.json`:
+
+```json
+{
+  "apps": {
+    "sonarr": {
+      "app": "sonarr",
+      "image": "lscr.io/linuxserver/sonarr:latest",
+      "env": { "url": "SONARR_URL", "apiKey": "SONARR_API_KEY" }
+    },
+    "radarr": "radarr"
+  },
+  "concurrency": 2,
+  "timeoutMs": 720000
+}
+```
+
+Then run `self-host-testkit-run --config self-host.testkit.json -- npm test`
+(or the source CLI path above). Unmapped fields retain their default names. The
+config rejects duplicate environment names and reserved runtime/CI variables.
+Do not put credentials in this file; the fixtures generate private credentials.
+
+### Parallelism and lifetime
+
+- Declare 1–8 Apps. Budget memory/CPU for **all** of them at once: up to five
+  containers per App, each capped at 1 GiB / one CPU / 512 PIDs. Eight Apps can
+  require 40 GiB. Use a larger disposable runner or a matrix for large suites.
+- `--concurrency 2` limits simultaneous **startups**, not the number of Apps kept
+  running during tests. The default starts all declared Apps together.
+- The whole startup + test-command budget defaults to 12 minutes. Set
+  `--timeout-ms` or `timeoutMs` up to 780000 (13 minutes). Cleanup has a separate
+  reserve. Choose a job timeout of at least 20 minutes for the default budget.
+- SIGINT, SIGTERM and timeout stop the command process group and attempt cleanup.
+  SIGKILL, runner loss or a failed Docker daemon can still prevent it. Keep the
+  Action's post cleanup and prefer disposable hosts.
+- These are independent single-App fixtures. For Links between Apps, continue to
+  use `withPair`; merely declaring two Apps does not wire them together.
+
+### Reports and GitHub Actions
+
+The runner writes `self-host-testkit-report/report.json` and `report.md`, and
+appends the Markdown to the GitHub job summary when available. Change the folder
+with `--report-dir`. Reports include each App's Setup outcome and duration,
+resolved image ID/digests, the test command outcome, interruption and cleanup.
+They intentionally omit credentials, Addresses, command arguments, Project files
+and raw errors/output. Existing test output still streams to the terminal; ensure
+your tests do not log credentials. Fixture credential values are masked in GitHub
+Actions before the test command runs.
+
+These are lifecycle reports, not individual test-case results or a claim that a
+suite covers every integration. Keep your test runner's JUnit/coverage reporter
+for assertion-level detail.
+
+Once a runner-capable SDK and Action are released, pin both and replace separate
+startup/test steps with:
+
+```yaml
+- run: npm ci
+- uses: ajnart/self-host/testkit@<reviewed-runner-capable-commit>
+  with:
+    apps: sonarr,radarr
+    run: npm test
+- uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+  if: always()
+  with:
+    name: integration-report
+    path: self-host-testkit-report/
+```
+
+The placeholder is deliberate: no released Action currently provides this path.
+For development in this checkout, use `uses: ./testkit` with `source: "true"`.
+The source Action builds the matching Go helper and uses the checked-in SDK.
+In a monorepo, set `working-directory`; use `config: self-host.testkit.json`
+instead of `apps` for custom variable names. `run` uses Bash with `-euo pipefail`, like a normal
+GitHub Actions run step. Optional `concurrency`, `timeout-ms` and
+`report-directory` map to the CLI. Omitting `run` preserves the original
+setup-only Action behavior.
+
+
 Real App fixtures for integration tests, using self-host's existing headless
 Setup. ESM only, Node.js 22+, no runtime npm dependencies or test-runner plugin.
 

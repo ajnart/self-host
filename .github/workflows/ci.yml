@@ -83,7 +83,7 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Generated SDK exports and types are current
         run: |
-          set -- testkit/node/index.mjs testkit/node/index.d.mts testkit/node/binary.mjs testkit/node/binary.d.mts testkit/node/setup.mjs testkit/node/setup.d.mts testkit/node/action.mjs testkit/node/action.d.mts testkit/node/reasons.mjs testkit/node/reasons.d.mts
+          set -- testkit/node/index.mjs testkit/node/index.d.mts testkit/node/binary.mjs testkit/node/binary.d.mts testkit/node/setup.mjs testkit/node/setup.d.mts testkit/node/action.mjs testkit/node/action.d.mts testkit/node/cli.mjs testkit/node/cli.d.mts testkit/node/run.mjs testkit/node/run.d.mts testkit/node/reasons.mjs testkit/node/reasons.d.mts
           git ls-files --error-unmatch -- "$@" > /dev/null
           bun run --cwd testkit/node build
           git diff --exit-code -- "$@"
