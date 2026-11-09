@@ -59,3 +59,21 @@ jobs:
           path: ${{ runner.temp }}/testkit-runner-consumer/self-host-testkit-report/
           if-no-files-found: error
           retention-days: 7
+
+  parallel-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SELF_HOST_TESTKIT_ACCEPTANCE: "1"
+      SELF_HOST_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: go.sum
+      - name: Prove two real Sonarr startups overlap before Setup completes
+        timeout-minutes: 11
+        run: go test -tags=e2e ./testkit -run '^TestDockerParallelSonarrStartup$' -count=1 -timeout=9m -v

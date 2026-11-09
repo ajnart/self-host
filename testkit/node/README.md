@@ -25,10 +25,11 @@ The packaged form after release is `self-host-testkit-run --apps sonarr,radarr -
 npm test`. The command after `--` is passed as an argument vector, without shell
 interpolation. For a shell pipeline, explicitly use `-- sh -eu -c '…'`.
 
-The runner submits App startup requests concurrently by default. The current Go
-helper still holds a host-global lock through installation and Setup, so actual
-Docker startup is serialized. The runner waits for all starts to settle, runs
-the existing command once only if every App is ready, and
+The source runner starts independent Apps concurrently, including image pulls,
+container creation and Setup. Cross-process port claims protect socket handoff;
+separate Projects retain their own ownership checks and resource caps. The runner
+waits for all starts to settle, runs the existing command once only if every App
+is ready, and
 always attempts cleanup. A failed startup skips the test command and remains a
 failure. A failed test preserves its exit code. Failed cleanup also fails the run.
 
@@ -66,9 +67,8 @@ Do not put credentials in this file; the fixtures generate private credentials.
 - Declare 1–8 Apps. Budget memory/CPU for **all** of them at once: up to five
   containers per App, each capped at 1 GiB / one CPU / 512 PIDs. Eight Apps can
   require 40 GiB. Use a larger disposable runner or a matrix for large suites.
-- `--concurrency 2` limits in-flight **startup requests**, not the number of Apps
-  kept running during tests. The current helper serializes Docker startup even
-  when requests overlap; this is not yet parallel Docker provisioning.
+- `--concurrency 2` limits in-flight **startups**, not the number of Apps kept
+  running during tests. All declared Apps remain running until tests finish.
 - The whole startup + test-command budget defaults to 12 minutes. Set
   `--timeout-ms` or `timeoutMs` up to 780000 (13 minutes). Cleanup has a separate
   reserve. Choose a job timeout of at least 20 minutes for the default budget.
@@ -77,6 +77,12 @@ Do not put credentials in this file; the fixtures generate private credentials.
   Action's post cleanup and prefer disposable hosts.
 - These are independent single-App fixtures. For Links between Apps, continue to
   use `withPair`; merely declaring two Apps does not wire them together.
+
+The source helper keeps shared admission during startup, excluding the existing
+exclusive e2e/recovery harness during that phase. This is not lifetime-wide harness
+exclusion. Port claims survive listener handoff, Pair installation gaps and failed
+cleanup while the helper lives. External processes not using these claims can still
+race Docker for an unbound port; startup fails safely rather than adopting them.
 
 ### Reports and GitHub Actions
 
@@ -128,9 +134,13 @@ uses `./testkit` with `source: "true"`, runs dependency-free Node tests using ma
 owned Docker resources before post cleanup. It is bounded to one Sonarr container
 (1 GiB / one CPU / 512 PIDs), eight minutes of startup/test work and a 15-minute
 job including build and cleanup. It checks App identity, rejected credentials and
-a legitimate empty library, not Homarr adapters, populated data, parallel Docker
-startup or cancellation under live Docker. The published 1.3.0 consumer smoke is
-a separate compatibility check.
+a legitimate empty library, not Homarr adapters, populated data or cancellation
+under live Docker. A second bounded job uses two real Sonarr containers and a
+barrier: neither App may run Setup until both containers reach it. Each container
+retains the same caps (2 GiB / two CPUs aggregate, plus runner overhead); the
+job has a 15-minute cap. Deterministic unit barriers separately require overlapping
+pull and creation calls. The published 1.3.0 consumer smoke is a separate
+compatibility check.
 
 
 Real App fixtures for integration tests, using self-host's existing headless

@@ -191,7 +191,7 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 			}
 		}
 	}()
-	unlock, err := startupLock(work)
+	unlock, err := sharedStartupLock(work)
 	if err != nil {
 		return nil, err
 	}
@@ -374,10 +374,18 @@ func (a *App) Close(ctx context.Context) error {
 	return a.closeLocked(ctx)
 }
 
+// Keep failed-cleanup claims alive even if the caller drops the App handle.
+var incompletePortLeases sync.Map // owned root -> *portLease
+
 func (a *App) closeLocked(ctx context.Context) error {
 	if a.closed {
 		return nil
 	}
+	defer func() {
+		if !a.closed {
+			incompletePortLeases.Store(a.marker.Root, a.guard.ports)
+		}
+	}()
 	if a.pair != nil {
 		a.pair.failed = true
 	}
@@ -389,6 +397,8 @@ func (a *App) closeLocked(ctx context.Context) error {
 	if err := removeOwnedRoot(cleanup, a.marker.Root); err != nil {
 		return err
 	}
+	a.guard.ports.release()
+	incompletePortLeases.Delete(a.marker.Root)
 	a.closed = true
 	close(a.done)
 	return nil

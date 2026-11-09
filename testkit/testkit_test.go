@@ -502,11 +502,11 @@ func TestPortReservationContendsUntilLockedHandoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.handoff()
+	defer lease.release()
 	for _, protocol := range []string{"tcp", "udp"} {
 		other := &portLease{}
 		if err := other.reserve([]project.FixturePort{{Port: port, Protocol: protocol}}); err == nil {
-			other.handoff()
+			other.release()
 			t.Fatal("reserved publication reused")
 		}
 	}
