@@ -1,0 +1,91 @@
+name: testkit source runner acceptance
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/testkit-runner.yml
+      - testkit/**
+      - cmd/self-host-testkit/**
+      - internal/**
+      - go.mod
+      - go.sum
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testkit-runner-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  sonarr:
+    runs-on: ubuntu-latest
+    # Includes source build, at most eight minutes of fixture/test work, and cleanup.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Copy dependency-free existing tests outside the checkout
+        run: |
+          mkdir "$RUNNER_TEMP/testkit-runner-consumer"
+          cp testkit/node/examples/runner-ci/* "$RUNNER_TEMP/testkit-runner-consumer/"
+      - name: Run ordinary Sonarr assertions through the current source Action
+        id: runner
+        timeout-minutes: 13
+        uses: ./testkit
+        with:
+          source: "true"
+          working-directory: ${{ runner.temp }}/testkit-runner-consumer
+          config: self-host.testkit.json
+          run: node --test sonarr.test.mjs
+          timeout-ms: "480000"
+        env:
+          GOSUMDB: "off"
+          SELF_HOST_NO_TELEMETRY: "1"
+      - name: Verify report and cleanup before the Action post hook
+        if: always() && steps.runner.outputs.report-directory != ''
+        working-directory: ${{ runner.temp }}/testkit-runner-consumer
+        run: node verify.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always() && steps.runner.outputs.report-directory != ''
+        with:
+          name: source-runner-sonarr-report
+          path: ${{ runner.temp }}/testkit-runner-consumer/self-host-testkit-report/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Classify a separate public image pull after failure
+        if: failure()
+        timeout-minutes: 2
+        run: node testkit/node/examples/runner-ci/diagnose-pull.mjs
+
+  parallel-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SELF_HOST_TESTKIT_ACCEPTANCE: "1"
+      SELF_HOST_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Prove two real Sonarr startups overlap before Setup completes
+        timeout-minutes: 11
+        run: go test -tags=e2e ./testkit -run '^TestDockerParallelSonarrStartup$' -count=1 -timeout=9m -v
+      - name: Classify a separate public image pull after failure
+        if: failure()
+        timeout-minutes: 2
+        run: node testkit/node/examples/runner-ci/diagnose-pull.mjs

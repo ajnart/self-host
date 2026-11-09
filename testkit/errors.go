@@ -42,11 +42,14 @@ var ErrCleanupIncomplete = errors.New("cleanup incomplete")
 type StartupError struct {
 	reason  StartupReason
 	message string
+	phase   string
 }
 
 func (e *StartupError) Error() string { return e.message }
 
 func (e *StartupError) Reason() string { return string(e.reason) }
+
+func (e *StartupError) Phase() string { return e.phase }
 
 func startupError(reason StartupReason, message string) error {
 	return &StartupError{reason: reason, message: message}

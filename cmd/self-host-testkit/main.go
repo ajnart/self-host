@@ -41,6 +41,7 @@ type protocolError struct {
 	Code          string `json:"code"`
 	Message       string `json:"message"`
 	Reason        string `json:"reason,omitempty"`
+	Phase         string `json:"phase,omitempty"`
 	CleanupFailed bool   `json:"cleanupFailed,omitempty"`
 }
 
@@ -268,6 +269,7 @@ func startFailure(ctx context.Context, err error) *protocolError {
 	var safe *testkit.StartupError
 	if errors.As(err, &safe) {
 		result.Reason = safe.Reason()
+		result.Phase = safe.Phase()
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		result = failure("TIMEOUT")
