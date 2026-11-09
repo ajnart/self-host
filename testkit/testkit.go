@@ -165,7 +165,8 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 	ports := &portLease{}
 	guard := &guardedRunner{base: base, p: p, policy: project.FixturePolicy{Root: root, Service: selected.Info().Service, Image: opts.Image}, ports: ports}
 	deps.Runner = guard
-	svc := service.New(&deps, events.Discard(), cat)
+	diagnostics := &startupDiagnostics{}
+	svc := service.New(&deps, events.New(diagnostics), cat)
 	a := &App{service: svc, runner: base, guard: guard, marker: meta, deadline: deadline, workDeadline: workDeadline, done: make(chan struct{})}
 	defer func() {
 		if err != nil {
@@ -240,7 +241,7 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 		if errors.As(err, &safe) || work.Err() != nil {
 			return nil, err
 		}
-		return nil, startupError(StartupReasonSetup, "testkit App Setup failed or requires a Manual step")
+		return nil, diagnostics.failure()
 	}
 	if err := guard.verify(work); err != nil {
 		return nil, err

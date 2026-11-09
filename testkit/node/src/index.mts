@@ -6,9 +6,14 @@ import { isAbsolute, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { inspect } from "node:util";
 import { installedBinary } from "./binary.mjs";
-import { type TestkitStartupReason, startupReasons } from "./reasons.mjs";
+import {
+	type TestkitStartupPhase,
+	type TestkitStartupReason,
+	startupPhases,
+	startupReasons,
+} from "./reasons.mjs";
 
-export type { TestkitStartupReason } from "./reasons.mjs";
+export type { TestkitStartupReason, TestkitStartupPhase } from "./reasons.mjs";
 
 export interface Credentials {
 	readonly username: string;
@@ -162,6 +167,7 @@ const messages = new Map<TestkitErrorCode, string>([
 export class TestkitError extends Error {
 	readonly code: TestkitErrorCode;
 	readonly reason: TestkitStartupReason | undefined;
+	readonly phase: TestkitStartupPhase | undefined;
 	readonly cleanupFailed: boolean;
 	declare readonly recoveryPath?: string;
 
@@ -170,14 +176,17 @@ export class TestkitError extends Error {
 		reason?: TestkitStartupReason,
 		recoveryPath?: string,
 		cleanupFailed = false,
+		phase?: TestkitStartupPhase,
 	) {
 		let message = messages.get(code);
 		if ((code === "START" || code === "OPERATION") && reason)
 			message = `${message} ${startupReasons[reason]}`;
+		if (phase) message = `${message} Phase: ${phase}.`;
 		super(message);
 		this.name = "TestkitError";
 		this.code = code;
 		this.reason = reason;
+		this.phase = phase;
 		this.cleanupFailed = cleanupFailed;
 		Object.defineProperty(this, "recoveryPath", { value: recoveryPath });
 	}
@@ -188,8 +197,9 @@ function fault(
 	reason?: TestkitStartupReason,
 	recoveryPath?: string,
 	cleanupFailed = false,
+	phase?: TestkitStartupPhase,
 ): TestkitError {
-	return new TestkitError(code, reason, recoveryPath, cleanupFailed);
+	return new TestkitError(code, reason, recoveryPath, cleanupFailed, phase);
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -304,8 +314,9 @@ class Bridge {
 		code: TestkitErrorCode,
 		reason?: TestkitStartupReason,
 		cleanupFailed = false,
+		phase?: TestkitStartupPhase,
 	) {
-		return fault(code, reason, this.#manifest, cleanupFailed);
+		return fault(code, reason, this.#manifest, cleanupFailed, phase);
 	}
 
 	#fail(code: TestkitErrorCode) {
@@ -370,6 +381,21 @@ class Bridge {
 						}
 						reason = response.error.reason;
 					}
+					let phase: TestkitStartupPhase | undefined;
+					if (response.error.phase !== undefined) {
+						if (
+							response.error.code !== "START" ||
+							typeof response.error.phase !== "string" ||
+							!(startupPhases as readonly string[]).includes(
+								response.error.phase,
+							)
+						) {
+							pending.reject(this.#fault("PROTOCOL"));
+							this.#fail("PROTOCOL");
+							return;
+						}
+						phase = response.error.phase as TestkitStartupPhase;
+					}
 					if (
 						response.error.cleanupFailed !== undefined &&
 						typeof response.error.cleanupFailed !== "boolean"
@@ -383,6 +409,7 @@ class Bridge {
 							response.error.code,
 							reason,
 							response.error.cleanupFailed === true,
+							phase,
 						),
 					);
 				} else {
@@ -426,7 +453,7 @@ class Bridge {
 			await this.close();
 		} catch {
 			if (primary instanceof TestkitError)
-				throw this.#fault(primary.code, primary.reason, true);
+				throw this.#fault(primary.code, primary.reason, true, primary.phase);
 			throw primary;
 		}
 		throw primary;

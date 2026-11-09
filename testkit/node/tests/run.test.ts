@@ -313,3 +313,19 @@ test("cancellation during cleanup remains a canceled run, while cleanup complete
 		clearInterval(timer);
 	}
 });
+
+test("startup reports include only allowlisted phase diagnostics", async () => {
+	const f = fixture();
+	const report = await runTests(
+		{ apps: { sonarr: "secret-error" } },
+		["node", "-e", "process.exit(0)"],
+		f,
+	);
+	expect(report.apps[0]).toMatchObject({
+		status: "failed",
+		reason: "SETUP",
+		phase: "auth",
+	});
+	expect(report.tests.status).toBe("not-run");
+	expect(JSON.stringify(report)).not.toContain("private-test-raw-secret");
+});

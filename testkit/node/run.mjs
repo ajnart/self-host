@@ -208,6 +208,7 @@ export async function runTests(config, testCommand, options = {}) {
                     if (error instanceof TestkitError) {
                         result.code = error.code;
                         result.reason = error.reason;
+                        result.phase = error.phase;
                     }
                 }
                 finally {
@@ -232,6 +233,7 @@ export async function runTests(config, testCommand, options = {}) {
                 if (error instanceof TestkitError) {
                     app.code = error.code;
                     app.reason = error.reason;
+                    app.phase = error.phase;
                 }
             }
         }
@@ -268,7 +270,7 @@ export function markdownReport(report) {
         "",
         "| Fixture | App | Setup | Seconds | Reason |",
         "| --- | --- | --- | ---: | --- |",
-        ...report.apps.map((app) => `| ${app.name} | ${app.app} | ${app.status} | ${(app.durationMs / 1000).toFixed(1)} | ${app.code ?? ""}${app.reason ? ` / ${app.reason}` : ""} |`),
+        ...report.apps.map((app) => `| ${app.name} | ${app.app} | ${app.status} | ${(app.durationMs / 1000).toFixed(1)} | ${app.code ?? ""}${app.reason ? ` / ${app.reason}` : ""}${app.phase ? ` (${app.phase})` : ""} |`),
         "",
         "Setup readiness is not an adapter assertion. Only the existing test command determines its test result.",
         "",

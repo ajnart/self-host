@@ -84,6 +84,10 @@ The runner writes `self-host-testkit-report/report.json` and `report.md`, and
 appends the Markdown to the GitHub job summary when available. Change the folder
 with `--report-dir`. Reports include each App's Setup outcome and duration,
 resolved image ID/digests, the test command outcome, interruption and cleanup.
+Installation failures can include a fixed `phase` such as `pull`, `start` or
+`auth`. This is the last observed stage, not a root-cause diagnosis. It contains
+no raw error, command, Address or private Project path. `START / SETUP` remains
+compatible and can also describe failures before App Setup begins.
 They intentionally omit credentials, Addresses, command arguments, Project files
 and raw errors/output. Existing test output still streams to the terminal; ensure
 your tests do not log credentials. Fixture credential values are masked in GitHub

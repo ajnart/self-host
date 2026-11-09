@@ -1,4 +1,4 @@
-import { type SelfHostOptions } from "./index.mjs";
+import { type SelfHostOptions, type TestkitStartupPhase } from "./index.mjs";
 export interface RunApp {
     app: string;
     image?: string;
@@ -23,6 +23,7 @@ export interface RunReport {
         durationMs: number;
         code?: string;
         reason?: string;
+        phase?: TestkitStartupPhase;
         image?: string;
         imageId?: string;
         repoDigests?: string[];
