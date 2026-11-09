@@ -43,3 +43,7 @@ jobs:
         working-directory: ${{ runner.temp }}/testkit-consumer
         timeout-minutes: 30
         run: npm test
+      - name: Classify a separate public image pull after failure
+        if: failure()
+        timeout-minutes: 2
+        run: node testkit/node/examples/runner-ci/diagnose-pull.mjs

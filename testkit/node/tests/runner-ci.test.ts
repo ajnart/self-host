@@ -102,3 +102,46 @@ test("ordinary Sonarr assertions fail rather than skip when injection is missing
 		"Runner did not supply the configured environment.",
 	);
 });
+
+test("public pull diagnostics classify without printing raw Docker output", () => {
+	const f = fixture();
+	for (const [output, code, category] of [
+		[
+			"private signed URL: https://invalid.example/?token=secret 429 Too Many Requests",
+			1,
+			"registry-rate-limit",
+		],
+		["403 Forbidden: private-synthetic-key", 1, "registry-authorization"],
+		[
+			"503 Service Unavailable private-synthetic-key",
+			1,
+			"registry-server-error",
+		],
+		["private-synthetic-key unexpected failure", 1, "unclassified-failure"],
+		[
+			"https://invalid.example/?token=private429403500 unexpected failure",
+			1,
+			"unclassified-failure",
+		],
+		["sha256:private-synthetic-key", 0, "passed"],
+	] as const) {
+		writeFileSync(
+			join(f.directory, "bin", "docker"),
+			`#!/bin/sh\nprintf '%s' '${output}' >&2\nexit ${code}\n`,
+			{ mode: 0o700 },
+		);
+		const result = spawnSync("node", ["diagnose-pull.mjs"], {
+			cwd: f.directory,
+			env: f.env,
+			encoding: "utf8",
+			timeout: 10_000,
+		});
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain(
+			`Separate public Sonarr pull probe: ${category}.`,
+		);
+		expect(result.stdout).not.toContain("private");
+		expect(result.stdout).not.toContain("token=");
+		expect(result.stderr).toBe("");
+	}
+});

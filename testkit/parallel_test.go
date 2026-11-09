@@ -3,13 +3,13 @@ package testkit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -336,44 +336,66 @@ func TestPairKeepsUnstartedPeerPortClaimAfterHandoff(t *testing.T) {
 }
 
 func TestFailedStartupClaimsSurviveGarbageCollection(t *testing.T) {
-	f := newFakeDocker(t)
-	f.partialFailure, f.cleanupFailure = true, true
-	parent := t.TempDir()
-	fixture, err := start(t.Context(), Options{App: "fixture", RootParent: parent, Timeout: time.Minute}, f.deps, catalog.New([]app.App{fixtureApp{}}, nil))
-	if fixture != nil || !errors.Is(err, ErrCleanupIncomplete) {
-		t.Fatal("expected failed startup and cleanup")
-	}
-	runtime.GC() // No App handle remains to keep os.File claims alive.
-	var root string
-	var lease *portLease
-	incompletePortLeases.Range(func(key, value any) bool {
-		if strings.HasPrefix(key.(string), parent+string(os.PathSeparator)) {
-			root, lease = key.(string), value.(*portLease)
-			return false
-		}
-		return true
-	})
-	if lease == nil {
-		t.Fatal("unreachable failed-start lease was not retained")
-	}
-	t.Cleanup(func() {
-		f.cleanupFailure = false
-		for _, container := range f.containers {
-			if err := inactive(context.Background(), f.runner, container.Project, true); err != nil {
-				t.Error(err)
+	for _, symlink := range []bool{false, true} {
+		t.Run(fmt.Sprintf("symlink-parent=%t", symlink), func(t *testing.T) {
+			f := newFakeDocker(t)
+			f.partialFailure, f.cleanupFailure = true, true
+			parent := t.TempDir()
+			if symlink {
+				link := filepath.Join(t.TempDir(), "parent")
+				if err := os.Symlink(parent, link); err != nil {
+					t.Fatal(err)
+				}
+				parent = link
 			}
-		}
-		if err := removeOwnedRoot(context.Background(), root); err != nil {
-			t.Error(err)
-		}
-		lease.release()
-		incompletePortLeases.Delete(root)
-	})
-	for port := range lease.claims {
-		other := &portLease{}
-		if err := other.reserve([]project.FixturePort{port}); err == nil {
-			other.release()
-			t.Fatal("garbage collection released a failed-start claim")
-		}
+			canonicalParent, err := filepath.Abs(parent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			canonicalParent, err = filepath.EvalSymlinks(canonicalParent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture, err := start(t.Context(), Options{App: "fixture", RootParent: parent, Timeout: time.Minute}, f.deps, catalog.New([]app.App{fixtureApp{}}, nil))
+			if fixture != nil || !errors.Is(err, ErrCleanupIncomplete) {
+				t.Fatal("expected failed startup and cleanup")
+			}
+			runtime.GC() // No App handle remains to keep os.File claims alive.
+			var root string
+			var lease *portLease
+			incompletePortLeases.Range(func(key, value any) bool {
+				if filepath.Dir(key.(string)) == canonicalParent {
+					root, lease = key.(string), value.(*portLease)
+					return false
+				}
+				return true
+			})
+			if lease == nil {
+				t.Fatal("unreachable failed-start lease was not retained")
+			}
+			t.Cleanup(func() {
+				f.cleanupFailure = false
+				for _, container := range f.containers {
+					if err := inactive(context.Background(), f.runner, container.Project, true); err != nil {
+						t.Error(err)
+					}
+				}
+				if err := removeOwnedRoot(context.Background(), root); err != nil {
+					t.Error(err)
+				}
+				lease.release()
+				incompletePortLeases.Delete(root)
+			})
+			if len(lease.claims) == 0 {
+				t.Fatal("failed-start lease retained no port claims")
+			}
+			for port := range lease.claims {
+				other := &portLease{}
+				if err := other.reserve([]project.FixturePort{port}); err == nil {
+					other.release()
+					t.Fatal("garbage collection released a failed-start claim")
+				}
+			}
+		})
 	}
 }

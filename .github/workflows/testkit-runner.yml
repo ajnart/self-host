@@ -59,6 +59,10 @@ jobs:
           path: ${{ runner.temp }}/testkit-runner-consumer/self-host-testkit-report/
           if-no-files-found: error
           retention-days: 7
+      - name: Classify a separate public image pull after failure
+        if: failure()
+        timeout-minutes: 2
+        run: node testkit/node/examples/runner-ci/diagnose-pull.mjs
 
   parallel-startup:
     runs-on: ubuntu-latest
@@ -74,6 +78,14 @@ jobs:
         with:
           go-version: "1.27.3"
           cache-dependency-path: go.sum
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+          package-manager-cache: false
       - name: Prove two real Sonarr startups overlap before Setup completes
         timeout-minutes: 11
         run: go test -tags=e2e ./testkit -run '^TestDockerParallelSonarrStartup$' -count=1 -timeout=9m -v
+      - name: Classify a separate public image pull after failure
+        if: failure()
+        timeout-minutes: 2
+        run: node testkit/node/examples/runner-ci/diagnose-pull.mjs
