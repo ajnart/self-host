@@ -30,10 +30,11 @@ for mock replacement, timeouts, recovery and CI.
 ## Existing test commands (unreleased)
 
 This source checkout also provides `self-host-testkit-run`: start several Apps
-in parallel, supply their endpoints to an existing test command, clean up, and
+with concurrent startup requests, supply their endpoints to an existing test command, clean up, and
 write a sanitized report. No new test DSL is required. See the [runner guide](node/README.md#run-your-existing-tests-unreleased)
 for configuration and the optional Action `apps` / `run` inputs. This is not yet
-available in the published 1.3.2 package or the v1.3.0 Action pin below.
+available in the published 1.3.2 package or the v1.3.0 Action pin below. The current
+Go helper still serializes Docker installation and Setup with its host-global lock.
 
 ## CI in another repository
 

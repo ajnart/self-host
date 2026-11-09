@@ -25,8 +25,10 @@ The packaged form after release is `self-host-testkit-run --apps sonarr,radarr -
 npm test`. The command after `--` is passed as an argument vector, without shell
 interpolation. For a shell pipeline, explicitly use `-- sh -eu -c '…'`.
 
-Every declared App starts concurrently by default. The runner waits for all
-starts to settle, runs the existing command once only if every App is ready, and
+The runner submits App startup requests concurrently by default. The current Go
+helper still holds a host-global lock through installation and Setup, so actual
+Docker startup is serialized. The runner waits for all starts to settle, runs
+the existing command once only if every App is ready, and
 always attempts cleanup. A failed startup skips the test command and remains a
 failure. A failed test preserves its exit code. Failed cleanup also fails the run.
 
@@ -64,8 +66,9 @@ Do not put credentials in this file; the fixtures generate private credentials.
 - Declare 1–8 Apps. Budget memory/CPU for **all** of them at once: up to five
   containers per App, each capped at 1 GiB / one CPU / 512 PIDs. Eight Apps can
   require 40 GiB. Use a larger disposable runner or a matrix for large suites.
-- `--concurrency 2` limits simultaneous **startups**, not the number of Apps kept
-  running during tests. The default starts all declared Apps together.
+- `--concurrency 2` limits in-flight **startup requests**, not the number of Apps
+  kept running during tests. The current helper serializes Docker startup even
+  when requests overlap; this is not yet parallel Docker provisioning.
 - The whole startup + test-command budget defaults to 12 minutes. Set
   `--timeout-ms` or `timeoutMs` up to 780000 (13 minutes). Cleanup has a separate
   reserve. Choose a job timeout of at least 20 minutes for the default budget.
@@ -114,6 +117,16 @@ instead of `apps` for custom variable names. `run` uses Bash with `-euo pipefail
 GitHub Actions run step. Optional `concurrency`, `timeout-ms` and
 `report-directory` map to the CLI. Omitting `run` preserves the original
 setup-only Action behavior.
+
+The separate [source-runner acceptance workflow](../../.github/workflows/testkit-runner.yml)
+uses `./testkit` with `source: "true"`, runs dependency-free Node tests using mapped
+`SONARR_URL` / `SONARR_API_KEY`, and verifies the report plus removal of the exact
+owned Docker resources before post cleanup. It is bounded to one Sonarr container
+(1 GiB / one CPU / 512 PIDs), eight minutes of startup/test work and a 15-minute
+job including build and cleanup. It checks App identity, rejected credentials and
+a legitimate empty library, not Homarr adapters, populated data, parallel Docker
+startup or cancellation under live Docker. The published 1.3.0 consumer smoke is
+a separate compatibility check.
 
 
 Real App fixtures for integration tests, using self-host's existing headless
