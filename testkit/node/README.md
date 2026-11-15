@@ -1,11 +1,11 @@
 # @ajnart/self-host-testkit
 
-## Run your existing tests (unreleased)
+## Run your existing tests
 
-This checkout adds a command runner and optional Action `apps` / `config` / `run`
-inputs. **These are not included in the published 1.3.2 package or the v1.3.0
-Action pin shown elsewhere in this guide.** They require a built source checkout
-until a new SDK and Action release is published together.
+Version 1.4.0 adds a command runner and optional Action `apps` / `config` / `run`
+inputs. Install the matching GitHub SDK tarball described below and use its
+matching Action. The separately verified v1.3.0 Action pin elsewhere in this
+guide remains setup-only.
 
 The runner handles App startup, environment, cleanup and reports. Keep your test
 runner and assertions, including Vitest, Jest, Playwright or pytest. There is no
@@ -21,11 +21,11 @@ SELF_HOST_TESTKIT_BINARY="$PWD/dist/self-host-testkit" \
   node testkit/node/cli.mjs --apps sonarr,radarr -- npm test
 ```
 
-The packaged form after release is `self-host-testkit-run --apps sonarr,radarr --
+The packaged form is `self-host-testkit-run --apps sonarr,radarr --
 npm test`. The command after `--` is passed as an argument vector, without shell
 interpolation. For a shell pipeline, explicitly use `-- sh -eu -c '…'`.
 
-The source runner starts independent Apps concurrently, including image pulls,
+The runner starts independent Apps concurrently, including image pulls,
 container creation and Setup. Cross-process port claims protect socket handoff;
 separate Projects retain their own ownership checks and resource caps. The runner
 waits for all starts to settle, runs the existing command once only if every App
@@ -103,12 +103,12 @@ These are lifecycle reports, not individual test-case results or a claim that a
 suite covers every integration. Keep your test runner's JUnit/coverage reporter
 for assertion-level detail.
 
-Once a runner-capable SDK and Action are released, pin both and replace separate
+Install the 1.4.0 SDK, pin a reviewed commit of its Action and replace separate
 startup/test steps with:
 
 ```yaml
 - run: npm ci
-- uses: ajnart/self-host/testkit@<reviewed-runner-capable-commit>
+- uses: ajnart/self-host/testkit@<reviewed-v1.4.0-commit>
   with:
     apps: sonarr,radarr
     run: npm test
@@ -119,7 +119,7 @@ startup/test steps with:
     path: self-host-testkit-report/
 ```
 
-The placeholder is deliberate: no released Action currently provides this path.
+Replace the placeholder with the reviewed commit behind the v1.4.0 tag.
 For development in this checkout, use `uses: ./testkit` with `source: "true"`.
 The source Action builds the matching Go helper and uses the checked-in SDK.
 In a monorepo, set `working-directory`; use `config: self-host.testkit.json`
@@ -146,7 +146,7 @@ compatibility check.
 Real App fixtures for integration tests, using self-host's existing headless
 Setup. ESM only, Node.js 22+, no runtime npm dependencies or test-runner plugin.
 
-This guide describes **1.3.2**, which keeps the **1.3.0** testkit APIs compatible.
+This guide describes **1.4.0**, which keeps the **1.3.0** testkit APIs compatible.
 `withApp`, ordered Pairs, `recoveryPath` getters, the Sonarr witness and the JavaScript
 Action's automatic post cleanup are not in 1.2.1. For 1.2.1, see its
 [immutable guide](https://github.com/ajnart/self-host/blob/5bd44f7f4cd3c350d6cf449e958eae6c0df28a69/testkit/node/README.md).
@@ -166,11 +166,12 @@ containers, Docker-in-Docker, remote/TCP Docker and native Windows are unsupport
 A mounted socket is insufficient: App loopback Addresses and bind-mount paths
 belong to the daemon host, not the test container. See the [support matrix](../README.md#headless-and-container-requirements).
 
-**Published release:** version 1.3.2 must exist on npm and GitHub before using
-these commands. Install it and explicitly prepare its matching helper for local use:
+**Published release:** version 1.4.0 must exist on GitHub before using these
+commands. Use its checksummed SDK tarball while npm publication is pending,
+then explicitly prepare its matching helper for local use:
 
 ```bash
-npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.2
+npm install --save-dev --save-exact https://github.com/ajnart/self-host/releases/download/v1.4.0/self-host-testkit-1.4.0.tgz
 npm exec -- self-host-testkit-setup
 ```
 

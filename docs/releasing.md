@@ -24,6 +24,7 @@ Version 1.3.0 adds `withApp`, ordered Pairs, the opt-in Sonarr witness and the
 JavaScript Action's automatic post cleanup.
 Version 1.3.1 fixes Setup and Telemetry while preserving the 1.3.0 testkit API.
 Version 1.3.2 ships the declarative App spec and Setup kind refactor with the 1.3.1 behaviour and testkit API unchanged.
+Version 1.4.0 adds the existing-command test runner and fixes Manual recovery, batch pull attribution, exception grouping and Pair credential deadlines. Its matching SDK is available as a checksummed GitHub release tarball; npm publication requires registry authentication.
 
 The installer and `self-host self-update` pick the highest semver among
 non-draft, non-prerelease releases that carry `checksums.txt` and a
@@ -259,6 +260,9 @@ damaged). Once `vX.Y.Z` is published, confirm it is not a draft and that
 `dist/checksums.txt` matches the published file, then copy the generated cask
 to `Casks/self-host.rb` on a feature branch in `ajnart/homebrew-tap` and open a
 PR. Do not push directly to the tap's default branch. The existing
+release workflow artifact `self-host-vX.Y.Z` includes that generated cask when
+CI builds the release; download it and verify its archive hashes against the
+published `checksums.txt` before opening the tap PR. The existing
 `scripts/publish-homebrew.sh X.Y.Z` checks those same guards but commits and
 pushes directly; it is an operator-only fallback, not an agent-safe PR workflow.
 The cask needs anonymously downloadable release assets
