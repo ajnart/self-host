@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -25,7 +24,7 @@ func (a *program) selfUpdateCmd() *cobra.Command {
 			}
 			exe, err := a.deps.Executable()
 			if err != nil {
-				return a.fail(errors.New("cannot locate the running binary: " + err.Error()))
+				return a.fail(fmt.Errorf("cannot locate the running binary: %w", err))
 			}
 			if err := release.CheckSelfManaged(exe); err != nil {
 				return a.fail(err)

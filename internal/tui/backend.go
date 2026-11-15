@@ -258,7 +258,7 @@ func (b ServiceBackend) SkipUpdate(version string) {
 func (b ServiceBackend) SelfUpdate(ctx context.Context) (string, error) {
 	exe, err := b.Deps.Executable()
 	if err != nil {
-		return "", errors.New("cannot locate the running binary: " + err.Error())
+		return "", fmt.Errorf("cannot locate the running binary: %w", err)
 	}
 	if err := release.CheckSelfManaged(exe); err != nil {
 		return "", err
@@ -268,7 +268,11 @@ func (b ServiceBackend) SelfUpdate(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if newer, err := release.Newer(b.Deps.Version, rel.Tag); err != nil || !newer {
+	newer, err := release.Newer(b.Deps.Version, rel.Tag)
+	if err != nil {
+		return "", err
+	}
+	if !newer {
 		return "", fmt.Errorf("self-host %s is already the newest release", b.Deps.Version)
 	}
 	if err := client.Install(ctx, rel, b.Deps.GOOS, b.Deps.GOARCH, exe); err != nil {
