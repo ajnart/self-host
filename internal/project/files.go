@@ -21,6 +21,29 @@ func (p *Project) FragmentServices(id string) ([]string, error) {
 	return fragmentServiceNames(id, data)
 }
 
+// ServiceImages returns literal image references from the effective root
+// Compose file. It fails closed when a requested service or image is missing.
+func (p *Project) ServiceImages(names []string) (map[string]string, error) {
+	root, err := p.readRoot()
+	if err != nil {
+		return nil, err
+	}
+	if !canonicalRoot(root) {
+		return nil, errors.New("Project Compose file is not canonical")
+	}
+	services := field(root, "services")
+	images := make(map[string]string, len(names))
+	for _, name := range names {
+		service := field(services, name)
+		image := field(service, "image")
+		if image == nil || image.Kind != yaml.ScalarNode || image.Tag != "!!str" || image.Value == "" {
+			return nil, fmt.Errorf("effective image for service %s is not a literal string", name)
+		}
+		images[name] = image.Value
+	}
+	return images, nil
+}
+
 func fragmentServices(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -775,16 +775,101 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 		if ctx.Err() != nil {
 			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StagePull, Msg: "pull cancelled", Error: "cancelled", Hint: "Run self-host to resume the install."}))
 		}
-		image := pullImageName(err)
-		hint := "Check the network and the registry, then retry."
 		var perr *compose.PullError
-		if errors.As(err, &perr) && perr.Image != "" {
-			hint = fmt.Sprintf("Run `docker pull %s`, then check the network and the registry, and retry.", image)
+		if errors.As(err, &perr) {
+			if owners, proven := ss.pullFailureOwners(ids, services, perr.FailedImages); proven {
+				var blocked []string
+				for _, id := range ids {
+					if slices.Contains(owners, id) {
+						continue
+					}
+					blocked = append(blocked, id)
+				}
+				var recordErr error
+				if len(owners) > 0 {
+					recordErr = errors.Join(recordErr, ss.recordStage(owners, events.Event{
+						Event: events.StepFail, Step: StagePull,
+						Msg: "could not pull this App's image", Error: "Compose image pull failed",
+						Hint: "Check the network and the registry, then retry.",
+					}))
+				}
+				if len(blocked) > 0 {
+					recordErr = errors.Join(recordErr, ss.recordStage(blocked, events.Event{
+						Event: events.StepFail, Step: StagePull,
+						Msg:   "batch image pull blocked this App's update",
+						Error: "another App's image pull failed before this App could be updated",
+						Hint:  "Check the network and the registry, then retry the command.",
+					}))
+				}
+				return errors.Join(err, recordErr)
+			}
 		}
-		fail := events.Event{Event: events.StepFail, Step: StagePull, Msg: "could not pull " + image, Error: err.Error(), Hint: hint}
+		fail := events.Event{
+			Event: events.StepFail, Step: StagePull,
+			Msg:   "batch image pull failed; App attribution is unavailable",
+			Error: "Compose did not provide enough information to identify the failed App; all selected Apps remain failed",
+			Hint:  "Check the network and the registry, then retry the command.",
+		}
 		return errors.Join(err, ss.recordStage(ids, fail))
 	}
 	return ss.recordStage(ids, events.Event{Event: events.StepOK, Step: StagePull, Msg: "pulled " + strings.Join(ids, ", ")})
+}
+
+// pullFailureOwners attributes an explicitly failed image only when every
+// requested service belongs to exactly one selected App and its effective
+// Compose image is a matching literal. Interpolated, conflicting or incomplete
+// mappings remain batch-level failures.
+func (ss *session) pullFailureOwners(ids, services, failedImages []string) ([]string, bool) {
+	if len(failedImages) == 0 || len(ids) == 0 || len(services) == 0 {
+		return nil, false
+	}
+	ownerByService := make(map[string]string, len(services))
+	for _, id := range ids {
+		names, err := ss.p.FragmentServices(id)
+		if err != nil {
+			return nil, false
+		}
+		for _, name := range names {
+			if !slices.Contains(services, name) {
+				continue
+			}
+			if owner, exists := ownerByService[name]; exists && owner != id {
+				return nil, false
+			}
+			ownerByService[name] = id
+		}
+	}
+	for _, name := range services {
+		if ownerByService[name] == "" {
+			return nil, false
+		}
+	}
+	images, err := ss.p.ServiceImages(services)
+	if err != nil {
+		return nil, false
+	}
+	owners := map[string]bool{}
+	matchedFailures := map[string]bool{}
+	for _, name := range services {
+		image := images[name]
+		if strings.Contains(image, "$") {
+			return nil, false
+		}
+		if slices.Contains(failedImages, image) {
+			owners[ownerByService[name]] = true
+			matchedFailures[image] = true
+		}
+	}
+	if len(owners) == 0 || len(matchedFailures) != len(failedImages) {
+		return nil, false
+	}
+	result := make([]string, 0, len(owners))
+	for _, id := range ids {
+		if owners[id] {
+			result = append(result, id)
+		}
+	}
+	return result, true
 }
 
 func pullMessage(n int) string {

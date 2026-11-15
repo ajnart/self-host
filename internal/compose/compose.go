@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -168,24 +169,24 @@ func (c *Compose) pullProgress(ctx context.Context, mode string, services ...str
 		if image == "" {
 			image = parser.lastSeen
 		}
-		return &PullError{Image: image, Err: err, Output: parser.message}
+		return &PullError{Image: image, FailedImages: parser.failedImages, Err: err, Output: parser.message}
 	}
 	return nil
 }
 
-// PullError names the image involved when a pull fails.
+// PullError records the last progress image and explicit failed-image events.
 type PullError struct {
+	// Image is the last image reported by Compose, which may be progress only.
 	Image string
-	Err   error
+	// FailedImages contains only images with explicit Compose Error/Failed statuses.
+	FailedImages []string
+	Err          error
 	// Output is Docker's last message that was not a progress line.
 	Output string
 }
 
 func (e *PullError) Error() string {
-	if e.Output != "" {
-		return e.Err.Error() + ": " + e.Output
-	}
-	return e.Err.Error()
+	return "image pull failed"
 }
 func (e *PullError) Unwrap() error { return e.Err }
 
@@ -202,11 +203,12 @@ type pullLine struct {
 // pullParser turns progress lines into events, throttled to five per second
 // per image, and always emits the image's final event.
 type pullParser struct {
-	log      *events.Logger
-	now      func() time.Time
-	last     map[string]time.Time
-	lastSeen string
-	failed   string
+	log          *events.Logger
+	now          func() time.Time
+	last         map[string]time.Time
+	lastSeen     string
+	failed       string
+	failedImages []string
 	// message is the last line that was not progress JSON (an error).
 	message string
 }
@@ -238,6 +240,9 @@ func (p *pullParser) line(raw []byte) {
 	p.lastSeen = image
 	if line.Status == "Error" || line.Status == "Failed" {
 		p.failed = image
+		if !slices.Contains(p.failedImages, image) {
+			p.failedImages = append(p.failedImages, image)
+		}
 	}
 	final := layer == "" && line.Status == "Done"
 	if !final && !p.allow(image) {
