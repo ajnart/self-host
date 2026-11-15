@@ -649,5 +649,6 @@ func Input(err error) error {
 
 func Expected(err error) bool {
 	var in inputError
-	return errors.As(err, &in) || errors.Is(err, ErrNoProject)
+	var namesBlocked *NamesBlocked
+	return errors.As(err, &in) || errors.As(err, &namesBlocked) || errors.Is(err, ErrNoProject)
 }

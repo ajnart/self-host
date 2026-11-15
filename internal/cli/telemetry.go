@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/service"
@@ -46,7 +47,7 @@ func (a *program) startTelemetry(root *cobra.Command, args []string) func(err er
 			Panic:       a.panicked,
 		}
 		if report.Outcome != telemetry.OutcomeOK && report.Outcome != telemetry.OutcomeManual {
-			if a.panicked == nil && (cmd.Name() == "doctor" || service.Expected(a.failure) || service.Expected(err)) {
+			if a.panicked == nil && (cmd.Name() == "doctor" || service.Expected(a.failure) || service.Expected(err) || parserInputError(err)) {
 				return
 			}
 			report.Failure = a.failure
@@ -64,6 +65,17 @@ func (a *program) startTelemetry(root *cobra.Command, args []string) func(err er
 		}
 		tel.Send(report)
 	}
+}
+
+// parserInputError recognizes errors emitted by pflag while parsing command
+// line arguments. It deliberately leaves command execution errors untouched.
+func parserInputError(err error) bool {
+	var notExist *pflag.NotExistError
+	var valueRequired *pflag.ValueRequiredError
+	var invalidValue *pflag.InvalidValueError
+	var invalidSyntax *pflag.InvalidSyntaxError
+	return errors.As(err, &notExist) || errors.As(err, &valueRequired) ||
+		errors.As(err, &invalidValue) || errors.As(err, &invalidSyntax)
 }
 
 // catalogIDs keeps the App and Recipe IDs among args; anything else a person
