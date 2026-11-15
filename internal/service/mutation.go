@@ -790,7 +790,7 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 					recordErr = errors.Join(recordErr, ss.recordStage(owners, events.Event{
 						Event: events.StepFail, Step: StagePull,
 						Msg: "could not pull this App's image", Error: err.Error(),
-						Hint: "Check the network and the registry, then retry.",
+						Hint: pullFailureHint(perr),
 					}))
 				}
 				if len(blocked) > 0 {
@@ -808,11 +808,18 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 			Event: events.StepFail, Step: StagePull,
 			Msg:   "batch image pull failed; App attribution is unavailable",
 			Error: err.Error(),
-			Hint:  "Check the network and the registry, then retry the command.",
+			Hint:  pullFailureHint(perr),
 		}
 		return errors.Join(err, ss.recordStage(ids, fail))
 	}
 	return ss.recordStage(ids, events.Event{Event: events.StepOK, Step: StagePull, Msg: "pulled " + strings.Join(ids, ", ")})
+}
+
+func pullFailureHint(perr *compose.PullError) string {
+	if perr != nil && perr.Image != "" {
+		return fmt.Sprintf("Compose last reported image %s; it may not be the failed image. Run `docker pull %s`, then check the network and the registry, and retry.", perr.Image, perr.Image)
+	}
+	return "Check the network and the registry, then retry the command."
 }
 
 // pullFailureOwners attributes an explicitly failed image only when every

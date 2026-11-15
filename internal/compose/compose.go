@@ -165,11 +165,7 @@ func (c *Compose) pullProgress(ctx context.Context, mode string, services ...str
 	err = c.deps.Runner.Stream(ctx, cmd, w)
 	w.flush()
 	if err != nil {
-		image := parser.failed
-		if image == "" {
-			image = parser.lastSeen
-		}
-		return &PullError{Image: image, FailedImages: parser.failedImages, Err: err, Output: parser.message}
+		return &PullError{Image: parser.lastSeen, FailedImages: parser.failedImages, Err: err, Output: parser.message}
 	}
 	return nil
 }
@@ -210,7 +206,6 @@ type pullParser struct {
 	now          func() time.Time
 	last         map[string]time.Time
 	lastSeen     string
-	failed       string
 	failedImages []string
 	// message is the last line that was not progress JSON (an error).
 	message string
@@ -242,7 +237,6 @@ func (p *pullParser) line(raw []byte) {
 	}
 	p.lastSeen = image
 	if line.Status == "Error" || line.Status == "Failed" {
-		p.failed = image
 		if !slices.Contains(p.failedImages, image) {
 			p.failedImages = append(p.failedImages, image)
 		}
