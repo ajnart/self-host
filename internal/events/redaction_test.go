@@ -16,7 +16,8 @@ func TestRegisteredSecretsRedactDiagnostics(t *testing.T) {
 	log := events.New(events.JSON(&out))
 	log.Secret("key", "key-extension", "pw")
 	text := "login key-extension refused pw"
-	log.Emit(events.Event{Event: events.StepFail, Msg: text, Error: text, Hint: text})
+	log.Emit(events.Event{Event: events.StepFail, Msg: text, Error: text, Hint: text,
+		Cause: errors.New("private synthetic-password cause")})
 	for _, diagnostic := range []string{log.Redact(text), out.String()} {
 		if strings.Contains(diagnostic, "key") || strings.Contains(diagnostic, "extension") || strings.Contains(diagnostic, "pw") {
 			t.Fatalf("registered credential leaked: %q", diagnostic)
@@ -24,6 +25,9 @@ func TestRegisteredSecretsRedactDiagnostics(t *testing.T) {
 		if !strings.Contains(diagnostic, "login") || !strings.Contains(diagnostic, "refused") {
 			t.Fatalf("useful diagnostic lost: %q", diagnostic)
 		}
+	}
+	if strings.Contains(out.String(), "private synthetic-password cause") {
+		t.Fatalf("internal cause was serialized: %q", out.String())
 	}
 }
 

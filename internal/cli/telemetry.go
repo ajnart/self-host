@@ -38,13 +38,14 @@ func (a *program) startTelemetry(root *cobra.Command, args []string) func(err er
 	start := a.deps.Now()
 	return func(err error, code int) {
 		report := telemetry.Report{
-			Command:     name,
-			Duration:    a.deps.Now().Sub(start),
-			Outcome:     outcomeOf(code),
-			FailedSteps: a.steps.Report.FailedSteps,
-			Steps:       a.steps.Report.Steps,
-			Stack:       a.steps.Report.Stack,
-			Panic:       a.panicked,
+			Command:      name,
+			Duration:     a.deps.Now().Sub(start),
+			Outcome:      outcomeOf(code),
+			FailedSteps:  a.steps.Report.FailedSteps,
+			Steps:        a.steps.Report.Steps,
+			FailureTypes: a.steps.Report.FailureTypes,
+			Stack:        a.steps.Report.Stack,
+			Panic:        a.panicked,
 		}
 		if report.Outcome != telemetry.OutcomeOK && report.Outcome != telemetry.OutcomeManual {
 			if a.panicked == nil && (cmd.Name() == "doctor" || service.Expected(a.failure) || service.Expected(err) || parserInputError(err)) {

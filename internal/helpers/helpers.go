@@ -196,7 +196,7 @@ func (h *H) fail(id, msg string, spec StepSpec, err error) error {
 		return h.Log.RedactError(fmt.Errorf("%s: %s: %w", h.App, id, err))
 	}
 
-	h.Log.Emit(events.Event{Event: events.StepFail, App: h.App, Step: id, Msg: msg, Error: err.Error(),
+	h.Log.Emit(events.Event{Event: events.StepFail, App: h.App, Step: id, Msg: msg, Error: err.Error(), Cause: err,
 		URL: h.URL, Credential: spec.Credential, Hint: spec.Hint})
 	h.Record(StepResult{ID: id, Status: status.StepFail, Msg: msg, Error: err.Error(), Hint: spec.Hint})
 	return h.Log.RedactError(fmt.Errorf("%s: %s: %w", h.App, id, errors.Join(ErrStepFailed, err)))

@@ -43,6 +43,9 @@ func (p *Progress) Emit(e events.Event) {
 	p.Report.Steps = append(p.Report.Steps, step)
 	if e.Event == events.StepFail {
 		p.Report.FailedSteps = append(p.Report.FailedSteps, id)
+		if e.Cause != nil {
+			p.Report.FailureTypes = cleanFailureTypes(append(p.Report.FailureTypes, errorTypes(e.Cause)...))
+		}
 		if p.Report.Stack == nil {
 			p.Report.Stack = CaptureStack(1)
 		}

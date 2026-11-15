@@ -23,11 +23,13 @@ Only these four things. A command that succeeds sends nothing.
   (`home` or `local`) you picked. Nothing is sent if you quit before approving.
 - **Errors**, when a command fails or ends incomplete: the command name,
   duration, Catalog App and Recipe IDs, step IDs, outcomes and durations, and a
-  PostHog `$exception` with the error type, a fixed description, a stable
-  fingerprint, and in-app function names, module-relative files and line
-  numbers. Panics are unhandled exceptions, flushed before the original panic
-  continues. Install approval rejections, Cloudflare plan input errors, a
-  missing Project, a Dashboard closed by a signal and `doctor` findings send
+  PostHog `$exception` with bounded error type names from the command and its
+  failing steps, a fixed description, a stable fingerprint, and in-app function
+  names, module-relative files and line numbers. Repeated failed step IDs share
+  one fingerprint regardless of retry count. Panics are unhandled exceptions,
+  flushed before the original panic continues. Invalid flags, Easy names
+  preflight refusals, install approval rejections, Cloudflare plan input errors,
+  a missing Project, a Dashboard closed by a signal and `doctor` findings send
   nothing. Warning and error steps also send fixed-text OTLP log records with
   the step and command IDs.
   These are not App logs, raw error messages or distributed traces.

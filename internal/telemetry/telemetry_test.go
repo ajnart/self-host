@@ -11,9 +11,11 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/telemetry"
 	"github.com/ajnart/self-host/internal/telemetry/telemetrytest"
 )
@@ -214,20 +216,27 @@ func TestAnInstallEventCarriesIDsAndFailedSteps(t *testing.T) {
 
 func TestAFailureIsAnExceptionWithAFingerprintAndNoErrorText(t *testing.T) {
 	s := enabled(t)
-	failure := fmt.Errorf("open /home/alice/.self-host/secrets.env: %w", &fs.PathError{Op: "open", Path: "/home/alice/.self-host/secrets.env", Err: errors.New("permission denied")})
-	s.send(telemetry.Report{Command: "setup", Outcome: telemetry.OutcomeFailed, Failure: failure})
+	failure := errors.Join(
+		fmt.Errorf("open /home/alice/.self-host/secrets.env: %w", &fs.PathError{Op: "open", Path: "/home/alice/.self-host/secrets.env", Err: errors.New("permission denied")}),
+		syscall.EPERM,
+	)
+	s.send(telemetry.Report{Command: "setup", Outcome: telemetry.OutcomeFailed, Failure: failure, Stack: telemetry.CaptureStack(0)})
 	events := s.net.Events()
 	if len(events) != 1 || events[0]["event"] != "$exception" {
 		t.Fatalf("events = %v, want one $exception", events)
 	}
 	props := events[0]["properties"].(map[string]any)
-	if got := props["$exception_fingerprint"]; got != "setup|*errors.errorString|" {
-		t.Errorf("fingerprint = %v, want setup|*errors.errorString|", got)
+	wantFingerprint := "setup|JoinedError||causes=*errors.errorString,syscall.Errno|at=internal/telemetry_test.TestAFailureIsAnExceptionWithAFingerprintAndNoErrorText"
+	if got := props["$exception_fingerprint"]; got != wantFingerprint {
+		t.Errorf("fingerprint = %v, want %s", got, wantFingerprint)
+	}
+	if got, want := props["failure_types"], []any{"*errors.errorString", "syscall.Errno"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("failure_types = %v, want %v", got, want)
 	}
 	items := props["$exception_list"].([]any)
 	item := items[0].(map[string]any)
-	if item["type"] != "*errors.errorString" || item["value"] != "command failed" {
-		t.Errorf("exception = %v, want type *errors.errorString and value %q", item, "command failed")
+	if item["type"] != "JoinedError" || item["value"] != "command failed" {
+		t.Errorf("exception = %v, want type JoinedError and value %q", item, "command failed")
 	}
 	for key, want := range map[string]any{"version": "1.2.3", "os": "linux", "arch": "amd64", "command": "setup"} {
 		if props[key] != want {
@@ -237,18 +246,51 @@ func TestAFailureIsAnExceptionWithAFingerprintAndNoErrorText(t *testing.T) {
 	if _, found := item["stacktrace"]; !found {
 		t.Error("the exception carries no stack trace")
 	}
+	body := strings.Join(s.net.Bodies(), "\n")
+	for _, private := range []string{"/home/alice/.self-host/secrets.env", "permission denied"} {
+		if strings.Contains(body, private) {
+			t.Errorf("exception payload leaked %q", private)
+		}
+	}
 }
 
 func TestAFailedStepNamesTheException(t *testing.T) {
 	s := enabled(t)
-	s.send(telemetry.Report{Command: "install", Outcome: telemetry.OutcomeIncomplete, FailedSteps: []string{"sonarr/api-key", "jellyfin/wizard"}, Failure: errors.New("x")})
+	var progress telemetry.Progress
+	progress.KnownApp = func(string) bool { return true }
+	log := events.New(&progress)
+	for _, step := range []string{"api-key", "wizard", "api-key"} {
+		log.Emit(events.Event{Event: events.StepFail, App: "sonarr", Step: step,
+			Cause: fmt.Errorf("private /home/alice/.self-host/.env marker: %w", syscall.EPERM)})
+	}
+	report := progress.Report
+	report.Command = "install"
+	report.Outcome = telemetry.OutcomeIncomplete
+	report.Failure = errors.New("setup incomplete")
+	s.send(report)
 	props := s.net.Events()[0]["properties"].(map[string]any)
-	if got := props["$exception_fingerprint"]; got != "install|StepFailed|jellyfin/wizard,sonarr/api-key" {
+	wantFingerprint := "install|StepFailed|sonarr/api-key,sonarr/wizard|causes=*errors.errorString,syscall.Errno"
+	if got := props["$exception_fingerprint"]; got != wantFingerprint {
 		t.Errorf("fingerprint = %v", got)
 	}
 	item := props["$exception_list"].([]any)[0].(map[string]any)
-	if item["type"] != "StepFailed" || item["value"] != "failed at jellyfin/wizard, sonarr/api-key" {
+	if item["type"] != "StepFailed" || item["value"] != "failed at sonarr/api-key, sonarr/wizard" {
 		t.Errorf("exception = %v", item)
+	}
+	if got, want := props["failure_types"], []any{"*errors.errorString", "syscall.Errno"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("failure_types = %v, want %v", got, want)
+	}
+	if got, want := props["failed_steps"], []any{"sonarr/api-key", "sonarr/wizard"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("failed_steps = %v, want unique IDs %v", got, want)
+	}
+	steps := props["steps"].([]any)
+	if len(steps) != 3 {
+		t.Errorf("steps has %d entries, want all 3 retry/history entries", len(steps))
+	}
+	for _, private := range []string{"/home/alice/.self-host/.env", "private", "marker"} {
+		if strings.Contains(strings.Join(s.net.Bodies(), "\n"), private) {
+			t.Errorf("exception payload leaked %q", private)
+		}
 	}
 }
 

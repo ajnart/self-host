@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	stepstatus "github.com/ajnart/self-host/internal/status"
 	"strings"
 	"testing"
 
+	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
+	stepstatus "github.com/ajnart/self-host/internal/status"
 )
 
 func TestStepRedactsRecordsAndReturnedFailure(t *testing.T) {
@@ -16,6 +17,12 @@ func TestStepRedactsRecordsAndReturnedFailure(t *testing.T) {
 		t.Run(string(outcome), func(t *testing.T) {
 			var records []helpers.StepResult
 			h := newH(t, nil, nil, &records)
+			var failedEvent events.Event
+			h.Log.AddSink(events.SinkFunc(func(event events.Event) {
+				if event.Event == events.StepFail {
+					failedEvent = event
+				}
+			}))
 			h.Log.Secret("synthetic-password")
 			cause := errors.New("refused synthetic-password")
 			spec := helpers.StepSpec{Hint: "retry synthetic-password"}
@@ -32,6 +39,9 @@ func TestStepRedactsRecordsAndReturnedFailure(t *testing.T) {
 			if outcome == stepstatus.StepFail {
 				if err == nil || strings.Contains(err.Error(), "synthetic-password") || !errors.Is(err, cause) || !errors.Is(err, helpers.ErrStepFailed) {
 					t.Fatalf("failure not redacted or cause lost: %v", err)
+				}
+				if failedEvent.Cause != cause {
+					t.Fatalf("StepFail event cause = %v, want original cause", failedEvent.Cause)
 				}
 			}
 		})

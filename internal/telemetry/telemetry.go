@@ -84,7 +84,9 @@ type Report struct {
 	// FailedSteps are "app/step" IDs of steps that failed.
 	FailedSteps []string
 	Steps       []Step
-	// Failure is why the command failed; only its type is ever sent.
+	// FailureTypes are safe leaf error types from failed Setup steps.
+	FailureTypes []string
+	// Failure is why the command failed; only its types are ever sent.
 	Failure error
 	Panic   any
 	Stack   Stack
@@ -168,14 +170,19 @@ func optedOut(v string) bool {
 func (c *Client) Enabled() bool { return !c.o.off() }
 
 const (
-	maxSteps  = 100
-	maxLogs   = 20
-	maxFrames = 32
+	maxSteps        = 100
+	maxLogs         = 20
+	maxFrames       = 32
+	maxErrorNodes   = 64
+	maxFailureTypes = 8
+	maxFailureType  = 128
+	maxFailureSite  = 256
 )
 
 var (
-	idPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
-	typePattern = regexp.MustCompile(`^\*?[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$`)
+	idPattern    = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+	typePattern  = regexp.MustCompile(`^\*?[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$`)
+	functionName = regexp.MustCompile(`^[A-Za-z0-9_./*()]+$`)
 )
 
 // accessChoices are the Access values that may be sent.
@@ -454,7 +461,7 @@ func (c *Client) properties(r Report) posthog.Properties {
 	if slices.Contains(accessChoices, r.Access) {
 		props["access"] = r.Access
 	}
-	if steps := cleanIDs(r.FailedSteps, stepPattern); len(steps) > 0 {
+	if steps := unique(cleanIDs(r.FailedSteps, stepPattern)); len(steps) > 0 {
 		props["failed_steps"] = steps
 	}
 	if steps := cleanSteps(r.Steps); len(steps) > 0 {
@@ -507,6 +514,19 @@ func cleanIDs(ids []string, pattern *regexp.Regexp) []string {
 	return out
 }
 
+func unique(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, found := seen[value]; found {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
 // exception is the error of a failed or crashed command: its type, failed
 // steps and in-app stack frames, never its text, which could carry a path, a
 // host name or a secret.
@@ -518,11 +538,33 @@ func (c *Client) exception(id string, r Report, props posthog.Properties) postho
 	var typ, value, fingerprint string
 	handled := r.Panic == nil
 	if handled {
-		typ, value = errorType(r.Failure), "command failed"
+		stepFailureTypes := cleanFailureTypes(r.FailureTypes)
+		var failureTypes []string
+		if r.Failure != nil {
+			failureTypes = errorTypes(r.Failure)
+		}
+		failureTypes = cleanFailureTypes(append(failureTypes, stepFailureTypes...))
+		if len(failureTypes) == 0 {
+			failureTypes = []string{"Error"}
+		}
+		props["failure_types"] = failureTypes
+		typ, value = "Error", "command failed"
+		if r.Failure != nil {
+			typ = errorType(r.Failure)
+		}
 		if len(steps) > 0 {
 			typ, value = "StepFailed", "failed at "+strings.Join(steps, ", ")
 		}
-		fingerprint = strings.Join([]string{command, typ, strings.Join(steps, ",")}, "|")
+		parts := []string{command, typ, strings.Join(steps, ",")}
+		if len(stepFailureTypes) > 0 || len(failureTypes) > 1 {
+			parts = append(parts, "causes="+strings.Join(failureTypes, ","))
+		}
+		if len(steps) == 0 {
+			if site := failureSite(frames); site != "" {
+				parts = append(parts, "at="+site)
+			}
+		}
+		fingerprint = strings.Join(parts, "|")
 	} else {
 		typ, value = valueType(r.Panic), "panic"
 		top := "unknown"
@@ -598,20 +640,95 @@ func valueType(v any) string {
 	return "Error"
 }
 
-// errorType names the innermost error's Go type, such as "*fs.PathError".
+// errorType names one error type, or marks a tree with distinct leaf types.
 func errorType(err error) string {
+	types := errorTypes(err)
+	if len(types) > 1 {
+		return "JoinedError"
+	}
+	return types[0]
+}
+
+// errorTypes flattens wrapped and joined errors to a bounded, sorted set of
+// leaf types. It never reads Error(), so values, paths and secrets stay local.
+func errorTypes(err error) []string {
 	if err == nil {
-		return "Error"
+		return []string{"Error"}
 	}
-	for {
-		next := errors.Unwrap(err)
-		if next == nil {
-			break
+	var types []string
+	remaining := maxErrorNodes
+	var visit func(error, int)
+	visit = func(current error, depth int) {
+		if current == nil {
+			return
 		}
-		err = next
+		if remaining == 0 || depth > maxErrorNodes {
+			types = append(types, "OtherError")
+			return
+		}
+		remaining--
+		if joined, ok := current.(interface{ Unwrap() []error }); ok {
+			children := joined.Unwrap()
+			if len(children) > 0 {
+				for _, child := range children {
+					if remaining == 0 {
+						types = append(types, "OtherError")
+						break
+					}
+					visit(child, depth+1)
+				}
+				return
+			}
+		}
+		if child := errors.Unwrap(current); child != nil {
+			visit(child, depth+1)
+			return
+		}
+		name := fmt.Sprintf("%T", current)
+		if len(name) > maxFailureType || !typePattern.MatchString(name) {
+			name = "Error"
+		}
+		types = append(types, name)
 	}
-	if name := fmt.Sprintf("%T", err); typePattern.MatchString(name) {
-		return name
+	visit(err, 0)
+	if len(types) == 0 {
+		return []string{"Error"}
 	}
-	return "Error"
+	slices.Sort(types)
+	types = slices.Compact(types)
+	if len(types) > maxFailureTypes {
+		types = append(types[:maxFailureTypes-1], "OtherError")
+		slices.Sort(types)
+		types = slices.Compact(types)
+	}
+	return types
+}
+
+func cleanFailureTypes(types []string) []string {
+	var safe []string
+	for _, name := range types {
+		if name == "OtherError" || len(name) <= maxFailureType && typePattern.MatchString(name) {
+			safe = append(safe, name)
+		}
+	}
+	slices.Sort(safe)
+	safe = slices.Compact(safe)
+	if len(safe) > maxFailureTypes {
+		safe = append(safe[:maxFailureTypes-1], "OtherError")
+		slices.Sort(safe)
+		safe = slices.Compact(safe)
+	}
+	return safe
+}
+
+// failureSite returns the nearest safe in-app function to the captured error
+// report site. Function names are stable across line edits and paths are
+// already module-relative in Stack.frames.
+func failureSite(frames []posthog.StackFrame) string {
+	for i := len(frames) - 1; i >= 0; i-- {
+		if frames[i].InApp && len(frames[i].Function) <= maxFailureSite && functionName.MatchString(frames[i].Function) {
+			return frames[i].Function
+		}
+	}
+	return ""
 }
