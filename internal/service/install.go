@@ -469,7 +469,23 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
 				}
 				if err := ss.writeFiles(a, rc); err != nil {
-					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
+					stage := events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}
+					if errors.Is(err, helpers.ErrManual) {
+						stage.Event = events.StepManual
+						stage.Msg = "render needs manual directory preparation"
+						stage.Error = ""
+						var manual *helpers.ManualError
+						if errors.As(err, &manual) {
+							stage.Hint = manual.Hint
+						}
+					}
+					if stageErr := ss.recordStage([]string{info.ID}, stage); stageErr != nil {
+						return errors.Join(err, stageErr)
+					}
+					if errors.Is(err, helpers.ErrManual) {
+						return fmt.Errorf("%w: %w", ErrManual, err)
+					}
+					return err
 				}
 				if err := ss.writeFragment(info.ID, fragment); err != nil {
 					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))

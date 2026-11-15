@@ -106,11 +106,23 @@ func TestAutobrrDirectoryInstallRequiresSupportedRuntimeMapping(t *testing.T) {
 			case "rootless":
 				h.runner.On("docker info", system.Result{Stdout: []byte(`["name=rootless"]`)})
 			}
-			if err := h.install("autobrr"); !errors.Is(err, helpers.ErrManual) {
+			err := h.install("autobrr")
+			if !errors.Is(err, helpers.ErrManual) || !errors.Is(err, ErrManual) {
 				t.Fatalf("unverified runtime mapping did not hold: %v", err)
 			}
 			if e := h.rec.find("autobrr", "directories"); e == nil || e.Event != events.StepManual || !strings.Contains(e.Hint, "mapping") {
 				t.Fatalf("mapping uncertainty was not the directory admission hold: %+v", e)
+			}
+			if e := h.rec.find("autobrr", StageRender); e == nil || e.Event != events.StepManual {
+				t.Fatalf("render did not preserve the directory Manual outcome: %+v", e)
+			}
+			owner, err := h.deps.CurrentUser()
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, err := project.Open(owner).LoadState()
+			if err != nil || state.Apps["autobrr"] == nil || state.Apps["autobrr"].Steps[StageRender].Status != stepstatus.StepManual {
+				t.Fatalf("render Manual outcome was not persisted: %v", err)
 			}
 			if _, err := os.Lstat(filepath.Join(h.root(), "apps", "autobrr", "config")); !os.IsNotExist(err) {
 				t.Fatal("mapping uncertainty created configuration storage")
