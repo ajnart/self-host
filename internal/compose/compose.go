@@ -186,7 +186,10 @@ type PullError struct {
 }
 
 func (e *PullError) Error() string {
-	return "image pull failed"
+	if e.Output != "" {
+		return e.Err.Error() + ": " + e.Output
+	}
+	return e.Err.Error()
 }
 func (e *PullError) Unwrap() error { return e.Err }
 

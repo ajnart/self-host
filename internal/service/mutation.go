@@ -789,7 +789,7 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 				if len(owners) > 0 {
 					recordErr = errors.Join(recordErr, ss.recordStage(owners, events.Event{
 						Event: events.StepFail, Step: StagePull,
-						Msg: "could not pull this App's image", Error: "Compose image pull failed",
+						Msg: "could not pull this App's image", Error: err.Error(),
 						Hint: "Check the network and the registry, then retry.",
 					}))
 				}
@@ -807,7 +807,7 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 		fail := events.Event{
 			Event: events.StepFail, Step: StagePull,
 			Msg:   "batch image pull failed; App attribution is unavailable",
-			Error: "Compose did not provide enough information to identify the failed App; all selected Apps remain failed",
+			Error: err.Error(),
 			Hint:  "Check the network and the registry, then retry the command.",
 		}
 		return errors.Join(err, ss.recordStage(ids, fail))
