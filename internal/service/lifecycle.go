@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ajnart/self-host/internal/compose"
 	"github.com/ajnart/self-host/internal/events"
 	"github.com/ajnart/self-host/internal/helpers"
 	"github.com/ajnart/self-host/internal/project"
@@ -93,14 +92,6 @@ func (s *Service) Update(ctx context.Context, ids []string) error {
 		compose: composePullUp,
 		after:   afterCheck,
 	})
-}
-
-func pullImageName(err error) string {
-	var perr *compose.PullError
-	if errors.As(err, &perr) && perr.Image != "" {
-		return perr.Image
-	}
-	return "the image"
 }
 
 // check reruns a catalog App's Check, waiting for it to come back up.
