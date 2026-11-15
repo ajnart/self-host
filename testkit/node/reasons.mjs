@@ -12,3 +12,14 @@ export const startupReasons = {
     STORAGE: "Private fixture storage or the recovery manifest is unavailable.",
     UNSUPPORTED: "This App's Compose configuration or operations are unsupported.",
 };
+export const startupPhases = [
+    "api-key",
+    "auth",
+    "prepare",
+    "pull",
+    "ready",
+    "render",
+    "root-folder",
+    "setup",
+    "start",
+];

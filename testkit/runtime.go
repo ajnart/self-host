@@ -17,8 +17,17 @@ import (
 )
 
 func startupLock(ctx context.Context) (func(), error) {
+	return startupAdmission(ctx, unix.LOCK_EX)
+}
+
+func sharedStartupLock(ctx context.Context) (func(), error) {
+	return startupAdmission(ctx, unix.LOCK_SH)
+}
+
+// Shared fixture startups still exclude the existing exclusive e2e/recovery lock.
+func startupAdmission(ctx context.Context, mode int) (func(), error) {
 	path := filepath.Join(os.TempDir(), "selfhost-e2e-global.lock")
-	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW, 0o600)
+	fd, err := unix.Open(path, unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW|unix.O_CLOEXEC|unix.O_NONBLOCK, 0o600)
 	if err != nil {
 		return nil, startupError(StartupReasonLock, "testkit startup lock unavailable")
 	}
@@ -29,7 +38,7 @@ func startupLock(ctx context.Context) (func(), error) {
 		return nil, startupError(StartupReasonLock, "testkit startup lock is not private")
 	}
 	for {
-		err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+		err := unix.Flock(fd, mode|unix.LOCK_NB)
 		if err == nil {
 			var once sync.Once
 			return func() { once.Do(func() { f.Close() }) }, nil

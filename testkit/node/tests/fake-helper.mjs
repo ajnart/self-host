@@ -217,10 +217,10 @@ input.on("line", (line) => {
 			process.stdout.write("x".repeat(100000));
 			return;
 		}
-		if (app === "secret-error") {
+		if (app === "secret-error" || app === "unsafe-phase") {
 			process.stderr.write("private-test-raw-secret");
 			process.stdout.write(
-				`${JSON.stringify({ version: 1, id: req.id, error: { code: "START", reason: "SETUP", message: "private-test-raw-secret" } })}\n`,
+				`${JSON.stringify({ version: 1, id: req.id, error: { code: "START", reason: "SETUP", phase: app === "unsafe-phase" ? "private-test-raw-secret" : "auth", message: "private-test-raw-secret" } })}\n`,
 			);
 			return;
 		}

@@ -37,6 +37,13 @@ func generate(check bool) error {
 		output.WriteString(line)
 	}
 	output.WriteString("} as const;\n\nexport type TestkitStartupReason = keyof typeof startupReasons;\n")
+	phases := testkit.StartupPhases()
+	slices.Sort(phases)
+	output.WriteString("\nexport const startupPhases = [\n")
+	for _, phase := range phases {
+		fmt.Fprintf(&output, "\t%q,\n", phase)
+	}
+	output.WriteString("] as const;\n\nexport type TestkitStartupPhase = (typeof startupPhases)[number];\n")
 	const path = "testkit/node/src/reasons.mts"
 	if check {
 		current, err := os.ReadFile(path)

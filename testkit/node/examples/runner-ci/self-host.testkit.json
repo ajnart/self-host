@@ -1,0 +1,10 @@
+{
+	"apps": {
+		"sonarr": {
+			"app": "sonarr",
+			"env": { "url": "SONARR_URL", "apiKey": "SONARR_API_KEY" }
+		}
+	},
+	"concurrency": 1,
+	"timeoutMs": 480000
+}

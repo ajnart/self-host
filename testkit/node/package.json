@@ -9,9 +9,16 @@
 		".": {
 			"types": "./index.d.mts",
 			"import": "./index.mjs"
+		},
+		"./run": {
+			"types": "./run.d.mts",
+			"import": "./run.mjs"
 		}
 	},
-	"bin": { "self-host-testkit-setup": "./setup.mjs" },
+	"bin": {
+		"self-host-testkit-setup": "./setup.mjs",
+		"self-host-testkit-run": "./cli.mjs"
+	},
 	"files": [
 		"index.mjs",
 		"index.d.mts",
@@ -22,7 +29,10 @@
 		"examples/sonarr.mjs",
 		"examples/homarr-sonarr.mjs",
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"cli.mjs",
+		"run.mjs",
+		"run.d.mts"
 	],
 	"scripts": {
 		"build": "tsc -p tsconfig.json && cp ../../LICENSE LICENSE",
@@ -36,7 +46,9 @@
 		"@types/node": "^26.6.4",
 		"typescript": "^6.0.3"
 	},
-	"publishConfig": { "access": "public" },
+	"publishConfig": {
+		"access": "public"
+	},
 	"keywords": [
 		"docker",
 		"compose",
@@ -47,7 +59,9 @@
 	],
 	"homepage": "https://github.com/ajnart/self-host/tree/main/testkit",
 	"bugs": "https://github.com/ajnart/self-host/issues",
-	"engines": { "node": ">=22" },
+	"engines": {
+		"node": ">=22"
+	},
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",

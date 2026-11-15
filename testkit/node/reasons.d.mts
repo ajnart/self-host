@@ -13,3 +13,5 @@ export declare const startupReasons: {
     readonly UNSUPPORTED: "This App's Compose configuration or operations are unsupported.";
 };
 export type TestkitStartupReason = keyof typeof startupReasons;
+export declare const startupPhases: readonly ["api-key", "auth", "prepare", "pull", "ready", "render", "root-folder", "setup", "start"];
+export type TestkitStartupPhase = (typeof startupPhases)[number];

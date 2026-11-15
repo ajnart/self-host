@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { inspect } from "node:util";
 import { installedBinary } from "./binary.mjs";
-import { startupReasons } from "./reasons.mjs";
+import { startupPhases, startupReasons, } from "./reasons.mjs";
 const pairStates = [
     "running",
     "exited",
@@ -42,21 +42,25 @@ const messages = new Map([
 export class TestkitError extends Error {
     code;
     reason;
+    phase;
     cleanupFailed;
-    constructor(code, reason, recoveryPath, cleanupFailed = false) {
+    constructor(code, reason, recoveryPath, cleanupFailed = false, phase) {
         let message = messages.get(code);
         if ((code === "START" || code === "OPERATION") && reason)
             message = `${message} ${startupReasons[reason]}`;
+        if (phase)
+            message = `${message} Phase: ${phase}.`;
         super(message);
         this.name = "TestkitError";
         this.code = code;
         this.reason = reason;
+        this.phase = phase;
         this.cleanupFailed = cleanupFailed;
         Object.defineProperty(this, "recoveryPath", { value: recoveryPath });
     }
 }
-function fault(code, reason, recoveryPath, cleanupFailed = false) {
-    return new TestkitError(code, reason, recoveryPath, cleanupFailed);
+function fault(code, reason, recoveryPath, cleanupFailed = false, phase) {
+    return new TestkitError(code, reason, recoveryPath, cleanupFailed, phase);
 }
 function record(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -138,8 +142,8 @@ class Bridge {
     get recoveryPath() {
         return this.#manifest;
     }
-    #fault(code, reason, cleanupFailed = false) {
-        return fault(code, reason, this.#manifest, cleanupFailed);
+    #fault(code, reason, cleanupFailed = false, phase) {
+        return fault(code, reason, this.#manifest, cleanupFailed, phase);
     }
     #fail(code) {
         this.#failed = true;
@@ -198,13 +202,24 @@ class Bridge {
                         }
                         reason = response.error.reason;
                     }
+                    let phase;
+                    if (response.error.phase !== undefined) {
+                        if (response.error.code !== "START" ||
+                            typeof response.error.phase !== "string" ||
+                            !startupPhases.includes(response.error.phase)) {
+                            pending.reject(this.#fault("PROTOCOL"));
+                            this.#fail("PROTOCOL");
+                            return;
+                        }
+                        phase = response.error.phase;
+                    }
                     if (response.error.cleanupFailed !== undefined &&
                         typeof response.error.cleanupFailed !== "boolean") {
                         pending.reject(this.#fault("PROTOCOL"));
                         this.#fail("PROTOCOL");
                         return;
                     }
-                    pending.reject(this.#fault(response.error.code, reason, response.error.cleanupFailed === true));
+                    pending.reject(this.#fault(response.error.code, reason, response.error.cleanupFailed === true, phase));
                 }
                 else {
                     pending.resolve(response.result);
@@ -247,7 +262,7 @@ class Bridge {
         }
         catch {
             if (primary instanceof TestkitError)
-                throw this.#fault(primary.code, primary.reason, true);
+                throw this.#fault(primary.code, primary.reason, true, primary.phase);
             throw primary;
         }
         throw primary;

@@ -1,5 +1,5 @@
-import { type TestkitStartupReason } from "./reasons.mjs";
-export type { TestkitStartupReason } from "./reasons.mjs";
+import { type TestkitStartupPhase, type TestkitStartupReason } from "./reasons.mjs";
+export type { TestkitStartupReason, TestkitStartupPhase } from "./reasons.mjs";
 export interface Credentials {
     readonly username: string;
     readonly password: string;
@@ -90,9 +90,10 @@ export type TestkitErrorCode = "PROTOCOL" | "STATE" | "START" | "CREDENTIALS" | 
 export declare class TestkitError extends Error {
     readonly code: TestkitErrorCode;
     readonly reason: TestkitStartupReason | undefined;
+    readonly phase: TestkitStartupPhase | undefined;
     readonly cleanupFailed: boolean;
     readonly recoveryPath?: string;
-    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string, cleanupFailed?: boolean);
+    constructor(code: TestkitErrorCode, reason?: TestkitStartupReason, recoveryPath?: string, cleanupFailed?: boolean, phase?: TestkitStartupPhase);
 }
 export declare function createSelfHost(options?: SelfHostOptions): SelfHost;
 export interface ScopedOptions {

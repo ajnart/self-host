@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, lstatSync, mkdtempSync, readFileSync, realpathSync, } from "node:fs";
 import { findPackageJSON } from "node:module";
@@ -92,6 +92,61 @@ async function main() {
     appendFileSync(state, `testkit_manifest=${manifest}\ntestkit_binary=${binary}\ntestkit_checksum=${checksum}\n`);
     appendFileSync(output, `binary-path=${binary}\nsdk-path=${sdk}\nmanifest-path=${manifest}\n`);
     appendFileSync(environment, `SELF_HOST_TESTKIT_BINARY=${binary}\nSELF_HOST_TESTKIT_SDK=${sdk}\nSELF_HOST_TESTKIT_MANIFEST=${manifest}\n`);
+    const run = process.env.INPUT_RUN;
+    const apps = process.env.INPUT_APPS;
+    const config = process.env.INPUT_CONFIG;
+    if (!run) {
+        if (apps || config)
+            throw new ActionError("Set run when declaring testkit Apps or config.");
+        return;
+    }
+    if (Boolean(apps) === Boolean(config)) {
+        throw new ActionError("Set exactly one of apps or config with run.");
+    }
+    const reportDirectory = resolve(workingDirectory, process.env["INPUT_REPORT-DIRECTORY"] || "self-host-testkit-report");
+    path(reportDirectory);
+    appendFileSync(output, `report-directory=${reportDirectory}\n`);
+    const args = [
+        join(sdk, "cli.mjs"),
+        apps ? "--apps" : "--config",
+        apps || config || "",
+        "--report-dir",
+        reportDirectory,
+    ];
+    if (process.env.INPUT_CONCURRENCY)
+        args.push("--concurrency", process.env.INPUT_CONCURRENCY);
+    if (process.env["INPUT_TIMEOUT-MS"])
+        args.push("--timeout-ms", process.env["INPUT_TIMEOUT-MS"]);
+    args.push("--", "/bin/bash", "-euo", "pipefail", "-c", run);
+    try {
+        lstatSync(args[0]);
+    }
+    catch {
+        throw new ActionError("This installed SDK does not include the command runner. Upgrade the SDK to a release that includes it, or use source for development.");
+    }
+    const status = await new Promise((resolve) => {
+        const child = spawn(process.execPath, args, {
+            cwd: workingDirectory,
+            stdio: "inherit",
+            env: {
+                ...process.env,
+                SELF_HOST_TESTKIT_BINARY: binary,
+                SELF_HOST_TESTKIT_MANIFEST: manifest,
+            },
+        });
+        const interrupt = () => child.kill("SIGINT");
+        const terminate = () => child.kill("SIGTERM");
+        process.on("SIGINT", interrupt);
+        process.on("SIGTERM", terminate);
+        child.once("error", () => resolve(null));
+        child.once("close", (code) => {
+            process.removeListener("SIGINT", interrupt);
+            process.removeListener("SIGTERM", terminate);
+            resolve(code);
+        });
+    });
+    if (status !== 0)
+        throw new ActionError("Testkit run failed. Check the sanitized report and the test command output.");
 }
 function post() {
     if (!process.env.STATE_testkit_manifest)

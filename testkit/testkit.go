@@ -165,7 +165,8 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 	ports := &portLease{}
 	guard := &guardedRunner{base: base, p: p, policy: project.FixturePolicy{Root: root, Service: selected.Info().Service, Image: opts.Image}, ports: ports}
 	deps.Runner = guard
-	svc := service.New(&deps, events.Discard(), cat)
+	diagnostics := &startupDiagnostics{}
+	svc := service.New(&deps, events.New(diagnostics), cat)
 	a := &App{service: svc, runner: base, guard: guard, marker: meta, deadline: deadline, workDeadline: workDeadline, done: make(chan struct{})}
 	defer func() {
 		if err != nil {
@@ -190,7 +191,7 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 			}
 		}
 	}()
-	unlock, err := startupLock(work)
+	unlock, err := sharedStartupLock(work)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +241,7 @@ func startFixture(ctx context.Context, opts Options, original *system.Deps, cat 
 		if errors.As(err, &safe) || work.Err() != nil {
 			return nil, err
 		}
-		return nil, startupError(StartupReasonSetup, "testkit App Setup failed or requires a Manual step")
+		return nil, diagnostics.failure()
 	}
 	if err := guard.verify(work); err != nil {
 		return nil, err
@@ -373,10 +374,18 @@ func (a *App) Close(ctx context.Context) error {
 	return a.closeLocked(ctx)
 }
 
+// Keep failed-cleanup claims alive even if the caller drops the App handle.
+var incompletePortLeases sync.Map // owned root -> *portLease
+
 func (a *App) closeLocked(ctx context.Context) error {
 	if a.closed {
 		return nil
 	}
+	defer func() {
+		if !a.closed {
+			incompletePortLeases.Store(a.marker.Root, a.guard.ports)
+		}
+	}()
 	if a.pair != nil {
 		a.pair.failed = true
 	}
@@ -388,6 +397,8 @@ func (a *App) closeLocked(ctx context.Context) error {
 	if err := removeOwnedRoot(cleanup, a.marker.Root); err != nil {
 		return err
 	}
+	a.guard.ports.release()
+	incompletePortLeases.Delete(a.marker.Root)
 	a.closed = true
 	close(a.done)
 	return nil

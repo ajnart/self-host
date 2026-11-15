@@ -15,3 +15,17 @@ export const startupReasons = {
 } as const;
 
 export type TestkitStartupReason = keyof typeof startupReasons;
+
+export const startupPhases = [
+	"api-key",
+	"auth",
+	"prepare",
+	"pull",
+	"ready",
+	"render",
+	"root-folder",
+	"setup",
+	"start",
+] as const;
+
+export type TestkitStartupPhase = (typeof startupPhases)[number];

@@ -453,6 +453,7 @@ for (const app of [
 	"oversized",
 	"exit",
 	"secret-error",
+	"unsafe-phase",
 ]) {
 	test(`${app} startup fails safely and always invokes scoped cleanup`, async () => {
 		const { selfHost, manifest } = fixture();
@@ -466,7 +467,10 @@ for (const app of [
 		expect(inspect(caught)).not.toContain("private-test-raw-secret");
 		if (app === "secret-error") {
 			expect(caught instanceof TestkitError && caught.reason).toBe("SETUP");
+			expect(caught instanceof TestkitError && caught.phase).toBe("auth");
 		}
+		if (app === "unsafe-phase")
+			expect(caught instanceof TestkitError && caught.code).toBe("PROTOCOL");
 		await selfHost.close();
 		expect(
 			events(manifest).filter((event) => event.method === "cleanup"),
