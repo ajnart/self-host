@@ -260,6 +260,9 @@ damaged). Once `vX.Y.Z` is published, confirm it is not a draft and that
 `dist/checksums.txt` matches the published file, then copy the generated cask
 to `Casks/self-host.rb` on a feature branch in `ajnart/homebrew-tap` and open a
 PR. Do not push directly to the tap's default branch. The existing
+release workflow artifact `self-host-vX.Y.Z` includes that generated cask when
+CI builds the release; download it and verify its archive hashes against the
+published `checksums.txt` before opening the tap PR. The existing
 `scripts/publish-homebrew.sh X.Y.Z` checks those same guards but commits and
 pushes directly; it is an operator-only fallback, not an agent-safe PR workflow.
 The cask needs anonymously downloadable release assets

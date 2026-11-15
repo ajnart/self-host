@@ -129,6 +129,7 @@ jobs:
             dist/self-host_*.pkg.tar.zst
             dist/self-host-testkit-*.tgz
             dist/aur/self-host-bin.pkgbuild
+            dist/homebrew/Casks/self-host.rb
             dist/checksums.txt
           if-no-files-found: error
       - name: Publish and verify immutable CLI assets
