@@ -180,10 +180,8 @@ func (f FirstAdmin) Admin(ctx context.Context, h *helpers.H) error {
 					if loginCheckErr != nil {
 						return loginCheckErr
 					}
-					return &helpers.ManualError{Hint: fmt.Sprintf(
-						"An administrator already exists at %s, but the saved Admin login is rejected. Verify the saved Admin login privately, recover the existing account in the App without deleting its data, then run: self-host setup %s",
-						h.URL, h.App,
-					)}
+					hint := f.hint(h, user) + " An administrator already exists; verify the saved Admin login privately and recover that account without deleting its data, then run: self-host setup " + h.App
+					return fmt.Errorf("an administrator already exists and the Admin login does not sign in: %w", &helpers.ManualError{Hint: hint})
 				}
 			}
 			if f.Create == nil {

@@ -87,7 +87,7 @@ func TestTheHintNamesTheLoginPage(t *testing.T) {
 	if err := (scrypted.App{}).Setup(context.Background(), h); err == nil {
 		t.Fatal("Setup should fail against a different administrator")
 	}
-	if rec.Status("admin") != stepstatus.StepFail || !strings.Contains(rec.Hint(), server.URL) {
-		t.Fatalf("admin step should fail with the App URL hint, got %q", rec.Hint())
+	if rec.Status("admin") != stepstatus.StepManual || !strings.Contains(rec.Hint(), server.URL) {
+		t.Fatalf("admin step should be manual with the App URL hint, got %q", rec.Hint())
 	}
 }

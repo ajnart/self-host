@@ -317,7 +317,7 @@ func TestFirstAdminAlreadyExists(t *testing.T) {
 	if got := statusOf(results, "admin"); got != stepstatus.StepManual {
 		t.Errorf("admin status = %q, want manual", got)
 	}
-	if !strings.Contains(results[len(results)-1].Hint, "recover the existing account") {
+	if !strings.Contains(results[len(results)-1].Hint, "recover that account") {
 		t.Errorf("admin hint = %q, want existing-account recovery guidance", results[len(results)-1].Hint)
 	}
 	if !errors.Is(err, helpers.ErrManual) || errors.Is(err, helpers.ErrStepFailed) {
