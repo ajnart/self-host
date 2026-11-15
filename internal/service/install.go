@@ -461,19 +461,20 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 				ss.emitStage([]string{info.ID}, events.Event{Event: events.StepStart, App: info.ID, Step: StageRender, Msg: "render " + info.ID})
 				rc, err := s.renderContext(ctx, a, port, values, ss.settings)
 				if err != nil {
-					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
+					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error(), Cause: err}))
 				}
 				fragment := a.Compose(rc)
 				if err := ss.p.ValidateFragment(info.ID, fragment); err != nil {
 					st.Port, st.Inputs = previousPort, previousInputs
-					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
+					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error(), Cause: err}))
 				}
 				if err := ss.writeFiles(a, rc); err != nil {
-					stage := events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}
+					stage := events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error(), Cause: err}
 					if errors.Is(err, helpers.ErrManual) {
 						stage.Event = events.StepManual
 						stage.Msg = "render needs manual directory preparation"
 						stage.Error = ""
+						stage.Cause = nil
 						var manual *helpers.ManualError
 						if errors.As(err, &manual) {
 							stage.Hint = manual.Hint
@@ -488,7 +489,7 @@ func (s *Service) install(ctx context.Context, opts InstallOptions, locked *proj
 					return err
 				}
 				if err := ss.writeFragment(info.ID, fragment); err != nil {
-					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error()}))
+					return errors.Join(err, ss.recordStage([]string{info.ID}, events.Event{Event: events.StepFail, App: info.ID, Step: StageRender, Error: err.Error(), Cause: err}))
 				}
 				wrote := fmt.Sprintf("wrote %s in compose.yml (%s)", info.ID, info.Image)
 				if port > 0 {

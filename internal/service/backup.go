@@ -193,7 +193,7 @@ func (ss *session) archiveApp(ctx context.Context, w *backup.Writer, id string, 
 			recovery, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 			defer cancel()
 			if err := ss.compose.Start(recovery, running...); err != nil {
-				log.Emit(events.Event{Event: events.StepFail, App: id, Step: StageStart, Msg: "could not restart after backup", Error: err.Error()})
+				log.Emit(events.Event{Event: events.StepFail, App: id, Step: StageStart, Msg: "could not restart after backup", Error: err.Error(), Cause: err})
 				result = errors.Join(result, fmt.Errorf("restart %s after backup: %w", id, err))
 				return
 			}

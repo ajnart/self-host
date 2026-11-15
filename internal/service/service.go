@@ -559,7 +559,7 @@ func (ss *session) reportUnexpected(h *helpers.H, step string, err error) {
 	if err == nil || errors.Is(err, helpers.ErrStepFailed) || errors.Is(err, helpers.ErrManual) {
 		return
 	}
-	h.Log.Emit(events.Event{Event: events.StepFail, App: h.App, Step: step, Error: err.Error(), URL: h.URL})
+	h.Log.Emit(events.Event{Event: events.StepFail, App: h.App, Step: step, Error: err.Error(), Cause: err, URL: h.URL})
 	h.Record(helpers.StepResult{ID: step, Status: stepstatus.StepFail, Error: err.Error()})
 }
 

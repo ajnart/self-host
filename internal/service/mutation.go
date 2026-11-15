@@ -297,7 +297,7 @@ func (s *Service) runCompose(ctx context.Context, ss *session, c change, ids []s
 		}
 		ss.emitStage(ids, events.Event{Event: events.StepStart, Step: StageStart, Msg: "start " + strings.Join(ids, ", ")})
 		if err := ss.up(ctx, startable); err != nil {
-			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StageStart, Msg: "could not start " + strings.Join(ids, ", "), Error: err.Error()}))
+			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StageStart, Msg: "could not start " + strings.Join(ids, ", "), Error: err.Error(), Cause: err}))
 		}
 		msg := "started "
 		if c.compose == composePullUp && c.after == afterCheck {
@@ -748,7 +748,7 @@ func (ss *session) recordStage(ids []string, e events.Event) error {
 	err := ss.p.SaveState(ss.state)
 	ss.emitStage(ids, e)
 	if err != nil {
-		ss.emitStage(ids, events.Event{Event: events.StepFail, Step: "state", Error: err.Error(),
+		ss.emitStage(ids, events.Event{Event: events.StepFail, Step: "state", Error: err.Error(), Cause: err,
 			Hint: "Check free disk space and Project directory permissions, then retry the command."})
 		return fmt.Errorf("could not save %s stage; check disk space and Project permissions before retrying: %w", e.Step, err)
 	}
@@ -773,7 +773,7 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 	ss.emitStage(ids, events.Event{Event: events.StepStart, Step: StagePull, Msg: pullMessage(len(services))})
 	if err := ss.compose.PullProgress(ctx, services...); err != nil {
 		if ctx.Err() != nil {
-			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StagePull, Msg: "pull cancelled", Error: "cancelled", Hint: "Run self-host to resume the install."}))
+			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StagePull, Msg: "pull cancelled", Error: "cancelled", Cause: ctx.Err(), Hint: "Run self-host to resume the install."}))
 		}
 		var perr *compose.PullError
 		if errors.As(err, &perr) {
@@ -789,7 +789,7 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 				if len(owners) > 0 {
 					recordErr = errors.Join(recordErr, ss.recordStage(owners, events.Event{
 						Event: events.StepFail, Step: StagePull,
-						Msg: "could not pull this App's image", Error: err.Error(),
+						Msg: "could not pull this App's image", Error: err.Error(), Cause: err,
 						Hint: pullFailureHint(perr),
 					}))
 				}
@@ -807,8 +807,8 @@ func (ss *session) pull(ctx context.Context, ids, services []string) error {
 		fail := events.Event{
 			Event: events.StepFail, Step: StagePull,
 			Msg:   "batch image pull failed; App attribution is unavailable",
-			Error: err.Error(),
-			Hint:  pullFailureHint(perr),
+			Error: err.Error(), Cause: err,
+			Hint: pullFailureHint(perr),
 		}
 		return errors.Join(err, ss.recordStage(ids, fail))
 	}
