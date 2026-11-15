@@ -408,11 +408,11 @@ func (v *AppView) URL() string {
 }
 
 func (a *App) pairAppPresent(ctx context.Context, id string) (bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := contextFailure(ctx); err != nil {
 		return false, err
 	}
 	ids, err := a.guard.p.AppIDs()
-	if err := ctx.Err(); err != nil {
+	if err := contextFailure(ctx); err != nil {
 		return false, err
 	}
 	if err != nil {
@@ -430,13 +430,25 @@ func (a *App) pairCredentials(ctx context.Context, id string) (_ service.Credent
 		return service.Credentials{}, present, err
 	}
 	creds, err := a.service.Credentials(work)
-	if err := work.Err(); err != nil {
+	if err := contextFailure(work); err != nil {
 		return service.Credentials{}, false, err
 	}
 	if err != nil {
 		return service.Credentials{}, false, startupError(StartupReasonStorage, "testkit private credentials unavailable")
 	}
 	return creds, true, nil
+}
+
+// A deadline timer may be scheduled late under load. Treat an elapsed deadline
+// as expired even when its asynchronous cancellation callback has not run yet.
+func contextFailure(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
 
 func (v *AppView) GetAPIKey(ctx context.Context, name string) (string, error) {
