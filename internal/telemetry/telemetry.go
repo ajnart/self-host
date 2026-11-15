@@ -84,6 +84,8 @@ type Report struct {
 	// FailedSteps are "app/step" IDs of steps that failed.
 	FailedSteps []string
 	Steps       []Step
+	// FailureTypes are safe leaf error types from failed Setup steps.
+	FailureTypes []string
 	// Failure is why the command failed; only its types are ever sent.
 	Failure error
 	Panic   any
@@ -536,14 +538,25 @@ func (c *Client) exception(id string, r Report, props posthog.Properties) postho
 	var typ, value, fingerprint string
 	handled := r.Panic == nil
 	if handled {
-		failureTypes := errorTypes(r.Failure)
+		stepFailureTypes := cleanFailureTypes(r.FailureTypes)
+		var failureTypes []string
+		if r.Failure != nil {
+			failureTypes = errorTypes(r.Failure)
+		}
+		failureTypes = cleanFailureTypes(append(failureTypes, stepFailureTypes...))
+		if len(failureTypes) == 0 {
+			failureTypes = []string{"Error"}
+		}
 		props["failure_types"] = failureTypes
-		typ, value = errorType(r.Failure), "command failed"
+		typ, value = "Error", "command failed"
+		if r.Failure != nil {
+			typ = errorType(r.Failure)
+		}
 		if len(steps) > 0 {
 			typ, value = "StepFailed", "failed at "+strings.Join(steps, ", ")
 		}
 		parts := []string{command, typ, strings.Join(steps, ",")}
-		if len(failureTypes) > 1 {
+		if len(stepFailureTypes) > 0 || len(failureTypes) > 1 {
 			parts = append(parts, "causes="+strings.Join(failureTypes, ","))
 		}
 		if len(steps) == 0 {
@@ -689,6 +702,23 @@ func errorTypes(err error) []string {
 		types = slices.Compact(types)
 	}
 	return types
+}
+
+func cleanFailureTypes(types []string) []string {
+	var safe []string
+	for _, name := range types {
+		if name == "OtherError" || len(name) <= maxFailureType && typePattern.MatchString(name) {
+			safe = append(safe, name)
+		}
+	}
+	slices.Sort(safe)
+	safe = slices.Compact(safe)
+	if len(safe) > maxFailureTypes {
+		safe = append(safe[:maxFailureTypes-1], "OtherError")
+		slices.Sort(safe)
+		safe = slices.Compact(safe)
+	}
+	return safe
 }
 
 // failureSite returns the nearest safe in-app function to the captured error

@@ -224,6 +224,9 @@ func TestSkillGuideEventFieldsMatchTheEventStruct(t *testing.T) {
 	var fields []string
 	for i := 0; i < reflect.TypeFor[events.Event]().NumField(); i++ {
 		name, _, _ := strings.Cut(reflect.TypeFor[events.Event]().Field(i).Tag.Get("json"), ",")
+		if name == "-" {
+			continue
+		}
 		fields = append(fields, name)
 	}
 

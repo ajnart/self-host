@@ -27,11 +27,13 @@ const (
 )
 
 type Event struct {
-	Event      string `json:"event"`
-	App        string `json:"app,omitempty"`
-	Step       string `json:"step,omitempty"`
-	Msg        string `json:"msg,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Event string `json:"event"`
+	App   string `json:"app,omitempty"`
+	Step  string `json:"step,omitempty"`
+	Msg   string `json:"msg,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Cause stays in-process for telemetry classification; it is never output.
+	Cause      error  `json:"-"`
 	URL        string `json:"url,omitempty"`
 	Credential string `json:"credential,omitempty"`
 	Hint       string `json:"hint,omitempty"`
