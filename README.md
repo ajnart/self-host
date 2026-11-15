@@ -320,6 +320,8 @@ Setup configures accounts, API keys and settings where supported; browser-only w
 
 A failing Link marks the consuming App as needing attention, not its target. Browser-only steps are reported as **Manual steps** with a hint and stay retryable: `self-host setup <app>`. Homarr Links need Homarr **2.4.1** or newer; NZBGet and SABnzbd Links need **2.5.1** or newer. Other versions stop with a recovery hint (back up first). See the [Homarr contracts](docs/homarr-integration-contract.md) and [proof](docs/homarr-proof.md).
 
+If Setup confirms an administrator already exists but the saved Admin login is rejected, it leaves a retryable Manual step. Recover that existing account and keep its data; do not create a replacement or reset credentials automatically.
+
 See [Media Setup](docs/catalog/media-setup.md) for shared folders, hardlink limitations and TRaSH quality/naming guidance. Existing profiles and paths stay yours; Setup does not import score bundles or migrate libraries.
 
 When Seerr finds several quality profiles, choose an existing profile with `--set seerr.sonarr_profile=<ID-or-name>` and `--set seerr.radarr_profile=<ID-or-name>` on install. Existing connections keep their selections.

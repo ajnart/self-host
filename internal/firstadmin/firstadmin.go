@@ -158,8 +158,13 @@ func (f FirstAdmin) Admin(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	password := h.AdminPassword()
+	var loginCheckErr error
 	return h.Step(ctx, f.stepID(), f.title(h, user), helpers.StepSpec{
-		Check: func(ctx context.Context) (bool, error) { return f.signIn(ctx, h, user, password) },
+		Check: func(ctx context.Context) (bool, error) {
+			done, err := f.signIn(ctx, h, user, password)
+			loginCheckErr = err
+			return done, err
+		},
 		Do: func(ctx context.Context) error {
 			if f.Valid != nil {
 				if err := f.Valid(user, password); err != nil {
@@ -172,6 +177,9 @@ func (f FirstAdmin) Admin(ctx context.Context, h *helpers.H) error {
 					return err
 				}
 				if exists {
+					if loginCheckErr != nil {
+						return loginCheckErr
+					}
 					return &helpers.ManualError{Hint: fmt.Sprintf(
 						"An administrator already exists at %s, but the saved Admin login is rejected. Verify the saved Admin login privately, recover the existing account in the App without deleting its data, then run: self-host setup %s",
 						h.URL, h.App,

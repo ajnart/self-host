@@ -329,6 +329,8 @@ Project; install then emits a `step.warn` (step `project`) whose hint names `sel
   Finish them in the browser, then retry Setup. A browser-only verification
   remains manual on retry; a successful probe does not prove that step finished.
 
+When Setup confirms an administrator already exists but the saved Admin login is rejected, follow the Manual recovery hint for that existing account. Do not create a replacement account, delete its data or reset its credentials automatically.
+
 `self-host doctor` exits `1` when any check fails.
 Process exit status is authoritative. Incomplete/Manual `run.end` uses `msg`,
 not necessarily `error`; Doctor failures also describe the problem in `msg`.
