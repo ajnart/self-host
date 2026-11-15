@@ -445,29 +445,70 @@ func TestDirectoryValidationRestoreMaterializesMetadataOnceInStagingUnderLock(t 
 			})
 			denied := errors.New("fixture staged metadata failure")
 			h.runner.OnStreamIO("--entrypoint sh", func(_ context.Context, cmd system.Cmd, stdin io.Reader, _, _ io.Writer) error {
-				if !strings.Contains(systemtest.Line(cmd), "--cap-add CHOWN") {
+				script, err := io.ReadAll(stdin)
+				if err != nil {
+					return err
+				}
+				line := systemtest.Line(cmd)
+				if strings.Contains(line, "--cap-add CHOWN") {
+					calls++
+					if !strings.Contains(line, "src="+p.Root+"/.restore-") || !strings.Contains(line, "/apps/one,") {
+						t.Fatal("ownership materialization escaped staging")
+					}
+					lock, err := os.Open(p.Path(".lock"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer lock.Close()
+					if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
+						t.Fatalf("metadata materialization ran without the live kernel lock: %v", err)
+					}
+					if pending, err := p.LoadRestoreStartup(); err != nil || pending != nil {
+						t.Fatal("metadata materialization ran after startup intent")
+					}
+					if !succeeds {
+						return denied
+					}
 					return nil
 				}
-				calls++
-				if !strings.Contains(systemtest.Line(cmd), "src="+p.Root+"/.restore-") || !strings.Contains(systemtest.Line(cmd), "/apps/one,") {
-					t.Fatal("ownership materialization escaped staging")
+
+				if string(script) != "set -eu\nrm -rf -- /owned/* /owned/.[!.]* /owned/..?*\n" {
+					return nil
 				}
-				lock, err := os.Open(p.Path(".lock"))
+				var mount string
+				for i, arg := range cmd.Args {
+					if arg == "--mount" && i+1 < len(cmd.Args) {
+						mount = cmd.Args[i+1]
+						break
+					}
+				}
+				_, source, found := strings.Cut(mount, "src=")
+				if !found {
+					t.Fatal("cleanup helper did not mount a fixture directory")
+				}
+				source, _, _ = strings.Cut(source, ",")
+				rel, err := filepath.Rel(p.Root, source)
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer lock.Close()
-				if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
-					t.Fatalf("metadata materialization ran without the live kernel lock: %v", err)
+				parts := strings.Split(filepath.ToSlash(rel), "/")
+				if len(parts) < 2 || !strings.HasPrefix(parts[0], ".restore-") {
+					t.Fatalf("cleanup helper escaped the staging fixture: %s", source)
 				}
-				if pending, err := p.LoadRestoreStartup(); err != nil || pending != nil {
-					t.Fatal("metadata materialization ran after startup intent")
+				if rel != filepath.Join(parts[0], "replaced-one") && rel != filepath.Join(parts[0], "apps", "one") {
+					t.Fatalf("cleanup helper targeted an unexpected staging path: %s", source)
 				}
-				if _, err := io.Copy(io.Discard, stdin); err != nil {
+				entries, err := os.ReadDir(source)
+				if errors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+				if err != nil {
 					return err
 				}
-				if !succeeds {
-					return denied
+				for _, entry := range entries {
+					if err := os.RemoveAll(filepath.Join(source, entry.Name())); err != nil {
+						return err
+					}
 				}
 				return nil
 			})

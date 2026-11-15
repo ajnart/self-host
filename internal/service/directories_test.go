@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -94,6 +95,22 @@ func newDirectoryHarness(t *testing.T, apps ...app.App) *harness {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
+		if err := filepath.WalkDir(owner.Home, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !entry.IsDir() {
+				return nil
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			return os.Chmod(path, info.Mode().Perm()|0o700)
+		}); err != nil {
+			t.Errorf("restore temporary fixture directory permissions: %v", err)
+			return
+		}
 		if err := os.RemoveAll(owner.Home); err != nil {
 			t.Error(err)
 		}

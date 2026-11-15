@@ -169,7 +169,7 @@ func TestSportarrDirectoryInstallAndGeneratedRefreshPrepareBeforeUp(t *testing.T
 			requireNativeDirectoryFilesystem(t)
 			h, a, run := sportarrDirectoryHarness(t, operation)
 			starts, wantSetups := 0, a.setups
-			if operation == "install" {
+			if operation == "install" || operation == "refresh" {
 				wantSetups++
 			}
 			dir := filepath.Join(h.root(), "apps", "sportarr", "config")
