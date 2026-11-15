@@ -2,6 +2,7 @@ package helpers_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -143,7 +144,7 @@ func TestFormTokenMissingIsAnError(t *testing.T) {
 	h := newH(t, srv, nil, nil)
 
 	_, err := h.Session().FormToken(context.Background(), "/login", "_token")
-	if err == nil || !strings.Contains(err.Error(), "_token") {
+	if err == nil || !errors.Is(err, helpers.ErrFormTokenMissing) || !strings.Contains(err.Error(), "_token") {
 		t.Fatalf("FormToken error = %v, want it to name the missing field", err)
 	}
 }

@@ -5,7 +5,6 @@ package firstadmin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -159,8 +158,13 @@ func (f FirstAdmin) Admin(ctx context.Context, h *helpers.H) error {
 		return err
 	}
 	password := h.AdminPassword()
+	var loginCheckErr error
 	return h.Step(ctx, f.stepID(), f.title(h, user), helpers.StepSpec{
-		Check: func(ctx context.Context) (bool, error) { return f.signIn(ctx, h, user, password) },
+		Check: func(ctx context.Context) (bool, error) {
+			done, err := f.signIn(ctx, h, user, password)
+			loginCheckErr = err
+			return done, err
+		},
 		Do: func(ctx context.Context) error {
 			if f.Valid != nil {
 				if err := f.Valid(user, password); err != nil {
@@ -173,7 +177,11 @@ func (f FirstAdmin) Admin(ctx context.Context, h *helpers.H) error {
 					return err
 				}
 				if exists {
-					return errors.New("an administrator already exists and the Admin login does not sign in")
+					if loginCheckErr != nil {
+						return loginCheckErr
+					}
+					hint := f.hint(h, user) + " An administrator already exists; verify the saved Admin login privately and recover that account without deleting its data, then run: self-host setup " + h.App
+					return fmt.Errorf("an administrator already exists and the Admin login does not sign in: %w", &helpers.ManualError{Hint: hint})
 				}
 			}
 			if f.Create == nil {

@@ -314,8 +314,14 @@ func TestFirstAdminAlreadyExists(t *testing.T) {
 	if st.count() != 0 {
 		t.Errorf("Create called %d times, want 0", st.count())
 	}
-	if got := statusOf(results, "admin"); got != stepstatus.StepFail {
-		t.Errorf("admin status = %q, want fail", got)
+	if got := statusOf(results, "admin"); got != stepstatus.StepManual {
+		t.Errorf("admin status = %q, want manual", got)
+	}
+	if !strings.Contains(results[len(results)-1].Hint, "recover that account") {
+		t.Errorf("admin hint = %q, want existing-account recovery guidance", results[len(results)-1].Hint)
+	}
+	if !errors.Is(err, helpers.ErrManual) || errors.Is(err, helpers.ErrStepFailed) {
+		t.Errorf("Setup error = %v, want manual without failed-step classification", err)
 	}
 	assertNoSecret(t, adminPassword, err, results)
 }

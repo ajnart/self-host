@@ -21,6 +21,22 @@ type Session struct {
 	origin *url.URL
 }
 
+// ErrFormTokenMissing marks a successful page response without the requested
+// hidden form token. Callers can distinguish that page state from transport
+// and HTTP-status failures without matching error text.
+var ErrFormTokenMissing = errors.New("form token is missing")
+
+type formTokenMissingError struct {
+	field string
+	path  string
+}
+
+func (e *formTokenMissingError) Error() string {
+	return fmt.Sprintf("no %q field on %s", e.field, e.path)
+}
+
+func (e *formTokenMissingError) Unwrap() error { return ErrFormTokenMissing }
+
 // Session starts a fresh cookie jar for one login flow.
 // WithoutCookies returns a copy of h whose client keeps no cookie jar.
 func (h *H) WithoutCookies() *H {
@@ -177,7 +193,7 @@ func (s *Session) FormToken(ctx context.Context, path, fieldName string) (string
 	}
 	token, found := hiddenValue(resp.Body, fieldName)
 	if !found || token == "" {
-		return "", fmt.Errorf("no %q field on %s", fieldName, path)
+		return "", &formTokenMissingError{field: fieldName, path: path}
 	}
 	return token, nil
 }
