@@ -721,8 +721,11 @@ func (ss *session) clearStartFailure(ids []string, msg string) {
 func (ss *session) recordStage(ids []string, e events.Event) error {
 	for _, id := range ids {
 		status := stepstatus.StepOK
-		if e.Event == events.StepFail {
+		switch e.Event {
+		case events.StepFail:
 			status = stepstatus.StepFail
+		case events.StepManual:
+			status = stepstatus.StepManual
 		}
 		ss.recorder(id)(helpers.StepResult{ID: e.Step, Status: status, Msg: e.Msg, Error: e.Error, Hint: e.Hint})
 		st := ss.state.Apps[id]
