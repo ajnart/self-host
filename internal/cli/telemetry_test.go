@@ -203,10 +203,11 @@ func TestAnInstallReportsItsIDsAccessAndFailedSteps(t *testing.T) {
 		t.Fatalf("last command event = %v, want install", install)
 	}
 	for key, want := range map[string]any{
-		"recipes":      []any{"pair"},
-		"apps":         []any{"one"},
-		"access":       "local",
-		"failed_steps": []any{"one/pull", "two/pull", "pull"},
+		"recipes":       []any{"pair"},
+		"apps":          []any{"one"},
+		"access":        "local",
+		"failed_steps":  []any{"one/pull", "two/pull", "pull"},
+		"failure_types": []any{"*errors.errorString"},
 	} {
 		if !reflect.DeepEqual(install[key], want) {
 			t.Errorf("properties[%q] = %v, want %v", key, install[key], want)
@@ -221,8 +222,9 @@ func TestAnInstallReportsItsIDsAccessAndFailedSteps(t *testing.T) {
 			exceptions = append(exceptions, e["properties"].(map[string]any))
 		}
 	}
-	if len(exceptions) != 1 || exceptions[0]["$exception_fingerprint"] != "install|StepFailed|one/pull,pull,two/pull" {
-		t.Fatalf("exceptions = %v, want one StepFailed fingerprint install|StepFailed|one/pull,pull,two/pull", exceptions)
+	wantFingerprint := "install|StepFailed|one/pull,pull,two/pull|causes=*errors.errorString"
+	if len(exceptions) != 1 || exceptions[0]["$exception_fingerprint"] != wantFingerprint {
+		t.Fatalf("exceptions = %v, want one StepFailed fingerprint %s", exceptions, wantFingerprint)
 	}
 }
 
