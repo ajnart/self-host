@@ -5,7 +5,6 @@ package firstadmin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -173,7 +172,10 @@ func (f FirstAdmin) Admin(ctx context.Context, h *helpers.H) error {
 					return err
 				}
 				if exists {
-					return errors.New("an administrator already exists and the Admin login does not sign in")
+					return &helpers.ManualError{Hint: fmt.Sprintf(
+						"An administrator already exists at %s, but the saved Admin login is rejected. Verify the saved Admin login privately, recover the existing account in the App without deleting its data, then run: self-host setup %s",
+						h.URL, h.App,
+					)}
 				}
 			}
 			if f.Create == nil {

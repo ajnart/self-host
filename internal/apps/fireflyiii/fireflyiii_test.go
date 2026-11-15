@@ -2,6 +2,7 @@ package fireflyiii_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -149,10 +150,10 @@ func TestRegistrationClosedHintNamesThePage(t *testing.T) {
 	})
 	box := newHarness(t, mux, secrets{"ADMIN_USER": "admin", "ADMIN_PASSWORD": "pw"})
 	err := fireflyiii.App{}.Setup(context.Background(), box.h)
-	if err == nil {
-		t.Fatal("Setup should fail when registration is closed")
+	if !errors.Is(err, helpers.ErrManual) || errors.Is(err, helpers.ErrStepFailed) {
+		t.Fatalf("Setup error = %v, want manual recovery step", err)
 	}
-	if !strings.Contains(box.step("admin").Hint, "/register") {
-		t.Errorf("hint should name the App page, got %q", box.step("admin").Hint)
+	if got := box.step("admin"); got.Status != stepstatus.StepManual || !strings.Contains(got.Hint, "/register") {
+		t.Errorf("admin step = %#v, want manual recovery hint naming the registration page", got)
 	}
 }

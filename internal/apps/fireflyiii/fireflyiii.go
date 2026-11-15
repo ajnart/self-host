@@ -92,7 +92,13 @@ func register(ctx context.Context, h *helpers.H) error {
 	session := h.Session()
 	token, err := session.FormToken(ctx, "/register", "_token")
 	if err != nil {
-		return errors.New("registration is closed or the first owner already exists")
+		// FormToken preserves transport and HTTP-status errors, but reports a
+		// successful page without its registration token as a parse error. That
+		// is the boundary where a person must inspect the existing Owner state.
+		if errors.Is(err, helpers.ErrFormTokenMissing) {
+			return &helpers.ManualError{Hint: "Open " + h.URL + "/register and inspect the existing Owner account. If an Owner already exists, recover its login without deleting Firefly III data; then run: self-host setup firefly-iii"}
+		}
+		return err
 	}
 	form := url.Values{
 		"_token":                {token},
