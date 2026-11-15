@@ -3,8 +3,9 @@
 Real, isolated App fixtures for integration tests. Keep your existing API adapter;
 replace its mock Address and API key with a real App configured by self-host's Setup.
 
-This guide describes **1.3.2**, which keeps the **1.3.0** testkit APIs compatible,
-including `withApp`, ordered Pairs and the automatic-cleanup JavaScript Action.
+This guide describes **1.4.0**, which adds an existing-command runner and keeps
+the **1.3.0** APIs compatible, including `withApp`, ordered Pairs and the
+automatic-cleanup JavaScript Action.
 Version 1.2.1 has none of them.
 
 ```javascript
@@ -27,13 +28,14 @@ Each fixture gets a temporary Project, loopback-only Address and private credent
 it never uses your normal self-host Project. See the [Node guide](node/README.md)
 for mock replacement, timeouts, recovery and CI.
 
-## Existing test commands (unreleased)
+## Existing test commands
 
-This source checkout also provides `self-host-testkit-run`: start several Apps
+Version 1.4.0 provides `self-host-testkit-run`: start several Apps
 in parallel, supply their endpoints to an existing test command, clean up, and
-write a sanitized report. No new test DSL is required. See the [runner guide](node/README.md#run-your-existing-tests-unreleased)
-for configuration and the optional Action `apps` / `run` inputs. This is not yet
-available in the published 1.3.2 package or the v1.3.0 Action pin below. Source helpers use shared startup admission and cross-process
+write a sanitized report. No new test DSL is required. See the [runner guide](node/README.md#run-your-existing-tests)
+for configuration and the optional Action `apps` / `run` inputs. Install the
+1.4.0 GitHub tarball below and use its matching Action. The separately verified
+v1.3.0 Action pin below remains setup-only. Helpers use shared startup admission and cross-process
 port claims so independent image pulls, container creation and Setup can overlap.
 
 ## CI in another repository
@@ -155,14 +157,14 @@ only substitutes a selected Catalog App's image; it cannot remove these limits.
 
 ## Published release
 
-Version **1.3.2** must exist on
-[npm](https://www.npmjs.com/package/@ajnart/self-host-testkit/v/1.3.2) and
-[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.3.2) before using
-these local commands. The CI quickstart above remains pinned to the separately
+Version **1.4.0** must exist on
+[GitHub](https://github.com/ajnart/self-host/releases/tag/v1.4.0) before using
+these local commands. Use its checksummed SDK tarball while npm publication is
+pending. The CI quickstart above remains pinned to the separately
 verified 1.3.0 SDK/helper combination.
 
 ```bash
-npm install --save-dev --save-exact @ajnart/self-host-testkit@1.3.2
+npm install --save-dev --save-exact https://github.com/ajnart/self-host/releases/download/v1.4.0/self-host-testkit-1.4.0.tgz
 npm exec -- self-host-testkit-setup
 ```
 
