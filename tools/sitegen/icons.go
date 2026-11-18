@@ -29,6 +29,7 @@ var iconOverrides = map[string]string{
 	"passbolt":             "",
 	"pihole":               "svg/pi-hole.svg",
 	"plant-it":             "png/plant-it.png",
+	"printstash":           "",
 	"restic":               "",
 	"scrypted":             "",
 	"speedtest-tracker":    "",

@@ -4229,6 +4229,52 @@
    "standalone": true
   },
   {
+   "id": "printstash",
+   "name": "PrintStash",
+   "description": "Organize 3D printing files, revisions and print history",
+   "category": "Productivity",
+   "icon": "",
+   "image": "ghcr.io/xiao-villamor/printstash:latest",
+   "port": 3000,
+   "docs": "https://github.com/xiao-villamor/PrintStash",
+   "links": [],
+   "compose": "services:\n  printstash:\n    image: ghcr.io/xiao-villamor/printstash:latest\n    container_name: ${CONTAINER_PREFIX}printstash\n    restart: ${RESTART_POLICY}\n    stop_grace_period: 60s\n    ports:\n      - 3000:3000\n    environment:\n      PUID: \"${PUID}\"\n      PGID: \"${PGID}\"\n      VAULT_SETUP_MODE: trusted_network\n      VAULT_RESTART_ENABLED: \"true\"\n    volumes:\n      - ${CONFIG_PATH}/printstash/data:/data\n    logging:\n      driver: local\n      options:\n        max-size: \"10m\"\n        max-file: \"3\"\n",
+   "env": [
+    {
+     "key": "CONFIG_PATH",
+     "default": "/opt/appdata/config",
+     "description": "Host folder that holds every App's configuration",
+     "secret": false
+    },
+    {
+     "key": "CONTAINER_PREFIX",
+     "default": "",
+     "description": "Prefix put in front of every container name",
+     "secret": false
+    },
+    {
+     "key": "PGID",
+     "default": "1000",
+     "description": "Group ID the container runs as (run `id -g`)",
+     "secret": false
+    },
+    {
+     "key": "PUID",
+     "default": "1000",
+     "description": "User ID the container runs as (run `id -u`)",
+     "secret": false
+    },
+    {
+     "key": "RESTART_POLICY",
+     "default": "unless-stopped",
+     "description": "Docker restart policy",
+     "secret": false
+    }
+   ],
+   "standalone": true,
+   "notes": "Create the first administrator and choose storage on a trusted local network. Set PUID and PGID to the positive numeric owner of the data folder. Keep that folder across restarts and upgrades. Before internet access, use HTTPS and close first-run setup; follow the PrintStash installation guide."
+  },
+  {
    "id": "prometheus",
    "name": "Prometheus",
    "description": "Record numbers about how your computers and apps are doing over time",
