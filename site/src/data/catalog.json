@@ -1021,6 +1021,16 @@
    "i": "svg/postgresql.svg"
   },
   {
+   "id": "printstash",
+   "name": "PrintStash",
+   "d": "Organize 3D printing files, revisions and print history",
+   "c": "Productivity",
+   "img": "ghcr.io/xiao-villamor/printstash:latest",
+   "p": 3000,
+   "l": [],
+   "lt": []
+  },
+  {
    "id": "prometheus",
    "name": "Prometheus",
    "d": "Record numbers about how your computers and apps are doing over time",
@@ -1603,9 +1613,9 @@
   }
  ],
  "counts": {
-  "apps": 118,
+  "apps": 119,
   "recipes": 7,
-  "allApps": 121,
+  "allApps": 122,
   "allRecipes": 8
  }
 }

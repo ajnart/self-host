@@ -554,6 +554,13 @@
   },
   {
     "kind": "app",
+    "id": "printstash",
+    "apps": [
+      "printstash"
+    ]
+  },
+  {
+    "kind": "app",
     "id": "prometheus",
     "apps": [
       "prometheus"
