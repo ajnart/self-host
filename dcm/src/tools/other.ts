@@ -128,6 +128,38 @@ export const other: DockerTool[] = [
     restart: \${RESTART_POLICY}`,
   },
   {
+    id: "dopbase",
+    name: "Dopbase",
+    description:
+      "Self-hosted secrets manager that stores secrets by project and environment, encrypts each value and passes them to your app when it starts, so the repository needs no .env file. The container runs as UID 10001 and does not change folder ownership: give that user write access to the data folder before the first start. The first start prints a one-time setup link in the container log.",
+    category: "Security",
+    tags: ["Security", "Secrets", "Development"],
+    githubUrl: "https://github.com/dopbase/dopbase",
+    composeContent: `services:
+  dopbase:
+    image: dopbase/dopbase:0.2.1
+    container_name: \${CONTAINER_PREFIX}dopbase
+    ports:
+      - "8840:8840"
+    environment:
+      - DOPBASE_PUBLIC_URL=\${DOPBASE_PUBLIC_URL:-http://localhost:8840}
+    volumes:
+      - \${DATA_PATH}/dopbase:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8840/api/v1/health"]
+      interval: 60s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
+    init: true
+    stop_grace_period: 15s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: \${RESTART_POLICY}`,
+  },
+  {
     id: "gluetun",
     name: "Gluetun",
     description: "VPN provider",
