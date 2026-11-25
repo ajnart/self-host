@@ -440,6 +440,27 @@ describe("buildExport: port conflicts", () => {
     ])
   })
 
+  test("moves paired ports together across blank lines in a verbatim ports list", () => {
+    const first = portEntry("app-one", "", "127.0.0.1:8080:53/tcp")
+    const second = portEntry("app-two", "", "127.0.0.1:8080:53/tcp")
+    second.composeContent = second.composeContent?.replace(
+      "    ports:\n",
+      '    ports:\n\n      - "127.0.0.1:8080:53/udp" # DNS\n\n',
+    )
+    const exported = buildExport(
+      ["app-one", "app-two"],
+      { entries: [first, second] },
+      DEFAULT_SETTINGS,
+    )
+    expect(servicesOf(exported.compose)["app-two"].ports).toEqual([
+      "127.0.0.1:8081:53/udp",
+      "127.0.0.1:8081:53/tcp",
+    ])
+    expect(exported.portChanges).toEqual([
+      { service: "app-two", keptBy: "app-one", from: 8080, to: 8081 },
+    ])
+  })
+
   test("handles list-style environment", () => {
     const { one, two } = portConflict(
       "    environment:\n      - APP_URL=http://${LAN_IP}:8080",

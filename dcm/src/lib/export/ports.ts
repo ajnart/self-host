@@ -2,7 +2,8 @@ import type { PortChange } from "./types"
 
 const TOP_LEVEL_KEY = /^([A-Za-z0-9_-]+):\s*$/
 const SERVICE_KEY = /^ {2}([^\s#][^:]*):\s*(?:#.*)?$/
-const PORT_BIND_ADDRESS = String.raw`(?:(?:\d{1,3}\.){3}\d{1,3}:|\[[^\]]+\]:)?`
+const PORT_MAPPING =
+  /^( {6}- ["']?(?:(?:\d{1,3}\.){3}\d{1,3}:|\[[^\]]+\]:)?)(\d+)(:\d+(?:\/\w+)?["']?(?:\s.*)?\s*)$/
 const SERVICE_PROPERTY = /^ {4}([A-Za-z0-9_-]+):/
 
 function rewriteEnvironmentPort(
@@ -55,87 +56,65 @@ export function fixPortConflicts(content: string): {
   content: string
   changes: PortChange[]
 } {
-  const portMappingRegex = new RegExp(
-    String.raw`^ {6}- ["']?${PORT_BIND_ADDRESS}(\d+):\d+(?:/\w+)?["']?(?=\s|$)`,
-    "gm",
-  )
+  const lines = content.split("\n")
+  const mappings = new Map<number, Map<string, number[]>>()
+  let inServices = false
+  let service: string | undefined
+  let inPorts = false
 
-  const externalPorts: Record<string, Set<string>> = {}
+  for (const [index, line] of lines.entries()) {
+    const top = line.match(TOP_LEVEL_KEY)
+    if (top) {
+      inServices = top[1] === "services"
+      service = undefined
+      inPorts = false
+      continue
+    }
+    if (!inServices) continue
+
+    const header = line.match(SERVICE_KEY)
+    if (header) {
+      service = header[1]
+      inPorts = false
+      continue
+    }
+
+    const property = line.match(SERVICE_PROPERTY)
+    if (property) inPorts = property[1] === "ports"
+    if (!service || !inPorts) continue
+
+    const mapping = line.match(PORT_MAPPING)
+    if (!mapping) continue
+    const port = Number(mapping[2])
+    const services = mappings.get(port) ?? new Map<string, number[]>()
+    const indexes = services.get(service) ?? []
+    indexes.push(index)
+    services.set(service, indexes)
+    mappings.set(port, services)
+  }
+
   const changes: PortChange[] = []
-
-  let result = content.slice()
-
-  const allocatedPorts = new Set<string>()
-
-  const portMatches = content.matchAll(portMappingRegex)
-  for (const portMatch of portMatches) {
-    const externalPort = portMatch[1]
-    allocatedPorts.add(externalPort)
-
-    let serviceContext = content.substring(0, portMatch.index)
-    const lastServicesSectionIndex = serviceContext.lastIndexOf("services:")
-    if (lastServicesSectionIndex >= 0) {
-      serviceContext = serviceContext.substring(lastServicesSectionIndex)
-    }
-
-    const serviceLines = serviceContext.split("\n")
-    let serviceName = "unknown"
-
-    for (let i = serviceLines.length - 1; i >= 0; i--) {
-      const serviceNameMatch = serviceLines[i].match(
-        /^\s{2}([a-zA-Z0-9_-]+):\s*(?:#.*)?$/,
-      )
-      if (serviceNameMatch) {
-        serviceName = serviceNameMatch[1]
-        break
-      }
-    }
-
-    if (!externalPorts[externalPort]) {
-      externalPorts[externalPort] = new Set<string>()
-    }
-    externalPorts[externalPort].add(serviceName)
-  }
-
-  for (const [port, servicesSet] of Object.entries(externalPorts)) {
-    const services = Array.from(servicesSet)
-    if (services.length < 2) continue
-
-    const keptService = services[0]
-
-    for (const serviceToFix of services.slice(1)) {
-      const servicePortRegex = new RegExp(
-        String.raw`(^ {2}${serviceToFix}:[^\n]*\n(?: {4}[^\n]*\n|\n)*? {4}ports:[^\n]*\n(?: {6}[^\n]*\n)*? {6}- ["']?${PORT_BIND_ADDRESS})(${port})(:\d+(?:/\w+)?["']?)(?=\s|$)`,
-        "gm",
-      )
-
-      let match: RegExpExecArray | null = servicePortRegex.exec(result)
-      while (match !== null) {
-        let newPort = Number(port) + 1
-        while (allocatedPorts.has(String(newPort))) {
-          newPort++
-        }
-
-        allocatedPorts.add(String(newPort))
-
-        changes.push({
-          service: serviceToFix,
-          keptBy: keptService,
-          from: Number(port),
-          to: newPort,
-        })
-
-        const head = result.substring(0, match.index)
-        const tail = result.substring(match.index + match[0].length)
-        result = `${head}${match[1]}${newPort}${match[3]}${tail}`
-
-        result = rewriteEnvironmentPort(result, serviceToFix, port, newPort)
-
-        servicePortRegex.lastIndex = 0
-        match = servicePortRegex.exec(result)
+  const allocatedPorts = new Set(mappings.keys())
+  const ports = [...mappings].sort(([a], [b]) => a - b)
+  for (const [port, services] of ports) {
+    const [[keptBy], ...conflicts] = services
+    for (const [service, indexes] of conflicts) {
+      let newPort = port + 1
+      while (allocatedPorts.has(newPort)) newPort++
+      allocatedPorts.add(newPort)
+      changes.push({ service, keptBy, from: port, to: newPort })
+      for (const index of indexes) {
+        lines[index] = lines[index].replace(
+          PORT_MAPPING,
+          (_, prefix, _port, suffix) => `${prefix}${newPort}${suffix}`,
+        )
       }
     }
   }
 
+  let result = lines.join("\n")
+  for (const { service, from, to } of changes) {
+    result = rewriteEnvironmentPort(result, service, String(from), to)
+  }
   return { content: result, changes }
 }
