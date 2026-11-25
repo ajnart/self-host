@@ -121,15 +121,15 @@ func TestProject(t *testing.T) {
 		{
 			name:       "secret file becomes an environment variable",
 			app:        fake{compose: shortForm, secrets: secrets, files: tokenFile},
-			compose:    []string{"container_name: ${CONTAINER_PREFIX}web", "restart: ${RESTART_POLICY}", "POSTGRES_PASSWORD: ${FAKE_TOKEN}", "${CONFIG_PATH}/fake/data:/data", "- 8080:80"},
+			compose:    []string{"container_name: ${CONTAINER_PREFIX}web", "restart: ${RESTART_POLICY}", "POSTGRES_PASSWORD: ${FAKE_TOKEN}", "${CONFIG_PATH}/fake/data:/data", "- 127.0.0.1:8080:80"},
 			notCompose: []string{"BIND_IP", "token.txt", "_FILE", "secrets:"},
 			standalone: true,
 		},
 		{
 			name:       "list-form environment and long-form volumes",
 			app:        fake{compose: longForm, secrets: secrets, files: tokenFile},
-			compose:    []string{"- POSTGRES_PASSWORD=${FAKE_TOKEN}", "source: ${CONFIG_PATH}/fake/config", "source: cache", "- TZ=${TZ}", "published: 8080"},
-			notCompose: []string{"host_ip", "token.txt", "POSTGRES_PASSWORD_FILE"},
+			compose:    []string{"- POSTGRES_PASSWORD=${FAKE_TOKEN}", "source: ${CONFIG_PATH}/fake/config", "source: cache", "- TZ=${TZ}", "published: 8080", "host_ip: 127.0.0.1"},
+			notCompose: []string{"BIND_IP", "token.txt", "POSTGRES_PASSWORD_FILE"},
 			standalone: true,
 		},
 		{

@@ -81,6 +81,7 @@ import (
 	"github.com/ajnart/self-host/internal/apps/plex"
 	"github.com/ajnart/self-host/internal/apps/portainer"
 	"github.com/ajnart/self-host/internal/apps/postgresql"
+	"github.com/ajnart/self-host/internal/apps/printstash"
 	"github.com/ajnart/self-host/internal/apps/prometheus"
 	"github.com/ajnart/self-host/internal/apps/qbittorrent"
 	"github.com/ajnart/self-host/internal/apps/renovate"
@@ -201,6 +202,7 @@ func registeredApps() []app.App {
 		plex.App{},
 		portainer.App{},
 		postgresql.App{},
+		printstash.App{},
 		prometheus.App{},
 		qbittorrent.App{},
 		renovate.App{},

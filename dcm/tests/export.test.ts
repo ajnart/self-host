@@ -80,7 +80,11 @@ function undefinedVariables(ids: string[]): string[] {
   return [...required(exported.compose)].filter((name) => !defined.has(name))
 }
 
-function portEntry(id: string, body: string): CatalogEntry {
+function portEntry(
+  id: string,
+  body: string,
+  binding = "8080:80",
+): CatalogEntry {
   return {
     id,
     name: id,
@@ -88,7 +92,7 @@ function portEntry(id: string, body: string): CatalogEntry {
     category: "test",
     tags: [],
     verbatim: true,
-    composeContent: `services:\n  ${id}:\n    image: ${id}\n    ports:\n      - "8080:80"\n${body}\n`,
+    composeContent: `services:\n  ${id}:\n    image: ${id}\n    ports:\n      - "${binding}"\n${body}\n`,
   }
 }
 
@@ -419,6 +423,60 @@ describe("buildExport: port conflicts", () => {
     const { exported } = portConflict("", "")
     expect(exported.composeInterpolated).toContain('"8081:80"')
     expect(exported.compose).toContain('"8081:80"')
+  })
+
+  test("preserves the bind address when moving a standalone port", () => {
+    const entries = [
+      portEntry("app-one", ""),
+      portEntry("app-two", "", "127.0.0.1:8080:80"),
+    ]
+    const exported = buildExport(
+      ["app-one", "app-two"],
+      { entries },
+      DEFAULT_SETTINGS,
+    )
+    expect(servicesOf(exported.compose)["app-two"].ports).toEqual([
+      "127.0.0.1:8081:80",
+    ])
+  })
+
+  test("moves paired ports together across blank lines in a verbatim ports list", () => {
+    const first = portEntry("app-one", "", "127.0.0.1:8080:53/tcp")
+    const second = portEntry("app-two", "", "127.0.0.1:8080:53/tcp")
+    second.composeContent = second.composeContent?.replace(
+      "    ports:\n",
+      '    ports:\n\n      - "127.0.0.1:8080:53/udp" # DNS\n\n',
+    )
+    const exported = buildExport(
+      ["app-one", "app-two"],
+      { entries: [first, second] },
+      DEFAULT_SETTINGS,
+    )
+    expect(servicesOf(exported.compose)["app-two"].ports).toEqual([
+      "127.0.0.1:8081:53/udp",
+      "127.0.0.1:8081:53/tcp",
+    ])
+    expect(exported.portChanges).toEqual([
+      { service: "app-two", keptBy: "app-one", from: 8080, to: 8081 },
+    ])
+  })
+
+  test("reserves host ports in verbatim lists aligned with the ports key", () => {
+    const reserved = portEntry("reserved", "", "127.0.0.1:8081:80")
+    reserved.composeContent = reserved.composeContent?.replace(
+      "      - ",
+      "    - ",
+    )
+    const exported = buildExport(
+      ["app-one", "app-two", "reserved"],
+      {
+        entries: [portEntry("app-one", ""), portEntry("app-two", ""), reserved],
+      },
+      DEFAULT_SETTINGS,
+    )
+    const services = servicesOf(exported.compose)
+    expect(services.reserved.ports).toEqual(["127.0.0.1:8081:80"])
+    expect(services["app-two"].ports).toEqual(["8082:80"])
   })
 
   test("handles list-style environment", () => {

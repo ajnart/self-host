@@ -212,14 +212,28 @@ func restart(policy *yaml.Node) {
 	}
 }
 
-// ports drops the interface self-host binds to: a Docker Compose Maker stack publishes on all of them.
+// ports defaults published ports to loopback and preserves explicit bind addresses.
 func ports(list *yaml.Node) {
 	for _, item := range items(list) {
 		switch item.Kind {
 		case yaml.ScalarNode:
-			item.Value = strings.Replace(item.Value, "${BIND_IP}:", "", 1)
+			item.Value = strings.Replace(item.Value, "${BIND_IP}:", "127.0.0.1:", 1)
+			switch strings.Count(item.Value, ":") {
+			case 0:
+				setPlain(item, "127.0.0.1::"+item.Value)
+			case 1:
+				setPlain(item, "127.0.0.1:"+item.Value)
+			}
 		case yaml.MappingNode:
-			remove(item, "host_ip")
+			host := lookup(item, "host_ip")
+			if host == nil {
+				item.Content = append(item.Content,
+					&yaml.Node{Kind: yaml.ScalarNode, Value: "host_ip"},
+					&yaml.Node{Kind: yaml.ScalarNode, Value: "127.0.0.1"},
+				)
+			} else if host.Value == "${BIND_IP}" {
+				setPlain(host, "127.0.0.1")
+			}
 		}
 	}
 }
