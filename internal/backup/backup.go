@@ -7,6 +7,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"filippo.io/age"
@@ -110,6 +112,42 @@ func (w *Writer) AddBytes(name string, data []byte, mode int64) error {
 	}
 	_, err := w.tw.Write(data)
 	return err
+}
+
+// CheckReadableTree checks archive access without reading file contents. Call
+// before stopping an App so container-owned data can use the Docker helper.
+// A running App may remove child entries; the stopped snapshot decides which remain.
+func CheckReadableTree(ctx context.Context, dir string) error {
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err != nil {
+			if path != dir && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+		if path != dir && errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		info, err := file.Stat()
+		if err == nil && !info.Mode().IsRegular() {
+			err = fmt.Errorf("cannot check %s: file type changed while checking readability", path)
+		}
+		return errors.Join(err, file.Close())
+	})
+	if err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 
 // AddTree archives dir under prefix, keeping modes, owners and symlinks.

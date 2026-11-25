@@ -12,7 +12,7 @@ import (
 
 // Firewall reports a host firewall that may block other devices.
 func Firewall(ctx context.Context, deps *system.Deps, ports string) Check {
-	check := Check{ID: "firewall", Title: "Firewall", Level: OK, Detail: "no active host firewall found"}
+	check := Check{ID: "firewall", Title: "Firewall", Level: OK, Detail: "no active firewall identified by these checks; reachability from other devices is unverified"}
 	run := func(name string, args ...string) string {
 		result, err := deps.Runner.Run(ctx, system.Cmd{Name: name, Args: args})
 		if err != nil {
@@ -29,7 +29,7 @@ func Firewall(ctx context.Context, deps *system.Deps, ports string) Check {
 	}
 	if run("systemctl", "is-active", "ufw") == "active" {
 		check.Level, check.Detail = Warn, "ufw is active"
-		check.Hint = "Docker-published ports usually bypass ufw. If a device still cannot connect, allow your LAN: sudo ufw allow from 192.168.0.0/16 to any port " + ports + " proto tcp"
+		check.Hint = "Docker port access depends on forwarding rules and helpers such as ufw-docker; a plain ufw allow rule may not cover it. Review the rules for App ports " + ports + " and your actual LAN, then check from another device. This local check does not verify reachability."
 		return check
 	}
 	if run("systemctl", "is-active", "firewalld") == "active" {

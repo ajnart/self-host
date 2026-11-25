@@ -39,6 +39,17 @@ func (s *Service) Backup(ctx context.Context, ids []string, out, passphrase stri
 			for _, id := range targets {
 				if rootless || ss.settings["MEDIA_SEPARATE_USERS"] == "on" && slices.Contains(mediaIdentityApps, id) {
 					helperApps[id] = true
+					continue
+				}
+				if err := backup.CheckReadableTree(ctx, ss.p.AppDir(id)); err != nil {
+					switch {
+					case errors.Is(err, os.ErrPermission):
+						helperApps[id] = true
+					case errors.Is(err, os.ErrNotExist) && ss.p.IsExtra(id):
+						// A directly edited Compose service may have no App folder.
+					default:
+						return err
+					}
 				}
 			}
 			if len(helperApps) > 0 {
