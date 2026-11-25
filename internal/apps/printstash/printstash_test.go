@@ -2,6 +2,7 @@ package printstash_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/apps/printstash"
@@ -159,6 +161,7 @@ func TestManualAndInvalidStates(t *testing.T) {
 		{"storage", func(f *fixture) {
 			f.setup = `{"configured":true,"recovery_required":false,"storage_choice_required":true}`
 		}, false},
+		{"setup-redirect", func(f *fixture) { f.setupStatus = http.StatusTemporaryRedirect }, false},
 		{"missing-fields", func(f *fixture) { f.setup = `{"configured":true}` }, false},
 		{"invalid-login", func(f *fixture) { f.loginStatus = 401 }, true},
 		{"bad-token", func(f *fixture) { f.login = `{"token_type":"bearer"}` }, true},
@@ -174,14 +177,27 @@ func TestManualAndInvalidStates(t *testing.T) {
 			f := goodFixture()
 			tc.change(f)
 			h, _ := harness(t, f)
-			err := (printstash.App{}).Setup(t.Context(), h)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			err := (printstash.App{}).Setup(ctx, h)
 			if !errors.Is(err, helpers.ErrManual) {
 				t.Fatalf("expected Manual, got %v", err)
 			}
+			logins := 0
 			for _, route := range f.requests {
-				if strings.HasPrefix(route, "POST ") && (!tc.wantLogin || route != "POST /api/v1/auth/login") {
+				switch {
+				case route == "POST /api/v1/auth/login":
+					logins++
+				case strings.HasPrefix(route, "POST "):
 					t.Errorf("unexpected mutation: %s", route)
 				}
+			}
+			wantLogins := 0
+			if tc.wantLogin {
+				wantLogins = 1
+			}
+			if logins != wantLogins {
+				t.Errorf("got %d login requests, want %d", logins, wantLogins)
 			}
 		})
 	}

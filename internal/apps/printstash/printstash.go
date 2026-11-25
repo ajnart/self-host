@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ajnart/self-host/internal/app"
 	"github.com/ajnart/self-host/internal/helpers"
@@ -77,8 +78,10 @@ func request(ctx context.Context, h *helpers.H, req helpers.Request) (helpers.Re
 	return response, nil
 }
 
+const setupStatusPath = "/api/v1/setup/status"
+
 func setupReady(ctx context.Context, h *helpers.H) error {
-	r, err := request(ctx, h, helpers.Request{Path: "/api/v1/setup/status"})
+	r, err := request(ctx, h, helpers.Request{Path: setupStatusPath})
 	if err != nil {
 		return err
 	}
@@ -113,13 +116,11 @@ func session(ctx context.Context, h *helpers.H) (string, error) {
 			return "", manual(h, fmt.Sprintf("PrintStash login returned HTTP %d. Check the shared Admin login with self-host credentials.", r.Status))
 		}
 		var result struct {
-			Token   string `json:"access_token"`
-			Refresh string `json:"refresh_token"`
-			Type    string `json:"token_type"`
+			Token string `json:"access_token"`
+			Type  string `json:"token_type"`
 		}
 		decodeErr := r.Decode(&result)
 		h.Log.Secret(result.Token)
-		h.Log.Secret(result.Refresh)
 		if decodeErr != nil || strings.TrimSpace(result.Token) == "" || !strings.EqualFold(result.Type, "bearer") {
 			return "", manual(h, "PrintStash did not return a valid session.")
 		}
@@ -166,7 +167,30 @@ func verify(ctx context.Context, h *helpers.H) error {
 }
 
 func (App) Setup(ctx context.Context, h *helpers.H) error {
-	if err := h.Ready(ctx, "/api/v1/setup/status", helpers.WantStatus(http.StatusOK), helpers.NoRedirect()); err != nil {
+	if err := h.Step(ctx, "ready", "wait for printstash to answer on "+setupStatusPath, helpers.StepSpec{
+		Do: func(ctx context.Context) error {
+			var redirect error
+			err := h.Poll(ctx, 3*time.Minute, func(ctx context.Context) (bool, error) {
+				r, err := request(ctx, h, helpers.Request{Path: setupStatusPath})
+				if err != nil {
+					return false, err
+				}
+				if r.Status >= 300 && r.Status < 400 {
+					redirect = manual(h, fmt.Sprintf("PrintStash setup status returned HTTP %d.", r.Status))
+					return true, nil
+				}
+				if r.Status != http.StatusOK {
+					return false, fmt.Errorf("PrintStash setup status returned HTTP %d", r.Status)
+				}
+				return true, nil
+			})
+			if err != nil {
+				return err
+			}
+			return redirect
+		},
+		Hint: "PrintStash may still be starting. Retry self-host setup printstash or inspect self-host logs printstash.",
+	}); err != nil {
 		return err
 	}
 	return h.Step(ctx, "admin", "verify PrintStash administrator and storage", helpers.StepSpec{
@@ -178,5 +202,5 @@ func (App) Setup(ctx context.Context, h *helpers.H) error {
 func (App) Check(ctx context.Context, h *helpers.H) error { return verify(ctx, h) }
 
 func (App) StandaloneGuide() string {
-	return "Create the first administrator and choose storage on a trusted local network. Set PUID and PGID to the positive numeric owner of the data folder. Keep that folder across restarts and upgrades. Before internet access, use HTTPS and close first-run setup; follow the PrintStash installation guide."
+	return "Create the first administrator and choose storage on a trusted local network. Keep local storage paths under /data so files survive container replacement and can be backed up with the mounted data folder. Back up remote storage separately. To allow trusted LAN access, replace 127.0.0.1 in the port mapping with the host’s LAN address. Set PUID and PGID to the positive numeric owner of the data folder. Keep that folder across restarts and upgrades. Before internet access, use HTTPS and close first-run setup; follow the PrintStash installation guide."
 }

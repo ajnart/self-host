@@ -2,6 +2,7 @@ import type { PortChange } from "./types"
 
 const TOP_LEVEL_KEY = /^([A-Za-z0-9_-]+):\s*$/
 const SERVICE_KEY = /^ {2}([^\s#][^:]*):\s*(?:#.*)?$/
+const PORT_BIND_ADDRESS = String.raw`(?:(?:\d{1,3}\.){3}\d{1,3}:|\[[^\]]+\]:)?`
 const SERVICE_PROPERTY = /^ {4}([A-Za-z0-9_-]+):/
 
 function rewriteEnvironmentPort(
@@ -54,7 +55,10 @@ export function fixPortConflicts(content: string): {
   content: string
   changes: PortChange[]
 } {
-  const portMappingRegex = /- ["']?(\d+):(\d+)["']?/g
+  const portMappingRegex = new RegExp(
+    String.raw`^ {6}- ["']?${PORT_BIND_ADDRESS}(\d+):\d+(?:/\w+)?["']?(?=\s|$)`,
+    "gm",
+  )
 
   const externalPorts: Record<string, Set<string>> = {}
   const changes: PortChange[] = []
@@ -101,7 +105,7 @@ export function fixPortConflicts(content: string): {
 
     for (const serviceToFix of services.slice(1)) {
       const servicePortRegex = new RegExp(
-        `(\\s{2}${serviceToFix}:[\\s\\S]*?ports:[\\s\\S]*?- ["']?)(${port})(:(?:\\d+)["']?)`,
+        String.raw`(^ {2}${serviceToFix}:[^\n]*\n(?: {4}[^\n]*\n|\n)*? {4}ports:[^\n]*\n(?: {6}[^\n]*\n)*? {6}- ["']?${PORT_BIND_ADDRESS})(${port})(:\d+(?:/\w+)?["']?)(?=\s|$)`,
         "gm",
       )
 
