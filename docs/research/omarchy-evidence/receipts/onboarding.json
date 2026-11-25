@@ -1,0 +1,41 @@
+{
+  "omarchy": "4.5.0-3",
+  "package_revision": 11,
+  "architecture": "x86_64",
+  "cancel": {
+    "freshLauncherOpenedTUIWithoutAppPicker": true,
+    "optInDidNotChangeBarBeforeReview": true,
+    "quitKeptNoProjectAndBarOff": true
+  },
+  "opt_in": {
+    "approvedInstallSucceeded": true,
+    "promqlUp": 1,
+    "barBecameVisibleAfterSetup": true,
+    "widgetOwnedByDesktopUser": true
+  },
+  "dashboard_removal": {
+    "cancelKeptPinAndRunningApp": true,
+    "dashboardRemoveDeletedGeneratedPin": true,
+    "unrelatedBookmarkUnchanged": true,
+    "appDataFolderRetained": true,
+    "emptyProjectRetained": true
+  },
+  "cli_removal": {
+    "elevatedCLIRemoveHonoredXDGDataHome": true,
+    "unchangedLegacyPinRemoved": true,
+    "editedPinPreservedByteForByte": true,
+    "unrelatedBookmarkPreserved": true
+  },
+  "bar": {
+    "id": "fyi.self-host",
+    "section": "right",
+    "x": 1137,
+    "y": 0,
+    "width": 27,
+    "height": 26,
+    "visible": true,
+    "itemVisible": true,
+    "itemWidth": 27,
+    "itemHeight": 26
+  }
+}

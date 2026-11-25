@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Build split Pacman packages from an already-built, checksum-pinned Linux CLI.
+set -euo pipefail
+if (( $# < 5 || $# > 6 )); then
+    printf 'Usage: %s ABS_BINARY SHA256 VERSION RELEASE ABS_OUTPUT [ICON_SOURCE]\n' "$0" >&2
+    exit 2
+fi
+binary=$1
+digest=$2
+version=$3
+release=$4
+out=$5
+icon_source=${6:-}
+if [[ $binary != /* || $out != /* || ! $digest =~ ^[a-f0-9]{64}$ ||
+      ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || ! $release =~ ^[1-9][0-9]*$ ]]; then
+    printf 'Use absolute paths, a SHA-256, a release version, and a positive package revision.\n' >&2
+    exit 2
+fi
+case "$(uname -m)" in
+    x86_64|aarch64) arch=$(uname -m) ;;
+    *) printf 'This package needs an x86_64 or aarch64 Arch builder.\n' >&2; exit 2 ;;
+esac
+src=$(cd -- "$(dirname -- "$0")" && pwd)
+license="$src/LICENSE"
+if [[ ! -f $license ]]; then license="$src/../../LICENSE"; fi
+logo="$src/logo.svg"
+if [[ ! -f $logo ]]; then logo="$src/../../site/public/logo.svg"; fi
+bar_logo="$src/mark-mono-white.svg"
+if [[ ! -f $bar_logo ]]; then bar_logo="$src/../../docs/assets/brand/mark/mark-mono-white.svg"; fi
+mkdir -p -- "$out"
+build=$(mktemp -d)
+trap 'rm -rf -- "$build"' EXIT
+mkdir -- "$build/payload"
+install -m755 -- "$binary" "$build/payload/self-host"
+printf '%s  %s\n' "$digest" "$build/payload/self-host" | sha256sum --check --status
+install -m755 -- "$src/self-host-omarchy" "$build/payload/self-host-omarchy"
+install -m755 -- "$src/bar-control" "$build/payload/bar-control"
+install -m755 -- "$src/authorize" "$build/payload/authorize"
+mkdir -- "$build/payload/bar"
+install -m644 -- "$src/bar/manifest.json" "$src/bar/Widget.qml" "$build/payload/bar/"
+# Keep the container rack and trim the brand asset's outer padding at bar size.
+sed 's/viewBox="-16 -20 256 256" width="256" height="256"/viewBox="10 10 207 197" width="207" height="197"/' \
+    "$bar_logo" > "$build/payload/bar/mark-mono-white.svg"
+install -m644 -- "$src/fyi.self-host.omarchy.policy" "$build/payload/"
+install -m644 -- "$license" "$logo" "$src/menu.jsonc" "$src/self-host-omarchy.desktop" "$build/payload/"
+if [[ -n $icon_source ]]; then
+    catalog="$src/catalog.json"
+    if [[ ! -f $catalog ]]; then catalog="$src/../../site/src/data/catalog.json"; fi
+    jq -r '.apps[] | select(.i != null and .i != "") | [.id, .i] | @tsv' "$catalog" > "$build/icon-list"
+    while IFS=$'\t' read -r id icon; do
+        if [[ $id =~ ^[a-z0-9][a-z0-9_-]*$ && $icon =~ ^(svg|png)/[a-zA-Z0-9._-]+\.(svg|png)$ && -f $icon_source/$icon ]]; then
+            install -Dm644 "$icon_source/$icon" "$build/payload/icons/$id.${icon##*.}"
+        fi
+    done < "$build/icon-list"
+fi
+tar -C "$build/payload" -czf "$build/self-host-bundle.tar.gz" .
+read -r bundle_digest _ < <(sha256sum "$build/self-host-bundle.tar.gz")
+sed -e "s/@VERSION@/$version/g" -e "s/@RELEASE@/$release/g" -e "s/@ARCH@/$arch/g" \
+    -e "s/@BUNDLE_SHA@/$bundle_digest/g" "$src/PKGBUILD" > "$build/PKGBUILD"
+cd -- "$build"
+PKGDEST="$out" makepkg --noconfirm

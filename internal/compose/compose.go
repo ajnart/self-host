@@ -102,6 +102,27 @@ func (c *Compose) Up(ctx context.Context, services ...string) error {
 	return err
 }
 
+// ApplyToServices applies a desktop Action only to the named services, even
+// when Compose would normally start or restart services from another App.
+func (c *Compose) ApplyToServices(ctx context.Context, verb string, services []string) error {
+	if len(services) == 0 {
+		return errors.New("no App services to " + verb)
+	}
+	var args []string
+	switch verb {
+	case "start":
+		args = []string{"up", "-d", "--no-deps", "--remove-orphans=false"}
+	case "stop":
+		args = []string{"stop"}
+	case "restart":
+		args = []string{"restart", "--no-deps"}
+	default:
+		return fmt.Errorf("unsupported desktop verb %q", verb)
+	}
+	_, err := c.Run(ctx, nil, append(append(args, "--"), services...)...)
+	return err
+}
+
 // Down removes this Project's containers and networks without deleting volumes.
 func (c *Compose) Down(ctx context.Context) error {
 	_, err := c.Run(ctx, nil, "down")

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=self-host
+Comment=See installed Apps, open them, or launch the self-host Dashboard
+Exec=/usr/bin/self-host-omarchy menu
+TryExec=/usr/bin/self-host-omarchy
+Icon=self-host
+Terminal=false
+Categories=Network;
+Keywords=self-host;dashboard;server;docker;

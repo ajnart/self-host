@@ -47,8 +47,17 @@ func (p *Project) Path(parts ...string) string {
 }
 
 func (p *Project) Exists() bool {
+	exists, _ := p.CheckExists()
+	return exists
+}
+
+// CheckExists distinguishes a missing Project from one we cannot inspect.
+func (p *Project) CheckExists() (bool, error) {
 	_, err := os.Stat(p.Path(".env"))
-	return err == nil
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // MkdirAll creates a directory inside the Project owned by the Project owner.

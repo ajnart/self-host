@@ -1,0 +1,16 @@
+--- a/default/omarchy/omarchy-menu.jsonc
++++ b/default/omarchy/omarchy-menu.jsonc
+@@ -263,4 +263,5 @@
+   "setup.config.hyprsunset": {"icon":"","label":"Hyprsunset","action":"omarchy-launch-config-editor ~/.config/hypr/hyprsunset.conf && omarchy-restart-hyprsunset"},
+   "setup.config.xcompose": {"icon":"󰞅","label":"XCompose","action":"omarchy-launch-config-editor ~/.XCompose && omarchy-restart-xcompose"},
+   "setup.direct-boot": {"icon":"","label":"Direct Boot","when":"! omarchy-hw-aarch64-apple && [[ ! -f /etc/limine-entry-tool.d/zz-omarchy-dgx-spark.conf ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-direct-boot"},
++  "setup.self-host": {"icon":"◆","label":"Self-hosting","when":"omarchy-pkg-present self-host-omarchy","action":"/usr/bin/self-host-omarchy menu"},
+   "setup.reset": {"icon":"󰑓","label":"Reset Computer","when":"[[ $(findmnt -no FSTYPE /) == btrfs ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-system-factory-reset"},
+@@ -307,6 +308,7 @@
+   "install.service.slack": {"icon":"󰒱","label":"Slack","disabled":"omarchy-pkg-present slack-desktop","action":"omarchy-install-and-launch Slack slack-desktop slack"},
+   "install.service.spotify": {"icon":"󰓇","label":"Spotify","disabled":"omarchy-pkg-present spotify || [[ -f $HOME/.local/share/applications/Spotify.desktop ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-spotify"},
+   "install.service.tailscale": {"icon":"","iconFont":"omarchy","label":"Tailscale","disabled":"omarchy-pkg-present tailscale","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-tailscale"},
++  "install.service.self-host": {"icon":"◆","label":"self-host","disabled":"omarchy-pkg-present self-host-omarchy","action":"omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add self-host-omarchy"},
+   "install.editor.vscode": {"icon":"","label":"VSCode","disabled":"omarchy-pkg-present visual-studio-code-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-vscode"},
+   "install.editor.cursor": {"icon":"","iconFont":"omarchy","label":"Cursor","disabled":"omarchy-pkg-present cursor-bin","action":"omarchy-install-and-launch Cursor cursor-bin cursor"},
+   "install.editor.zed": {"icon":"","label":"Zed","disabled":"omarchy-pkg-present zed","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-zed"},

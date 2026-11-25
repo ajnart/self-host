@@ -72,3 +72,33 @@ func TestActiveDockerEndpointClassifiesRemoteContext(t *testing.T) {
 		t.Fatalf("endpoint = %+v, %v, want an ssh endpoint", got, err)
 	}
 }
+
+func TestDesktopDockerAuthorizationRequiresDeniedDefaultSystemSocket(t *testing.T) {
+	const local = "unix:///var/run/docker.sock"
+	for _, tc := range []struct {
+		name, context, host, selected, endpoint, dockerError string
+		denied, authorize                                    bool
+	}{
+		{name: "stock", selected: "default", endpoint: local, dockerError: "permission denied", denied: true, authorize: true},
+		{name: "explicit local socket", host: local, dockerError: "permission denied", denied: true, authorize: true},
+		{name: "explicit remote context overrides local host", context: "remote", host: local, dockerError: "permission denied", denied: true},
+		{name: "selected alternate context", selected: "remote", endpoint: local, dockerError: "permission denied", denied: true},
+		{name: "rootless socket", host: "unix:///run/user/1000/docker.sock", dockerError: "permission denied", denied: true},
+		{name: "daemon down", selected: "default", endpoint: local, dockerError: "connection refused"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runner := &systemtest.Runner{}
+			runner.On("docker version", system.Result{ExitCode: 1, Stderr: []byte(tc.dockerError)})
+			runner.On("docker context show", system.Result{Stdout: []byte(tc.selected)})
+			runner.On("docker context inspect", system.Result{Stdout: []byte(tc.endpoint)})
+			deps := systemtest.NewDeps(t, systemtest.WithRunner(runner), systemtest.WithEnv(map[string]string{
+				"DOCKER_CONTEXT": tc.context,
+				"DOCKER_HOST":    tc.host,
+			}))
+			got := host.DesktopDocker(context.Background(), deps)
+			if got.SocketDenied != tc.denied || got.CanAuthorize != tc.authorize {
+				t.Fatalf("desktop Docker access = %+v, want denied %t and authorize %t", got, tc.denied, tc.authorize)
+			}
+		})
+	}
+}

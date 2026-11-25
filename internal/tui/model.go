@@ -93,6 +93,8 @@ type (
 type Options struct {
 	Version       string
 	ReducedMotion bool
+	// InitialApp selects an installed App on the first successful Status read.
+	InitialApp string
 	// NoColor is a non-empty NO_COLOR: no screen has colour, and the pre-boot
 	// screen keeps its motion in bold and faint.
 	NoColor bool
@@ -135,6 +137,8 @@ type Model struct {
 	loaded    bool
 	statusErr string
 	refreshed time.Time
+	// doctorLoading keeps slow checks from overlapping on refresh.
+	doctorLoading bool
 	// releaseChecked is whether the release check found the newest release.
 	releaseChecked bool
 
@@ -206,20 +210,21 @@ func New(backend Backend, opts Options) Model {
 	}
 	frameContext, cancelFrames := context.WithCancel(context.Background())
 	return Model{
-		backend:      backend,
-		opts:         opts,
-		theme:        newTheme(true),
-		glyphs:       activity.Simple,
-		keys:         newKeyMap(),
-		ticking:      true,
-		opening:      opening,
-		frameContext: frameContext,
-		cancelFrames: cancelFrames,
-		tracker:      &activity.Tracker{},
-		tasks:        &taskManager{},
-		apps:         apps,
-		dashboard:    newDashboardView(apps),
-		helpView:     newHelpView(),
+		backend:       backend,
+		opts:          opts,
+		theme:         newTheme(true),
+		glyphs:        activity.Simple,
+		keys:          newKeyMap(),
+		doctorLoading: true,
+		ticking:       true,
+		opening:       opening,
+		frameContext:  frameContext,
+		cancelFrames:  cancelFrames,
+		tracker:       &activity.Tracker{},
+		tasks:         &taskManager{},
+		apps:          apps,
+		dashboard:     newDashboardView(apps),
+		helpView:      newHelpView(),
 	}
 }
 
@@ -351,6 +356,14 @@ func (m Model) loadDoctor() tea.Cmd {
 	}
 }
 
+func (m *Model) refreshDoctor() tea.Cmd {
+	if m.doctorLoading {
+		return nil
+	}
+	m.doctorLoading = true
+	return m.loadDoctor()
+}
+
 func (m Model) loadContainers() tea.Cmd {
 	backend := m.backend
 	return func() tea.Msg {
@@ -456,10 +469,15 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.introShown() && m.onboarding.recheckOnFocus() {
 			frame = m.startTicking()
 		}
-		return m, tea.Batch(m.loadStatus(), m.loadDoctor(), frame)
+		doctor := m.refreshDoctor()
+		return m, tea.Batch(m.loadStatus(), doctor, frame)
 
 	case tickMsg:
-		return m, tea.Batch(m.loadStatus(), tick())
+		var doctor tea.Cmd
+		if m.loaded && !m.onboardingShown() && !m.quitting {
+			doctor = m.refreshDoctor()
+		}
+		return m, tea.Batch(m.loadStatus(), doctor, tick())
 
 	case defaultsMsg:
 		m.defaults = msg.settings
@@ -475,6 +493,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleStatus(msg)
 
 	case doctorMsg:
+		m.doctorLoading = false
 		m.checks = make([]host.Check, len(msg.checks))
 		for i, c := range msg.checks {
 			m.checks[i] = dockerDown(c)
@@ -527,7 +546,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logChunkMsg, composeMsg, usageMsg:
 		return m.dispatchApps(msg)
 
-	case backupsMsg, backupAppsMsg:
+	case backupsMsg, backupAppsMsg, omarchyBarMsg:
 		return m.dispatchSettings(msg)
 
 	case reviewMsg:
@@ -628,6 +647,17 @@ func (m Model) handleStatus(msg statusMsg) (tea.Model, tea.Cmd) {
 		m.settings.cloudflare = newCloudflarePane(ctxView)
 		m.surface, m.preboot = surfaceSettings, nil
 	}
+	if id := m.opts.InitialApp; id != "" {
+		m.opts.InitialApp = ""
+		index := slices.IndexFunc(m.apps.visible(ctxView), func(a service.AppStatus) bool { return a.ID == id })
+		if index >= 0 {
+			m.surface = surfaceApps
+			details := m.apps.selectApp(ctxView, index)
+			m.relayout()
+			return m, tea.Batch(details, m.loadContainers(), m.loadUpdates())
+		}
+		m.setFlash("The requested App is not installed in this Project.", levelWarn)
+	}
 	m.apps.clampCursor(ctxView)
 	m.relayout()
 	return m, m.apps.syncDetails(ctxView)
@@ -649,7 +679,7 @@ func (m Model) handleTaskDone(msg taskDoneMsg) (tea.Model, tea.Cmd) {
 		m.setFlash("✓ "+msg.title, levelOK)
 	}
 	m.resultFlash, m.flashHeld = m.flash, false
-	cmds := []tea.Cmd{m.loadStatus(), m.loadDoctor()}
+	cmds := []tea.Cmd{m.loadStatus(), m.refreshDoctor()}
 	if msg.action == ActionConfig {
 		// URLs and Compose files may have changed with the settings.
 		clear(m.apps.details.compose)
@@ -705,7 +735,7 @@ func (m Model) openTab(s surface) (tea.Model, tea.Cmd) {
 		if m.settings == nil {
 			m.settings = newSettingsView(m.ctx())
 		}
-		return m, tea.Batch(m.loadReview(), loadBackups(m.backend))
+		return m, tea.Batch(m.loadReview(), loadBackups(m.backend), m.settings.refreshOmarchy())
 	}
 	return m, nil
 }
@@ -957,8 +987,7 @@ func (m Model) dispatchApps(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// dispatchSettings delivers an asynchronous Backups message (the archives, an
-// archive's Apps) even when another tab is on screen.
+// dispatchSettings delivers asynchronous pane results even when another tab is on screen.
 func (m Model) dispatchSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.settings == nil {
 		return m, nil
@@ -1077,7 +1106,7 @@ func (m Model) onboardingAsked(cmd tea.Cmd, ask onboardingAsk) (tea.Model, tea.C
 		return m.approveOnboarding()
 	}
 	if ask.doctor {
-		cmd = tea.Batch(cmd, m.loadDoctor())
+		cmd = tea.Batch(cmd, m.refreshDoctor())
 	}
 	if ask.tick {
 		cmd = tea.Batch(cmd, m.startTicking())
@@ -1093,7 +1122,7 @@ func (m Model) approveOnboarding() (tea.Model, tea.Cmd) {
 		m.preboot = newPrebootScreen()
 	}
 	opts := o.plan.opts
-	next, cmd := m.run(Request{Action: ActionInstall, Install: &opts}, "install "+strings.Join(opts.Targets, " "))
+	next, cmd := m.run(Request{Action: ActionInstall, Install: &opts, ShowOmarchyBar: o.showOmarchyBar}, "install "+strings.Join(opts.Targets, " "))
 	m = next.(Model)
 	o.task, o.err = m.tasks.latest().id, ""
 	return m.focusActivity(tea.Batch(cmd, o.approved(m.ctx())))

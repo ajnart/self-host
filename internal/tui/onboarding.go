@@ -74,8 +74,11 @@ type onboarding struct {
 	experience int
 	// react is Welcome's reaction to a focus move or a selection.
 	react welcomeReaction
-	// look is the highlighted choice of the Look step, an index into glyphChoices.
-	look int
+	// Look puts the Omarchy shortcut after the glyph choices when available.
+	look           int
+	omarchyLogo    string
+	omarchyBar     bool
+	showOmarchyBar bool
 	// access is the highlighted option of the Access step, an index into accessOptions.
 	access int
 	// task is the approved install; while it is set Pre-boot or the Dashboard is on screen.
@@ -106,6 +109,12 @@ func newOnboarding(ctx *viewContext) *onboarding {
 		folders: newFolderPicker(ctx.backend), opened: ctx.opts.Now(), react: welcomeReaction{focusAge: -1, selectAge: -1},
 		notice: ctx.backend.TelemetryNotice()}
 	o.answers.fill(ctx.defaults)
+	if desktop, ok := ctx.backend.(interface{ OmarchyLogo() string }); ok {
+		o.omarchyLogo = desktop.OmarchyLogo()
+	}
+	if desktop, ok := ctx.backend.(omarchyBarBackend); ok {
+		o.omarchyBar = desktop.HasOmarchyBar()
+	}
 	o.openStep(ctx, stepWelcome)
 	o.intro = newIntroScreen(ctx)
 	return o
@@ -282,7 +291,11 @@ func (o *onboarding) key(ctx *viewContext, msg tea.KeyPressMsg) (tea.Cmd, onboar
 				ask.tick = o.reactFocus(ctx, before)
 			}
 		case stepLook:
-			o.look = min(o.look+1, len(glyphChoices)-1)
+			last := len(glyphChoices) - 1
+			if o.omarchyBar {
+				last++
+			}
+			o.look = min(o.look+1, last)
 		case stepAccess:
 			o.access = min(o.access+1, len(accessOptions)-1)
 			ctx.setFlash("", levelInfo)
@@ -296,7 +309,11 @@ func (o *onboarding) key(ctx *viewContext, msg tea.KeyPressMsg) (tea.Cmd, onboar
 				ask.tick = o.reactSelect(ctx, before)
 			}
 		case stepLook:
-			ctx.glyphs = glyphChoices[o.look].glyphs
+			if o.look == len(glyphChoices) {
+				o.showOmarchyBar = !o.showOmarchyBar
+			} else {
+				ctx.glyphs = glyphChoices[o.look].glyphs
+			}
 		case stepAccess:
 			choice := accessOptions[o.access]
 			if choice.explainsOnly() {

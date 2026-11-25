@@ -144,7 +144,21 @@ func (o *onboarding) renderLook(ctx *viewContext) []string {
 	for i, choice := range glyphChoices {
 		lines = append(lines, "  "+truncate(radioRow(t, i == o.look, choice.glyphs == ctx.glyphs, answers[i]), ctx.width-2))
 	}
-	return append(lines, "", "  "+nerdFontsLine(t))
+	lines = append(lines, "", "  "+nerdFontsLine(t))
+	if o.omarchyLogo != "" && lipgloss.Width(o.omarchyLogo) <= ctx.width-4 &&
+		len(lines)+lipgloss.Height(o.omarchyLogo)+8 <= ctx.mainHeight() {
+		lines = append(lines, "")
+		for _, row := range strings.Split(o.omarchyLogo, "\n") {
+			lines = append(lines, "  "+t.body().Render(row))
+		}
+	}
+	if o.omarchyBar {
+		lines = append(lines, "", "  "+t.title().Render("Integrate with Omarchy"),
+			"  "+truncate(radioRow(t, o.look == len(glyphChoices), o.showOmarchyBar,
+				"Show self-host in the Omarchy top bar"), ctx.width-2),
+			"  "+t.dim().Render("Click the Logo for Apps. You can change this in Settings."))
+	}
+	return lines
 }
 
 // renderAccess asks how the Apps will be opened: the options, with the
@@ -209,6 +223,9 @@ func (o *onboarding) renderReview(ctx *viewContext) []string {
 		}
 	}
 	lines = append(lines, planLines(t, o.plan, ctx.width)...)
+	if o.showOmarchyBar {
+		lines = append(lines, "", "  "+t.body().Render("Omarchy   Show the top bar shortcut after Setup completes"))
+	}
 	if o.answers.cloudflare {
 		lines = append(lines, "", "  "+t.body().Render("Your own web address: choose Apps in Settings after install; nothing public yet"))
 	}

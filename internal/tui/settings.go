@@ -35,6 +35,7 @@ const (
 	tabBackups
 	tabTools
 	tabAbout
+	tabOmarchy
 )
 
 var settingsTabs = []string{"Host", "Access", "Appearance", "Backups", "Tools", "About"}
@@ -77,6 +78,7 @@ type settingsView struct {
 	choiceIdx int
 
 	backups backupsPane
+	omarchy *omarchyBarPane
 
 	err            string
 	confirmDiscard bool
@@ -102,6 +104,9 @@ var (
 
 func newSettingsView(ctx *viewContext) *settingsView {
 	v := &settingsView{edits: map[string]string{}, goos: runtime.GOOS, goarch: runtime.GOARCH, exposure: cmp.Or(ctx.status.Exposure, service.ExposureLAN)}
+	if backend, ok := ctx.backend.(omarchyBarBackend); ok && backend.HasOmarchyBar() {
+		v.omarchy = &omarchyBarPane{backend: backend}
+	}
 	v.names = cmp.Or(ctx.status.Settings["EASY_NAMES"], "off")
 	for _, key := range settingsKeys {
 		if ctx.status.Settings["MEDIA_LAYOUT"] == "shared" && (key == "MEDIA_ROOT" || key == "DOWNLOADS_ROOT") {
@@ -113,6 +118,13 @@ func newSettingsView(ctx *viewContext) *settingsView {
 		v.appendMediaRows(ctx.status.Settings)
 	}
 	return v
+}
+
+func (v *settingsView) tabNames() []string {
+	if v.omarchy != nil {
+		return append(slices.Clone(settingsTabs), "Omarchy")
+	}
+	return settingsTabs
 }
 
 func (v *settingsView) Keys() []key.Binding {
@@ -139,15 +151,21 @@ func (v *settingsView) Keys() []key.Binding {
 		return v.backups.keys()
 	case v.tab == tabTools:
 		return toolsKeys
+	case v.tab == tabOmarchy:
+		return omarchyKeys
 	}
 	return settingsHelp
 }
 
 func (v *settingsView) Panes() []pane {
-	return []pane{{"Host settings", settingsHelp}, {"Access", accessKeys}, {"Appearance", appearanceKeys}, {"Backups", backupsKeys},
+	panes := []pane{{"Host settings", settingsHelp}, {"Access", accessKeys}, {"Appearance", appearanceKeys}, {"Backups", backupsKeys},
 		{"Restore", restorePreviewKey}, {"Tools", toolsKeys}, {"About", aboutKeys},
 		{"Cloudflare", (&cloudflarePane{}).keys()}, {"Cloudflare App", (&cloudflarePane{stage: 4}).keys()}, {"Cloudflare review", (&cloudflarePane{stage: 6}).keys()},
 		{"Editing", append(slices.Clone(settingsEditKeys), settingsChoiceKey)}}
+	if v.omarchy != nil {
+		panes = append(panes, pane{"Omarchy", omarchyKeys})
+	}
+	return panes
 }
 
 type glyphChoice struct {
@@ -323,8 +341,13 @@ func (v *settingsView) Update(ctx *viewContext, msg tea.Msg) (view, tea.Cmd, nav
 		return v.handleKey(ctx, msg)
 	case clickMsg:
 		var n int
-		if _, err := fmt.Sscanf(msg.id, "tab:%d", &n); err == nil && n >= 0 && n < len(settingsTabs) {
-			v.show(ctx, settingsTab(n))
+		if _, err := fmt.Sscanf(msg.id, "tab:%d", &n); err == nil && n >= 0 && n < len(v.tabNames()) {
+			return v, v.show(ctx, settingsTab(n)), nav{}
+		}
+		return v, nil, nav{}
+	case omarchyBarMsg:
+		if v.omarchy != nil {
+			v.omarchy.apply(msg)
 		}
 		return v, nil, nav{}
 	case backupsMsg:
@@ -417,11 +440,10 @@ func (v *settingsView) handleKey(ctx *viewContext, msg tea.KeyPressMsg) (view, t
 	}
 	switch {
 	case key.Matches(msg, ctx.keys.NextSub):
-		v.show(ctx, (v.tab+1)%settingsTab(len(settingsTabs)))
-		return v, nil, nav{}
+		return v, v.show(ctx, (v.tab+1)%settingsTab(len(v.tabNames()))), nav{}
 	case key.Matches(msg, ctx.keys.PrevSub):
-		v.show(ctx, (v.tab+settingsTab(len(settingsTabs))-1)%settingsTab(len(settingsTabs)))
-		return v, nil, nav{}
+		count := settingsTab(len(v.tabNames()))
+		return v, v.show(ctx, (v.tab+count-1)%count), nav{}
 	case msg.String() == "esc":
 		if len(v.pairs()) > 0 || v.pendingAccess == "tailscale" || v.pendingAccess == "cloudflare" {
 			v.tab, v.confirmDiscard = tabHost, true
@@ -442,12 +464,19 @@ func (v *settingsView) handleKey(ctx *viewContext, msg tea.KeyPressMsg) (view, t
 		return v, v.toolsKey(ctx, msg), nav{}
 	case tabAbout:
 		return v, v.aboutKey(ctx, msg), nav{}
+	case tabOmarchy:
+		switch msg.String() {
+		case "enter", "space":
+			return v, v.omarchy.toggle(), nav{}
+		case "r":
+			return v, v.omarchy.run("status"), nav{}
+		}
 	}
 	return v, nil, nav{}
 }
 
 // show opens a sub-tab; Appearance starts on the glyph set in use.
-func (v *settingsView) show(ctx *viewContext, tab settingsTab) {
+func (v *settingsView) show(ctx *viewContext, tab settingsTab) tea.Cmd {
 	if v.tab == tabBackups && tab != tabBackups {
 		v.backups.reset()
 	}
@@ -465,6 +494,14 @@ func (v *settingsView) show(ctx *viewContext, tab settingsTab) {
 		v.tools = detectTools(ctx.backend)
 		v.toolCursor = 0
 	}
+	return v.refreshOmarchy()
+}
+
+func (v *settingsView) refreshOmarchy() tea.Cmd {
+	if v.tab != tabOmarchy || v.omarchy == nil {
+		return nil
+	}
+	return v.omarchy.run("status")
 }
 
 func (v *settingsView) hostKey(ctx *viewContext, msg tea.KeyPressMsg) (view, tea.Cmd, nav) {
@@ -644,7 +681,7 @@ func (v *settingsView) View(ctx *viewContext, width, height int) string {
 	if v.cloudflare != nil {
 		return v.cloudflare.box(ctx, width, height)
 	}
-	strip, layers := subTabStrip(ctx.theme, settingsTabs, int(v.tab), 1, 1)
+	strip, layers := subTabStrip(ctx.theme, v.tabNames(), int(v.tab), 1, 1)
 	ctx.layers = append(ctx.layers, layers...)
 	var body string
 	switch v.tab {
@@ -660,6 +697,8 @@ func (v *settingsView) View(ctx *viewContext, width, height int) string {
 		body = v.toolsBox(ctx, width, max(height-1, 3))
 	case tabAbout:
 		body = aboutBox(ctx, width)
+	case tabOmarchy:
+		body = v.omarchy.box(ctx, width)
 	}
 	return truncate(strip, width) + "\n" + body
 }

@@ -1,0 +1,14 @@
+{
+  "setup.self-host": {
+    "icon": "◆",
+    "label": "Self-hosting",
+    "when": "omarchy-pkg-present self-host-omarchy",
+    "action": "/usr/bin/self-host-omarchy menu"
+  },
+  "install.service.self-host": {
+    "icon": "◆",
+    "label": "self-host",
+    "disabled": "omarchy-pkg-present self-host-omarchy",
+    "action": "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add self-host-omarchy"
+  }
+}

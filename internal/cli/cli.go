@@ -231,6 +231,7 @@ func NewRootCommand(deps *system.Deps, cat *catalog.Catalog) *cobra.Command {
 }
 
 func (a *program) root() *cobra.Command {
+	var initialApp string
 	root := &cobra.Command{
 		Use:           "self-host",
 		Short:         "Install and run self-hosted apps with Docker Compose",
@@ -240,15 +241,26 @@ func (a *program) root() *cobra.Command {
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
 	root.RunE = func(cmd *cobra.Command, args []string) error {
+		if cmd.Flags().Changed("app") && (initialApp == "" || !a.deps.Interactive || a.json) {
+			return errors.New("--app needs an App ID and an interactive Dashboard")
+		}
 		if !a.deps.Interactive || a.json {
 			return cmd.Help()
 		}
 		backend := tui.ServiceBackend{Deps: a.deps, Apps: a.catalog, Args: a.args}
-		return tui.Run(cmd.Context(), backend, tui.Options{Version: a.deps.Version, NoColor: a.deps.Getenv("NO_COLOR") != "", ReducedMotion: a.deps.Getenv("SELF_HOST_REDUCED_MOTION") != "", NoUpdatePrompt: updatecheck.Disabled(a.deps)})
+		return tui.Run(cmd.Context(), backend, tui.Options{
+			Version:        a.deps.Version,
+			InitialApp:     initialApp,
+			NoColor:        a.deps.Getenv("NO_COLOR") != "",
+			ReducedMotion:  a.deps.Getenv("SELF_HOST_REDUCED_MOTION") != "",
+			NoUpdatePrompt: updatecheck.Disabled(a.deps),
+		})
 	}
+	root.Flags().StringVar(&initialApp, "app", "", "open the Dashboard with this installed App selected")
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "print one JSON event per line")
 	root.PersistentFlags().BoolVarP(&a.verbose, "verbose", "v", false, "show every command and step start")
 	root.AddCommand(a.doctorCmd(), a.hostCmd(), a.accessCmd(), a.installCmd(), a.setupCmd(), a.statusCmd(), a.shareCmd(), a.profileCmd(), a.debugCmd(), a.credentialsCmd(), a.appsCmd(), a.skillCmd(), a.feedbackCmd(), a.selfUpdateCmd())
+	root.AddCommand(a.desktopCmd())
 	root.AddCommand(a.lifecycleCmds()...)
 	root.AddCommand(a.cloudflareCmd())
 	root.AddCommand(a.connectionsCmd())

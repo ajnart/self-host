@@ -231,7 +231,11 @@ func (s *Service) open(ctx context.Context) (*session, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !p.Exists() {
+	exists, err := p.CheckExists()
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
 		return nil, ErrNoProject
 	}
 	settings, err := p.LoadSettings()

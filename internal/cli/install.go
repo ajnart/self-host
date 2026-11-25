@@ -79,7 +79,7 @@ func (a *program) recap(cmd *cobra.Command) {
 }
 
 func (a *program) statusCmd() *cobra.Command {
-	var updates bool
+	var updates, allowNoProject bool
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show Access, Host settings and every App's URL, state and Setup",
@@ -88,6 +88,9 @@ func (a *program) statusCmd() *cobra.Command {
 			a.document = true
 			status, err := a.service().Status(cmd.Context())
 			if err != nil {
+				if allowNoProject && a.json && errors.Is(err, service.ErrNoProject) {
+					return writeJSON(cmd.OutOrStdout(), nil)
+				}
 				return a.fail(err)
 			}
 			if updates {
@@ -103,6 +106,7 @@ func (a *program) statusCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&updates, "updates", false, "also ask registries whether newer images exist")
+	cmd.Flags().BoolVar(&allowNoProject, "allow-no-project", false, "with --json, return null when no Project exists")
 	return cmd
 }
 

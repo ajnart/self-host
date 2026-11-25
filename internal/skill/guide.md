@@ -51,6 +51,11 @@ including failures, Manual steps, waiting Links and `docker_error`. Container
 liveness, HTTP 200, `step.skip` or a saved Setup result alone do not prove the
 requested feature works. Report unverified outcomes instead of claiming completion.
 
+On Omarchy, the packaged App picker lets the person review Start, Stop and
+Restart, including when the default local Docker socket requires desktop
+authorization. The person approves each Action in the picker. If they
+select **Ask your agent**, the copied prompt is a request to inspect and plan.
+
 The interactive Dashboard has a brief opening entrance, skipped by any key
 without changing its meaning. Pre-boot animates in only after approving the
 first install; `enter` shows Activity, and `q` or `ctrl+c` quits. For less motion,

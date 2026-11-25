@@ -1,0 +1,15 @@
+[
+  {
+    "class": "org.omarchy.terminal",
+    "title": "self-host",
+    "floating": true,
+    "at": [
+      203,
+      113
+    ],
+    "size": [
+      875,
+      600
+    ]
+  }
+]

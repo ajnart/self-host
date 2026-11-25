@@ -47,6 +47,8 @@ type Request struct {
 	Action  Action
 	IDs     []string
 	Install *service.InstallOptions
+	// ShowOmarchyBar is an Onboarding preference applied after a successful install.
+	ShowOmarchyBar bool
 	// Pairs are the KEY=value Host settings ActionConfig sets.
 	Pairs []string
 	// File is the archive ActionRestore restores from.
@@ -415,7 +417,18 @@ func (b ServiceBackend) Run(ctx context.Context, req Request, log *events.Logger
 	case ActionRestore:
 		return s.Restore(ctx, req.File, ids, req.Passphrase)
 	case ActionInstall:
-		return s.Install(ctx, *req.Install)
+		if err := s.Install(ctx, *req.Install); err != nil {
+			return err
+		}
+		if req.ShowOmarchyBar {
+			if on, err := b.OmarchyBar(ctx, "enable"); err != nil || !on {
+				log.Emit(events.Event{Event: events.StepWarn, Step: "omarchy",
+					Msg: "Omarchy top bar shortcut could not be added", Hint: "Enable it in Settings → Omarchy."})
+			} else {
+				log.Emit(events.Event{Event: events.StepOK, Step: "omarchy", Msg: "Added the Omarchy top bar shortcut"})
+			}
+		}
+		return nil
 	case ActionConfig:
 		return s.ConfigSet(ctx, req.Pairs)
 	case ActionStart:

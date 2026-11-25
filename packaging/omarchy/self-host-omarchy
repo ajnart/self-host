@@ -1,0 +1,491 @@
+#!/bin/bash
+# Omarchy's picker and terminal are views over the self-host CLI.
+set -u
+set -o pipefail
+
+cli=/usr/bin/self-host
+adapter=/usr/bin/self-host-omarchy
+assets=/usr/share/self-host-omarchy
+
+notice() {
+    printf '%s\n' "$*" >&2
+    if command -v notify-send >/dev/null; then
+        notify-send -i self-host self-host "$*" || true
+    fi
+}
+
+valid_id() {
+    [[ $1 =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+}
+
+pick() {
+    local prompt=$1
+    shift
+    if command -v omarchy-menu-select >/dev/null; then
+        omarchy-menu-select "$prompt" "$@" -- --width 540 --maxheight 580
+    elif command -v omarchy-launch-walker >/dev/null; then
+        local option key choice
+        local -a plain=()
+        for option; do
+            key=${option#*$'\t'}
+            plain+=("${key//$'\t'/ · }")
+        done
+        choice=$(printf '%s\n' "${plain[@]}" | omarchy-launch-walker --dmenu --width 540 --maxheight 580 -p "$prompt") || return 1
+        for option; do
+            key=${option#*$'\t'}
+            if [[ ${key//$'\t'/ · } == "$choice" ]]; then
+                printf '%s\n' "$key"
+                return
+            fi
+        done
+        return 1
+    else
+        notice 'The Omarchy picker is unavailable. Open the terminal Dashboard from your launcher.'
+        return 1
+    fi
+}
+
+row() {
+    printf '%s\t%s' "$1" "$2"
+    if (( $# == 3 )); then printf '\t%s' "$3"; fi
+}
+
+read_status() {
+    local result
+    if result=$(timeout 8s "$cli" desktop status 2>/dev/null); then
+        if [[ $result == null ]]; then
+            status=
+            return
+        fi
+        if jq -e '(.home | type == "string" and startswith("/")) and
+                    (.apps | type == "array")' >/dev/null <<< "$result"; then
+            status=$result
+            return
+        fi
+    fi
+    notice 'Could not inspect this Project. Open the terminal Dashboard for details.'
+    return 1
+}
+
+read_app() {
+    local id=$1
+    valid_id "$id" || return 1
+    read_status || return 1
+    [[ -n $status ]] || return 1
+    app=$(jq -ce --arg id "$id" '[.apps[] | select(.id == $id)] |
+        if length == 1 then .[0] else empty end' <<< "$status")
+}
+
+display_name() {
+    jq -r '(.name // .id) | gsub("[[:cntrl:]]"; " ")' <<< "$1"
+}
+
+current_address() {
+    jq -er '.address // empty' <<< "$app"
+}
+
+open_app() {
+    local id=$1 address
+    if ! read_app "$id"; then
+        notice 'This App is no longer listed in the selected Project.'
+        return 1
+    fi
+    if [[ $(jq -r '.lan_ip_stale // false' <<< "$status") == true ]]; then
+        notice 'The saved LAN Address changed. Review Access in the Dashboard.'
+        return 1
+    fi
+    if ! address=$(current_address); then
+        notice 'This App has no current browser Address. Check App details in the Dashboard.'
+        return 1
+    fi
+    xdg-open "$address" >/dev/null 2>&1 || {
+        notice 'The desktop could not open the App in your browser.'
+        return 1
+    }
+}
+
+# Keep each shortcut tied to its original Home folder and Project override.
+# Desktop Entry Exec has two escaping layers and expands literal percent signs.
+exec_arg() {
+    local value=$1 char
+    local result='"'
+    local i
+    for ((i = 0; i < ${#value}; i++)); do
+        char=${value:i:1}
+        case "$char" in
+            '%') result+='%%' ;;
+            '\') result+='\\\\' ;;
+            '"'|'$'|'`') result+="\\\\$char" ;;
+            *) result+=$char ;;
+        esac
+    done
+    printf '%s"' "$result"
+}
+
+entry_for_app() {
+    local id=$1 home_folder=$2 compose_name=$3 name=$4 icon=${5:-} digest ext
+    valid_id "$id" && [[ $home_folder == /* && ! $home_folder =~ [[:cntrl:]] ]] || return 1
+    if [[ -n $compose_name ]]; then valid_id "$compose_name" || return 1; fi
+    digest=$(printf '%s\0%s' "$home_folder" "$compose_name" | sha256sum)
+    entry_dir=${XDG_DATA_HOME:-}
+    if [[ $entry_dir != /* ]]; then entry_dir="$HOME/.local/share"; fi
+    entry_dir+=/applications
+    entry_path="$entry_dir/self-host-app-${digest:0:20}-$id.desktop"
+    if [[ -z $icon ]]; then
+        icon=network-server
+        for ext in svg png; do
+            if [[ -r $assets/icons/$id.$ext ]]; then
+                icon="$assets/icons/$id.$ext"
+                break
+            fi
+        done
+    fi
+    name=$(printf '%s' "$name" | tr '[:cntrl:]' ' ' | sed 's/\\/\\\\/g')
+    entry_content=$(printf '%s\n' '[Desktop Entry]' 'Type=Application'
+        printf 'Name=%s\n' "$name"
+        printf '%s\n' 'Comment=Open the App managed by self-host' 'Keywords=self-host;'
+        printf 'Exec=/usr/bin/env %s %s %s open %s\n' \
+            "$(exec_arg "SELF_HOST_HOME=$home_folder")" \
+            "$(exec_arg "SELF_HOST_COMPOSE_PROJECT=$compose_name")" "$adapter" "$id"
+        printf 'Icon=%s\n' "$icon"
+        printf '%s\n' 'Terminal=false' 'Categories=Network;')
+}
+
+current_entry() {
+    entry_for_app "$1" "$(jq -r '.home' <<< "$status")" "${SELF_HOST_COMPOSE_PROJECT-}" "$(display_name "$app")"
+}
+
+remove_entry() {
+    local id=$1 home_folder=$2 compose_name=$3 name=$4 icon
+    entry_for_app "$id" "$home_folder" "$compose_name" "$name" || return 1
+    if [[ ! -e $entry_path && ! -L $entry_path ]]; then return 0; fi
+    [[ -f $entry_path && ! -L $entry_path ]] || return 1
+    # Keep support for the stock icon and both bundled icon formats, even if a
+    # newer package changed which artwork is installed.
+    for icon in "$assets/icons/$id.svg" "$assets/icons/$id.png" network-server; do
+        entry_for_app "$id" "$home_folder" "$compose_name" "$name" "$icon" || return 1
+        if cmp -s -- "$entry_path" <(printf '%s\n' "$entry_content"); then
+            rm -f -- "$entry_path"
+            return
+        fi
+    done
+    return 1
+}
+
+cleanup_shortcut() {
+    local id=$1 home_folder=$2 compose_name=$3 name=$4 outcome=0
+    # A shortcut can have been pinned with the saved Compose name explicitly
+    # set in the launch environment, or with the default empty override.
+    remove_entry "$id" "$home_folder" "" "$name" || outcome=1
+    if [[ -n $compose_name ]]; then
+        remove_entry "$id" "$home_folder" "$compose_name" "$name" || outcome=1
+    fi
+    return "$outcome"
+}
+
+shortcut() {
+    local verb=$1 id=$2 tmp home_folder name
+    read_app "$id" || return 1
+    home_folder=$(jq -r '.home' <<< "$status")
+    name=$(display_name "$app")
+    case "$verb" in
+        add)
+            current_entry "$id" || return 1
+            mkdir -p -- "$entry_dir" || return 1
+            tmp=$(mktemp -- "$entry_dir/.self-host-app.XXXXXX") || return 1
+            printf '%s\n' "$entry_content" > "$tmp"
+            if ! ln -T -- "$tmp" "$entry_path"; then
+                rm -f -- "$tmp"
+                notice 'A shortcut already exists at this path. Your existing file was kept.'
+                return 1
+            fi
+            rm -f -- "$tmp"
+            if read_status && { [[ -z $status ]] ||
+                ! jq -e --arg id "$id" 'any(.apps[]; .id == $id)' >/dev/null <<< "$status"; }; then
+                remove_entry "$id" "$home_folder" "${SELF_HOST_COMPOSE_PROJECT-}" "$name" || true
+                notice 'This App was removed before its launcher shortcut could be added.'
+                return 1
+            fi
+            notice "Added $name to the application launcher."
+            ;;
+        remove)
+            if ! remove_entry "$id" "$home_folder" "${SELF_HOST_COMPOSE_PROJECT-}" "$name"; then
+                notice 'The shortcut is missing or has been edited. Manage it in your applications folder.'
+                return 1
+            fi
+            notice 'Removed the desktop shortcut.'
+            ;;
+    esac
+}
+
+desktop_terminal() {
+    if [[ $1 != dashboard ]]; then
+        xdg-terminal-exec --app-id=org.omarchy.terminal --title=self-host "$adapter" terminal "$@"
+        return
+    fi
+    xdg-terminal-exec "$adapter" terminal "$@"
+}
+
+ask_agent() {
+    local id=${1-} agent prompt
+    if ! command -v omarchy-agent >/dev/null || ! command -v omarchy-default-agent >/dev/null; then
+        notice 'Open your usual agent and ask it to read self-host skill core.'
+        return 1
+    fi
+    agent=$(omarchy-default-agent)
+    if [[ -z $agent ]]; then
+        notice 'Choose a default agent, then select Ask your agent again.'
+        omarchy-agent --pick
+        return
+    fi
+    if ! command -v "$agent" >/dev/null; then
+        notice 'The default agent is unavailable. Choose an installed agent in Omarchy Setup.'
+        return 1
+    fi
+    if [[ -n $id ]]; then
+        valid_id "$id" || return 2
+        printf -v prompt 'Help me with the self-host App `%s`. Ask what I want to fix or change.' "$id"
+    else
+        prompt='Help me with self-host. Ask what I want to run or fix. If an App is outside the Catalog, read `self-host skill unmanaged` and show me the Compose definition I can review and apply.'
+    fi
+    prompt+=' Read `self-host skill core` and the relevant topic before acting. Inspect first, propose a plan, and wait for my explicit approval before making changes.'
+    if ! printf '%s' "$prompt" | wl-copy; then
+        notice 'Could not copy the prompt. Ask your agent to read self-host skill core.'
+        return 1
+    fi
+    notice 'Starter prompt copied. Paste it into your agent when ready.'
+    omarchy-agent
+}
+
+desktop_authorization_available() {
+    [[ -z ${SELF_HOST_HOME-} && -z ${SELF_HOST_COMPOSE_PROJECT-} &&
+       ${WAYLAND_DISPLAY-} =~ ^wayland-[0-9]+$ && -x /usr/bin/pkexec && -x /usr/bin/omarchy-shell ]] &&
+        timeout 2s /usr/bin/omarchy-shell shell listPlugins 2>/dev/null |
+        jq -e 'any(.[]; .id == "omarchy.polkit" and .enabled)' >/dev/null
+}
+
+docker_access() {
+    timeout 8s "$cli" desktop docker 2>/dev/null | jq -ce 'objects'
+}
+
+cli_run() {
+    local report var outcome
+    local -a scoped_env=()
+
+    if ! report=$(docker_access); then
+        printf 'Could not inspect Docker. Try self-host host report.\n' >&2
+        return 1
+    fi
+    if ! jq -e '.socket_denied == true' >/dev/null <<< "$report"; then
+        "$cli" "$@"
+        return
+    fi
+
+    # Only the local system socket may cross this authorization boundary.
+    if ! jq -e '.can_authorize == true' >/dev/null <<< "$report"; then
+        printf 'Docker denied access to your selected context. Check its permissions, then retry.\n' >&2
+        return 1
+    fi
+    for var in SELF_HOST_NO_TELEMETRY DO_NOT_TRACK SELF_HOST_NO_UPDATE_CHECK \
+        SELF_HOST_REDUCED_MOTION TERM COLORTERM LANG LC_ALL XDG_DATA_HOME; do
+        if [[ -v $var ]]; then scoped_env+=("$var=${!var}"); fi
+    done
+    if desktop_authorization_available; then
+        outcome=0
+        /usr/bin/pkexec --disable-internal-agent "$assets/authorize" "$WAYLAND_DISPLAY" \
+            "${scoped_env[@]}" "$@" || outcome=$?
+        if (( outcome == 127 )); then
+            printf 'Desktop authorization failed. Try again, or run self-host from a terminal with sudo.\n' >&2
+        fi
+        return "$outcome"
+    fi
+    if [[ ${1-} == desktop ]]; then
+        printf 'Desktop authorization is unavailable. Open the Dashboard to manage this App.\n' >&2
+        return 1
+    fi
+    for var in SELF_HOST_HOME SELF_HOST_COMPOSE_PROJECT XDG_RUNTIME_DIR WAYLAND_DISPLAY DISPLAY \
+        DBUS_SESSION_BUS_ADDRESS XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE OMARCHY_PATH; do
+        if [[ -v $var ]]; then scoped_env+=("$var=${!var}"); fi
+    done
+    printf 'This local Docker operation needs administrator authorization.\n'
+    sudo -- /usr/bin/env DOCKER_HOST=unix:///var/run/docker.sock DOCKER_CONTEXT= \
+        "${scoped_env[@]}" "$cli" "$@"
+}
+
+terminal_action() {
+    local action=${1:-} id=${2:-} observed=${3:-} name=${4:-} outcome=0
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        printf 'Open this action in a terminal to review it.\n' >&2
+        return 1
+    fi
+    case "$action" in
+        dashboard)
+            if [[ -n $id ]]; then
+                valid_id "$id" || return 2
+                cli_run --app "$id" || outcome=$?
+            else
+                cli_run || outcome=$?
+            fi
+            if (( outcome == 0 )); then return; fi
+            ;;
+        doctor) cli_run doctor || outcome=$? ;;
+        start|stop|restart)
+            valid_id "$id" || return 2
+            cli_run desktop action --yes "$action" "$id" "$observed" || outcome=$?
+            if (( outcome == 0 )); then
+                if command -v notify-send >/dev/null; then
+                    notify-send -i self-host self-host "${name:-$id} · ${action^} complete" || true
+                fi
+                return 0
+            fi
+            ;;
+        *) return 2 ;;
+    esac
+    if (( outcome == 126 )); then return 0; fi
+    if (( outcome == 0 )); then
+        printf '\nDone. Press Enter to close.\n'
+    else
+        printf '\nAction failed (exit %s). Press Enter to close.\n' "$outcome"
+    fi
+    read -r || true
+    return "$outcome"
+}
+
+action_available() {
+    jq -e --arg verb "$1" '(.actions // []) | index($verb) != null' >/dev/null <<< "$app"
+}
+
+review_action() {
+    local action=$1 id=$2 state=$3 name=$4 effect choice
+    case "$action" in
+        start) effect='uses existing App data' ;;
+        stop) effect='stays offline, keeps App data' ;;
+        restart) effect='brief interruption, keeps App data' ;;
+    esac
+    if [[ $state == unknown ]]; then
+        effect="Check after authorization · $effect"
+    else
+        effect=${effect^}
+    fi
+    choice=$(pick "${action^} $name" "$(row '󰜺' 'Cancel')" "$(row '󰄬' "${action^}" "$effect")") || return 3
+    if [[ $choice != "${action^}"$'\t'"$effect" ]]; then return 3; fi
+    desktop_terminal "$action" "$id" "$state" "$name"
+}
+
+app_menu() {
+    local id=$1 name state selected
+    local -a rows=()
+    while true; do
+        read_app "$id" || { notice 'The App is no longer listed.'; return 3; }
+        name=$(display_name "$app")
+        state=$(jq -r '.state' <<< "$app")
+        rows=()
+        if current_address >/dev/null; then rows+=("$(row '󰖟' 'Open in browser')"); fi
+        if [[ $state != unknown ]] ||
+            { desktop_authorization_available && docker_access | jq -e '.can_authorize == true' >/dev/null; }; then
+            if action_available start; then rows+=("$(row '󰐊' 'Start…')"); fi
+            if action_available stop; then rows+=("$(row '󰓛' 'Stop…')"); fi
+            if action_available restart; then rows+=("$(row '󰑐' 'Restart…')"); fi
+        fi
+        rows+=("$(row '' 'App details in Dashboard')" "$(row '󰚩' 'Ask your agent about this App')")
+        if current_entry "$id"; then
+            if [[ -e $entry_path || -L $entry_path ]]; then
+                rows+=("$(row '󰍴' 'Remove launcher shortcut')")
+            else
+                rows+=("$(row '󰐕' 'Add launcher shortcut')")
+            fi
+        fi
+        rows+=("$(row '󰁍' 'Back to Apps')")
+        selected=$(pick "$name" "${rows[@]}") || return 3
+        case "$selected" in
+            'Open in browser') open_app "$id"; return ;;
+            'App details in Dashboard') desktop_terminal dashboard "$id"; return ;;
+            'Ask your agent about this App') ask_agent "$id"; return ;;
+            'Add launcher shortcut') shortcut add "$id" || true ;;
+            'Remove launcher shortcut') shortcut remove "$id" || true ;;
+            'Start…'|'Stop…'|'Restart…')
+                local action=${selected%…}
+                local result=0
+                review_action "${action,,}" "$id" "$state" "$name" || result=$?
+                if (( result != 3 )); then return "$result"; fi
+                ;;
+            'Back to Apps') return 3 ;;
+        esac
+    done
+}
+
+apps_menu() {
+    local selection index id label detail glyph mode result
+    local -a rows ids keys
+    while true; do
+        rows=()
+        ids=()
+        keys=()
+        mode='self-host'
+        if ! read_status; then
+            rows+=("$(row '' 'Open Dashboard')")
+        elif [[ -n $status ]]; then
+            while IFS=$'\t' read -r id label detail; do
+                valid_id "$id" || continue
+                ids+=("$id")
+                keys+=("$label"$'\t'"$detail")
+                glyph='󰒋'
+                case "$detail" in
+                    Running) glyph='󰐊' ;;
+                    Stopped) glyph='󰓛' ;;
+                    'Needs attention') glyph='󰀨' ;;
+                    'Live Status unavailable') glyph='󰋔' ;;
+                esac
+                rows+=("$(row "$glyph" "$label" "$detail")")
+            done < <(jq -r '
+                def app_label: (.name // .id) | gsub("[[:cntrl:]]"; " ") | split("\\") | join(" ");
+                (.apps | map(app_label) | group_by(.) | map(select(length > 1) | .[0])) as $duplicates |
+                .apps[] | app_label as $name |
+                [ .id,
+                  (if ($duplicates | index($name)) != null then $name + " (" + .id + ")" else $name end),
+                  (if .state == "running" then
+                     if .level != "ok"
+                     then "Needs attention" else "Running" end
+                   elif .state == "unknown" then "Live Status unavailable"
+                   elif .state == "degraded" then "Needs attention"
+                   elif .state == "exited" or .state == "stopped" then "Stopped"
+                   else (.state // "Status unavailable" | gsub("[[:cntrl:]]"; " ") | split("\\") | join(" ")) end)
+                ] | @tsv' <<< "$status")
+            rows+=("$(row '' 'Open Dashboard')")
+        else
+            desktop_terminal dashboard
+            return
+        fi
+        rows+=("$(row '󰚩' 'Ask your agent' 'Copy a starter prompt and open your agent')" "$(row '󰓅' 'Run Doctor')")
+        selection=$(pick "$mode" "${rows[@]}") || return 0
+        case "$selection" in
+            'Open Dashboard') desktop_terminal dashboard; return ;;
+            'Ask your agent'$'\t'*) ask_agent; return ;;
+            'Run Doctor') desktop_terminal doctor; return ;;
+        esac
+        for index in "${!ids[@]}"; do
+            if [[ ${keys[index]} == "$selection" ]]; then
+                result=0
+                app_menu "${ids[index]}" || result=$?
+                if (( result == 3 )); then break; fi
+                return "$result"
+            fi
+        done
+    done
+}
+
+if (( EUID == 0 )); then
+    printf 'Run self-host-omarchy as your desktop user.\n' >&2
+    exit 1
+fi
+case "${1:-menu}" in
+    menu) apps_menu ;;
+    dashboard) desktop_terminal dashboard ;;
+    ask-agent) ask_agent ;;
+    bar) shift; exec "$assets/bar-control" "$@" ;;
+    shortcut-cleanup) [[ $# == 5 ]] && cleanup_shortcut "$2" "$3" "$4" "$5" ;;
+    open) [[ $# == 2 ]] && open_app "$2" ;;
+    terminal) shift; terminal_action "$@" ;;
+    menu-extension) cat "$assets/menu.jsonc" ;;
+    *) printf 'Usage: self-host-omarchy [menu|dashboard|ask-agent|open APP|bar [status|enable|disable]|menu-extension]\n' >&2; exit 2 ;;
+esac

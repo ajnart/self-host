@@ -1,0 +1,93 @@
+#!/bin/bash
+# Omarchy owns placement and persistence. This registers only our packaged widget.
+set -euo pipefail
+
+id=fyi.self-host
+widget=/usr/share/self-host-omarchy/bar
+link="$HOME/.config/omarchy/plugins/$id"
+
+fail() {
+    printf '%s\n' "$*" >&2
+    exit 1
+}
+
+if (( EUID == 0 )); then fail 'Use the Dashboard in your Omarchy desktop session.'; fi
+operation=${1:-status}
+case "$operation" in
+    status|enable|disable) ;;
+    *) fail 'Expected status, enable, or disable.' ;;
+esac
+
+# A package install supplies this fallback for terminals without Omarchy's env.
+export OMARCHY_PATH=${OMARCHY_PATH:-/usr/share/omarchy}
+
+shell_call() {
+    /usr/bin/omarchy-shell shell "$@"
+}
+
+bar_status() {
+    local config
+    config=$(shell_call listShellConfig 2>/dev/null) ||
+        fail 'Omarchy is unavailable. Open the Dashboard from your desktop session.'
+    jq -er --arg id "$id" '
+        select(.bar.layout | type == "object") |
+        if (.bar.id // "omarchy.bar") != "omarchy.bar" then empty
+        elif any(.bar.layout[][]; (.id? // .) == $id) then "on"
+        else "off" end
+    ' <<< "$config" || fail 'The shortcut needs Omarchy’s standard bar.'
+}
+
+owns_link() {
+    [[ -L $link && $(readlink -- "$link") == "$widget" ]]
+}
+
+registered() {
+    local catalog
+    catalog=$(shell_call listPlugins) || return 2
+    jq -e --arg id "$id" 'any(.[]; .id == $id)' >/dev/null <<< "$catalog"
+}
+
+state=$(bar_status)
+if [[ $operation == status ]]; then
+    printf '%s\n' "$state"
+    exit 0
+fi
+if [[ -e $link || -L $link ]]; then
+    owns_link || fail 'A different self-host bar plugin already exists. Manage it in Omarchy.'
+fi
+
+if [[ $operation == enable ]]; then
+    if ! owns_link; then
+        result=0
+        registered || result=$?
+        if (( result != 1 )); then fail 'Could not claim the self-host widget ID. Check Omarchy’s plugins.'; fi
+        mkdir -p -- "$(dirname -- "$link")"
+        ln -sT -- "$widget" "$link" || fail 'Could not register the self-host widget.'
+    fi
+    if ! registered; then
+        shell_call rescanPlugins >/dev/null || fail 'Omarchy could not scan the widget. Try again.'
+    fi
+    # The scan itself is asynchronous. Wait only for discovery, before placing it.
+    for attempt in {1..15}; do
+        if registered; then break; fi
+        sleep .12
+    done
+    registered || fail 'Omarchy has not discovered the self-host widget. Try again.'
+    [[ $(shell_call putBarWidget "$id" '{}') == ok ]] ||
+        fail 'Could not place the widget. Refresh its status before retrying.'
+else
+    if [[ $state == on ]]; then
+        owns_link || fail 'Manage this self-host widget from Omarchy Plugins.'
+        [[ $(shell_call setPluginEnabled "$id" false) == ok ]] ||
+            fail 'Could not hide the widget. Refresh its status before retrying.'
+    fi
+    if owns_link && [[ $(bar_status) == off ]]; then
+        unlink -- "$link"
+    fi
+fi
+
+state=$(bar_status)
+if [[ ( $operation == enable && $state != on ) || ( $operation == disable && $state != off ) ]]; then
+    fail 'Omarchy did not apply the requested bar change. Refresh its status before retrying.'
+fi
+printf '%s\n' "$state"

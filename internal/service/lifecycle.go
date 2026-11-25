@@ -40,21 +40,33 @@ func (ss *session) targets(ids []string) ([]string, error) {
 }
 
 func (s *Service) Start(ctx context.Context, ids []string) error {
-	return s.run(ctx, change{
-		namesStart: func(ss *session) bool { return ss.namesOn() },
-		title:      strings.TrimSpace("start " + strings.Join(ids, " ")),
-		targets:    func(ss *session) ([]string, error) { return ss.targets(ids) },
-		compose:    composeUp,
-		after:      afterUnmanagedDashboard,
-	})
+	return s.run(ctx, lifecycleChange("start", ids))
 }
 
 func (s *Service) Stop(ctx context.Context, ids []string) error {
-	return s.run(ctx, change{
-		title:   strings.TrimSpace("stop " + strings.Join(ids, " ")),
+	return s.run(ctx, lifecycleChange("stop", ids))
+}
+
+func (s *Service) Restart(ctx context.Context, ids []string) error {
+	return s.run(ctx, lifecycleChange("restart", ids))
+}
+
+func lifecycleChange(verb string, ids []string) change {
+	c := change{
+		title:   strings.TrimSpace(verb + " " + strings.Join(ids, " ")),
 		targets: func(ss *session) ([]string, error) { return ss.targets(ids) },
-		compose: composeStop,
-	})
+	}
+	switch verb {
+	case "start":
+		c.compose = composeUp
+		c.after = afterUnmanagedDashboard
+		c.namesStart = func(ss *session) bool { return ss.namesOn() }
+	case "stop":
+		c.compose = composeStop
+	case "restart":
+		c.compose = composeRestart
+	}
+	return c
 }
 
 // Down takes down only the selected Project; App files, state and volumes stay.
@@ -65,14 +77,6 @@ func (s *Service) Down(ctx context.Context) error {
 			return ss.p.AppIDs()
 		},
 		compose: composeDown,
-	})
-}
-
-func (s *Service) Restart(ctx context.Context, ids []string) error {
-	return s.run(ctx, change{
-		title:   strings.TrimSpace("restart " + strings.Join(ids, " ")),
-		targets: func(ss *session) ([]string, error) { return ss.targets(ids) },
-		compose: composeRestart,
 	})
 }
 
@@ -396,7 +400,11 @@ func (s *Service) OpenURL(ctx context.Context, url string) error {
 	if s.Deps.GOOS == "darwin" {
 		name = "open"
 	}
-	result, err := s.Deps.Runner.Run(ctx, system.Cmd{Name: name, Args: []string{url}})
+	cmd, err := s.Deps.DesktopCommand(system.Cmd{Name: name, Args: []string{url}})
+	if err != nil {
+		return err
+	}
+	result, err := s.Deps.Runner.Run(ctx, cmd)
 	if err != nil {
 		return err
 	}

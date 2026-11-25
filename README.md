@@ -148,6 +148,8 @@ Packages come from [GitHub Releases](https://github.com/ajnart/self-host/release
 
 Update with `self-host self-update` for the script and the archive. Homebrew, Docker and packages update through their own tool.
 
+See the [Omarchy package guide](packaging/omarchy/README.md) for the desktop launcher, Start, Stop and Restart reviews, and native authorization for the default Docker socket.
+
 </details>
 
 To read the install script first:

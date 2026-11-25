@@ -1,0 +1,49 @@
+#!/bin/bash
+# Entered through pkexec from an active Omarchy terminal.
+set -euo pipefail
+
+if (( EUID != 0 )) || [[ ! ${PKEXEC_UID-} =~ ^[1-9][0-9]*$ || ! -t 0 || ! -t 1 ]]; then
+    printf 'Open this operation from your Omarchy desktop.\n' >&2
+    exit 2
+fi
+
+(( $# >= 1 )) || exit 2
+display=$1
+shift
+IFS=: read -r owner _ uid gid _ home _ < <(/usr/bin/getent passwd "$PKEXEC_UID")
+runtime="/run/user/$uid"
+if [[ $uid != "$PKEXEC_UID" || ! $gid =~ ^[0-9]+$ || $home != /* ||
+      ! $display =~ ^wayland-[0-9]+$ || ! -S $runtime/$display ||
+      $(/usr/bin/stat -c %u -- "$runtime" 2>/dev/null) != "$uid" ]]; then
+    printf 'Could not identify the Omarchy desktop session.\n' >&2
+    exit 2
+fi
+
+settings=()
+while (( $# > 0 )); do
+    case "$1" in
+        TERM=*|COLORTERM=*|LANG=*|LC_ALL=*|XDG_DATA_HOME=*|SELF_HOST_NO_TELEMETRY=*|DO_NOT_TRACK=*|SELF_HOST_NO_UPDATE_CHECK=*|SELF_HOST_REDUCED_MOTION=*)
+            settings+=("$1")
+            shift
+            ;;
+        *) break ;;
+    esac
+done
+case "${1-}" in
+    '') (( $# == 0 )) || exit 2 ;;
+    doctor) (( $# == 1 )) || exit 2 ;;
+    --app) [[ $# == 2 && $2 =~ ^[a-z0-9][a-z0-9_-]*$ ]] || exit 2 ;;
+    desktop)
+        [[ $# == 6 && $2 == action && $3 == --yes &&
+           $4 =~ ^(start|stop|restart)$ && $5 =~ ^[a-z0-9][a-z0-9_-]*$ &&
+           $6 =~ ^(unknown|running|degraded|exited|stopped|created|missing)$ ]] || exit 2
+        ;;
+    *) exit 2 ;;
+esac
+
+exec /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$home" \
+    SUDO_USER="$owner" SUDO_UID="$uid" SUDO_GID="$gid" \
+    DOCKER_HOST=unix:///var/run/docker.sock XDG_RUNTIME_DIR="$runtime" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus" WAYLAND_DISPLAY="$display" \
+    XDG_CURRENT_DESKTOP=Hyprland XDG_SESSION_TYPE=wayland OMARCHY_PATH=/usr/share/omarchy \
+    "${settings[@]}" /usr/bin/self-host "$@"

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "fyi.self-host",
+  "name": "self-host",
+  "version": "1.0.0",
+  "description": "Open your self-host Apps or terminal Dashboard.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "barWidget": { "defaultSection": "right" }
+}

@@ -288,6 +288,9 @@ A change a person triggers on one App or on the whole Project: install, start
 or stop, restart, update, retry Setup, backup, restore, remove. In the Dashboard
 every Action goes through the Action menu, except restore and config, which run
 from Settings (Backups and Host); each shows in Activity like the others.
+The desktop App picker can review Start, Stop, and Restart for a managed App.
+If Docker requires authorization, the review names the App and the effect.
+Self-host checks live Status under the Project lock before applying the Action.
 
 **Action menu**:
 The menu that `a` opens for the selected App (`A` for the Project). It lists

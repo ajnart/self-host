@@ -12,6 +12,29 @@ import (
 	"github.com/ajnart/self-host/internal/systemtest"
 )
 
+func TestStatusJSONAllowsMissingProjectOnlyWhenRequested(t *testing.T) {
+	deps := systemtest.NewDeps(t)
+	cat := testCatalog(&echoApp{id: "one"})
+	if code, _ := runWith(t, deps, cat, "status", "--json"); code == 0 {
+		t.Fatal("ordinary status should still report a missing Project")
+	}
+	if code, out := runWith(t, deps, cat, "status", "--json", "--allow-no-project"); code != 0 || out != "null\n" {
+		t.Fatalf("exit %d, output %q; want successful null response", code, out)
+	}
+	owner, err := deps.CurrentUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := project.Open(owner).SaveSettings(map[string]string{"EXPOSURE": "local"}); err != nil {
+		t.Fatal(err)
+	}
+	code, out := runWith(t, deps, cat, "status", "--json", "--allow-no-project")
+	var status struct{ Apps []json.RawMessage }
+	if err := json.Unmarshal([]byte(out), &status); err != nil || code != 0 || status.Apps == nil {
+		t.Fatalf("existing empty Project should have a Status object, exit %d: %s", code, out)
+	}
+}
+
 func TestStatusJSONIgnoresTheAppearance(t *testing.T) {
 	deps := systemtest.NewDeps(t)
 	owner, _ := deps.CurrentUser()

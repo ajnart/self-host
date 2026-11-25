@@ -1,0 +1,41 @@
+# Release payload: stage with build-packages on Arch.
+pkgbase=self-host
+pkgname=(self-host self-host-omarchy)
+pkgver=@VERSION@
+pkgrel=@RELEASE@
+arch=('@ARCH@')
+url='https://self-host.fyi'
+license=('Apache-2.0')
+source=('self-host-bundle.tar.gz')
+sha256sums=('@BUNDLE_SHA@')
+options=('!strip' '!debug')
+
+package_self-host() {
+    pkgdesc='Install and operate self-hosted Apps from the command line or terminal Dashboard'
+    depends=('docker' 'docker-compose')
+    optdepends=('self-host-omarchy: Omarchy menus and desktop shortcuts')
+    conflicts=('self-host-bin')
+    install -Dm755 self-host "$pkgdir/usr/bin/self-host"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/self-host/LICENSE"
+}
+
+package_self-host-omarchy() {
+    pkgdesc='Omarchy menus, terminal handoff, and desktop shortcuts for self-host'
+    depends=("self-host=$pkgver-$pkgrel" 'bash' 'diffutils' 'jq' 'sudo' 'wl-clipboard' 'xdg-utils' 'xdg-terminal-exec')
+    install -Dm755 self-host-omarchy "$pkgdir/usr/bin/self-host-omarchy"
+    install -Dm755 bar-control "$pkgdir/usr/share/self-host-omarchy/bar-control"
+    install -Dm755 authorize "$pkgdir/usr/share/self-host-omarchy/authorize"
+    install -Dm644 fyi.self-host.omarchy.policy "$pkgdir/usr/share/polkit-1/actions/fyi.self-host.omarchy.policy"
+    install -Dm644 bar/manifest.json "$pkgdir/usr/share/self-host-omarchy/bar/manifest.json"
+    install -Dm644 bar/Widget.qml "$pkgdir/usr/share/self-host-omarchy/bar/Widget.qml"
+    install -Dm644 bar/mark-mono-white.svg "$pkgdir/usr/share/self-host-omarchy/bar/mark-mono-white.svg"
+    install -Dm644 self-host-omarchy.desktop "$pkgdir/usr/share/applications/self-host-omarchy.desktop"
+    install -Dm644 menu.jsonc "$pkgdir/usr/share/self-host-omarchy/menu.jsonc"
+    install -Dm644 logo.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/self-host.svg"
+    local icon
+    for icon in icons/*; do
+        if [[ -f $icon ]]; then
+            install -Dm644 "$icon" "$pkgdir/usr/share/self-host-omarchy/$icon"
+        fi
+    done
+}

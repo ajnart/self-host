@@ -51,6 +51,10 @@ type change struct {
 	title    string
 	// initialize creates a missing Project while holding the mutation lock.
 	initialize func(*project.Project) error
+	// guard checks a reviewed condition under the lock before editing the session.
+	guard func(context.Context, *session) error
+	// onlyTargets prevents Compose from acting on services outside a desktop review.
+	onlyTargets bool
 	// edit changes the session before Compose runs: render Apps, settings, fragments, unlink.
 	edit func(ctx context.Context, ss *session) error
 	// targets returns the App ids Compose acts on, after edit.
@@ -136,12 +140,25 @@ func (s *Service) runLocked(ctx context.Context, c change, p *project.Project) e
 	if err := p.ValidateRoot(); err != nil {
 		return err
 	}
+	var ss *session
+	var err error
+	if c.guard != nil {
+		ss, err = s.open(ctx)
+		if err != nil {
+			return err
+		}
+		if err := c.guard(ctx, ss); err != nil {
+			return err
+		}
+	}
 	if err := p.RecoverState(); err != nil {
 		return err
 	}
-	ss, err := s.open(ctx)
-	if err != nil {
-		return err
+	if ss == nil {
+		ss, err = s.open(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	startNames := c.namesStart != nil && c.namesStart(ss)
 	namesRuntime, err := ss.p.LoadNamesRuntime()
@@ -296,7 +313,13 @@ func (s *Service) runCompose(ctx context.Context, ss *session, c change, ids []s
 			startable = append(startable, c.services()...)
 		}
 		ss.emitStage(ids, events.Event{Event: events.StepStart, Step: StageStart, Msg: "start " + strings.Join(ids, ", ")})
-		if err := ss.up(ctx, startable); err != nil {
+		up := ss.up
+		if c.onlyTargets {
+			up = func(ctx context.Context, names []string) error {
+				return ss.compose.ApplyToServices(ctx, "start", names)
+			}
+		}
+		if err := up(ctx, startable); err != nil {
 			return errors.Join(err, ss.recordStage(ids, events.Event{Event: events.StepFail, Step: StageStart, Msg: "could not start " + strings.Join(ids, ", "), Error: err.Error(), Cause: err}))
 		}
 		msg := "started "
@@ -310,12 +333,24 @@ func (s *Service) runCompose(ctx context.Context, ss *session, c change, ids []s
 			s.Log.Emit(events.Event{Event: events.StepOK, Step: "update", Msg: msg + strings.Join(ids, ", ")})
 		}
 	case composeStop:
-		if err := ss.compose.Stop(ctx, services...); err != nil {
+		var err error
+		if c.onlyTargets {
+			err = ss.compose.ApplyToServices(ctx, "stop", services)
+		} else {
+			err = ss.compose.Stop(ctx, services...)
+		}
+		if err != nil {
 			return err
 		}
 		s.Log.Emit(events.Event{Event: events.StepOK, Step: "stop", Msg: "stopped " + strings.Join(ids, ", ")})
 	case composeRestart:
-		if err := ss.compose.Restart(ctx, services...); err != nil {
+		var err error
+		if c.onlyTargets {
+			err = ss.compose.ApplyToServices(ctx, "restart", services)
+		} else {
+			err = ss.compose.Restart(ctx, services...)
+		}
+		if err != nil {
 			return err
 		}
 		ss.clearStartFailure(ids, "restarted "+strings.Join(ids, ", "))
@@ -371,6 +406,7 @@ func (s *Service) removeApps(ctx context.Context, ss *session, ids []string, pur
 		if err := ss.p.RemoveFragment(id); err != nil {
 			return err
 		}
+		ss.removeDesktopShortcut(ctx, id)
 		delete(ss.state.Apps, id)
 		ss.forgetStep(tailscaleID, "name-"+id)
 		msg := "removed " + id + "; data kept in " + dir

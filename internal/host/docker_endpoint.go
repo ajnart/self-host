@@ -16,6 +16,29 @@ type DockerEndpoint struct {
 	Kind string
 }
 
+type DesktopDockerAccess struct {
+	SocketDenied bool `json:"socket_denied"`
+	CanAuthorize bool `json:"can_authorize"`
+}
+
+// DesktopDocker checks whether the selected Docker endpoint can be reached
+// with authorization for the default system socket.
+func DesktopDocker(ctx context.Context, deps *system.Deps) DesktopDockerAccess {
+	access := DesktopDockerAccess{SocketDenied: ProbeDocker(ctx, deps).SocketDenied()}
+	if !access.SocketDenied || deps.Getenv("DOCKER_CONTEXT") != "" {
+		return access
+	}
+	if deps.Getenv("DOCKER_HOST") == "" {
+		current, err := deps.Runner.Run(ctx, system.Cmd{Name: "docker", Args: []string{"context", "show"}})
+		if err != nil || current.ExitCode != 0 || strings.TrimSpace(string(current.Stdout)) != "default" {
+			return access
+		}
+	}
+	endpoint, err := ActiveDockerEndpoint(ctx, deps)
+	access.CanAuthorize = err == nil && endpoint.Host == "unix:///var/run/docker.sock"
+	return access
+}
+
 // ActiveDockerEndpoint resolves the endpoint with Docker CLI precedence:
 // DOCKER_CONTEXT selects a context even when DOCKER_HOST is also set.
 func ActiveDockerEndpoint(ctx context.Context, deps *system.Deps) (DockerEndpoint, error) {

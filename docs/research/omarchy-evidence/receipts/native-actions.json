@@ -1,0 +1,47 @@
+{
+  "packages": [
+    "self-host 0.0.0-13",
+    "self-host-omarchy 0.0.0-13",
+    "omarchy 4.5.0-3"
+  ],
+  "architecture": "x86_64",
+  "running_before": {
+    "state": "running",
+    "started_at": "2026-11-22T10:11:29.521948402Z",
+    "finished_at": "0001-01-01T00:00:00Z"
+  },
+  "picker_cancel": {
+    "state": "running",
+    "started_at": "2026-11-22T10:11:29.521948402Z",
+    "finished_at": "0001-01-01T00:00:00Z"
+  },
+  "authorization_cancel": {
+    "state": "running",
+    "started_at": "2026-11-22T10:11:29.521948402Z",
+    "finished_at": "0001-01-01T00:00:00Z"
+  },
+  "restarted": {
+    "state": "running",
+    "started_at": "2026-11-22T10:21:34.436111656Z",
+    "finished_at": "2026-11-22T10:21:33.807657413Z"
+  },
+  "rejected_running_start": {
+    "state": "running",
+    "started_at": "2026-11-22T10:21:34.436111656Z",
+    "finished_at": "2026-11-22T10:21:33.807657413Z"
+  },
+  "stopped": {
+    "state": "exited",
+    "started_at": "2026-11-22T10:21:34.436111656Z",
+    "finished_at": "2026-11-22T10:22:21.247554865Z"
+  },
+  "started": {
+    "state": "running",
+    "started_at": "2026-11-22T10:22:33.032298008Z",
+    "finished_at": "2026-11-22T10:22:21.247554865Z"
+  },
+  "prometheus_up": 1,
+  "peer_container_started_at": "2026-11-22T10:17:56.566708214Z",
+  "docker_access_unchanged": true,
+  "agent_prompt": "Help me with the self-host App `prometheus`. Ask what I want to fix or change. Read `self-host skill core` and the relevant topic before acting. Inspect first, propose a plan, and wait for my explicit approval before making changes."
+}

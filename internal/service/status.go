@@ -124,10 +124,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		status.DockerHint, status.DockerDocs = s.dockerAdvice(ctx)
 		containers = nil
 	}
-	byService := map[string]compose.Container{}
-	for _, c := range containers {
-		byService[c.Service] = c
-	}
+	byService := containersByService(containers)
 	if len(rec.Hosts) > 0 && !rec.Suspended && ss.state.Apps[cloudflareConnector] != nil && byService[cloudflareConnector].State == "running" {
 		status.Access = append(status.Access, CloudflareAccess)
 	}
@@ -149,7 +146,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		services, _ := ss.p.FragmentServices(id)
 		as.Services = services
 		mainService := id
-		if a, found := s.Catalog.App(id); found && ss.state.Apps[id] != nil {
+		if a, found := s.Catalog.App(id); found && ss.state.Apps[id] != nil && !ss.p.IsExtra(id) {
 			info := a.Info()
 			st := ss.state.Apps[id]
 			as.Description, as.Recipe = info.Description, st.Recipe
@@ -169,17 +166,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		if psErr != nil {
 			as.State = "unknown"
 		} else {
-			var completed map[string]bool
-			if fragment, err := ss.p.ReadFragment(id); err == nil {
-				completed = fragmentCompletionDependencies(fragment)
-			}
-			var deferred []string
-			if a, found := s.Catalog.App(id); found {
-				if deferrer, ok := a.(app.DeferredStarter); ok {
-					deferred = deferrer.Deferred(ss.helpers(a))
-				}
-			}
-			fillContainer(&as, byService, mainService, services, completed, deferred, ss.settings)
+			ss.applyContainerStatus(&as, byService, mainService)
 		}
 		as.localURL = as.URL
 		as.Addresses = ss.browserAddresses(id, as.URL)
@@ -194,8 +181,28 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	return status, nil
 }
 
-// fillContainer sets state and health from the main service, and the
-// worst state among the App's other services.
+func containersByService(containers []compose.Container) map[string]compose.Container {
+	byService := make(map[string]compose.Container, len(containers))
+	for _, c := range containers {
+		byService[c.Service] = c
+	}
+	return byService
+}
+
+func (ss *session) applyContainerStatus(as *AppStatus, byService map[string]compose.Container, main string) {
+	var completed map[string]bool
+	if fragment, err := ss.p.ReadFragment(as.ID); err == nil {
+		completed = fragmentCompletionDependencies(fragment)
+	}
+	var deferred []string
+	if a, found := ss.s.Catalog.App(as.ID); found {
+		if deferrer, ok := a.(app.DeferredStarter); ok {
+			deferred = deferrer.Deferred(ss.helpers(a))
+		}
+	}
+	fillContainer(as, byService, main, as.Services, completed, deferred, ss.settings)
+}
+
 func (as AppStatus) observationURL() string {
 	if as.localURL != "" {
 		return as.localURL
@@ -203,6 +210,8 @@ func (as AppStatus) observationURL() string {
 	return as.URL
 }
 
+// fillContainer sets state and health from the main service, and the
+// worst state among the App's other services.
 func fillContainer(as *AppStatus, byService map[string]compose.Container, main string, services []string, completed map[string]bool, deferred []string, settings map[string]string) {
 	c, found := byService[main]
 	if !found && !as.Managed && len(services) > 0 {
