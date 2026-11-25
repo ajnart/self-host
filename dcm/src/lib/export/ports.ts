@@ -3,7 +3,7 @@ import type { PortChange } from "./types"
 const TOP_LEVEL_KEY = /^([A-Za-z0-9_-]+):\s*$/
 const SERVICE_KEY = /^ {2}([^\s#][^:]*):\s*(?:#.*)?$/
 const PORT_MAPPING =
-  /^( {6}- ["']?(?:(?:\d{1,3}\.){3}\d{1,3}:|\[[^\]]+\]:)?)(\d+)(:\d+(?:\/\w+)?["']?(?:\s.*)?\s*)$/
+  /^( {4,}- ["']?(?:(?:\d{1,3}\.){3}\d{1,3}:|\[[^\]]+\]:)?)(\d+)(:\d+(?:\/\w+)?["']?(?:\s.*)?\s*)$/
 const SERVICE_PROPERTY = /^ {4}([A-Za-z0-9_-]+):/
 
 function rewriteEnvironmentPort(

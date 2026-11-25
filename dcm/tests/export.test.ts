@@ -461,6 +461,24 @@ describe("buildExport: port conflicts", () => {
     ])
   })
 
+  test("reserves host ports in verbatim lists aligned with the ports key", () => {
+    const reserved = portEntry("reserved", "", "127.0.0.1:8081:80")
+    reserved.composeContent = reserved.composeContent?.replace(
+      "      - ",
+      "    - ",
+    )
+    const exported = buildExport(
+      ["app-one", "app-two", "reserved"],
+      {
+        entries: [portEntry("app-one", ""), portEntry("app-two", ""), reserved],
+      },
+      DEFAULT_SETTINGS,
+    )
+    const services = servicesOf(exported.compose)
+    expect(services.reserved.ports).toEqual(["127.0.0.1:8081:80"])
+    expect(services["app-two"].ports).toEqual(["8082:80"])
+  })
+
   test("handles list-style environment", () => {
     const { one, two } = portConflict(
       "    environment:\n      - APP_URL=http://${LAN_IP}:8080",
